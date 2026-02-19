@@ -1,6 +1,9 @@
+use uuid::Uuid;
+
 use crate::error::AppError;
 use crate::models::mcp::{
-    AddMcpRequest, CursorMigrationResult, McpScope, McpServer, RemoveMcpRequest,
+    AddMcpRequest, CursorMigrationResult, CursorRulesImportResult, McpScope, McpServer,
+    RemoveMcpRequest,
 };
 use crate::models::settings::AppSettings;
 use crate::services::cursor_migration;
@@ -65,4 +68,28 @@ pub fn update_app_settings(
     *current = settings;
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn detect_cursorrules(state: State<'_, AppState>, repo_id: String) -> Result<bool, AppError> {
+    let id: Uuid = repo_id
+        .parse()
+        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+    let repos = state.repositories.lock().unwrap();
+    let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+    Ok(cursor_migration::detect_cursorrules(&repo.path))
+}
+
+#[tauri::command]
+pub fn import_cursorrules(
+    state: State<'_, AppState>,
+    repo_id: String,
+    overwrite: bool,
+) -> Result<CursorRulesImportResult, AppError> {
+    let id: Uuid = repo_id
+        .parse()
+        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+    let repos = state.repositories.lock().unwrap();
+    let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+    cursor_migration::import_cursorrules(&repo.path, overwrite)
 }

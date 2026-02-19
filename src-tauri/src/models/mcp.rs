@@ -52,3 +52,12 @@ pub struct CursorMigrationResult {
     pub mcp_servers_imported: usize,
     pub rules_found: bool,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CursorRulesImportResult {
+    pub rules_found: bool,
+    pub claude_md_existed: bool,
+    pub written: bool,
+    pub claude_md_path: String,
+}

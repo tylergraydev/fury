@@ -36,6 +36,10 @@ pub fn run() {
             commands::workspace::get_linked_workspaces,
             commands::workspace::start_spotlight,
             commands::workspace::stop_spotlight,
+            commands::workspace::list_archived_workspaces,
+            commands::workspace::restore_workspace,
+            commands::workspace::update_workspace_notes,
+            commands::workspace::rename_workspace,
             // Agent commands
             commands::agent::send_message,
             commands::agent::stop_agent,
@@ -84,6 +88,8 @@ pub fn run() {
             commands::mcp::import_cursor_config,
             commands::mcp::get_app_settings,
             commands::mcp::update_app_settings,
+            commands::mcp::detect_cursorrules,
+            commands::mcp::import_cursorrules,
         ])
         .setup(|app| {
             let app_data_dir = app

@@ -98,6 +98,7 @@ pub async fn spawn_and_stream(
     worktree_path: &Path,
     env_vars: HashMap<String, String>,
     linked_dirs: Vec<PathBuf>,
+    system_prompt_additions: Option<&str>,
     app_handle: AppHandle,
 ) -> Result<Child, AppError> {
     let claude_bin = find_claude_binary()?;
@@ -120,6 +121,14 @@ pub async fn spawn_and_stream(
     for dir in &linked_dirs {
         args.push("--add-dir".to_string());
         args.push(dir.to_string_lossy().to_string());
+    }
+
+    // Add system prompt additions
+    if let Some(prompt) = system_prompt_additions {
+        if !prompt.is_empty() {
+            args.push("--append-system-prompt".to_string());
+            args.push(prompt.to_string());
+        }
     }
 
     let mut cmd = Command::new(&claude_bin);

@@ -6,16 +6,21 @@ import { useAgentStore } from "../../stores/agentStore";
 import { NewWorkspaceDialog } from "../workspace/NewWorkspaceDialog";
 import { RepoSettingsPanel } from "../settings/RepoSettingsPanel";
 import { LinkWorkspaceDialog } from "../workspace/LinkWorkspaceDialog";
+import type { WorkspaceInfo } from "../../lib/tauri";
 
 export function Sidebar() {
   const { repositories, loadRepositories, addRepo } = useRepositoryStore();
   const {
     workspaces,
+    archivedWorkspaces,
     activeWorkspaceId,
     activeRepoId,
     setActive,
     setActiveRepo,
     loadWorkspaces,
+    loadArchivedWorkspaces,
+    restoreWs,
+    renameWs,
   } = useWorkspaceStore();
   const [newWsRepoId, setNewWsRepoId] = useState<string | null>(null);
   const [settingsRepoId, setSettingsRepoId] = useState<string | null>(null);
@@ -25,11 +30,18 @@ export function Sidebar() {
     name: string;
     repoId: string;
   } | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
     loadRepositories();
     loadWorkspaces();
   }, [loadRepositories, loadWorkspaces]);
+
+  useEffect(() => {
+    if (showArchived) {
+      loadArchivedWorkspaces();
+    }
+  }, [showArchived, loadArchivedWorkspaces]);
 
   const handleAddRepo = async () => {
     setRepoError(null);
@@ -151,10 +163,41 @@ export function Sidebar() {
                         repoId: repo.id,
                       })
                     }
+                    onRename={(newName) => renameWs(ws.id, newName)}
                   />
                 ))}
             </div>
           ))
+        )}
+      </div>
+
+      {/* Archived workspaces section */}
+      <div style={{ borderTop: "1px solid var(--border)" }}>
+        <button
+          onClick={() => setShowArchived(!showArchived)}
+          className="flex w-full items-center justify-between px-3 py-1.5 text-[10px]"
+          style={{ color: "var(--text-muted)" }}
+        >
+          <span>
+            Archived{archivedWorkspaces.length > 0 ? ` (${archivedWorkspaces.length})` : ""}
+          </span>
+          <span>{showArchived ? "\u25BC" : "\u25B6"}</span>
+        </button>
+        {showArchived &&
+          archivedWorkspaces.map((ws) => (
+            <ArchivedWorkspaceItem
+              key={ws.id}
+              workspace={ws}
+              onRestore={restoreWs}
+            />
+          ))}
+        {showArchived && archivedWorkspaces.length === 0 && (
+          <div
+            className="px-4 py-1.5 text-[10px]"
+            style={{ color: "var(--text-muted)" }}
+          >
+            No archived workspaces
+          </div>
         )}
       </div>
 
@@ -265,6 +308,7 @@ function WorkspaceItem({
   isActive,
   onClick,
   onLink,
+  onRename,
 }: {
   id: string;
   name: string;
@@ -273,11 +317,14 @@ function WorkspaceItem({
   isActive: boolean;
   onClick: () => void;
   onLink: () => void;
+  onRename: (newName: string) => void;
 }) {
   const agentStatus = useAgentStore((s) => s.getStatus(id));
   const isRunning = agentStatus === "Running";
   const isAgentError =
     typeof agentStatus === "object" && "Error" in agentStatus;
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(name);
 
   const dotColor = isRunning
     ? "var(--success)"
@@ -286,6 +333,20 @@ function WorkspaceItem({
       : wsStatus === "Active"
         ? "var(--success)"
         : "var(--text-muted)";
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditName(name);
+    setEditing(true);
+  };
+
+  const handleRenameSubmit = () => {
+    const trimmed = editName.trim();
+    if (trimmed && trimmed !== name) {
+      onRename(trimmed);
+    }
+    setEditing(false);
+  };
 
   return (
     <div
@@ -300,7 +361,25 @@ function WorkspaceItem({
           className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${isRunning ? "animate-pulse" : ""}`}
           style={{ backgroundColor: dotColor }}
         />
-        <span className="truncate">{name}</span>
+        {editing ? (
+          <input
+            className="min-w-0 flex-1 rounded border-none bg-[var(--bg-primary)] px-1 text-xs outline-none"
+            style={{ color: "var(--text-primary)" }}
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            onBlur={handleRenameSubmit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleRenameSubmit();
+              if (e.key === "Escape") setEditing(false);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            autoFocus
+          />
+        ) : (
+          <span className="truncate" onDoubleClick={handleDoubleClick}>
+            {name}
+          </span>
+        )}
         <span
           className="ml-auto truncate text-[10px]"
           style={{ color: "var(--text-muted)" }}
@@ -318,6 +397,59 @@ function WorkspaceItem({
         title="Link workspaces"
       >
         ⇔
+      </button>
+    </div>
+  );
+}
+
+function ArchivedWorkspaceItem({
+  workspace,
+  onRestore,
+}: {
+  workspace: WorkspaceInfo;
+  onRestore: (id: string) => Promise<void>;
+}) {
+  const [restoring, setRestoring] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleRestore = async () => {
+    setRestoring(true);
+    setError(null);
+    try {
+      await onRestore(workspace.id);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  return (
+    <div
+      className="group flex items-center gap-2 px-4 py-1.5 text-xs"
+      style={{ color: "var(--text-muted)" }}
+    >
+      <span
+        className="h-1.5 w-1.5 flex-shrink-0 rounded-full"
+        style={{ backgroundColor: "var(--text-muted)", opacity: 0.4 }}
+      />
+      <span
+        className="flex-1 truncate"
+        style={{ textDecoration: "line-through", opacity: 0.7 }}
+        title={error ?? undefined}
+      >
+        {workspace.name}
+      </span>
+      <span className="truncate text-[10px]" style={{ opacity: 0.5 }}>
+        {workspace.branch}
+      </span>
+      <button
+        onClick={handleRestore}
+        disabled={restoring}
+        className="hidden flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] group-hover:block"
+        style={{ color: error ? "var(--error)" : "var(--accent)" }}
+      >
+        {restoring ? "..." : error ? "Failed" : "Restore"}
       </button>
     </div>
   );

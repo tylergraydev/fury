@@ -67,6 +67,7 @@ pub struct WorkspaceInfo {
     pub status: WorkspaceStatus,
     pub port_base: u16,
     pub created_at: DateTime<Utc>,
+    pub archived_at: Option<DateTime<Utc>>,
 }
 
 impl From<&Workspace> for WorkspaceInfo {
@@ -79,6 +80,7 @@ impl From<&Workspace> for WorkspaceInfo {
             status: ws.status.clone(),
             port_base: ws.port_base,
             created_at: ws.created_at,
+            archived_at: ws.archived_at,
         }
     }
 }

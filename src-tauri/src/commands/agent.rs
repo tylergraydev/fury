@@ -157,6 +157,12 @@ pub async fn send_message(
         vec![]
     };
 
+    // Get system prompt additions
+    let system_prompt = {
+        let settings = state.settings.lock().unwrap();
+        settings.system_prompt_additions.clone()
+    };
+
     // Spawn Claude Code process
     let child = claude_process::spawn_and_stream(
         context_id,
@@ -165,6 +171,7 @@ pub async fn send_message(
         &working_dir,
         env_vars,
         linked_dirs,
+        system_prompt.as_deref(),
         app.clone(),
     )
     .await?;

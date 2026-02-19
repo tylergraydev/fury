@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::error::AppError;
-use crate::models::mcp::{CursorMigrationResult, McpScope, McpServer};
+use crate::models::mcp::{CursorMigrationResult, CursorRulesImportResult, McpScope, McpServer};
 use crate::services::mcp as mcp_svc;
 
 /// Check if Cursor MCP config exists at ~/.cursor/mcp.json.
@@ -106,4 +106,69 @@ pub fn import_cursor_mcp_servers() -> Result<CursorMigrationResult, AppError> {
 /// Check if .cursorrules exists in a repo directory.
 pub fn detect_cursorrules(repo_path: &Path) -> bool {
     repo_path.join(".cursorrules").exists()
+}
+
+/// Read the content of a .cursorrules file.
+pub fn read_cursorrules(repo_path: &Path) -> Result<String, AppError> {
+    let rules_path = repo_path.join(".cursorrules");
+    std::fs::read_to_string(&rules_path)
+        .map_err(|e| AppError::McpError(format!("Failed to read .cursorrules: {}", e)))
+}
+
+/// Convert .cursorrules content to CLAUDE.md format.
+pub fn convert_cursorrules_to_claude_md(rules_content: &str) -> String {
+    let mut output = String::new();
+    output.push_str("# Project Guidelines\n\n");
+    output.push_str("<!-- Imported from .cursorrules -->\n\n");
+    output.push_str(rules_content.trim());
+    output.push('\n');
+    output
+}
+
+/// Import .cursorrules into CLAUDE.md for a given repo.
+pub fn import_cursorrules(
+    repo_path: &Path,
+    overwrite: bool,
+) -> Result<CursorRulesImportResult, AppError> {
+    if !detect_cursorrules(repo_path) {
+        return Ok(CursorRulesImportResult {
+            rules_found: false,
+            claude_md_existed: false,
+            written: false,
+            claude_md_path: String::new(),
+        });
+    }
+
+    let claude_md_path = repo_path.join("CLAUDE.md");
+    let claude_md_existed = claude_md_path.exists();
+
+    if claude_md_existed && !overwrite {
+        return Ok(CursorRulesImportResult {
+            rules_found: true,
+            claude_md_existed: true,
+            written: false,
+            claude_md_path: claude_md_path.to_string_lossy().to_string(),
+        });
+    }
+
+    let rules_content = read_cursorrules(repo_path)?;
+    let claude_md_content = convert_cursorrules_to_claude_md(&rules_content);
+
+    if claude_md_existed && overwrite {
+        let existing = std::fs::read_to_string(&claude_md_path)
+            .map_err(|e| AppError::McpError(format!("Failed to read CLAUDE.md: {}", e)))?;
+        let merged = format!("{}\n---\n\n{}", claude_md_content.trim(), existing);
+        std::fs::write(&claude_md_path, merged)
+            .map_err(|e| AppError::McpError(format!("Failed to write CLAUDE.md: {}", e)))?;
+    } else {
+        std::fs::write(&claude_md_path, &claude_md_content)
+            .map_err(|e| AppError::McpError(format!("Failed to write CLAUDE.md: {}", e)))?;
+    }
+
+    Ok(CursorRulesImportResult {
+        rules_found: true,
+        claude_md_existed,
+        written: true,
+        claude_md_path: claude_md_path.to_string_lossy().to_string(),
+    })
 }

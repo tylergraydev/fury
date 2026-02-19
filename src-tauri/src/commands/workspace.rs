@@ -349,6 +349,129 @@ pub fn stop_spotlight(
     Ok(())
 }
 
+#[tauri::command]
+pub fn list_archived_workspaces(
+    state: State<'_, AppState>,
+) -> Result<Vec<WorkspaceInfo>, AppError> {
+    let db = state.db.lock().unwrap();
+    if let Some(db) = db.as_ref() {
+        let workspaces = db.list_archived_workspaces()?;
+        Ok(workspaces.iter().map(WorkspaceInfo::from).collect())
+    } else {
+        Ok(vec![])
+    }
+}
+
+#[tauri::command]
+pub fn restore_workspace(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<WorkspaceInfo, AppError> {
+    let id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    // Load from DB (archived workspaces are not in memory)
+    let mut ws = {
+        let db = state.db.lock().unwrap();
+        let db = db
+            .as_ref()
+            .ok_or_else(|| AppError::DbError("No database".to_string()))?;
+        let archived = db.list_archived_workspaces()?;
+        archived
+            .into_iter()
+            .find(|w| w.id == id)
+            .ok_or(AppError::WorkspaceNotFound(id))?
+    };
+
+    // Validate worktree still exists on disk
+    if !ws.worktree_path.exists() {
+        return Err(AppError::GitError(format!(
+            "Worktree path no longer exists: {}",
+            ws.worktree_path.display()
+        )));
+    }
+
+    // Update status
+    ws.status = WorkspaceStatus::Active;
+    ws.archived_at = None;
+
+    // Persist to DB
+    {
+        let db = state.db.lock().unwrap();
+        if let Some(db) = db.as_ref() {
+            db.update_workspace_status(&id, &WorkspaceStatus::Active)?;
+        }
+    }
+
+    let info = WorkspaceInfo::from(&ws);
+
+    // Re-add to in-memory state
+    state.workspaces.lock().unwrap().insert(ws.id, ws);
+
+    let _ = app.emit("workspace-restored", &info);
+    Ok(info)
+}
+
+#[tauri::command]
+pub fn update_workspace_notes(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    notes: String,
+) -> Result<(), AppError> {
+    let id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    // Update in-memory
+    {
+        let mut workspaces = state.workspaces.lock().unwrap();
+        if let Some(ws) = workspaces.get_mut(&id) {
+            ws.notes = notes.clone();
+        }
+    }
+
+    // Persist
+    {
+        let db = state.db.lock().unwrap();
+        if let Some(db) = db.as_ref() {
+            db.update_workspace_notes(&id, &notes)?;
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn rename_workspace(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    name: String,
+) -> Result<(), AppError> {
+    let id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    // Update in-memory
+    {
+        let mut workspaces = state.workspaces.lock().unwrap();
+        if let Some(ws) = workspaces.get_mut(&id) {
+            ws.name = name.clone();
+        }
+    }
+
+    // Persist
+    {
+        let db = state.db.lock().unwrap();
+        if let Some(db) = db.as_ref() {
+            db.update_workspace_name(&id, &name)?;
+        }
+    }
+
+    Ok(())
+}
+
 /// Spawn a script in the background without blocking the calling command.
 /// Used for auto-running setup scripts on workspace creation and archive scripts on archival.
 fn fire_and_forget_script(

@@ -18,6 +18,7 @@ export interface WorkspaceInfo {
   status: WorkspaceStatus;
   portBase: number;
   createdAt: string;
+  archivedAt: string | null;
 }
 
 export type WorkspaceStatus =
@@ -571,5 +572,56 @@ export async function getSlashCommandContent(
   return invoke<SlashCommand | null>("get_slash_command_content", {
     workspaceId,
     name,
+  });
+}
+
+// Archived workspace commands
+export async function listArchivedWorkspaces(): Promise<WorkspaceInfo[]> {
+  return invoke<WorkspaceInfo[]>("list_archived_workspaces");
+}
+
+export async function restoreWorkspace(
+  workspaceId: string,
+): Promise<WorkspaceInfo> {
+  return invoke<WorkspaceInfo>("restore_workspace", { workspaceId });
+}
+
+// Workspace notes and rename commands
+export async function updateWorkspaceNotes(
+  workspaceId: string,
+  notes: string,
+): Promise<void> {
+  return invoke("update_workspace_notes", { workspaceId, notes });
+}
+
+export async function renameWorkspace(
+  workspaceId: string,
+  name: string,
+): Promise<void> {
+  return invoke("rename_workspace", { workspaceId, name });
+}
+
+// Cursorrules conversion types
+export interface CursorRulesImportResult {
+  rulesFound: boolean;
+  claudeMdExisted: boolean;
+  written: boolean;
+  claudeMdPath: string;
+}
+
+// Cursorrules commands
+export async function detectCursorrules(
+  repoId: string,
+): Promise<boolean> {
+  return invoke<boolean>("detect_cursorrules", { repoId });
+}
+
+export async function importCursorrules(
+  repoId: string,
+  overwrite: boolean,
+): Promise<CursorRulesImportResult> {
+  return invoke<CursorRulesImportResult>("import_cursorrules", {
+    repoId,
+    overwrite,
   });
 }
