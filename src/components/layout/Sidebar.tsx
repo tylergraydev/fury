@@ -5,6 +5,7 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { NewWorkspaceDialog } from "../workspace/NewWorkspaceDialog";
 import { RepoSettingsPanel } from "../settings/RepoSettingsPanel";
+import { LinkWorkspaceDialog } from "../workspace/LinkWorkspaceDialog";
 
 export function Sidebar() {
   const { repositories, loadRepositories, addRepo } = useRepositoryStore();
@@ -19,6 +20,11 @@ export function Sidebar() {
   const [newWsRepoId, setNewWsRepoId] = useState<string | null>(null);
   const [settingsRepoId, setSettingsRepoId] = useState<string | null>(null);
   const [repoError, setRepoError] = useState<string | null>(null);
+  const [linkWs, setLinkWs] = useState<{
+    id: string;
+    name: string;
+    repoId: string;
+  } | null>(null);
 
   useEffect(() => {
     loadRepositories();
@@ -138,6 +144,13 @@ export function Sidebar() {
                     wsStatus={ws.status}
                     isActive={activeWorkspaceId === ws.id}
                     onClick={() => setActive(ws.id)}
+                    onLink={() =>
+                      setLinkWs({
+                        id: ws.id,
+                        name: ws.name,
+                        repoId: repo.id,
+                      })
+                    }
                   />
                 ))}
             </div>
@@ -179,6 +192,16 @@ export function Sidebar() {
             repositories.find((r) => r.id === settingsRepoId)?.name ?? ""
           }
           onClose={() => setSettingsRepoId(null)}
+        />
+      )}
+
+      {/* Link workspace dialog */}
+      {linkWs && (
+        <LinkWorkspaceDialog
+          workspaceId={linkWs.id}
+          workspaceName={linkWs.name}
+          repoId={linkWs.repoId}
+          onClose={() => setLinkWs(null)}
         />
       )}
     </div>
@@ -241,6 +264,7 @@ function WorkspaceItem({
   wsStatus,
   isActive,
   onClick,
+  onLink,
 }: {
   id: string;
   name: string;
@@ -248,6 +272,7 @@ function WorkspaceItem({
   wsStatus: string | { Error: string };
   isActive: boolean;
   onClick: () => void;
+  onLink: () => void;
 }) {
   const agentStatus = useAgentStore((s) => s.getStatus(id));
   const isRunning = agentStatus === "Running";
@@ -263,25 +288,37 @@ function WorkspaceItem({
         : "var(--text-muted)";
 
   return (
-    <button
-      onClick={onClick}
-      className="flex w-full items-center gap-2 px-4 py-1.5 text-left text-xs"
+    <div
+      className="group flex w-full items-center gap-2 px-4 py-1.5 text-left text-xs"
       style={{
         backgroundColor: isActive ? "var(--bg-surface)" : "transparent",
         color: "var(--text-primary)",
       }}
     >
-      <span
-        className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${isRunning ? "animate-pulse" : ""}`}
-        style={{ backgroundColor: dotColor }}
-      />
-      <span className="truncate">{name}</span>
-      <span
-        className="ml-auto truncate text-[10px]"
+      <button onClick={onClick} className="flex min-w-0 flex-1 items-center gap-2">
+        <span
+          className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${isRunning ? "animate-pulse" : ""}`}
+          style={{ backgroundColor: dotColor }}
+        />
+        <span className="truncate">{name}</span>
+        <span
+          className="ml-auto truncate text-[10px]"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {branch}
+        </span>
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onLink();
+        }}
+        className="hidden flex-shrink-0 rounded px-1 text-[10px] group-hover:block hover:bg-[var(--bg-hover)]"
         style={{ color: "var(--text-muted)" }}
+        title="Link workspaces"
       >
-        {branch}
-      </span>
-    </button>
+        ⇔
+      </button>
+    </div>
   );
 }

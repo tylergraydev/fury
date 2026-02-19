@@ -52,7 +52,24 @@ pub async fn send_message(
             (ws, repo)
         };
         let settings = state.settings.lock().unwrap().clone();
-        let env = claude_process::build_env_vars(&workspace, &repo, &settings);
+        let mut env = claude_process::build_env_vars(&workspace, &repo, &settings);
+
+        // Agent teams: add sibling workspace names
+        if settings.experimental.agent_teams {
+            let workspaces = state.workspaces.lock().unwrap();
+            let siblings: Vec<String> = workspaces
+                .values()
+                .filter(|ws| ws.repo_id == workspace.repo_id && ws.id != workspace.id)
+                .map(|ws| ws.name.clone())
+                .collect();
+            if !siblings.is_empty() {
+                env.insert(
+                    "CONDUCTOR_TEAM_WORKSPACES".to_string(),
+                    siblings.join(","),
+                );
+            }
+        }
+
         (workspace.worktree_path.clone(), env)
     } else {
         // Repo mode: use repo path directly
@@ -122,6 +139,24 @@ pub async fn send_message(
         },
     );
 
+    // Resolve linked workspace directories (for --add-dir)
+    let linked_dirs = if request.workspace_id.is_some() {
+        let db = state.db.lock().unwrap();
+        if let Some(db) = db.as_ref() {
+            let link_ids = db.get_workspace_links(&context_id).unwrap_or_default();
+            let workspaces = state.workspaces.lock().unwrap();
+            link_ids
+                .iter()
+                .filter_map(|id| workspaces.get(id))
+                .map(|ws| ws.worktree_path.clone())
+                .collect()
+        } else {
+            vec![]
+        }
+    } else {
+        vec![]
+    };
+
     // Spawn Claude Code process
     let child = claude_process::spawn_and_stream(
         context_id,
@@ -129,6 +164,7 @@ pub async fn send_message(
         session_id.as_deref(),
         &working_dir,
         env_vars,
+        linked_dirs,
         app.clone(),
     )
     .await?;

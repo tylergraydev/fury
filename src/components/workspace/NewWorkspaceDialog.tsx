@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { listBranches } from "../../lib/tauri";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { SparseDirsEditor } from "./SparseDirsEditor";
 
 interface Props {
   repoId: string;
@@ -17,6 +18,8 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
   const [loadingBranches, setLoadingBranches] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [enableSparse, setEnableSparse] = useState(false);
+  const [sparseDirs, setSparseDirs] = useState<string[]>([]);
 
   // Fetch branches on mount
   useEffect(() => {
@@ -50,6 +53,7 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
         repoId,
         workspaceName: name.trim(),
         branchName: branch.trim(),
+        sparseDirs: enableSparse && sparseDirs.length > 0 ? sparseDirs : undefined,
       });
       onClose();
     } catch (e) {
@@ -176,6 +180,35 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
               className="w-full rounded px-2 py-1.5 text-xs"
               style={inputStyle}
             />
+          )}
+        </div>
+
+        {/* Monorepo sparse checkout */}
+        <div className="mb-3">
+          <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+            <input
+              type="checkbox"
+              checked={enableSparse}
+              onChange={(e) => {
+                setEnableSparse(e.target.checked);
+                if (!e.target.checked) setSparseDirs([]);
+              }}
+            />
+            Monorepo (sparse checkout)
+          </label>
+          {enableSparse && (
+            <div className="mt-2">
+              <SparseDirsEditor
+                repoId={repoId}
+                selectedDirs={sparseDirs}
+                onChange={setSparseDirs}
+              />
+              {sparseDirs.length > 0 && (
+                <div className="mt-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
+                  {sparseDirs.length} director{sparseDirs.length === 1 ? "y" : "ies"} selected
+                </div>
+              )}
+            </div>
           )}
         </div>
 

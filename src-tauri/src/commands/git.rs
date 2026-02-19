@@ -1,3 +1,5 @@
+use std::process::Command;
+
 use crate::error::AppError;
 use crate::models::diff::{DiffResult, FileDiffContent};
 use crate::services::diff as diff_svc;
@@ -49,4 +51,49 @@ pub fn get_file_diff(
     };
 
     diff_svc::get_file_diff_content(&worktree_path, &default_branch, &file_path)
+}
+
+#[tauri::command]
+pub fn list_repo_directories(
+    state: State<'_, AppState>,
+    repo_id: String,
+    depth: Option<u32>,
+) -> Result<Vec<String>, AppError> {
+    let id: Uuid = repo_id
+        .parse()
+        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+
+    let repo_path = {
+        let repos = state.repositories.lock().unwrap();
+        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+        repo.path.clone()
+    };
+
+    let depth = depth.unwrap_or(1);
+    let mut args = vec!["ls-tree", "--name-only", "-d"];
+    let depth_str;
+    if depth > 1 {
+        depth_str = format!("-r");
+        args.push(&depth_str);
+    }
+    args.push("HEAD");
+
+    let output = Command::new("git")
+        .args(&args)
+        .current_dir(&repo_path)
+        .output()?;
+
+    if !output.status.success() {
+        return Err(AppError::GitError(
+            String::from_utf8_lossy(&output.stderr).to_string(),
+        ));
+    }
+
+    let dirs = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(String::from)
+        .collect();
+
+    Ok(dirs)
 }

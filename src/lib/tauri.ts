@@ -508,6 +508,55 @@ export async function updateAppSettings(
   return invoke("update_app_settings", { settings });
 }
 
+// Sparse checkout commands
+export async function listRepoDirectories(
+  repoId: string,
+  depth?: number,
+): Promise<string[]> {
+  return invoke<string[]>("list_repo_directories", { repoId, depth });
+}
+
+export async function updateSparseDirs(
+  workspaceId: string,
+  dirs: string[],
+): Promise<void> {
+  return invoke("update_sparse_dirs", { workspaceId, dirs });
+}
+
+// Workspace linking commands
+export async function linkWorkspaces(
+  workspaceId: string,
+  linkedWorkspaceId: string,
+): Promise<void> {
+  return invoke("link_workspaces", { workspaceId, linkedWorkspaceId });
+}
+
+export async function unlinkWorkspaces(
+  workspaceId: string,
+  linkedWorkspaceId: string,
+): Promise<void> {
+  return invoke("unlink_workspaces", { workspaceId, linkedWorkspaceId });
+}
+
+export async function getLinkedWorkspaces(
+  workspaceId: string,
+): Promise<string[]> {
+  return invoke<string[]>("get_linked_workspaces", { workspaceId });
+}
+
+// Spotlight commands
+export async function startSpotlight(
+  workspaceId: string,
+): Promise<void> {
+  return invoke("start_spotlight", { workspaceId });
+}
+
+export async function stopSpotlight(
+  workspaceId: string,
+): Promise<void> {
+  return invoke("stop_spotlight", { workspaceId });
+}
+
 // Slash command commands
 export async function listSlashCommands(
   workspaceId: string,

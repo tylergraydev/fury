@@ -184,6 +184,171 @@ pub fn delete_workspace(state: State<'_, AppState>, workspace_id: String) -> Res
     Ok(())
 }
 
+#[tauri::command]
+pub fn update_sparse_dirs(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    dirs: Vec<String>,
+) -> Result<(), AppError> {
+    let id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let worktree_path = {
+        let workspaces = state.workspaces.lock().unwrap();
+        let ws = workspaces.get(&id).ok_or(AppError::WorkspaceNotFound(id))?;
+        ws.worktree_path.clone()
+    };
+
+    // Apply or disable sparse checkout
+    if dirs.is_empty() {
+        let _ = std::process::Command::new("git")
+            .args(["sparse-checkout", "disable"])
+            .current_dir(&worktree_path)
+            .output();
+    } else {
+        worktree::apply_sparse_checkout(&worktree_path, &dirs)?;
+    }
+
+    let sparse_dirs = if dirs.is_empty() { None } else { Some(dirs) };
+
+    // Update in-memory state
+    {
+        let mut workspaces = state.workspaces.lock().unwrap();
+        if let Some(ws) = workspaces.get_mut(&id) {
+            ws.sparse_dirs = sparse_dirs.clone();
+        }
+    }
+
+    // Persist to database
+    {
+        let db = state.db.lock().unwrap();
+        if let Some(db) = db.as_ref() {
+            db.update_workspace_sparse_dirs(&id, &sparse_dirs)?;
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn link_workspaces(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    linked_workspace_id: String,
+) -> Result<(), AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let linked_id: Uuid = linked_workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    // Verify both workspaces exist
+    {
+        let workspaces = state.workspaces.lock().unwrap();
+        workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        workspaces
+            .get(&linked_id)
+            .ok_or(AppError::WorkspaceNotFound(linked_id))?;
+    }
+
+    let db = state.db.lock().unwrap();
+    if let Some(db) = db.as_ref() {
+        db.insert_workspace_link(&ws_id, &linked_id)?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn unlink_workspaces(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    linked_workspace_id: String,
+) -> Result<(), AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let linked_id: Uuid = linked_workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let db = state.db.lock().unwrap();
+    if let Some(db) = db.as_ref() {
+        db.delete_workspace_link(&ws_id, &linked_id)?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_linked_workspaces(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<Vec<String>, AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let db = state.db.lock().unwrap();
+    if let Some(db) = db.as_ref() {
+        let ids = db.get_workspace_links(&ws_id)?;
+        Ok(ids.into_iter().map(|id| id.to_string()).collect())
+    } else {
+        Ok(vec![])
+    }
+}
+
+#[tauri::command]
+pub fn start_spotlight(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<(), AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let (worktree_path, repo_path) = {
+        let workspaces = state.workspaces.lock().unwrap();
+        let ws = workspaces.get(&ws_id).ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        let repos = state.repositories.lock().unwrap();
+        let repo = repos
+            .get(&ws.repo_id)
+            .ok_or(AppError::RepoNotFound(ws.repo_id))?;
+        (ws.worktree_path.clone(), repo.path.clone())
+    };
+
+    let handle =
+        crate::services::spotlight::start_spotlight(worktree_path, repo_path)?;
+
+    state
+        .spotlight_watchers
+        .lock()
+        .unwrap()
+        .insert(ws_id, handle);
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn stop_spotlight(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<(), AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    if let Some(handle) = state.spotlight_watchers.lock().unwrap().remove(&ws_id) {
+        handle.stop();
+    }
+
+    Ok(())
+}
+
 /// Spawn a script in the background without blocking the calling command.
 /// Used for auto-running setup scripts on workspace creation and archive scripts on archival.
 fn fire_and_forget_script(

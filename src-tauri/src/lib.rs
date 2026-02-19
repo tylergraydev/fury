@@ -29,6 +29,12 @@ pub fn run() {
             commands::workspace::list_workspaces,
             commands::workspace::archive_workspace,
             commands::workspace::delete_workspace,
+            commands::workspace::update_sparse_dirs,
+            commands::workspace::link_workspaces,
+            commands::workspace::unlink_workspaces,
+            commands::workspace::get_linked_workspaces,
+            commands::workspace::start_spotlight,
+            commands::workspace::stop_spotlight,
             // Agent commands
             commands::agent::send_message,
             commands::agent::stop_agent,
@@ -40,6 +46,7 @@ pub fn run() {
             // Git/diff commands
             commands::git::get_diff,
             commands::git::get_file_diff,
+            commands::git::list_repo_directories,
             // Script commands
             commands::script::run_script,
             commands::script::stop_script,

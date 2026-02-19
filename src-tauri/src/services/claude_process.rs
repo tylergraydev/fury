@@ -56,6 +56,11 @@ pub fn build_env_vars(
         env.insert(key.clone(), value.clone());
     }
 
+    // Agent teams experimental feature
+    if settings.experimental.agent_teams {
+        env.insert("CONDUCTOR_AGENT_TEAMS".to_string(), "true".to_string());
+    }
+
     env
 }
 
@@ -92,6 +97,7 @@ pub async fn spawn_and_stream(
     session_id: Option<&str>,
     worktree_path: &Path,
     env_vars: HashMap<String, String>,
+    linked_dirs: Vec<PathBuf>,
     app_handle: AppHandle,
 ) -> Result<Child, AppError> {
     let claude_bin = find_claude_binary()?;
@@ -108,6 +114,12 @@ pub async fn spawn_and_stream(
     if let Some(sid) = session_id {
         args.push("--resume".to_string());
         args.push(sid.to_string());
+    }
+
+    // Add linked workspace directories
+    for dir in &linked_dirs {
+        args.push("--add-dir".to_string());
+        args.push(dir.to_string_lossy().to_string());
     }
 
     let mut cmd = Command::new(&claude_bin);

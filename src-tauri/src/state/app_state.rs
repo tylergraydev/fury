@@ -4,6 +4,7 @@ use crate::models::repository::Repository;
 use crate::models::settings::AppSettings;
 use crate::models::workspace::Workspace;
 use crate::services::port_allocator::PortAllocator;
+use crate::services::spotlight::SpotlightHandle;
 use crate::services::terminal::TerminalSession;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -24,6 +25,8 @@ pub struct AppState {
     pub script_processes: Arc<Mutex<HashMap<String, Child>>>,
     /// Terminal PTY sessions — keyed by terminal session ID
     pub terminal_sessions: Arc<Mutex<HashMap<Uuid, TerminalSession>>>,
+    /// Spotlight file watchers — keyed by workspace ID
+    pub spotlight_watchers: Arc<Mutex<HashMap<Uuid, SpotlightHandle>>>,
 }
 
 impl AppState {
@@ -38,6 +41,7 @@ impl AppState {
             agent_processes: Arc::new(Mutex::new(HashMap::new())),
             script_processes: Arc::new(Mutex::new(HashMap::new())),
             terminal_sessions: Arc::new(Mutex::new(HashMap::new())),
+            spotlight_watchers: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }

@@ -430,4 +430,51 @@ impl Database {
         )?;
         Ok(())
     }
+
+    // Workspace sparse dirs
+
+    pub fn update_workspace_sparse_dirs(
+        &self,
+        id: &Uuid,
+        dirs: &Option<Vec<String>>,
+    ) -> Result<(), AppError> {
+        let json = dirs.as_ref().map(|d| serde_json::to_string(d).unwrap());
+        self.conn.execute(
+            "UPDATE workspaces SET sparse_dirs = ?1 WHERE id = ?2",
+            rusqlite::params![json, id.to_string()],
+        )?;
+        Ok(())
+    }
+
+    // Workspace links
+
+    pub fn insert_workspace_link(&self, ws_id: &Uuid, linked_id: &Uuid) -> Result<(), AppError> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO workspace_links (workspace_id, linked_workspace_id) VALUES (?1, ?2)",
+            rusqlite::params![ws_id.to_string(), linked_id.to_string()],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_workspace_link(&self, ws_id: &Uuid, linked_id: &Uuid) -> Result<(), AppError> {
+        self.conn.execute(
+            "DELETE FROM workspace_links WHERE workspace_id = ?1 AND linked_workspace_id = ?2",
+            rusqlite::params![ws_id.to_string(), linked_id.to_string()],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_workspace_links(&self, ws_id: &Uuid) -> Result<Vec<Uuid>, AppError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT linked_workspace_id FROM workspace_links WHERE workspace_id = ?1")?;
+        let ids = stmt
+            .query_map(rusqlite::params![ws_id.to_string()], |row| {
+                row.get::<_, String>(0)
+            })?
+            .filter_map(|r| r.ok())
+            .filter_map(|s| s.parse::<Uuid>().ok())
+            .collect();
+        Ok(ids)
+    }
 }

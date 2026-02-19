@@ -32,6 +32,8 @@ which = "7"
 tauri-plugin-dialog = "2.6.0"
 portable-pty = "0.9"
 base64 = "0.22"
+notify = "7"
+notify-debouncer-full = "0.4"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
