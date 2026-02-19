@@ -1,0 +1,627 @@
+import { invoke } from "@tauri-apps/api/core";
+
+// Repository types
+export interface Repository {
+  id: string;
+  name: string;
+  path: string;
+  defaultBranch: string;
+  currentBranch: string | null;
+}
+
+// Workspace types
+export interface WorkspaceInfo {
+  id: string;
+  repoId: string;
+  name: string;
+  branch: string;
+  status: WorkspaceStatus;
+  portBase: number;
+  createdAt: string;
+  archivedAt: string | null;
+}
+
+export type WorkspaceStatus =
+  | "Creating"
+  | "Active"
+  | "Archived"
+  | { Error: string };
+
+export interface CreateWorkspaceRequest {
+  repoId: string;
+  workspaceName: string;
+  branchName: string;
+  sparseDirs?: string[];
+}
+
+// Repository commands
+export async function addRepository(path: string): Promise<Repository> {
+  return invoke<Repository>("add_repository", { path });
+}
+
+export async function removeRepository(repoId: string): Promise<void> {
+  return invoke("remove_repository", { repoId });
+}
+
+export async function listRepositories(): Promise<Repository[]> {
+  return invoke<Repository[]>("list_repositories");
+}
+
+export async function listBranches(repoId: string): Promise<string[]> {
+  return invoke<string[]>("list_branches", { repoId });
+}
+
+// Workspace commands
+export async function createWorkspace(
+  request: CreateWorkspaceRequest,
+): Promise<WorkspaceInfo> {
+  return invoke<WorkspaceInfo>("create_workspace", { request });
+}
+
+export async function listWorkspaces(): Promise<WorkspaceInfo[]> {
+  return invoke<WorkspaceInfo[]>("list_workspaces");
+}
+
+export async function archiveWorkspace(workspaceId: string): Promise<void> {
+  return invoke("archive_workspace", { workspaceId });
+}
+
+export async function deleteWorkspace(workspaceId: string): Promise<void> {
+  return invoke("delete_workspace", { workspaceId });
+}
+
+// Agent types
+export type AgentStatus =
+  | "Idle"
+  | "Running"
+  | "Stopping"
+  | { Error: string };
+
+export interface AgentInfo {
+  workspaceId: string;
+  sessionId: string | null;
+  status: AgentStatus;
+  startedAt: string | null;
+}
+
+export interface SendMessageRequest {
+  workspaceId?: string;
+  repoId?: string;
+  message: string;
+}
+
+export interface AgentStatusEvent {
+  workspaceId: string;
+  status: AgentStatus;
+}
+
+// Stream event types from Claude Code
+export type FrontendStreamEvent =
+  | { type: "system"; sessionId: string | null; message: string | null }
+  | { type: "assistantText"; text: string }
+  | { type: "toolUse"; id: string; name: string; input: unknown }
+  | { type: "toolResult"; toolUseId: string; content: string }
+  | { type: "result"; isError: boolean; result: string | null; sessionId: string | null };
+
+// Chat types
+export type MessageRole = "user" | "assistant" | "system";
+
+export type ContentBlock =
+  | { type: "text"; text: string }
+  | { type: "toolUse"; id: string; name: string; input: unknown }
+  | { type: "toolResult"; toolUseId: string; content: string };
+
+export interface ChatMessage {
+  id: string;
+  role: MessageRole;
+  content: ContentBlock[];
+  timestamp: number;
+}
+
+// Agent commands
+export async function sendMessage(request: SendMessageRequest): Promise<void> {
+  return invoke("send_message", { request });
+}
+
+export async function stopAgent(workspaceId: string): Promise<void> {
+  return invoke("stop_agent", { workspaceId });
+}
+
+export async function getAgentStatus(workspaceId: string): Promise<AgentInfo> {
+  return invoke<AgentInfo>("get_agent_status", { workspaceId });
+}
+
+export async function clearSession(workspaceId: string): Promise<void> {
+  return invoke("clear_session", { workspaceId });
+}
+
+// Checkpoint types
+export interface Checkpoint {
+  id: string;
+  workspaceId: string;
+  sessionId: string;
+  turnIndex: number;
+  refName: string;
+  treeSha: string;
+  commitSha: string;
+  createdAt: string;
+  userMessage: string;
+}
+
+// Diff types
+export interface DiffResult {
+  files: FileDiff[];
+  totalAdditions: number;
+  totalDeletions: number;
+}
+
+export interface FileDiff {
+  path: string;
+  status: FileStatus;
+  additions: number;
+  deletions: number;
+}
+
+export type FileStatus =
+  | "Added"
+  | "Modified"
+  | "Deleted"
+  | { Renamed: { from: string } }
+  | "Untracked";
+
+export interface FileDiffContent {
+  path: string;
+  original: string;
+  modified: string;
+  language: string;
+}
+
+// Checkpoint commands
+export async function listCheckpoints(
+  workspaceId: string,
+): Promise<Checkpoint[]> {
+  return invoke<Checkpoint[]>("list_checkpoints", { workspaceId });
+}
+
+export async function revertToCheckpoint(
+  workspaceId: string,
+  checkpointId: string,
+): Promise<void> {
+  return invoke("revert_to_checkpoint", { workspaceId, checkpointId });
+}
+
+// Diff commands
+export async function getDiff(workspaceId: string): Promise<DiffResult> {
+  return invoke<DiffResult>("get_diff", { workspaceId });
+}
+
+export async function getFileDiff(
+  workspaceId: string,
+  filePath: string,
+): Promise<FileDiffContent> {
+  return invoke<FileDiffContent>("get_file_diff", { workspaceId, filePath });
+}
+
+// Script types
+export type ScriptKind = "setup" | "run" | "archive";
+
+export interface ScriptOutputEvent {
+  line: string;
+  stream: "stdout" | "stderr";
+}
+
+export interface ScriptExitEvent {
+  exitCode: number | null;
+  success: boolean;
+}
+
+export interface RepoSettings {
+  setupScript: string | null;
+  runScript: string | null;
+  archiveScript: string | null;
+  runScriptMode: "concurrent" | "nonconcurrent";
+  envVars: Record<string, string>;
+}
+
+// Script commands
+export async function runScript(
+  workspaceId: string,
+  scriptKind: ScriptKind,
+): Promise<void> {
+  return invoke("run_script", { workspaceId, scriptKind });
+}
+
+export async function stopScript(
+  workspaceId: string,
+  scriptKind: ScriptKind,
+): Promise<void> {
+  return invoke("stop_script", { workspaceId, scriptKind });
+}
+
+export async function getRepoSettings(
+  repoId: string,
+): Promise<RepoSettings> {
+  return invoke<RepoSettings>("get_repo_settings", { repoId });
+}
+
+export async function updateRepoSettings(
+  repoId: string,
+  settings: RepoSettings,
+): Promise<void> {
+  return invoke("update_repo_settings", { repoId, settings });
+}
+
+// Terminal commands
+export async function createTerminal(
+  workspaceId: string,
+  cols: number,
+  rows: number,
+): Promise<string> {
+  return invoke<string>("create_terminal", { workspaceId, cols, rows });
+}
+
+export async function writeTerminal(
+  terminalId: string,
+  data: string,
+): Promise<void> {
+  return invoke("write_terminal", { terminalId, data });
+}
+
+export async function resizeTerminal(
+  terminalId: string,
+  cols: number,
+  rows: number,
+): Promise<void> {
+  return invoke("resize_terminal", { terminalId, cols, rows });
+}
+
+export async function closeTerminal(terminalId: string): Promise<void> {
+  return invoke("close_terminal", { terminalId });
+}
+
+// PR types
+export interface PrInfo {
+  workspaceId: string;
+  prNumber: number | null;
+  prUrl: string | null;
+  title: string | null;
+  state: string | null;
+  checks: PrCheck[];
+  mergeable: string | null;
+}
+
+export interface PrCheck {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  detailsUrl: string | null;
+  description: string | null;
+}
+
+export interface CreatePrRequest {
+  workspaceId: string;
+  title: string;
+  body: string;
+  draft?: boolean;
+}
+
+export interface MergeResult {
+  success: boolean;
+  message: string;
+  mergeMethod: string;
+}
+
+// PR commands
+export async function createPr(request: CreatePrRequest): Promise<PrInfo> {
+  return invoke<PrInfo>("create_pr", { request });
+}
+
+export async function getPrInfo(workspaceId: string): Promise<PrInfo> {
+  return invoke<PrInfo>("get_pr_info", { workspaceId });
+}
+
+export async function getPrChecks(workspaceId: string): Promise<PrCheck[]> {
+  return invoke<PrCheck[]>("get_pr_checks", { workspaceId });
+}
+
+export async function pushChanges(workspaceId: string): Promise<void> {
+  return invoke("push_changes", { workspaceId });
+}
+
+export async function fixFailingChecks(workspaceId: string): Promise<string> {
+  return invoke<string>("fix_failing_checks", { workspaceId });
+}
+
+export async function mergePr(
+  workspaceId: string,
+  mergeMethod?: string,
+): Promise<MergeResult> {
+  return invoke<MergeResult>("merge_pr", { workspaceId, mergeMethod });
+}
+
+// Todo types
+export interface TodoItem {
+  id: string;
+  workspaceId: string;
+  text: string;
+  completed: boolean;
+  sortOrder: number;
+}
+
+export interface CreateTodoRequest {
+  workspaceId: string;
+  text: string;
+}
+
+export interface UpdateTodoRequest {
+  id: string;
+  workspaceId: string;
+  text?: string;
+  completed?: boolean;
+}
+
+export interface ReorderTodosRequest {
+  workspaceId: string;
+  todoIds: string[];
+}
+
+export interface TodoSummary {
+  total: number;
+  completed: number;
+  allCompleted: boolean;
+  items: TodoItem[];
+}
+
+// Slash command types
+export interface SlashCommand {
+  name: string;
+  source: "global" | "project";
+  description: string;
+  content: string;
+}
+
+// Todo commands
+export async function addTodo(request: CreateTodoRequest): Promise<TodoItem> {
+  return invoke<TodoItem>("add_todo", { request });
+}
+
+export async function updateTodo(request: UpdateTodoRequest): Promise<void> {
+  return invoke("update_todo", { request });
+}
+
+export async function deleteTodo(todoId: string): Promise<void> {
+  return invoke("delete_todo", { todoId });
+}
+
+export async function listTodos(workspaceId: string): Promise<TodoItem[]> {
+  return invoke<TodoItem[]>("list_todos", { workspaceId });
+}
+
+export async function toggleTodo(todoId: string): Promise<boolean> {
+  return invoke<boolean>("toggle_todo", { todoId });
+}
+
+export async function reorderTodos(
+  request: ReorderTodosRequest,
+): Promise<void> {
+  return invoke("reorder_todos", { request });
+}
+
+export async function getTodoSummary(
+  workspaceId: string,
+): Promise<TodoSummary> {
+  return invoke<TodoSummary>("get_todo_summary", { workspaceId });
+}
+
+// MCP types
+export type McpScope = "global" | "project";
+
+export interface McpServer {
+  name: string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  scope: McpScope;
+}
+
+export interface AddMcpRequest {
+  name: string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  scope: McpScope;
+}
+
+export interface RemoveMcpRequest {
+  name: string;
+  scope: McpScope;
+}
+
+export interface CursorMigrationResult {
+  mcpServersFound: number;
+  mcpServersImported: number;
+  rulesFound: boolean;
+}
+
+// App settings types
+export type ProviderType =
+  | "Anthropic"
+  | "OpenRouter"
+  | "VercelAIGateway"
+  | "Bedrock"
+  | "Vertex"
+  | "AzureFoundry"
+  | "Custom";
+
+export interface ProviderConfig {
+  providerType: ProviderType;
+  envVars: Record<string, string>;
+}
+
+export interface ExperimentalSettings {
+  spotlightTesting: boolean;
+  agentTeams: boolean;
+}
+
+export interface AppSettings {
+  theme: "light" | "dark" | "system";
+  provider: ProviderConfig;
+  systemPromptAdditions: string | null;
+  analyticsEnabled: boolean;
+  experimental: ExperimentalSettings;
+}
+
+// MCP commands
+export async function listMcpServers(
+  scope?: string,
+): Promise<McpServer[]> {
+  return invoke<McpServer[]>("list_mcp_servers", { scope });
+}
+
+export async function addMcpServer(
+  request: AddMcpRequest,
+): Promise<void> {
+  return invoke("add_mcp_server", { request });
+}
+
+export async function removeMcpServer(
+  request: RemoveMcpRequest,
+): Promise<void> {
+  return invoke("remove_mcp_server", { request });
+}
+
+export async function detectCursorConfig(): Promise<boolean> {
+  return invoke<boolean>("detect_cursor_config");
+}
+
+export async function importCursorConfig(): Promise<CursorMigrationResult> {
+  return invoke<CursorMigrationResult>("import_cursor_config");
+}
+
+// App settings commands
+export async function getAppSettings(): Promise<AppSettings> {
+  return invoke<AppSettings>("get_app_settings");
+}
+
+export async function updateAppSettings(
+  settings: AppSettings,
+): Promise<void> {
+  return invoke("update_app_settings", { settings });
+}
+
+// Sparse checkout commands
+export async function listRepoDirectories(
+  repoId: string,
+  depth?: number,
+): Promise<string[]> {
+  return invoke<string[]>("list_repo_directories", { repoId, depth });
+}
+
+export async function updateSparseDirs(
+  workspaceId: string,
+  dirs: string[],
+): Promise<void> {
+  return invoke("update_sparse_dirs", { workspaceId, dirs });
+}
+
+// Workspace linking commands
+export async function linkWorkspaces(
+  workspaceId: string,
+  linkedWorkspaceId: string,
+): Promise<void> {
+  return invoke("link_workspaces", { workspaceId, linkedWorkspaceId });
+}
+
+export async function unlinkWorkspaces(
+  workspaceId: string,
+  linkedWorkspaceId: string,
+): Promise<void> {
+  return invoke("unlink_workspaces", { workspaceId, linkedWorkspaceId });
+}
+
+export async function getLinkedWorkspaces(
+  workspaceId: string,
+): Promise<string[]> {
+  return invoke<string[]>("get_linked_workspaces", { workspaceId });
+}
+
+// Spotlight commands
+export async function startSpotlight(
+  workspaceId: string,
+): Promise<void> {
+  return invoke("start_spotlight", { workspaceId });
+}
+
+export async function stopSpotlight(
+  workspaceId: string,
+): Promise<void> {
+  return invoke("stop_spotlight", { workspaceId });
+}
+
+// Slash command commands
+export async function listSlashCommands(
+  workspaceId: string,
+): Promise<SlashCommand[]> {
+  return invoke<SlashCommand[]>("list_slash_commands", { workspaceId });
+}
+
+export async function getSlashCommandContent(
+  workspaceId: string,
+  name: string,
+): Promise<SlashCommand | null> {
+  return invoke<SlashCommand | null>("get_slash_command_content", {
+    workspaceId,
+    name,
+  });
+}
+
+// Archived workspace commands
+export async function listArchivedWorkspaces(): Promise<WorkspaceInfo[]> {
+  return invoke<WorkspaceInfo[]>("list_archived_workspaces");
+}
+
+export async function restoreWorkspace(
+  workspaceId: string,
+): Promise<WorkspaceInfo> {
+  return invoke<WorkspaceInfo>("restore_workspace", { workspaceId });
+}
+
+// Workspace notes and rename commands
+export async function updateWorkspaceNotes(
+  workspaceId: string,
+  notes: string,
+): Promise<void> {
+  return invoke("update_workspace_notes", { workspaceId, notes });
+}
+
+export async function renameWorkspace(
+  workspaceId: string,
+  name: string,
+): Promise<void> {
+  return invoke("rename_workspace", { workspaceId, name });
+}
+
+// Cursorrules conversion types
+export interface CursorRulesImportResult {
+  rulesFound: boolean;
+  claudeMdExisted: boolean;
+  written: boolean;
+  claudeMdPath: string;
+}
+
+// Cursorrules commands
+export async function detectCursorrules(
+  repoId: string,
+): Promise<boolean> {
+  return invoke<boolean>("detect_cursorrules", { repoId });
+}
+
+export async function importCursorrules(
+  repoId: string,
+  overwrite: boolean,
+): Promise<CursorRulesImportResult> {
+  return invoke<CursorRulesImportResult>("import_cursorrules", {
+    repoId,
+    overwrite,
+  });
+}

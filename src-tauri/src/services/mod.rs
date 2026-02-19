@@ -1,0 +1,13 @@
+pub mod checkpoint;
+pub mod claude_process;
+pub mod conductor_json;
+pub mod cursor_migration;
+pub mod diff;
+pub mod gh;
+pub mod mcp;
+pub mod port_allocator;
+pub mod spotlight;
+pub mod script_runner;
+pub mod slash_commands;
+pub mod terminal;
+pub mod worktree;
