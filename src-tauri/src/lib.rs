@@ -68,6 +68,14 @@ pub fn run() {
             // Slash command commands
             commands::slash_command::list_slash_commands,
             commands::slash_command::get_slash_command_content,
+            // MCP + Settings commands
+            commands::mcp::list_mcp_servers,
+            commands::mcp::add_mcp_server,
+            commands::mcp::remove_mcp_server,
+            commands::mcp::detect_cursor_config,
+            commands::mcp::import_cursor_config,
+            commands::mcp::get_app_settings,
+            commands::mcp::update_app_settings,
         ])
         .setup(|app| {
             let app_data_dir = app
@@ -94,6 +102,11 @@ pub fn run() {
                         for ws in workspaces {
                             ws_map.insert(ws.id, ws);
                         }
+                    }
+
+                    // Restore app settings from database
+                    if let Ok(settings) = database.get_app_settings() {
+                        *state.settings.lock().unwrap() = settings;
                     }
 
                     *state.db.lock().unwrap() = Some(database);

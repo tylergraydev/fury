@@ -412,6 +412,102 @@ export async function getTodoSummary(
   return invoke<TodoSummary>("get_todo_summary", { workspaceId });
 }
 
+// MCP types
+export type McpScope = "global" | "project";
+
+export interface McpServer {
+  name: string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  scope: McpScope;
+}
+
+export interface AddMcpRequest {
+  name: string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  scope: McpScope;
+}
+
+export interface RemoveMcpRequest {
+  name: string;
+  scope: McpScope;
+}
+
+export interface CursorMigrationResult {
+  mcpServersFound: number;
+  mcpServersImported: number;
+  rulesFound: boolean;
+}
+
+// App settings types
+export type ProviderType =
+  | "Anthropic"
+  | "OpenRouter"
+  | "VercelAIGateway"
+  | "Bedrock"
+  | "Vertex"
+  | "AzureFoundry"
+  | "Custom";
+
+export interface ProviderConfig {
+  providerType: ProviderType;
+  envVars: Record<string, string>;
+}
+
+export interface ExperimentalSettings {
+  spotlightTesting: boolean;
+  agentTeams: boolean;
+}
+
+export interface AppSettings {
+  theme: "light" | "dark" | "system";
+  provider: ProviderConfig;
+  systemPromptAdditions: string | null;
+  analyticsEnabled: boolean;
+  experimental: ExperimentalSettings;
+}
+
+// MCP commands
+export async function listMcpServers(
+  scope?: string,
+): Promise<McpServer[]> {
+  return invoke<McpServer[]>("list_mcp_servers", { scope });
+}
+
+export async function addMcpServer(
+  request: AddMcpRequest,
+): Promise<void> {
+  return invoke("add_mcp_server", { request });
+}
+
+export async function removeMcpServer(
+  request: RemoveMcpRequest,
+): Promise<void> {
+  return invoke("remove_mcp_server", { request });
+}
+
+export async function detectCursorConfig(): Promise<boolean> {
+  return invoke<boolean>("detect_cursor_config");
+}
+
+export async function importCursorConfig(): Promise<CursorMigrationResult> {
+  return invoke<CursorMigrationResult>("import_cursor_config");
+}
+
+// App settings commands
+export async function getAppSettings(): Promise<AppSettings> {
+  return invoke<AppSettings>("get_app_settings");
+}
+
+export async function updateAppSettings(
+  settings: AppSettings,
+): Promise<void> {
+  return invoke("update_app_settings", { settings });
+}
+
 // Slash command commands
 export async function listSlashCommands(
   workspaceId: string,

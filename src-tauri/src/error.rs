@@ -36,6 +36,9 @@ pub enum AppError {
     #[error("PR operation failed: {0}")]
     PrError(String),
 
+    #[error("MCP operation failed: {0}")]
+    McpError(String),
+
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
 }

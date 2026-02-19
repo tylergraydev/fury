@@ -3,6 +3,7 @@ mod migrations;
 use crate::error::AppError;
 use crate::models::checkpoint::Checkpoint;
 use crate::models::repository::{RepoSettings, Repository, RunScriptMode};
+use crate::models::settings::AppSettings;
 use crate::models::todo::TodoItem;
 use crate::models::workspace::{Workspace, WorkspaceStatus};
 use rusqlite::Connection;
@@ -403,5 +404,30 @@ impl Database {
             Ok(Some(n)) => Ok(n + 1),
             Ok(None) | Err(_) => Ok(0),
         }
+    }
+
+    // App settings operations
+
+    pub fn get_app_settings(&self) -> Result<AppSettings, AppError> {
+        let result = self.conn.query_row(
+            "SELECT value FROM app_settings WHERE key = 'settings'",
+            [],
+            |row| row.get::<_, String>(0),
+        );
+        match result {
+            Ok(json) => serde_json::from_str(&json)
+                .map_err(|e| AppError::DbError(format!("Failed to parse app settings: {}", e))),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(AppSettings::default()),
+            Err(e) => Err(AppError::DbError(e.to_string())),
+        }
+    }
+
+    pub fn save_app_settings(&self, settings: &AppSettings) -> Result<(), AppError> {
+        let json = serde_json::to_string(settings)?;
+        self.conn.execute(
+            "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('settings', ?1)",
+            rusqlite::params![json],
+        )?;
+        Ok(())
     }
 }

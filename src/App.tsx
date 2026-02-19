@@ -11,6 +11,7 @@ import { useWorkspaceStore } from "./stores/workspaceStore";
 import { useRepositoryStore } from "./stores/repositoryStore";
 import { useAgentStore } from "./stores/agentStore";
 import { useUIStore } from "./stores/uiStore";
+import { AppSettingsPanel } from "./components/settings/AppSettingsPanel";
 import "./App.css";
 
 function MainPanel() {
@@ -141,6 +142,7 @@ function App() {
   const { activeWorkspaceId, activeRepoId, workspaces } = useWorkspaceStore();
   const { repositories } = useRepositoryStore();
   const viewMode = useUIStore((s) => s.viewMode);
+  const [showSettings, setShowSettings] = useState(false);
   const activeWs = workspaces.find((w) => w.id === activeWorkspaceId);
   const activeRepo = repositories.find((r) => r.id === activeRepoId);
 
@@ -168,6 +170,17 @@ function App() {
         }}
       >
         <span className="font-semibold">Missoula</span>
+        <button
+          onClick={() => setShowSettings(true)}
+          className="rounded px-1.5 py-0.5 text-[10px] transition-colors hover:opacity-80"
+          style={{
+            backgroundColor: "var(--bg-surface)",
+            color: "var(--text-muted)",
+          }}
+          title="Settings"
+        >
+          Settings
+        </button>
         {activeWs && (
           <>
             <span style={{ color: "var(--text-muted)" }}>|</span>
@@ -300,6 +313,10 @@ function App() {
           </Panel>
         </PanelGroup>
       </div>
+
+      {showSettings && (
+        <AppSettingsPanel onClose={() => setShowSettings(false)} />
+      )}
     </div>
   );
 }
