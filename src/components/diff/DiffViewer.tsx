@@ -26,33 +26,33 @@ function statusColor(status: FileStatus): string {
 }
 
 export function DiffViewer({ workspaceId }: Props) {
-  const {
-    loadDiff,
-    getDiffResult,
-    getSelectedFile,
-    getFileDiffContent,
-    selectFile,
-    refresh,
-    loading,
-  } = useDiffStore();
-  const agentStatus = useAgentStore((s) => s.getStatus(workspaceId));
-
-  const diffResult = getDiffResult(workspaceId);
-  const selectedFile = getSelectedFile(workspaceId);
-  const fileDiff = selectedFile
-    ? getFileDiffContent(workspaceId, selectedFile)
+  const diffResult = useDiffStore(
+    (s) => s.diffResults[workspaceId] ?? null,
+  );
+  const selectedFile = useDiffStore(
+    (s) => s.selectedFile[workspaceId] ?? null,
+  );
+  const fileDiffKey = selectedFile
+    ? `${workspaceId}:${selectedFile}`
     : null;
+  const fileDiff = useDiffStore((s) =>
+    fileDiffKey ? (s.fileDiffs[fileDiffKey] ?? null) : null,
+  );
+  const loading = useDiffStore((s) => s.loading);
+  const agentStatus = useAgentStore(
+    (s) => s.agents[workspaceId]?.status ?? "Idle",
+  );
 
   useEffect(() => {
-    loadDiff(workspaceId);
+    useDiffStore.getState().loadDiff(workspaceId);
   }, [workspaceId]);
 
   // Auto-refresh when agent finishes
   useEffect(() => {
     if (agentStatus === "Idle") {
-      refresh(workspaceId);
+      useDiffStore.getState().refresh(workspaceId);
     }
-  }, [agentStatus]);
+  }, [agentStatus, workspaceId]);
 
   if (loading && !diffResult) {
     return (
@@ -96,7 +96,7 @@ export function DiffViewer({ workspaceId }: Props) {
           -{diffResult.totalDeletions}
         </span>
         <button
-          onClick={() => refresh(workspaceId)}
+          onClick={() => useDiffStore.getState().refresh(workspaceId)}
           className="ml-auto rounded px-2 py-0.5 text-[10px] transition-colors hover:opacity-80"
           style={{
             backgroundColor: "var(--bg-surface)",
@@ -120,7 +120,7 @@ export function DiffViewer({ workspaceId }: Props) {
           {diffResult.files.map((file) => (
             <button
               key={file.path}
-              onClick={() => selectFile(workspaceId, file.path)}
+              onClick={() => useDiffStore.getState().selectFile(workspaceId, file.path)}
               className="flex w-full items-center gap-1.5 px-2 py-1 text-left text-xs transition-colors hover:opacity-80"
               style={{
                 backgroundColor:

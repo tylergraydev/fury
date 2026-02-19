@@ -123,7 +123,10 @@ export const usePrStore = create<PrStore>((set, get) => ({
         get().stopPolling(workspaceId);
       }
     } catch (e) {
-      // Silently ignore check refresh errors
+      console.error(`[prStore] Failed to refresh checks for ${workspaceId}:`, e);
+      set((state) => ({
+        error: { ...state.error, [workspaceId]: `Failed to refresh CI checks: ${String(e)}` },
+      }));
     }
   },
 

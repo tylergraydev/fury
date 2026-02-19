@@ -74,21 +74,35 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     message: string,
     contextType: "workspace" | "repo" = "workspace",
   ) => {
-    const request =
-      contextType === "workspace"
-        ? { workspaceId: contextId, message }
-        : { repoId: contextId, message };
-    await sendMessageCmd(request);
+    try {
+      const request =
+        contextType === "workspace"
+          ? { workspaceId: contextId, message }
+          : { repoId: contextId, message };
+      await sendMessageCmd(request);
+    } catch (e) {
+      console.error(`[agentStore] Failed to send message:`, e);
+      throw e;
+    }
   },
 
   stopAgent: async (workspaceId: string) => {
-    await stopAgentCmd(workspaceId);
+    try {
+      await stopAgentCmd(workspaceId);
+    } catch (e) {
+      console.error(`[agentStore] Failed to stop agent:`, e);
+      throw e;
+    }
   },
 
   fetchStatus: async (workspaceId: string) => {
-    const info = await getAgentStatus(workspaceId);
-    set((state) => ({
-      agents: { ...state.agents, [workspaceId]: info },
-    }));
+    try {
+      const info = await getAgentStatus(workspaceId);
+      set((state) => ({
+        agents: { ...state.agents, [workspaceId]: info },
+      }));
+    } catch (e) {
+      console.error(`[agentStore] Failed to fetch status:`, e);
+    }
   },
 }));

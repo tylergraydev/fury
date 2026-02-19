@@ -1,5 +1,8 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
+
+const EMPTY_FILES: string[] = [];
+const EMPTY_DIRS = new Set<string>();
 
 interface Props {
   workspaceId: string;
@@ -114,15 +117,21 @@ function TreeItem({
 }
 
 export function FileTreePanel({ workspaceId }: Props) {
-  const { loadFiles, getFiles, getExpandedDirs, toggleDir, loading, error } =
-    useFileTreeStore();
-
-  const files = getFiles(workspaceId);
-  const expandedDirs = getExpandedDirs(workspaceId);
+  const files = useFileTreeStore((s) => s.files[workspaceId] ?? EMPTY_FILES);
+  const expandedDirs = useFileTreeStore(
+    (s) => s.expandedDirs[workspaceId] ?? EMPTY_DIRS,
+  );
+  const loading = useFileTreeStore((s) => s.loading[workspaceId] ?? false);
+  const error = useFileTreeStore((s) => s.error[workspaceId] ?? null);
 
   useEffect(() => {
-    loadFiles(workspaceId);
-  }, [workspaceId, loadFiles]);
+    useFileTreeStore.getState().loadFiles(workspaceId);
+  }, [workspaceId]);
+
+  const handleToggle = useCallback(
+    (dir: string) => useFileTreeStore.getState().toggleDir(workspaceId, dir),
+    [workspaceId],
+  );
 
   if (loading && files.length === 0) {
     return (
@@ -153,7 +162,7 @@ export function FileTreePanel({ workspaceId }: Props) {
           node={node}
           depth={0}
           expanded={expandedDirs}
-          onToggle={(dir) => toggleDir(workspaceId, dir)}
+          onToggle={handleToggle}
         />
       ))}
     </div>

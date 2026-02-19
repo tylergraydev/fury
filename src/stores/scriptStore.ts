@@ -85,21 +85,35 @@ export const useScriptStore = create<ScriptStore>((set, get) => ({
     const k = key(workspaceId, kind);
     set((state) => ({
       running: { ...state.running, [k]: true },
-      exitCodes: { ...state.exitCodes, [k]: undefined as unknown as null },
+      exitCodes: { ...state.exitCodes, [k]: null },
       output: { ...state.output, [k]: [] },
     }));
-    await runScriptCmd(workspaceId, kind);
+    try {
+      await runScriptCmd(workspaceId, kind);
+    } catch (e) {
+      set((state) => ({
+        running: { ...state.running, [k]: false },
+        output: {
+          ...state.output,
+          [k]: [...(state.output[k] ?? []), `[error] Failed to start script: ${String(e)}`],
+        },
+      }));
+    }
   },
 
   stopScript: async (workspaceId: string, kind: ScriptKind) => {
-    await stopScriptCmd(workspaceId, kind);
+    try {
+      await stopScriptCmd(workspaceId, kind);
+    } catch (e) {
+      console.error(`[scriptStore] Failed to stop script:`, e);
+    }
   },
 
   clearOutput: (workspaceId: string, kind: ScriptKind) => {
     const k = key(workspaceId, kind);
     set((state) => ({
       output: { ...state.output, [k]: [] },
-      exitCodes: { ...state.exitCodes, [k]: undefined as unknown as null },
+      exitCodes: { ...state.exitCodes, [k]: null },
     }));
   },
 

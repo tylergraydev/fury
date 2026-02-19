@@ -26,37 +26,38 @@ function statusColor(status: FileStatus): string {
 }
 
 export function ChangesPanel({ workspaceId }: Props) {
-  const {
-    loadDiff,
-    getDiffResult,
-    getSelectedFile,
-    getFileDiffContent,
-    selectFile,
-    refresh,
-    loading,
-  } = useDiffStore();
-  const agentStatus = useAgentStore((s) => s.getStatus(workspaceId));
+  const diffResult = useDiffStore(
+    (s) => s.diffResults[workspaceId] ?? null,
+  );
+  const selectedFile = useDiffStore(
+    (s) => s.selectedFile[workspaceId] ?? null,
+  );
+  const fileDiffKey = selectedFile
+    ? `${workspaceId}:${selectedFile}`
+    : null;
+  const fileDiff = useDiffStore((s) =>
+    fileDiffKey ? (s.fileDiffs[fileDiffKey] ?? null) : null,
+  );
+  const loading = useDiffStore((s) => s.loading);
+  const error = useDiffStore((s) => s.error);
+  const agentStatus = useAgentStore(
+    (s) => s.agents[workspaceId]?.status ?? "Idle",
+  );
   const [showDiffModal, setShowDiffModal] = useState(false);
 
-  const diffResult = getDiffResult(workspaceId);
-  const selectedFile = getSelectedFile(workspaceId);
-  const fileDiff = selectedFile
-    ? getFileDiffContent(workspaceId, selectedFile)
-    : null;
-
   useEffect(() => {
-    loadDiff(workspaceId);
-  }, [workspaceId, loadDiff]);
+    useDiffStore.getState().loadDiff(workspaceId);
+  }, [workspaceId]);
 
   // Auto-refresh when agent finishes
   useEffect(() => {
     if (agentStatus === "Idle") {
-      refresh(workspaceId);
+      useDiffStore.getState().refresh(workspaceId);
     }
-  }, [agentStatus, workspaceId, refresh]);
+  }, [agentStatus, workspaceId]);
 
   const handleFileClick = (filePath: string) => {
-    selectFile(workspaceId, filePath);
+    useDiffStore.getState().selectFile(workspaceId, filePath);
     setShowDiffModal(true);
   };
 
@@ -67,6 +68,14 @@ export function ChangesPanel({ workspaceId }: Props) {
         style={{ color: "var(--text-muted)" }}
       >
         Loading changes...
+      </div>
+    );
+  }
+
+  if (error && !diffResult) {
+    return (
+      <div className="p-3 text-xs" style={{ color: "var(--error)" }}>
+        {error}
       </div>
     );
   }
@@ -104,7 +113,7 @@ export function ChangesPanel({ workspaceId }: Props) {
             -{diffResult.totalDeletions}
           </span>
           <button
-            onClick={() => refresh(workspaceId)}
+            onClick={() => useDiffStore.getState().refresh(workspaceId)}
             className="ml-auto rounded px-1.5 py-0.5 text-[10px] hover:opacity-80"
             style={{
               backgroundColor: "var(--bg-surface)",

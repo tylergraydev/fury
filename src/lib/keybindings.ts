@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 export const isMac =
-  typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+  typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
 
 export const modLabel = isMac ? "\u2318" : "Ctrl";
 

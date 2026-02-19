@@ -83,14 +83,23 @@ export const useCheckpointStore = create<CheckpointStore>((set, get) => ({
   },
 
   loadCheckpoints: async (workspaceId: string) => {
-    const checkpoints = await listCheckpointsCmd(workspaceId);
-    set((state) => ({
-      checkpoints: { ...state.checkpoints, [workspaceId]: checkpoints },
-    }));
+    try {
+      const checkpoints = await listCheckpointsCmd(workspaceId);
+      set((state) => ({
+        checkpoints: { ...state.checkpoints, [workspaceId]: checkpoints },
+      }));
+    } catch (e) {
+      console.error(`[checkpointStore] Failed to load checkpoints:`, e);
+    }
   },
 
   revertToCheckpoint: async (workspaceId: string, checkpointId: string) => {
-    await revertToCheckpointCmd(workspaceId, checkpointId);
+    try {
+      await revertToCheckpointCmd(workspaceId, checkpointId);
+    } catch (e) {
+      console.error(`[checkpointStore] Failed to revert checkpoint:`, e);
+      throw e;
+    }
   },
 
   getCheckpoints: (workspaceId: string) => {

@@ -6,15 +6,18 @@ interface NotesPanelProps {
   workspaceId: string;
 }
 
+const EMPTY_TODOS: TodoItem[] = [];
+
 export function NotesPanel({ workspaceId }: NotesPanelProps) {
-  const { loadTodos, addTodo } = useTodoStore();
-  const todos = useTodoStore((s) => s.getTodos(workspaceId));
-  const summary = useTodoStore((s) => s.getSummary(workspaceId));
+  const todos = useTodoStore((s) => s.todos[workspaceId] ?? EMPTY_TODOS);
   const loading = useTodoStore((s) => s.loading[workspaceId] ?? false);
+  const summaryTotal = todos.length;
+  const summaryCompleted = todos.filter((t) => t.completed).length;
+  const summaryAllCompleted = summaryTotal > 0 && summaryCompleted === summaryTotal;
 
   useEffect(() => {
-    loadTodos(workspaceId);
-  }, [workspaceId, loadTodos]);
+    useTodoStore.getState().loadTodos(workspaceId);
+  }, [workspaceId]);
 
   return (
     <div
@@ -34,12 +37,12 @@ export function NotesPanel({ workspaceId }: NotesPanelProps) {
             Todos
           </span>
           <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-            {summary.total > 0
-              ? `${summary.completed} of ${summary.total} completed`
+            {summaryTotal > 0
+              ? `${summaryCompleted} of ${summaryTotal} completed`
               : "No todos yet"}
           </span>
         </div>
-        {summary.total > 0 && (
+        {summaryTotal > 0 && (
           <div
             className="mt-1.5 h-1 rounded-full"
             style={{ backgroundColor: "var(--bg-surface)" }}
@@ -47,8 +50,8 @@ export function NotesPanel({ workspaceId }: NotesPanelProps) {
             <div
               className="h-1 rounded-full transition-all"
               style={{
-                width: `${(summary.completed / summary.total) * 100}%`,
-                backgroundColor: summary.allCompleted
+                width: `${(summaryCompleted / summaryTotal) * 100}%`,
+                backgroundColor: summaryAllCompleted
                   ? "var(--success)"
                   : "var(--accent)",
               }}
@@ -61,7 +64,7 @@ export function NotesPanel({ workspaceId }: NotesPanelProps) {
       <div className="flex-1 overflow-y-auto p-4">
         <div className="mx-auto max-w-lg space-y-3">
           {/* Merge blocking warning */}
-          {summary.total > 0 && !summary.allCompleted && (
+          {summaryTotal > 0 && !summaryAllCompleted && (
             <div
               className="rounded p-2 text-xs"
               style={{
@@ -77,7 +80,7 @@ export function NotesPanel({ workspaceId }: NotesPanelProps) {
           {/* Add todo input */}
           <AddTodoInput
             onAdd={async (text) => {
-              await addTodo(workspaceId, text);
+              await useTodoStore.getState().addTodo(workspaceId, text);
             }}
           />
 
@@ -166,7 +169,6 @@ function TodoList({
   workspaceId: string;
   todos: TodoItem[];
 }) {
-  const { toggleTodo, deleteTodo, updateTodo, reorderTodos } = useTodoStore();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
@@ -188,7 +190,7 @@ function TodoList({
     const ids = todos.map((t) => t.id);
     const [moved] = ids.splice(dragIndex, 1);
     ids.splice(index, 0, moved);
-    reorderTodos(workspaceId, ids);
+    useTodoStore.getState().reorderTodos(workspaceId, ids);
     setDragIndex(null);
     setDragOverIndex(null);
   };
@@ -209,10 +211,10 @@ function TodoList({
           todo={todo}
           isDragging={dragIndex === index}
           isDragOver={dragOverIndex === index}
-          onToggle={() => toggleTodo(workspaceId, todo.id)}
-          onDelete={() => deleteTodo(workspaceId, todo.id)}
+          onToggle={() => useTodoStore.getState().toggleTodo(workspaceId, todo.id)}
+          onDelete={() => useTodoStore.getState().deleteTodo(workspaceId, todo.id)}
           onEdit={(text) =>
-            updateTodo({ id: todo.id, workspaceId, text })
+            useTodoStore.getState().updateTodo({ id: todo.id, workspaceId, text })
           }
           onDragStart={() => handleDragStart(index)}
           onDragOver={(e) => handleDragOver(e, index)}

@@ -1,10 +1,15 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useCheckpointStore } from "../../stores/checkpointStore";
 import { useTodoStore } from "../../stores/todoStore";
+import type { ChatMessage, Checkpoint } from "../../lib/tauri";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
+
+// Stable references for empty defaults — avoids infinite re-render with useSyncExternalStore
+const EMPTY_MESSAGES: ChatMessage[] = [];
+const EMPTY_CHECKPOINTS: Checkpoint[] = [];
 
 interface Props {
   contextId: string;
@@ -12,61 +17,81 @@ interface Props {
 }
 
 export function ChatPanel({ contextId, contextType }: Props) {
-  const agentStore = useAgentStore();
-  const chatStore = useChatStore();
-  const checkpointStore = useCheckpointStore();
-
-  const agentStatus = agentStore.getStatus(contextId);
-  const messages = chatStore.getMessages(contextId);
-  const streamingText = chatStore.getStreamingText(contextId);
-  const checkpoints = checkpointStore.getCheckpoints(contextId);
-  const revertedTurnIndex = checkpointStore.getRevertedTurnIndex(contextId);
+  const agentStatus = useAgentStore(
+    (s) => s.agents[contextId]?.status ?? "Idle",
+  );
+  const messages = useChatStore(
+    (s) => s.messages[contextId] ?? EMPTY_MESSAGES,
+  );
+  const streamingText = useChatStore(
+    (s) => s.streamingText[contextId] ?? "",
+  );
+  const checkpoints = useCheckpointStore(
+    (s) => s.checkpoints[contextId] ?? EMPTY_CHECKPOINTS,
+  );
+  const revertedTurnIndex = useCheckpointStore(
+    (s) => s.revertedTurnIndex[contextId] ?? null,
+  );
 
   // Subscribe to events when context changes
   useEffect(() => {
-    agentStore.subscribe(contextId);
-    chatStore.subscribe(contextId);
-    agentStore.fetchStatus(contextId);
+    const agent = useAgentStore.getState();
+    const chat = useChatStore.getState();
+    const cp = useCheckpointStore.getState();
+
+    agent.subscribe(contextId);
+    chat.subscribe(contextId);
+    agent.fetchStatus(contextId);
 
     if (contextType === "workspace") {
-      checkpointStore.subscribe(contextId);
-      checkpointStore.loadCheckpoints(contextId);
+      cp.subscribe(contextId);
+      cp.loadCheckpoints(contextId);
       useTodoStore.getState().loadTodos(contextId);
     }
 
     return () => {
-      agentStore.unsubscribe(contextId);
-      chatStore.unsubscribe(contextId);
+      agent.unsubscribe(contextId);
+      chat.unsubscribe(contextId);
       if (contextType === "workspace") {
-        checkpointStore.unsubscribe(contextId);
+        cp.unsubscribe(contextId);
       }
     };
-  }, [contextId]);
+  }, [contextId, contextType]);
 
-  const handleSend = async (message: string) => {
-    chatStore.addUserMessage(contextId, message);
-    try {
-      await agentStore.sendMessage(contextId, message, contextType);
-    } catch (e) {
-      console.error("Failed to send message:", e);
-    }
-  };
+  const handleSend = useCallback(
+    async (message: string) => {
+      useChatStore.getState().addUserMessage(contextId, message);
+      try {
+        await useAgentStore
+          .getState()
+          .sendMessage(contextId, message, contextType);
+      } catch (e) {
+        console.error("Failed to send message:", e);
+      }
+    },
+    [contextId, contextType],
+  );
 
-  const handleStop = async () => {
+  const handleStop = useCallback(async () => {
     try {
-      await agentStore.stopAgent(contextId);
+      await useAgentStore.getState().stopAgent(contextId);
     } catch (e) {
       console.error("Failed to stop agent:", e);
     }
-  };
+  }, [contextId]);
 
-  const handleRevert = async (checkpointId: string) => {
-    try {
-      await checkpointStore.revertToCheckpoint(contextId, checkpointId);
-    } catch (e) {
-      console.error("Failed to revert:", e);
-    }
-  };
+  const handleRevert = useCallback(
+    async (checkpointId: string) => {
+      try {
+        await useCheckpointStore
+          .getState()
+          .revertToCheckpoint(contextId, checkpointId);
+      } catch (e) {
+        console.error("Failed to revert:", e);
+      }
+    },
+    [contextId],
+  );
 
   return (
     <div className="flex h-full flex-col">

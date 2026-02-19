@@ -1,7 +1,9 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import type { AgentStatus, SlashCommand } from "../../lib/tauri";
 import { useTodoStore } from "../../stores/todoStore";
 import { useSlashCommandStore } from "../../stores/slashCommandStore";
+
+const EMPTY_COMMANDS: SlashCommand[] = [];
 
 interface Props {
   workspaceId?: string;
@@ -34,9 +36,14 @@ export function Composer({ workspaceId, agentStatus, onSend, onStop }: Props) {
     }
   }, [workspaceId]);
 
-  const matchingCommands = workspaceId
-    ? useSlashCommandStore.getState().findMatching(workspaceId, slashFilter)
-    : [];
+  const allCommands = useSlashCommandStore((s) =>
+    workspaceId ? (s.commands[workspaceId] ?? EMPTY_COMMANDS) : EMPTY_COMMANDS,
+  );
+  const matchingCommands = useMemo(() => {
+    if (!slashFilter) return allCommands;
+    const lower = slashFilter.toLowerCase();
+    return allCommands.filter((c) => c.name.toLowerCase().startsWith(lower));
+  }, [allCommands, slashFilter]);
 
   const handleSend = useCallback(() => {
     if (!canSend) return;

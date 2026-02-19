@@ -11,26 +11,16 @@ interface PRPanelProps {
 }
 
 export function PRPanel({ workspaceId }: PRPanelProps) {
-  const {
-    subscribe,
-    unsubscribe,
-    loadPrInfo,
-    refreshChecks,
-    createPr,
-    pushChanges,
-    getFixMessage,
-    mergePr,
-  } = usePrStore();
-
   const prInfo = usePrStore((s) => s.prInfo[workspaceId] ?? null);
   const loading = usePrStore((s) => s.loading[workspaceId] ?? false);
   const error = usePrStore((s) => s.error[workspaceId] ?? null);
 
   useEffect(() => {
-    subscribe(workspaceId);
-    loadPrInfo(workspaceId);
-    return () => unsubscribe(workspaceId);
-  }, [workspaceId, subscribe, unsubscribe, loadPrInfo]);
+    const store = usePrStore.getState();
+    store.subscribe(workspaceId);
+    store.loadPrInfo(workspaceId);
+    return () => usePrStore.getState().unsubscribe(workspaceId);
+  }, [workspaceId]);
 
   const hasPr = prInfo?.prNumber != null;
   const isMerged = prInfo?.state === "MERGED";
@@ -57,17 +47,17 @@ export function PRPanel({ workspaceId }: PRPanelProps) {
         prInfo={prInfo}
         loading={loading}
         error={error}
-        onRefresh={() => refreshChecks(workspaceId)}
-        onPush={() => pushChanges(workspaceId)}
+        onRefresh={() => usePrStore.getState().refreshChecks(workspaceId)}
+        onPush={() => usePrStore.getState().pushChanges(workspaceId)}
         onFix={async () => {
-          const message = await getFixMessage(workspaceId);
+          const message = await usePrStore.getState().getFixMessage(workspaceId);
           if (message === "No failing checks found.") return;
           useChatStore.getState().addUserMessage(workspaceId, message);
           useAgentStore
             .getState()
             .sendMessage(workspaceId, message, "workspace");
         }}
-        onMerge={(method) => mergePr(workspaceId, method)}
+        onMerge={(method) => usePrStore.getState().mergePr(workspaceId, method)}
       />
     );
   }
@@ -78,7 +68,7 @@ export function PRPanel({ workspaceId }: PRPanelProps) {
       loading={loading}
       error={error}
       onCreate={(title, body, draft) =>
-        createPr({ workspaceId, title, body, draft })
+        usePrStore.getState().createPr({ workspaceId, title, body, draft })
       }
     />
   );
@@ -250,9 +240,14 @@ function PRStatusView({
     );
 
   // Todo merge blocking
-  const todoSummary = useTodoStore((s) => s.getSummary(workspaceId));
-  const hasPendingTodos =
-    todoSummary.total > 0 && !todoSummary.allCompleted;
+  const todoTotal = useTodoStore(
+    (s) => (s.todos[workspaceId] ?? []).length,
+  );
+  const todoCompleted = useTodoStore(
+    (s) => (s.todos[workspaceId] ?? []).filter((t) => t.completed).length,
+  );
+  const todosAllCompleted = todoTotal > 0 && todoCompleted === todoTotal;
+  const hasPendingTodos = todoTotal > 0 && !todosAllCompleted;
 
   // Load todos and start polling when checks are pending
   useEffect(() => {
@@ -336,19 +331,19 @@ function PRStatusView({
                   : prInfo.mergeable}
               </span>
             )}
-            {todoSummary.total > 0 && (
+            {todoTotal > 0 && (
               <span
                 className="rounded px-2 py-0.5"
                 style={{
-                  backgroundColor: todoSummary.allCompleted
+                  backgroundColor: todosAllCompleted
                     ? "color-mix(in srgb, var(--success) 15%, transparent)"
                     : "color-mix(in srgb, var(--warning) 15%, transparent)",
-                  color: todoSummary.allCompleted
+                  color: todosAllCompleted
                     ? "var(--success)"
                     : "var(--warning)",
                 }}
               >
-                Todos: {todoSummary.completed}/{todoSummary.total}
+                Todos: {todoCompleted}/{todoTotal}
               </span>
             )}
           </div>
@@ -363,7 +358,7 @@ function PRStatusView({
                 color: "var(--warning)",
               }}
             >
-              {todoSummary.completed} of {todoSummary.total} todos completed.
+              {todoCompleted} of {todoTotal} todos completed.
               Complete all todos before merging.
               <span className="ml-2 underline">
                 View Todos

@@ -17,6 +17,7 @@ import { ChecksPanel } from "../sidebar/ChecksPanel";
 import { TerminalPanel } from "../terminal/TerminalPanel";
 import { RunPanel } from "../terminal/RunPanel";
 import { SetupPanel } from "../terminal/SetupPanel";
+import { ErrorBoundary } from "../ErrorBoundary";
 
 interface Props {
   workspaceId: string;
@@ -39,10 +40,9 @@ export function RightSidebar({ workspaceId }: Props) {
   const setTab = useUIStore((s) => s.setRightSidebarTab);
   const bottomTab = useUIStore((s) => s.bottomTab);
   const setBottomTab = useUIStore((s) => s.setBottomTab);
-  const changeCount = useDiffStore((s) => {
-    const diff = s.getDiffResult(workspaceId);
-    return diff?.files.length ?? 0;
-  });
+  const changeCount = useDiffStore(
+    (s) => s.diffResults[workspaceId]?.files.length ?? 0,
+  );
 
   const bottomPanelRef = useRef<ImperativePanelHandle>(null);
   const [bottomCollapsed, setBottomCollapsed] = useState(false);
@@ -99,20 +99,22 @@ export function RightSidebar({ workspaceId }: Props) {
 
             {/* Tab content */}
             <div className="flex-1 overflow-hidden">
-              {activeTab === "files" && (
-                <FileTreePanel workspaceId={workspaceId} />
-              )}
-              {activeTab === "changes" && (
-                <ChangesPanel workspaceId={workspaceId} />
-              )}
-              {activeTab === "checks" && (
-                <ChecksPanel workspaceId={workspaceId} />
-              )}
+              <ErrorBoundary label={activeTab} resetKey={`${workspaceId}:${activeTab}`}>
+                {activeTab === "files" && (
+                  <FileTreePanel workspaceId={workspaceId} />
+                )}
+                {activeTab === "changes" && (
+                  <ChangesPanel workspaceId={workspaceId} />
+                )}
+                {activeTab === "checks" && (
+                  <ChecksPanel workspaceId={workspaceId} />
+                )}
+              </ErrorBoundary>
             </div>
           </div>
         </Panel>
 
-        <PanelResizeHandle className="resize-handle-v" style={{ cursor: "row-resize" }} />
+        <PanelResizeHandle className="resize-handle-v" />
 
         {/* Bottom section: toolbar + terminal content */}
         <Panel
@@ -170,15 +172,17 @@ export function RightSidebar({ workspaceId }: Props) {
             {/* Terminal content */}
             {!bottomCollapsed && (
               <div className="flex-1 overflow-hidden">
-                {bottomTab === "setup" && (
-                  <SetupPanel workspaceId={workspaceId} />
-                )}
-                {bottomTab === "terminal" && (
-                  <TerminalPanel workspaceId={workspaceId} />
-                )}
-                {bottomTab === "run" && (
-                  <RunPanel workspaceId={workspaceId} />
-                )}
+                <ErrorBoundary label={bottomTab} resetKey={`${workspaceId}:${bottomTab}`}>
+                  {bottomTab === "setup" && (
+                    <SetupPanel workspaceId={workspaceId} />
+                  )}
+                  {bottomTab === "terminal" && (
+                    <TerminalPanel workspaceId={workspaceId} />
+                  )}
+                  {bottomTab === "run" && (
+                    <RunPanel workspaceId={workspaceId} />
+                  )}
+                </ErrorBoundary>
               </div>
             )}
           </div>

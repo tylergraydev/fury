@@ -54,6 +54,7 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
       }));
     } catch (e) {
       console.error("Failed to load file diff:", e);
+      set({ error: String(e) });
     }
   },
 

@@ -1,24 +1,29 @@
 import { useEffect, useRef } from "react";
 import { useScriptStore } from "../../stores/scriptStore";
 
+const EMPTY_OUTPUT: string[] = [];
+
 interface Props {
   workspaceId: string;
 }
 
 export function SetupPanel({ workspaceId }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const output = useScriptStore((s) => s.getOutput(workspaceId, "setup"));
-  const running = useScriptStore((s) => s.isRunning(workspaceId, "setup"));
+  const output = useScriptStore(
+    (s) => s.output[`${workspaceId}:setup`] ?? EMPTY_OUTPUT,
+  );
+  const running = useScriptStore(
+    (s) => s.running[`${workspaceId}:setup`] ?? false,
+  );
   const exitCode = useScriptStore(
     (s) => s.exitCodes[`${workspaceId}:setup`],
   );
-  const { subscribe, unsubscribe, runScript, stopScript, clearOutput } =
-    useScriptStore();
 
   useEffect(() => {
-    subscribe(workspaceId, "setup");
-    return () => unsubscribe(workspaceId, "setup");
-  }, [workspaceId, subscribe, unsubscribe]);
+    const store = useScriptStore.getState();
+    store.subscribe(workspaceId, "setup");
+    return () => useScriptStore.getState().unsubscribe(workspaceId, "setup");
+  }, [workspaceId]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -58,7 +63,7 @@ export function SetupPanel({ workspaceId }: Props) {
             </span>
           )}
           <button
-            onClick={() => clearOutput(workspaceId, "setup")}
+            onClick={() => useScriptStore.getState().clearOutput(workspaceId, "setup")}
             className="rounded px-2 py-0.5"
             style={{
               backgroundColor: "var(--bg-surface)",
@@ -69,7 +74,7 @@ export function SetupPanel({ workspaceId }: Props) {
           </button>
           {running ? (
             <button
-              onClick={() => stopScript(workspaceId, "setup")}
+              onClick={() => useScriptStore.getState().stopScript(workspaceId, "setup")}
               className="rounded px-2 py-0.5"
               style={{
                 backgroundColor: "var(--error)",
@@ -80,7 +85,7 @@ export function SetupPanel({ workspaceId }: Props) {
             </button>
           ) : (
             <button
-              onClick={() => runScript(workspaceId, "setup")}
+              onClick={() => useScriptStore.getState().runScript(workspaceId, "setup")}
               className="rounded px-2 py-0.5"
               style={{
                 backgroundColor: "var(--accent)",

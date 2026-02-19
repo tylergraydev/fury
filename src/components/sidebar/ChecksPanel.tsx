@@ -10,11 +10,17 @@ interface Props {
   workspaceId: string;
 }
 
+function isCheckSuccess(conclusion: string | null): boolean {
+  return conclusion === "SUCCESS" || conclusion === "success";
+}
+
+function isCheckFailure(conclusion: string | null): boolean {
+  return conclusion === "FAILURE" || conclusion === "failure";
+}
+
 function CheckRow({ check }: { check: PrCheck }) {
-  const isSuccess =
-    check.conclusion === "SUCCESS" || check.conclusion === "success";
-  const isFailure =
-    check.conclusion === "FAILURE" || check.conclusion === "failure";
+  const isSuccess = isCheckSuccess(check.conclusion);
+  const isFailure = isCheckFailure(check.conclusion);
   const isPending = check.conclusion === null;
 
   const dotColor = isSuccess
@@ -142,17 +148,6 @@ function CreatePRInline({
 }
 
 export function ChecksPanel({ workspaceId }: Props) {
-  const {
-    subscribe,
-    unsubscribe,
-    loadPrInfo,
-    refreshChecks,
-    createPr,
-    pushChanges,
-    getFixMessage,
-    mergePr,
-  } = usePrStore();
-
   const prInfo = usePrStore((s) => s.prInfo[workspaceId] ?? null);
   const loading = usePrStore((s) => s.loading[workspaceId] ?? false);
   const error = usePrStore((s) => s.error[workspaceId] ?? null);
@@ -160,28 +155,30 @@ export function ChecksPanel({ workspaceId }: Props) {
   const [mergeMethod, setMergeMethod] = useState("squash");
 
   useEffect(() => {
-    subscribe(workspaceId);
-    loadPrInfo(workspaceId);
-    return () => unsubscribe(workspaceId);
-  }, [workspaceId, subscribe, unsubscribe, loadPrInfo]);
+    const store = usePrStore.getState();
+    store.subscribe(workspaceId);
+    store.loadPrInfo(workspaceId);
+    return () => usePrStore.getState().unsubscribe(workspaceId);
+  }, [workspaceId]);
 
   const hasPr = prInfo?.prNumber != null;
   const isMerged = prInfo?.state === "MERGED";
   const checks = prInfo?.checks ?? [];
-  const hasFailingChecks = checks.some(
-    (c) => c.conclusion === "FAILURE" || c.conclusion === "failure",
-  );
+  const hasFailingChecks = checks.some((c) => isCheckFailure(c.conclusion));
   const allChecksPassed =
-    checks.length > 0 &&
-    checks.every(
-      (c) => c.conclusion === "SUCCESS" || c.conclusion === "success",
-    );
+    checks.length > 0 && checks.every((c) => isCheckSuccess(c.conclusion));
   const hasPendingChecks = checks.some(
     (c) => c.conclusion === null && c.status !== "COMPLETED",
   );
 
-  const todoSummary = useTodoStore((s) => s.getSummary(workspaceId));
-  const hasPendingTodos = todoSummary.total > 0 && !todoSummary.allCompleted;
+  const todoTotal = useTodoStore(
+    (s) => (s.todos[workspaceId] ?? []).length,
+  );
+  const todoCompleted = useTodoStore(
+    (s) => (s.todos[workspaceId] ?? []).filter((t) => t.completed).length,
+  );
+  const todosAllCompleted = todoTotal > 0 && todoCompleted === todoTotal;
+  const hasPendingTodos = todoTotal > 0 && !todosAllCompleted;
 
   useEffect(() => {
     useTodoStore.getState().loadTodos(workspaceId);
@@ -191,12 +188,16 @@ export function ChecksPanel({ workspaceId }: Props) {
   }, [hasPendingChecks, workspaceId]);
 
   const handleFix = async () => {
-    const message = await getFixMessage(workspaceId);
-    if (message === "No failing checks found.") return;
-    useChatStore.getState().addUserMessage(workspaceId, message);
-    useAgentStore
-      .getState()
-      .sendMessage(workspaceId, message, "workspace");
+    try {
+      const message = await usePrStore.getState().getFixMessage(workspaceId);
+      if (message === "No failing checks found.") return;
+      useChatStore.getState().addUserMessage(workspaceId, message);
+      useAgentStore
+        .getState()
+        .sendMessage(workspaceId, message, "workspace");
+    } catch (e) {
+      console.error("[ChecksPanel] Failed to generate fix:", e);
+    }
   };
 
   // No PR yet - show creation form
@@ -207,7 +208,7 @@ export function ChecksPanel({ workspaceId }: Props) {
         loading={loading}
         error={error}
         onCreate={(title, body, draft) =>
-          createPr({ workspaceId, title, body, draft })
+          usePrStore.getState().createPr({ workspaceId, title, body, draft })
         }
       />
     );
@@ -284,19 +285,19 @@ export function ChecksPanel({ workspaceId }: Props) {
               : prInfo!.mergeable}
           </span>
         )}
-        {todoSummary.total > 0 && (
+        {todoTotal > 0 && (
           <span
             className="rounded px-1.5 py-0.5 text-[10px]"
             style={{
-              backgroundColor: todoSummary.allCompleted
+              backgroundColor: todosAllCompleted
                 ? "color-mix(in srgb, var(--success) 15%, transparent)"
                 : "color-mix(in srgb, var(--warning) 15%, transparent)",
-              color: todoSummary.allCompleted
+              color: todosAllCompleted
                 ? "var(--success)"
                 : "var(--warning)",
             }}
           >
-            Todos: {todoSummary.completed}/{todoSummary.total}
+            Todos: {todoCompleted}/{todoTotal}
           </span>
         )}
       </div>
@@ -322,7 +323,7 @@ export function ChecksPanel({ workspaceId }: Props) {
         >
           <span>CI Checks {checks.length > 0 && `(${checks.length})`}</span>
           <button
-            onClick={() => refreshChecks(workspaceId)}
+            onClick={() => usePrStore.getState().refreshChecks(workspaceId)}
             className="rounded px-1.5 py-0.5"
             style={{
               backgroundColor: "var(--bg-surface)",
@@ -358,7 +359,7 @@ export function ChecksPanel({ workspaceId }: Props) {
       {/* Actions */}
       <div className="mt-auto flex flex-wrap items-center gap-1.5 px-3 py-2">
         <button
-          onClick={() => pushChanges(workspaceId)}
+          onClick={() => usePrStore.getState().pushChanges(workspaceId)}
           disabled={loading}
           className="rounded px-2 py-0.5 text-[10px] disabled:opacity-50"
           style={{
@@ -400,7 +401,7 @@ export function ChecksPanel({ workspaceId }: Props) {
                 <option value="rebase">Rebase</option>
               </select>
               <button
-                onClick={() => mergePr(workspaceId, mergeMethod)}
+                onClick={() => usePrStore.getState().mergePr(workspaceId, mergeMethod)}
                 disabled={loading || hasPendingTodos}
                 title={
                   hasPendingTodos

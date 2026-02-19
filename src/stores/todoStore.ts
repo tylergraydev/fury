@@ -56,35 +56,48 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
   },
 
   addTodo: async (workspaceId: string, text: string) => {
-    const item = await addTodoCmd({ workspaceId, text });
-    set((s) => ({
-      todos: {
-        ...s.todos,
-        [workspaceId]: [...(s.todos[workspaceId] ?? []), item],
-      },
-    }));
-    return item;
+    try {
+      const item = await addTodoCmd({ workspaceId, text });
+      set((s) => ({
+        todos: {
+          ...s.todos,
+          [workspaceId]: [...(s.todos[workspaceId] ?? []), item],
+        },
+      }));
+      return item;
+    } catch (e) {
+      set((s) => ({
+        error: { ...s.error, [workspaceId]: String(e) },
+      }));
+      throw e;
+    }
   },
 
   updateTodo: async (request: UpdateTodoRequest) => {
-    await updateTodoCmd(request);
-    // Update locally
-    set((s) => ({
-      todos: {
-        ...s.todos,
-        [request.workspaceId]: (s.todos[request.workspaceId] ?? []).map((t) =>
-          t.id === request.id
-            ? {
-                ...t,
-                ...(request.text !== undefined ? { text: request.text } : {}),
-                ...(request.completed !== undefined
-                  ? { completed: request.completed }
-                  : {}),
-              }
-            : t,
-        ),
-      },
-    }));
+    try {
+      await updateTodoCmd(request);
+      set((s) => ({
+        todos: {
+          ...s.todos,
+          [request.workspaceId]: (s.todos[request.workspaceId] ?? []).map((t) =>
+            t.id === request.id
+              ? {
+                  ...t,
+                  ...(request.text !== undefined ? { text: request.text } : {}),
+                  ...(request.completed !== undefined
+                    ? { completed: request.completed }
+                    : {}),
+                }
+              : t,
+          ),
+        },
+      }));
+    } catch (e) {
+      set((s) => ({
+        error: { ...s.error, [request.workspaceId]: String(e) },
+      }));
+      throw e;
+    }
   },
 
   deleteTodo: async (workspaceId: string, todoId: string) => {

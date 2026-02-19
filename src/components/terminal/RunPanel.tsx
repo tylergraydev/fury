@@ -1,24 +1,29 @@
 import { useEffect, useRef } from "react";
 import { useScriptStore } from "../../stores/scriptStore";
 
+const EMPTY_OUTPUT: string[] = [];
+
 interface RunPanelProps {
   workspaceId: string;
 }
 
 export function RunPanel({ workspaceId }: RunPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const output = useScriptStore((s) => s.getOutput(workspaceId, "run"));
-  const running = useScriptStore((s) => s.isRunning(workspaceId, "run"));
+  const output = useScriptStore(
+    (s) => s.output[`${workspaceId}:run`] ?? EMPTY_OUTPUT,
+  );
+  const running = useScriptStore(
+    (s) => s.running[`${workspaceId}:run`] ?? false,
+  );
   const exitCode = useScriptStore(
     (s) => s.exitCodes[`${workspaceId}:run`],
   );
-  const { subscribe, unsubscribe, runScript, stopScript, clearOutput } =
-    useScriptStore();
 
   useEffect(() => {
-    subscribe(workspaceId, "run");
-    return () => unsubscribe(workspaceId, "run");
-  }, [workspaceId, subscribe, unsubscribe]);
+    const store = useScriptStore.getState();
+    store.subscribe(workspaceId, "run");
+    return () => useScriptStore.getState().unsubscribe(workspaceId, "run");
+  }, [workspaceId]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -58,7 +63,7 @@ export function RunPanel({ workspaceId }: RunPanelProps) {
             </span>
           )}
           <button
-            onClick={() => clearOutput(workspaceId, "run")}
+            onClick={() => useScriptStore.getState().clearOutput(workspaceId, "run")}
             className="rounded px-2 py-0.5"
             style={{
               backgroundColor: "var(--bg-surface)",
@@ -69,7 +74,7 @@ export function RunPanel({ workspaceId }: RunPanelProps) {
           </button>
           {running ? (
             <button
-              onClick={() => stopScript(workspaceId, "run")}
+              onClick={() => useScriptStore.getState().stopScript(workspaceId, "run")}
               className="rounded px-2 py-0.5"
               style={{
                 backgroundColor: "var(--error)",
@@ -80,7 +85,7 @@ export function RunPanel({ workspaceId }: RunPanelProps) {
             </button>
           ) : (
             <button
-              onClick={() => runScript(workspaceId, "run")}
+              onClick={() => useScriptStore.getState().runScript(workspaceId, "run")}
               className="rounded px-2 py-0.5"
               style={{
                 backgroundColor: "var(--accent)",

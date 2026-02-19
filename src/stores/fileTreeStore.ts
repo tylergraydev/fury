@@ -4,31 +4,35 @@ import { listWorkspaceFiles } from "../lib/tauri";
 interface FileTreeStore {
   files: Record<string, string[]>;
   expandedDirs: Record<string, Set<string>>;
-  loading: boolean;
-  error: string | null;
+  loading: Record<string, boolean>;
+  error: Record<string, string | null>;
 
   loadFiles: (workspaceId: string) => Promise<void>;
   toggleDir: (workspaceId: string, dir: string) => void;
-  getFiles: (workspaceId: string) => string[];
-  getExpandedDirs: (workspaceId: string) => Set<string>;
 }
 
-export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
+export const useFileTreeStore = create<FileTreeStore>((set) => ({
   files: {},
   expandedDirs: {},
-  loading: false,
-  error: null,
+  loading: {},
+  error: {},
 
   loadFiles: async (workspaceId: string) => {
-    set({ loading: true, error: null });
+    set((state) => ({
+      loading: { ...state.loading, [workspaceId]: true },
+      error: { ...state.error, [workspaceId]: null },
+    }));
     try {
       const files = await listWorkspaceFiles(workspaceId);
       set((state) => ({
         files: { ...state.files, [workspaceId]: files },
-        loading: false,
+        loading: { ...state.loading, [workspaceId]: false },
       }));
     } catch (e) {
-      set({ loading: false, error: String(e) });
+      set((state) => ({
+        loading: { ...state.loading, [workspaceId]: false },
+        error: { ...state.error, [workspaceId]: String(e) },
+      }));
     }
   },
 
@@ -45,13 +49,5 @@ export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
         expandedDirs: { ...state.expandedDirs, [workspaceId]: next },
       };
     });
-  },
-
-  getFiles: (workspaceId: string) => {
-    return get().files[workspaceId] ?? [];
-  },
-
-  getExpandedDirs: (workspaceId: string) => {
-    return get().expandedDirs[workspaceId] ?? new Set<string>();
   },
 }));
