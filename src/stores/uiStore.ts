@@ -1,18 +1,23 @@
 import { create } from "zustand";
 
-type ViewMode = "chat" | "diff" | "pr" | "notes";
+export type RightSidebarTab = "files" | "changes" | "checks";
+export type BottomTab = "setup" | "terminal" | "run";
 
 interface UIStore {
-  viewMode: ViewMode;
-  setViewMode: (mode: ViewMode) => void;
-  toggleDiff: () => void;
+  rightSidebarTab: RightSidebarTab;
+  setRightSidebarTab: (tab: RightSidebarTab) => void;
+  rightSidebarVisible: boolean;
+  toggleRightSidebar: () => void;
+  bottomTab: BottomTab;
+  setBottomTab: (tab: BottomTab) => void;
 }
 
 export const useUIStore = create<UIStore>((set) => ({
-  viewMode: "chat",
-  setViewMode: (mode) => set({ viewMode: mode }),
-  toggleDiff: () =>
-    set((state) => ({
-      viewMode: state.viewMode === "diff" ? "chat" : "diff",
-    })),
+  rightSidebarTab: "files",
+  setRightSidebarTab: (tab) => set({ rightSidebarTab: tab }),
+  rightSidebarVisible: true,
+  toggleRightSidebar: () =>
+    set((state) => ({ rightSidebarVisible: !state.rightSidebarVisible })),
+  bottomTab: "terminal",
+  setBottomTab: (tab) => set({ bottomTab: tab }),
 }));

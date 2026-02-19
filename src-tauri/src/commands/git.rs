@@ -97,3 +97,40 @@ pub fn list_repo_directories(
 
     Ok(dirs)
 }
+
+#[tauri::command]
+pub fn list_workspace_files(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<Vec<String>, AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let worktree_path = {
+        let workspaces = state.workspaces.lock().unwrap();
+        let ws = workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        ws.worktree_path.clone()
+    };
+
+    let output = Command::new("git")
+        .args(["ls-tree", "-r", "--name-only", "HEAD"])
+        .current_dir(&worktree_path)
+        .output()?;
+
+    if !output.status.success() {
+        return Err(AppError::GitError(
+            String::from_utf8_lossy(&output.stderr).to_string(),
+        ));
+    }
+
+    let files = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(String::from)
+        .collect();
+
+    Ok(files)
+}

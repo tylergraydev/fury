@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { usePrStore } from "../../stores/prStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { useUIStore } from "../../stores/uiStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useTodoStore } from "../../stores/todoStore";
@@ -63,7 +62,6 @@ export function PRPanel({ workspaceId }: PRPanelProps) {
         onFix={async () => {
           const message = await getFixMessage(workspaceId);
           if (message === "No failing checks found.") return;
-          useUIStore.getState().setViewMode("chat");
           useChatStore.getState().addUserMessage(workspaceId, message);
           useAgentStore
             .getState()
@@ -367,14 +365,9 @@ function PRStatusView({
             >
               {todoSummary.completed} of {todoSummary.total} todos completed.
               Complete all todos before merging.
-              <button
-                onClick={() =>
-                  useUIStore.getState().setViewMode("notes")
-                }
-                className="ml-2 underline"
-              >
+              <span className="ml-2 underline">
                 View Todos
-              </button>
+              </span>
             </div>
           )}
 

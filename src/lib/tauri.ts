@@ -202,6 +202,13 @@ export async function getFileDiff(
   return invoke<FileDiffContent>("get_file_diff", { workspaceId, filePath });
 }
 
+// Workspace file listing
+export async function listWorkspaceFiles(
+  workspaceId: string,
+): Promise<string[]> {
+  return invoke<string[]>("list_workspace_files", { workspaceId });
+}
+
 // Script types
 export type ScriptKind = "setup" | "run" | "archive";
 

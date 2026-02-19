@@ -305,7 +305,9 @@ export function Composer({ workspaceId, agentStatus, onSend, onStop }: Props) {
             onChange={handleInput}
             onKeyDown={handleKeyDown}
             placeholder={
-              isRunning ? "Waiting for response..." : "Message Claude Code..."
+              isRunning
+                ? "Waiting for response..."
+                : "Ask to make changes, @mention files, run /commands"
             }
             disabled={isRunning || isStopping}
             rows={1}
@@ -325,6 +327,41 @@ export function Composer({ workspaceId, agentStatus, onSend, onStop }: Props) {
             }}
           >
             Send
+          </button>
+        </div>
+
+        {/* Model and mode pills */}
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <span
+            className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px]"
+            style={{
+              backgroundColor: "var(--bg-surface)",
+              color: "var(--text-muted)",
+            }}
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: "var(--accent)" }}
+            />
+            Opus 4.6
+          </span>
+          <button
+            className="rounded-full px-2 py-0.5 text-[10px] transition-colors hover:bg-[var(--bg-hover)]"
+            style={{
+              backgroundColor: "var(--bg-surface)",
+              color: "var(--text-muted)",
+            }}
+          >
+            Thinking
+          </button>
+          <button
+            className="rounded-full px-2 py-0.5 text-[10px] transition-colors hover:bg-[var(--bg-hover)]"
+            style={{
+              backgroundColor: "var(--bg-surface)",
+              color: "var(--text-muted)",
+            }}
+          >
+            Plan
           </button>
         </div>
       </div>

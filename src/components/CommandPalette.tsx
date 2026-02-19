@@ -26,7 +26,7 @@ export function CommandPalette({
 }: CommandPaletteProps) {
   const { workspaces, activeWorkspaceId } = useWorkspaceStore();
   const { repositories } = useRepositoryStore();
-  const viewMode = useUIStore((s) => s.viewMode);
+  const rightSidebarTab = useUIStore((s) => s.rightSidebarTab);
 
   const run = (action: string) => {
     onOpenChange(false);
@@ -86,38 +86,37 @@ export function CommandPalette({
             No results found.
           </CommandEmpty>
 
-          {/* View mode commands */}
+          {/* Sidebar tabs */}
           <CommandGroup
-            heading="Views"
+            heading="Sidebar"
             style={{ padding: "0 8px" }}
           >
             <PaletteItem
-              onSelect={() => run("view-chat")}
-              shortcut={shortcutFor("view-chat")}
-              active={viewMode === "chat"}
+              onSelect={() => run("right-sidebar-files")}
+              shortcut={shortcutFor("right-sidebar-files")}
+              active={rightSidebarTab === "files"}
             >
-              Chat
+              All Files
             </PaletteItem>
             <PaletteItem
-              onSelect={() => run("view-diff")}
-              shortcut={shortcutFor("view-diff")}
-              active={viewMode === "diff"}
+              onSelect={() => run("right-sidebar-changes")}
+              shortcut={shortcutFor("right-sidebar-changes")}
+              active={rightSidebarTab === "changes"}
             >
-              Diff Viewer
+              Changes
             </PaletteItem>
             <PaletteItem
-              onSelect={() => run("view-pr")}
-              shortcut={shortcutFor("view-pr")}
-              active={viewMode === "pr"}
+              onSelect={() => run("right-sidebar-checks")}
+              shortcut={shortcutFor("right-sidebar-checks")}
+              active={rightSidebarTab === "checks"}
             >
-              Pull Request
+              Checks / PR
             </PaletteItem>
             <PaletteItem
-              onSelect={() => run("view-notes")}
-              shortcut={shortcutFor("view-notes")}
-              active={viewMode === "notes"}
+              onSelect={() => run("toggle-right-sidebar")}
+              shortcut={shortcutFor("toggle-right-sidebar")}
             >
-              Notes
+              Toggle Right Sidebar
             </PaletteItem>
           </CommandGroup>
 

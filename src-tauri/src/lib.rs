@@ -52,6 +52,7 @@ pub fn run() {
             commands::git::get_diff,
             commands::git::get_file_diff,
             commands::git::list_repo_directories,
+            commands::git::list_workspace_files,
             // Script commands
             commands::script::run_script,
             commands::script::stop_script,
