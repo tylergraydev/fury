@@ -1,0 +1,68 @@
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettings {
+    pub theme: Theme,
+    pub provider: ProviderConfig,
+    pub system_prompt_additions: Option<String>,
+    pub analytics_enabled: bool,
+    pub experimental: ExperimentalSettings,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            theme: Theme::Dark,
+            provider: ProviderConfig::default(),
+            system_prompt_additions: None,
+            analytics_enabled: false,
+            experimental: ExperimentalSettings::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Theme {
+    Light,
+    #[default]
+    Dark,
+    System,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderConfig {
+    pub provider_type: ProviderType,
+    pub env_vars: HashMap<String, String>,
+}
+
+impl Default for ProviderConfig {
+    fn default() -> Self {
+        Self {
+            provider_type: ProviderType::Anthropic,
+            env_vars: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub enum ProviderType {
+    #[default]
+    Anthropic,
+    OpenRouter,
+    VercelAIGateway,
+    Bedrock,
+    Vertex,
+    AzureFoundry,
+    Custom,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ExperimentalSettings {
+    pub spotlight_testing: bool,
+    pub agent_teams: bool,
+}
