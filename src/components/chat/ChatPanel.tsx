@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useCheckpointStore } from "../../stores/checkpointStore";
+import { useTodoStore } from "../../stores/todoStore";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
 
@@ -30,6 +31,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
     if (contextType === "workspace") {
       checkpointStore.subscribe(contextId);
       checkpointStore.loadCheckpoints(contextId);
+      useTodoStore.getState().loadTodos(contextId);
     }
 
     return () => {
@@ -79,6 +81,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
         }
       />
       <Composer
+        workspaceId={contextType === "workspace" ? contextId : undefined}
         agentStatus={agentStatus}
         onSend={handleSend}
         onStop={handleStop}

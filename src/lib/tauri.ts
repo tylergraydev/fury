@@ -277,3 +277,154 @@ export async function resizeTerminal(
 export async function closeTerminal(terminalId: string): Promise<void> {
   return invoke("close_terminal", { terminalId });
 }
+
+// PR types
+export interface PrInfo {
+  workspaceId: string;
+  prNumber: number | null;
+  prUrl: string | null;
+  title: string | null;
+  state: string | null;
+  checks: PrCheck[];
+  mergeable: string | null;
+}
+
+export interface PrCheck {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  detailsUrl: string | null;
+  description: string | null;
+}
+
+export interface CreatePrRequest {
+  workspaceId: string;
+  title: string;
+  body: string;
+  draft?: boolean;
+}
+
+export interface MergeResult {
+  success: boolean;
+  message: string;
+  mergeMethod: string;
+}
+
+// PR commands
+export async function createPr(request: CreatePrRequest): Promise<PrInfo> {
+  return invoke<PrInfo>("create_pr", { request });
+}
+
+export async function getPrInfo(workspaceId: string): Promise<PrInfo> {
+  return invoke<PrInfo>("get_pr_info", { workspaceId });
+}
+
+export async function getPrChecks(workspaceId: string): Promise<PrCheck[]> {
+  return invoke<PrCheck[]>("get_pr_checks", { workspaceId });
+}
+
+export async function pushChanges(workspaceId: string): Promise<void> {
+  return invoke("push_changes", { workspaceId });
+}
+
+export async function fixFailingChecks(workspaceId: string): Promise<string> {
+  return invoke<string>("fix_failing_checks", { workspaceId });
+}
+
+export async function mergePr(
+  workspaceId: string,
+  mergeMethod?: string,
+): Promise<MergeResult> {
+  return invoke<MergeResult>("merge_pr", { workspaceId, mergeMethod });
+}
+
+// Todo types
+export interface TodoItem {
+  id: string;
+  workspaceId: string;
+  text: string;
+  completed: boolean;
+  sortOrder: number;
+}
+
+export interface CreateTodoRequest {
+  workspaceId: string;
+  text: string;
+}
+
+export interface UpdateTodoRequest {
+  id: string;
+  workspaceId: string;
+  text?: string;
+  completed?: boolean;
+}
+
+export interface ReorderTodosRequest {
+  workspaceId: string;
+  todoIds: string[];
+}
+
+export interface TodoSummary {
+  total: number;
+  completed: number;
+  allCompleted: boolean;
+  items: TodoItem[];
+}
+
+// Slash command types
+export interface SlashCommand {
+  name: string;
+  source: "global" | "project";
+  description: string;
+  content: string;
+}
+
+// Todo commands
+export async function addTodo(request: CreateTodoRequest): Promise<TodoItem> {
+  return invoke<TodoItem>("add_todo", { request });
+}
+
+export async function updateTodo(request: UpdateTodoRequest): Promise<void> {
+  return invoke("update_todo", { request });
+}
+
+export async function deleteTodo(todoId: string): Promise<void> {
+  return invoke("delete_todo", { todoId });
+}
+
+export async function listTodos(workspaceId: string): Promise<TodoItem[]> {
+  return invoke<TodoItem[]>("list_todos", { workspaceId });
+}
+
+export async function toggleTodo(todoId: string): Promise<boolean> {
+  return invoke<boolean>("toggle_todo", { todoId });
+}
+
+export async function reorderTodos(
+  request: ReorderTodosRequest,
+): Promise<void> {
+  return invoke("reorder_todos", { request });
+}
+
+export async function getTodoSummary(
+  workspaceId: string,
+): Promise<TodoSummary> {
+  return invoke<TodoSummary>("get_todo_summary", { workspaceId });
+}
+
+// Slash command commands
+export async function listSlashCommands(
+  workspaceId: string,
+): Promise<SlashCommand[]> {
+  return invoke<SlashCommand[]>("list_slash_commands", { workspaceId });
+}
+
+export async function getSlashCommandContent(
+  workspaceId: string,
+  name: string,
+): Promise<SlashCommand | null> {
+  return invoke<SlashCommand | null>("get_slash_command_content", {
+    workspaceId,
+    name,
+  });
+}

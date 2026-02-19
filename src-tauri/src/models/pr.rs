@@ -1,0 +1,55 @@
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrInfo {
+    pub workspace_id: Uuid,
+    pub pr_number: Option<u64>,
+    pub pr_url: Option<String>,
+    pub title: Option<String>,
+    pub state: Option<String>,
+    pub checks: Vec<PrCheck>,
+    pub mergeable: Option<String>,
+}
+
+impl PrInfo {
+    pub fn empty(workspace_id: Uuid) -> Self {
+        Self {
+            workspace_id,
+            pr_number: None,
+            pr_url: None,
+            title: None,
+            state: None,
+            checks: Vec::new(),
+            mergeable: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrCheck {
+    pub name: String,
+    pub status: String,
+    pub conclusion: Option<String>,
+    pub details_url: Option<String>,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatePrRequest {
+    pub workspace_id: Uuid,
+    pub title: String,
+    pub body: String,
+    pub draft: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MergeResult {
+    pub success: bool,
+    pub message: String,
+    pub merge_method: String,
+}

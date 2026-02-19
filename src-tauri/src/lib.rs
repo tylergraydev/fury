@@ -50,6 +50,24 @@ pub fn run() {
             commands::terminal::write_terminal,
             commands::terminal::resize_terminal,
             commands::terminal::close_terminal,
+            // PR commands
+            commands::pr::create_pr,
+            commands::pr::get_pr_info,
+            commands::pr::get_pr_checks,
+            commands::pr::push_changes,
+            commands::pr::fix_failing_checks,
+            commands::pr::merge_pr,
+            // Todo commands
+            commands::todo::add_todo,
+            commands::todo::update_todo,
+            commands::todo::delete_todo,
+            commands::todo::list_todos,
+            commands::todo::toggle_todo,
+            commands::todo::reorder_todos,
+            commands::todo::get_todo_summary,
+            // Slash command commands
+            commands::slash_command::list_slash_commands,
+            commands::slash_command::get_slash_command_content,
         ])
         .setup(|app| {
             let app_data_dir = app

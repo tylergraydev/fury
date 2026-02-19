@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-type ViewMode = "chat" | "diff";
+type ViewMode = "chat" | "diff" | "pr" | "notes";
 
 interface UIStore {
   viewMode: ViewMode;

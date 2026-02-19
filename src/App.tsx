@@ -3,6 +3,8 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Sidebar } from "./components/layout/Sidebar";
 import { ChatPanel } from "./components/chat/ChatPanel";
 import { DiffViewer } from "./components/diff/DiffViewer";
+import { PRPanel } from "./components/pr/PRPanel";
+import { NotesPanel } from "./components/notes/NotesPanel";
 import { TerminalPanel } from "./components/terminal/TerminalPanel";
 import { RunPanel } from "./components/terminal/RunPanel";
 import { useWorkspaceStore } from "./stores/workspaceStore";
@@ -18,6 +20,12 @@ function MainPanel() {
   if (activeWorkspaceId) {
     if (viewMode === "diff") {
       return <DiffViewer workspaceId={activeWorkspaceId} />;
+    }
+    if (viewMode === "pr") {
+      return <PRPanel workspaceId={activeWorkspaceId} />;
+    }
+    if (viewMode === "notes") {
+      return <NotesPanel workspaceId={activeWorkspaceId} />;
     }
     return <ChatPanel contextId={activeWorkspaceId} contextType="workspace" />;
   }
@@ -208,6 +216,34 @@ function App() {
                 }}
               >
                 Diff
+              </button>
+              <button
+                onClick={() => useUIStore.getState().setViewMode("pr")}
+                className="rounded px-1.5 py-0.5 transition-colors"
+                style={{
+                  backgroundColor:
+                    viewMode === "pr" ? "var(--bg-surface)" : "transparent",
+                  color:
+                    viewMode === "pr"
+                      ? "var(--accent)"
+                      : "var(--text-muted)",
+                }}
+              >
+                PR
+              </button>
+              <button
+                onClick={() => useUIStore.getState().setViewMode("notes")}
+                className="rounded px-1.5 py-0.5 transition-colors"
+                style={{
+                  backgroundColor:
+                    viewMode === "notes" ? "var(--bg-surface)" : "transparent",
+                  color:
+                    viewMode === "notes"
+                      ? "var(--accent)"
+                      : "var(--text-muted)",
+                }}
+              >
+                Notes
               </button>
             </span>
           </>

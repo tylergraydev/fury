@@ -33,6 +33,9 @@ pub enum AppError {
     #[error("Branch already in use by workspace: {0}")]
     BranchInUse(String),
 
+    #[error("PR operation failed: {0}")]
+    PrError(String),
+
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
 }
