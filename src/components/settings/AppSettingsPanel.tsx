@@ -7,7 +7,7 @@ import type {
   CursorMigrationResult,
 } from "../../lib/tauri";
 
-type SettingsTab = "provider" | "mcp" | "migration" | "experimental";
+type SettingsTab = "provider" | "mcp" | "migration" | "experimental" | "updates";
 
 const PROVIDER_ENV_HINTS: Record<ProviderType, string[]> = {
   Anthropic: ["ANTHROPIC_API_KEY"],
@@ -62,7 +62,7 @@ export function AppSettingsPanel({ onClose }: AppSettingsPanelProps) {
               Settings
             </h2>
             <div className="flex gap-1">
-              {(["provider", "mcp", "migration", "experimental"] as SettingsTab[]).map(
+              {(["provider", "mcp", "migration", "experimental", "updates"] as SettingsTab[]).map(
                 (tab) => (
                   <button
                     key={tab}
@@ -85,7 +85,9 @@ export function AppSettingsPanel({ onClose }: AppSettingsPanelProps) {
                         ? "MCP Servers"
                         : tab === "migration"
                           ? "Migration"
-                          : "Experimental"}
+                          : tab === "experimental"
+                            ? "Experimental"
+                            : "Updates"}
                   </button>
                 ),
               )}
@@ -106,6 +108,7 @@ export function AppSettingsPanel({ onClose }: AppSettingsPanelProps) {
           {activeTab === "mcp" && <McpTab />}
           {activeTab === "migration" && <MigrationTab />}
           {activeTab === "experimental" && <ExperimentalTab />}
+          {activeTab === "updates" && <UpdatesTab />}
         </div>
       </div>
     </div>
@@ -768,6 +771,85 @@ function ExperimentalTab() {
           CONDUCTOR_AGENT_TEAMS and CONDUCTOR_TEAM_WORKSPACES environment
           variables so agents can coordinate.
         </div>
+      </div>
+    </div>
+  );
+}
+
+function UpdatesTab() {
+  const [checking, setChecking] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const checkForUpdates = async () => {
+    setChecking(true);
+    setStatus(null);
+    try {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const update = await check();
+      if (update) {
+        setStatus(`Update available: v${update.version}`);
+        await update.downloadAndInstall();
+        setStatus("Update installed. Restart the app to apply.");
+      } else {
+        setStatus("You are on the latest version.");
+      }
+    } catch (e) {
+      setStatus(`Update check failed: ${e}`);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return (
+    <div className="p-4 space-y-4">
+      <div>
+        <label
+          className="mb-2 block text-xs font-medium"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          Application Updates
+        </label>
+        <div
+          className="rounded p-3"
+          style={{
+            backgroundColor: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <div className="mb-2 text-xs" style={{ color: "var(--text-primary)" }}>
+            Current version: v0.1.0
+          </div>
+          {status && (
+            <div
+              className="mb-2 text-xs"
+              style={{
+                color: status.includes("failed")
+                  ? "var(--error)"
+                  : status.includes("latest")
+                    ? "var(--success)"
+                    : "var(--accent)",
+              }}
+            >
+              {status}
+            </div>
+          )}
+          <button
+            onClick={checkForUpdates}
+            disabled={checking}
+            className="rounded px-3 py-1.5 text-xs"
+            style={{
+              backgroundColor: "var(--accent)",
+              color: "var(--bg-primary)",
+              opacity: checking ? 0.5 : 1,
+            }}
+          >
+            {checking ? "Checking..." : "Check for Updates"}
+          </button>
+        </div>
+      </div>
+      <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+        Updates are downloaded from GitHub Releases. Configure the updater
+        endpoint in tauri.conf.json.
       </div>
     </div>
   );

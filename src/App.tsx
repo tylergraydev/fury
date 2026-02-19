@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Sidebar } from "./components/layout/Sidebar";
 import { ChatPanel } from "./components/chat/ChatPanel";
@@ -7,11 +7,18 @@ import { PRPanel } from "./components/pr/PRPanel";
 import { NotesPanel } from "./components/notes/NotesPanel";
 import { TerminalPanel } from "./components/terminal/TerminalPanel";
 import { RunPanel } from "./components/terminal/RunPanel";
+import { CommandPalette } from "./components/CommandPalette";
 import { useWorkspaceStore } from "./stores/workspaceStore";
 import { useRepositoryStore } from "./stores/repositoryStore";
 import { useAgentStore } from "./stores/agentStore";
 import { useUIStore } from "./stores/uiStore";
 import { AppSettingsPanel } from "./components/settings/AppSettingsPanel";
+import {
+  useKeyboardShortcuts,
+  type ShortcutAction,
+  modLabel,
+  isMac,
+} from "./lib/keybindings";
 import "./App.css";
 
 function MainPanel() {
@@ -143,27 +150,89 @@ function App() {
   const { repositories } = useRepositoryStore();
   const viewMode = useUIStore((s) => s.viewMode);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
   const activeWs = workspaces.find((w) => w.id === activeWorkspaceId);
   const activeRepo = repositories.find((r) => r.id === activeRepoId);
 
-  // Cmd/Ctrl+D to toggle diff viewer
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "d") {
-        e.preventDefault();
-        useUIStore.getState().toggleDiff();
+  const handleShortcut = useCallback(
+    (action: ShortcutAction) => {
+      switch (action) {
+        case "toggle-palette":
+          setShowPalette((v) => !v);
+          break;
+        case "toggle-diff":
+          useUIStore.getState().toggleDiff();
+          break;
+        case "focus-terminal":
+          // Terminal panel gets focus via DOM
+          document
+            .querySelector<HTMLElement>("[data-terminal-input]")
+            ?.focus();
+          break;
+        case "open-settings":
+          setShowSettings(true);
+          break;
+        case "view-chat":
+          useUIStore.getState().setViewMode("chat");
+          break;
+        case "view-diff":
+          useUIStore.getState().setViewMode("diff");
+          break;
+        case "view-pr":
+          useUIStore.getState().setViewMode("pr");
+          break;
+        case "view-notes":
+          useUIStore.getState().setViewMode("notes");
+          break;
+        case "escape":
+          setShowPalette(false);
+          setShowSettings(false);
+          break;
       }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+    },
+    [],
+  );
+
+  useKeyboardShortcuts(handleShortcut);
+
+  const handlePaletteAction = useCallback(
+    (action: string) => {
+      switch (action) {
+        case "view-chat":
+          useUIStore.getState().setViewMode("chat");
+          break;
+        case "view-diff":
+          useUIStore.getState().setViewMode("diff");
+          break;
+        case "view-pr":
+          useUIStore.getState().setViewMode("pr");
+          break;
+        case "view-notes":
+          useUIStore.getState().setViewMode("notes");
+          break;
+        case "open-settings":
+          setShowSettings(true);
+          break;
+        case "focus-terminal":
+          document
+            .querySelector<HTMLElement>("[data-terminal-input]")
+            ?.focus();
+          break;
+        case "new-workspace":
+          // Trigger new workspace dialog via sidebar
+          break;
+      }
+    },
+    [],
+  );
 
   return (
     <div className="flex h-screen flex-col">
-      {/* Top bar */}
+      {/* Top bar — extra left padding on macOS for traffic-light buttons */}
       <div
-        className="flex items-center gap-3 px-4 py-1.5 text-sm"
+        className="flex items-center gap-3 py-1.5 pr-4 text-sm"
         style={{
+          paddingLeft: isMac ? 80 : 16,
           backgroundColor: "var(--bg-secondary)",
           borderBottom: "1px solid var(--border)",
           color: "var(--text-primary)",
@@ -177,7 +246,7 @@ function App() {
             backgroundColor: "var(--bg-surface)",
             color: "var(--text-muted)",
           }}
-          title="Settings"
+          title={`Settings (${modLabel}+,)`}
         >
           Settings
         </button>
@@ -317,6 +386,12 @@ function App() {
       {showSettings && (
         <AppSettingsPanel onClose={() => setShowSettings(false)} />
       )}
+
+      <CommandPalette
+        open={showPalette}
+        onOpenChange={setShowPalette}
+        onAction={handlePaletteAction}
+      />
     </div>
   );
 }
