@@ -30,6 +30,8 @@ dirs = "5"
 dunce = "1"
 which = "7"
 tauri-plugin-dialog = "2.6.0"
+portable-pty = "0.9"
+base64 = "0.22"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

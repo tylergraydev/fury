@@ -40,6 +40,16 @@ pub fn run() {
             // Git/diff commands
             commands::git::get_diff,
             commands::git::get_file_diff,
+            // Script commands
+            commands::script::run_script,
+            commands::script::stop_script,
+            commands::script::get_repo_settings,
+            commands::script::update_repo_settings,
+            // Terminal commands
+            commands::terminal::create_terminal,
+            commands::terminal::write_terminal,
+            commands::terminal::resize_terminal,
+            commands::terminal::close_terminal,
         ])
         .setup(|app| {
             let app_data_dir = app

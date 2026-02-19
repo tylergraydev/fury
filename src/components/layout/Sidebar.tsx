@@ -4,6 +4,7 @@ import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { NewWorkspaceDialog } from "../workspace/NewWorkspaceDialog";
+import { RepoSettingsPanel } from "../settings/RepoSettingsPanel";
 
 export function Sidebar() {
   const { repositories, loadRepositories, addRepo } = useRepositoryStore();
@@ -16,6 +17,7 @@ export function Sidebar() {
     loadWorkspaces,
   } = useWorkspaceStore();
   const [newWsRepoId, setNewWsRepoId] = useState<string | null>(null);
+  const [settingsRepoId, setSettingsRepoId] = useState<string | null>(null);
   const [repoError, setRepoError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -96,14 +98,24 @@ export function Sidebar() {
                 }}
               >
                 <span className="truncate">{repo.name}</span>
-                <button
-                  onClick={() => setNewWsRepoId(repo.id)}
-                  className="rounded px-1 text-xs hover:bg-[var(--bg-hover)]"
-                  style={{ color: "var(--text-muted)" }}
-                  title="New workspace"
-                >
-                  +
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setSettingsRepoId(repo.id)}
+                    className="rounded px-1 text-xs hover:bg-[var(--bg-hover)]"
+                    style={{ color: "var(--text-muted)" }}
+                    title="Repository settings"
+                  >
+                    ⚙
+                  </button>
+                  <button
+                    onClick={() => setNewWsRepoId(repo.id)}
+                    className="rounded px-1 text-xs hover:bg-[var(--bg-hover)]"
+                    style={{ color: "var(--text-muted)" }}
+                    title="New workspace"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
 
               {/* Current branch (base repo) */}
@@ -156,6 +168,17 @@ export function Sidebar() {
             repositories.find((r) => r.id === newWsRepoId)?.name ?? ""
           }
           onClose={() => setNewWsRepoId(null)}
+        />
+      )}
+
+      {/* Repo settings dialog */}
+      {settingsRepoId && (
+        <RepoSettingsPanel
+          repoId={settingsRepoId}
+          repoName={
+            repositories.find((r) => r.id === settingsRepoId)?.name ?? ""
+          }
+          onClose={() => setSettingsRepoId(null)}
         />
       )}
     </div>

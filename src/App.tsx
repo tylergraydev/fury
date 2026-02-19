@@ -1,8 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Sidebar } from "./components/layout/Sidebar";
 import { ChatPanel } from "./components/chat/ChatPanel";
 import { DiffViewer } from "./components/diff/DiffViewer";
+import { TerminalPanel } from "./components/terminal/TerminalPanel";
+import { RunPanel } from "./components/terminal/RunPanel";
 import { useWorkspaceStore } from "./stores/workspaceStore";
 import { useRepositoryStore } from "./stores/repositoryStore";
 import { useAgentStore } from "./stores/agentStore";
@@ -39,12 +41,32 @@ function MainPanel() {
   );
 }
 
+type BottomTab = "terminal" | "run";
+
 function BottomPanel() {
+  const { activeWorkspaceId } = useWorkspaceStore();
+  const [activeTab, setActiveTab] = useState<BottomTab>("terminal");
+
+  if (!activeWorkspaceId) {
+    return (
+      <div
+        className="flex h-full items-center justify-center text-xs"
+        style={{
+          backgroundColor: "var(--bg-secondary)",
+          color: "var(--text-muted)",
+        }}
+      >
+        Select a workspace to use the terminal
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex h-full flex-col"
       style={{ backgroundColor: "var(--bg-secondary)" }}
     >
+      {/* Tab bar */}
       <div
         className="flex items-center gap-2 px-3 py-1 text-xs"
         style={{
@@ -52,18 +74,31 @@ function BottomPanel() {
           color: "var(--text-muted)",
         }}
       >
-        <span
-          className="cursor-pointer rounded px-2 py-0.5"
-          style={{ backgroundColor: "var(--bg-surface)" }}
-        >
-          Terminal
-        </span>
+        {(["terminal", "run"] as BottomTab[]).map((tab) => (
+          <span
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className="cursor-pointer rounded px-2 py-0.5 transition-colors"
+            style={{
+              backgroundColor:
+                activeTab === tab ? "var(--bg-surface)" : "transparent",
+              color:
+                activeTab === tab ? "var(--accent)" : "var(--text-muted)",
+            }}
+          >
+            {tab === "terminal" ? "Terminal" : "Run"}
+          </span>
+        ))}
       </div>
-      <div
-        className="flex-1 p-2 font-mono text-xs"
-        style={{ color: "var(--text-secondary)" }}
-      >
-        Terminal ready (Phase 4)
+
+      {/* Tab content */}
+      <div className="flex-1 overflow-hidden">
+        {activeTab === "terminal" && (
+          <TerminalPanel workspaceId={activeWorkspaceId} />
+        )}
+        {activeTab === "run" && (
+          <RunPanel workspaceId={activeWorkspaceId} />
+        )}
       </div>
     </div>
   );

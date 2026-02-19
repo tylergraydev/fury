@@ -2,7 +2,7 @@ mod migrations;
 
 use crate::error::AppError;
 use crate::models::checkpoint::Checkpoint;
-use crate::models::repository::Repository;
+use crate::models::repository::{RepoSettings, Repository, RunScriptMode};
 use crate::models::workspace::{Workspace, WorkspaceStatus};
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
@@ -235,6 +235,59 @@ impl Database {
         self.conn.execute(
             "DELETE FROM checkpoints WHERE workspace_id = ?1 AND turn_index > ?2",
             rusqlite::params![workspace_id.to_string(), turn_index],
+        )?;
+        Ok(())
+    }
+
+    // Repository settings operations
+
+    pub fn get_repo_settings(&self, repo_id: &Uuid) -> Result<RepoSettings, AppError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT setup_script, run_script, archive_script, run_script_mode, env_vars
+             FROM repository_settings WHERE repo_id = ?1",
+        )?;
+        let result = stmt.query_row(rusqlite::params![repo_id.to_string()], |row| {
+            let mode_str: String = row.get(3)?;
+            let env_json: String = row.get(4)?;
+            Ok(RepoSettings {
+                setup_script: row.get(0)?,
+                run_script: row.get(1)?,
+                archive_script: row.get(2)?,
+                run_script_mode: match mode_str.as_str() {
+                    "concurrent" => RunScriptMode::Concurrent,
+                    _ => RunScriptMode::Nonconcurrent,
+                },
+                env_vars: serde_json::from_str(&env_json).unwrap_or_default(),
+            })
+        });
+        match result {
+            Ok(settings) => Ok(settings),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(RepoSettings::default()),
+            Err(e) => Err(AppError::DbError(e.to_string())),
+        }
+    }
+
+    pub fn upsert_repo_settings(
+        &self,
+        repo_id: &Uuid,
+        settings: &RepoSettings,
+    ) -> Result<(), AppError> {
+        let mode_str = match settings.run_script_mode {
+            RunScriptMode::Concurrent => "concurrent",
+            RunScriptMode::Nonconcurrent => "nonconcurrent",
+        };
+        let env_json = serde_json::to_string(&settings.env_vars)?;
+        self.conn.execute(
+            "INSERT OR REPLACE INTO repository_settings (repo_id, setup_script, run_script, archive_script, run_script_mode, env_vars)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                repo_id.to_string(),
+                settings.setup_script,
+                settings.run_script,
+                settings.archive_script,
+                mode_str,
+                env_json,
+            ],
         )?;
         Ok(())
     }

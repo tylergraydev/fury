@@ -1,10 +1,16 @@
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use tauri::{Emitter, State};
+use uuid::Uuid;
+
+use crate::commands::script as script_cmd;
 use crate::error::AppError;
 use crate::models::workspace::{CreateWorkspaceRequest, Workspace, WorkspaceInfo, WorkspaceStatus};
 use crate::platform;
-use crate::services::worktree;
+use crate::services::script_runner::ScriptKind;
+use crate::services::{claude_process, script_runner, worktree};
 use crate::state::AppState;
-use tauri::{Emitter, State};
-use uuid::Uuid;
 
 #[tauri::command]
 pub fn create_workspace(
@@ -55,6 +61,7 @@ pub fn create_workspace(
     };
 
     let info = WorkspaceInfo::from(&workspace);
+    let ws_worktree_path = workspace.worktree_path.clone();
 
     // Persist to database
     {
@@ -73,6 +80,16 @@ pub fn create_workspace(
 
     // Notify frontend
     let _ = app.emit("workspace-created", &info);
+
+    // Fire-and-forget setup script if configured
+    fire_and_forget_script(
+        &app,
+        &state,
+        info.id,
+        info.repo_id,
+        ws_worktree_path,
+        ScriptKind::Setup,
+    );
 
     Ok(info)
 }
@@ -93,14 +110,19 @@ pub fn archive_workspace(
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
+    // Get workspace info for archive script before updating status
+    let (repo_id, worktree_path) = {
+        let workspaces = state.workspaces.lock().unwrap();
+        let ws = workspaces.get(&id).ok_or(AppError::WorkspaceNotFound(id))?;
+        (ws.repo_id, ws.worktree_path.clone())
+    };
+
     // Update status
     {
         let mut workspaces = state.workspaces.lock().unwrap();
         if let Some(ws) = workspaces.get_mut(&id) {
             ws.status = WorkspaceStatus::Archived;
             ws.archived_at = Some(chrono::Utc::now());
-        } else {
-            return Err(AppError::WorkspaceNotFound(id));
         }
     }
 
@@ -113,6 +135,16 @@ pub fn archive_workspace(
     }
 
     let _ = app.emit("workspace-archived", &id);
+
+    // Fire-and-forget archive script if configured
+    fire_and_forget_script(
+        &app,
+        &state,
+        id,
+        repo_id,
+        worktree_path,
+        ScriptKind::Archive,
+    );
 
     Ok(())
 }
@@ -150,4 +182,94 @@ pub fn delete_workspace(state: State<'_, AppState>, workspace_id: String) -> Res
     state.workspaces.lock().unwrap().remove(&id);
 
     Ok(())
+}
+
+/// Spawn a script in the background without blocking the calling command.
+/// Used for auto-running setup scripts on workspace creation and archive scripts on archival.
+fn fire_and_forget_script(
+    app: &tauri::AppHandle,
+    state: &AppState,
+    ws_id: Uuid,
+    repo_id: Uuid,
+    worktree_path: PathBuf,
+    kind: ScriptKind,
+) {
+    let settings = match script_cmd::resolve_settings(state, &repo_id) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+
+    let script_body = match kind {
+        ScriptKind::Setup => settings.setup_script,
+        ScriptKind::Run => settings.run_script,
+        ScriptKind::Archive => settings.archive_script,
+    };
+
+    let script_body = match script_body {
+        Some(s) if !s.is_empty() => s,
+        _ => return,
+    };
+
+    // Build env vars
+    let env_vars = {
+        let workspaces = state.workspaces.lock().unwrap();
+        let ws = match workspaces.get(&ws_id) {
+            Some(ws) => ws.clone(),
+            None => return,
+        };
+        let repos = state.repositories.lock().unwrap();
+        let repo = match repos.get(&repo_id) {
+            Some(r) => r.clone(),
+            None => return,
+        };
+        let app_settings = state.settings.lock().unwrap().clone();
+        let mut env = claude_process::build_env_vars(&ws, &repo, &app_settings);
+        for (k, v) in &settings.env_vars {
+            env.insert(k.clone(), v.clone());
+        }
+        env
+    };
+
+    let app_handle = app.clone();
+    let script_processes = Arc::clone(&state.script_processes);
+
+    tauri::async_runtime::spawn(async move {
+        let child = match script_runner::spawn_script(
+            ws_id,
+            kind,
+            &script_body,
+            &worktree_path,
+            env_vars,
+            app_handle.clone(),
+        )
+        .await
+        {
+            Ok(c) => c,
+            Err(_) => return,
+        };
+
+        let key = format!("{}:{}", ws_id, kind.as_str());
+        {
+            script_processes.lock().unwrap().insert(key.clone(), child);
+        }
+
+        // Wait for exit and emit event
+        let mut child = { script_processes.lock().unwrap().remove(&key) };
+        let exit_status = if let Some(ref mut c) = child {
+            c.wait().await.ok()
+        } else {
+            None
+        };
+
+        let (exit_code, success) = match exit_status {
+            Some(ref status) => (status.code(), status.success()),
+            None => (None, false),
+        };
+
+        let exit_event = format!("script-exit:{}:{}", kind.as_str(), ws_id);
+        let _ = app_handle.emit(
+            &exit_event,
+            &script_runner::ScriptExitEvent { exit_code, success },
+        );
+    });
 }

@@ -4,6 +4,7 @@ use crate::models::repository::Repository;
 use crate::models::settings::AppSettings;
 use crate::models::workspace::Workspace;
 use crate::services::port_allocator::PortAllocator;
+use crate::services::terminal::TerminalSession;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::process::Child;
@@ -17,8 +18,12 @@ pub struct AppState {
     pub db: Mutex<Option<Database>>,
     /// Agent metadata — Arc-wrapped so async tasks can hold a reference
     pub agents: Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
-    /// Process handles — Arc-wrapped so async tasks can hold a reference
+    /// Agent process handles — Arc-wrapped so async tasks can hold a reference
     pub agent_processes: Arc<Mutex<HashMap<Uuid, Child>>>,
+    /// Script process handles — keyed by "{workspace_id}:{kind}"
+    pub script_processes: Arc<Mutex<HashMap<String, Child>>>,
+    /// Terminal PTY sessions — keyed by terminal session ID
+    pub terminal_sessions: Arc<Mutex<HashMap<Uuid, TerminalSession>>>,
 }
 
 impl AppState {
@@ -31,6 +36,8 @@ impl AppState {
             db: Mutex::new(None),
             agents: Arc::new(Mutex::new(HashMap::new())),
             agent_processes: Arc::new(Mutex::new(HashMap::new())),
+            script_processes: Arc::new(Mutex::new(HashMap::new())),
+            terminal_sessions: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }

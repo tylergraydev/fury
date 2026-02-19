@@ -200,3 +200,80 @@ export async function getFileDiff(
 ): Promise<FileDiffContent> {
   return invoke<FileDiffContent>("get_file_diff", { workspaceId, filePath });
 }
+
+// Script types
+export type ScriptKind = "setup" | "run" | "archive";
+
+export interface ScriptOutputEvent {
+  line: string;
+  stream: "stdout" | "stderr";
+}
+
+export interface ScriptExitEvent {
+  exitCode: number | null;
+  success: boolean;
+}
+
+export interface RepoSettings {
+  setupScript: string | null;
+  runScript: string | null;
+  archiveScript: string | null;
+  runScriptMode: "concurrent" | "nonconcurrent";
+  envVars: Record<string, string>;
+}
+
+// Script commands
+export async function runScript(
+  workspaceId: string,
+  scriptKind: ScriptKind,
+): Promise<void> {
+  return invoke("run_script", { workspaceId, scriptKind });
+}
+
+export async function stopScript(
+  workspaceId: string,
+  scriptKind: ScriptKind,
+): Promise<void> {
+  return invoke("stop_script", { workspaceId, scriptKind });
+}
+
+export async function getRepoSettings(
+  repoId: string,
+): Promise<RepoSettings> {
+  return invoke<RepoSettings>("get_repo_settings", { repoId });
+}
+
+export async function updateRepoSettings(
+  repoId: string,
+  settings: RepoSettings,
+): Promise<void> {
+  return invoke("update_repo_settings", { repoId, settings });
+}
+
+// Terminal commands
+export async function createTerminal(
+  workspaceId: string,
+  cols: number,
+  rows: number,
+): Promise<string> {
+  return invoke<string>("create_terminal", { workspaceId, cols, rows });
+}
+
+export async function writeTerminal(
+  terminalId: string,
+  data: string,
+): Promise<void> {
+  return invoke("write_terminal", { terminalId, data });
+}
+
+export async function resizeTerminal(
+  terminalId: string,
+  cols: number,
+  rows: number,
+): Promise<void> {
+  return invoke("resize_terminal", { terminalId, cols, rows });
+}
+
+export async function closeTerminal(terminalId: string): Promise<void> {
+  return invoke("close_terminal", { terminalId });
+}
