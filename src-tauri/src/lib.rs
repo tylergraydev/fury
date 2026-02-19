@@ -34,6 +34,12 @@ pub fn run() {
             commands::agent::stop_agent,
             commands::agent::get_agent_status,
             commands::agent::clear_session,
+            // Checkpoint commands
+            commands::checkpoint::list_checkpoints,
+            commands::checkpoint::revert_to_checkpoint,
+            // Git/diff commands
+            commands::git::get_diff,
+            commands::git::get_file_diff,
         ])
         .setup(|app| {
             let app_data_dir = app

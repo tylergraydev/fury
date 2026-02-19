@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatStore } from "../../stores/chatStore";
+import { useCheckpointStore } from "../../stores/checkpointStore";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
 
@@ -12,10 +13,13 @@ interface Props {
 export function ChatPanel({ contextId, contextType }: Props) {
   const agentStore = useAgentStore();
   const chatStore = useChatStore();
+  const checkpointStore = useCheckpointStore();
 
   const agentStatus = agentStore.getStatus(contextId);
   const messages = chatStore.getMessages(contextId);
   const streamingText = chatStore.getStreamingText(contextId);
+  const checkpoints = checkpointStore.getCheckpoints(contextId);
+  const revertedTurnIndex = checkpointStore.getRevertedTurnIndex(contextId);
 
   // Subscribe to events when context changes
   useEffect(() => {
@@ -23,9 +27,17 @@ export function ChatPanel({ contextId, contextType }: Props) {
     chatStore.subscribe(contextId);
     agentStore.fetchStatus(contextId);
 
+    if (contextType === "workspace") {
+      checkpointStore.subscribe(contextId);
+      checkpointStore.loadCheckpoints(contextId);
+    }
+
     return () => {
       agentStore.unsubscribe(contextId);
       chatStore.unsubscribe(contextId);
+      if (contextType === "workspace") {
+        checkpointStore.unsubscribe(contextId);
+      }
     };
   }, [contextId]);
 
@@ -46,12 +58,25 @@ export function ChatPanel({ contextId, contextType }: Props) {
     }
   };
 
+  const handleRevert = async (checkpointId: string) => {
+    try {
+      await checkpointStore.revertToCheckpoint(contextId, checkpointId);
+    } catch (e) {
+      console.error("Failed to revert:", e);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col">
       <MessageList
         messages={messages}
         streamingText={streamingText}
         agentStatus={agentStatus}
+        checkpoints={contextType === "workspace" ? checkpoints : undefined}
+        revertedTurnIndex={revertedTurnIndex}
+        onRevertCheckpoint={
+          contextType === "workspace" ? handleRevert : undefined
+        }
       />
       <Composer
         agentStatus={agentStatus}

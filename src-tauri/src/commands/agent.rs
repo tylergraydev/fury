@@ -80,6 +80,39 @@ pub async fn send_message(
         agent.session_id.clone()
     };
 
+    // Create checkpoint before sending message (workspace mode only)
+    if request.workspace_id.is_some() {
+        let session_id_str = session_id.clone().unwrap_or_default();
+        let turn_index = {
+            let db = state.db.lock().unwrap();
+            db.as_ref()
+                .map(|db| db.get_next_turn_index(&context_id).unwrap_or(0))
+                .unwrap_or(0)
+        };
+
+        match crate::services::checkpoint::create_checkpoint(
+            &working_dir,
+            context_id,
+            &session_id_str,
+            turn_index,
+            &request.message,
+        ) {
+            Ok(checkpoint) => {
+                let db = state.db.lock().unwrap();
+                if let Some(db) = db.as_ref() {
+                    let _ = db.insert_checkpoint(&checkpoint);
+                }
+                let _ = app.emit(
+                    &format!("checkpoint-created:{}", context_id),
+                    &checkpoint,
+                );
+            }
+            Err(e) => {
+                eprintln!("[checkpoint] Failed to create checkpoint: {}", e);
+            }
+        }
+    }
+
     // Emit status change
     let _ = app.emit(
         &format!("agent-status:{}", context_id),

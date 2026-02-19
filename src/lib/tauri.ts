@@ -133,3 +133,70 @@ export async function getAgentStatus(workspaceId: string): Promise<AgentInfo> {
 export async function clearSession(workspaceId: string): Promise<void> {
   return invoke("clear_session", { workspaceId });
 }
+
+// Checkpoint types
+export interface Checkpoint {
+  id: string;
+  workspaceId: string;
+  sessionId: string;
+  turnIndex: number;
+  refName: string;
+  treeSha: string;
+  commitSha: string;
+  createdAt: string;
+  userMessage: string;
+}
+
+// Diff types
+export interface DiffResult {
+  files: FileDiff[];
+  totalAdditions: number;
+  totalDeletions: number;
+}
+
+export interface FileDiff {
+  path: string;
+  status: FileStatus;
+  additions: number;
+  deletions: number;
+}
+
+export type FileStatus =
+  | "Added"
+  | "Modified"
+  | "Deleted"
+  | { Renamed: { from: string } }
+  | "Untracked";
+
+export interface FileDiffContent {
+  path: string;
+  original: string;
+  modified: string;
+  language: string;
+}
+
+// Checkpoint commands
+export async function listCheckpoints(
+  workspaceId: string,
+): Promise<Checkpoint[]> {
+  return invoke<Checkpoint[]>("list_checkpoints", { workspaceId });
+}
+
+export async function revertToCheckpoint(
+  workspaceId: string,
+  checkpointId: string,
+): Promise<void> {
+  return invoke("revert_to_checkpoint", { workspaceId, checkpointId });
+}
+
+// Diff commands
+export async function getDiff(workspaceId: string): Promise<DiffResult> {
+  return invoke<DiffResult>("get_diff", { workspaceId });
+}
+
+export async function getFileDiff(
+  workspaceId: string,
+  filePath: string,
+): Promise<FileDiffContent> {
+  return invoke<FileDiffContent>("get_file_diff", { workspaceId, filePath });
+}

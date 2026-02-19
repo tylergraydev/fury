@@ -1,15 +1,22 @@
+import { useEffect } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Sidebar } from "./components/layout/Sidebar";
 import { ChatPanel } from "./components/chat/ChatPanel";
+import { DiffViewer } from "./components/diff/DiffViewer";
 import { useWorkspaceStore } from "./stores/workspaceStore";
 import { useRepositoryStore } from "./stores/repositoryStore";
 import { useAgentStore } from "./stores/agentStore";
+import { useUIStore } from "./stores/uiStore";
 import "./App.css";
 
 function MainPanel() {
   const { activeWorkspaceId, activeRepoId } = useWorkspaceStore();
+  const viewMode = useUIStore((s) => s.viewMode);
 
   if (activeWorkspaceId) {
+    if (viewMode === "diff") {
+      return <DiffViewer workspaceId={activeWorkspaceId} />;
+    }
     return <ChatPanel contextId={activeWorkspaceId} contextType="workspace" />;
   }
 
@@ -90,8 +97,22 @@ function AgentStatusBadge({ contextId }: { contextId: string }) {
 function App() {
   const { activeWorkspaceId, activeRepoId, workspaces } = useWorkspaceStore();
   const { repositories } = useRepositoryStore();
+  const viewMode = useUIStore((s) => s.viewMode);
   const activeWs = workspaces.find((w) => w.id === activeWorkspaceId);
   const activeRepo = repositories.find((r) => r.id === activeRepoId);
+
+  // Cmd/Ctrl+D to toggle diff viewer
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "d") {
+        e.preventDefault();
+        useUIStore.getState().toggleDiff();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   return (
     <div className="flex h-screen flex-col">
       {/* Top bar */}
@@ -120,6 +141,40 @@ function App() {
               {activeWs.branch}
             </span>
             <AgentStatusBadge contextId={activeWs.id} />
+            {/* View mode tabs */}
+            <span
+              className="ml-2 flex gap-1 rounded px-1 py-0.5 text-[10px]"
+              style={{ backgroundColor: "var(--bg-primary)" }}
+            >
+              <button
+                onClick={() => useUIStore.getState().setViewMode("chat")}
+                className="rounded px-1.5 py-0.5 transition-colors"
+                style={{
+                  backgroundColor:
+                    viewMode === "chat" ? "var(--bg-surface)" : "transparent",
+                  color:
+                    viewMode === "chat"
+                      ? "var(--accent)"
+                      : "var(--text-muted)",
+                }}
+              >
+                Chat
+              </button>
+              <button
+                onClick={() => useUIStore.getState().setViewMode("diff")}
+                className="rounded px-1.5 py-0.5 transition-colors"
+                style={{
+                  backgroundColor:
+                    viewMode === "diff" ? "var(--bg-surface)" : "transparent",
+                  color:
+                    viewMode === "diff"
+                      ? "var(--accent)"
+                      : "var(--text-muted)",
+                }}
+              >
+                Diff
+              </button>
+            </span>
           </>
         )}
         {activeRepo && !activeWs && (
