@@ -1,19 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --bg-primary: #1e1e2e;
-  --bg-secondary: #181825;
-  --bg-surface: #313244;
-  --bg-hover: #45475a;
-  --text-primary: #cdd6f4;
-  --text-secondary: #a6adc8;
-  --text-muted: #6c7086;
-  --border: #45475a;
-  --accent: #89b4fa;
-  --accent-hover: #74c7ec;
-  --success: #a6e3a1;
-  --warning: #f9e2af;
-  --error: #f38ba8;
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-surface: #1a1a1a;
+  --bg-hover: #252525;
+  --text-primary: #ffffff;
+  --text-secondary: #b0b0b0;
+  --text-muted: #666666;
+  --border: #262626;
+  --accent: #ffffff;
+  --accent-hover: #d4d4d4;
+  --success: #4ade80;
+  --warning: #facc15;
+  --error: #f87171;
 }
 
 html,
@@ -139,4 +139,22 @@ body,
 .resize-handle-v:hover::after,
 .resize-handle-v[data-resize-handle-active]::after {
   opacity: 1;
+}
+
+/* Command palette (cmdk) dialog positioning */
+[cmdk-overlay] {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 50;
+}
+
+[cmdk-dialog] {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  width: 100%;
+  max-width: 480px;
 }

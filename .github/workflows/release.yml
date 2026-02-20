@@ -52,7 +52,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: "Missoula ${{ github.ref_name }}"
+          releaseName: "Fury ${{ github.ref_name }}"
           releaseBody: "See the assets to download and install this version."
           releaseDraft: true
           prerelease: false

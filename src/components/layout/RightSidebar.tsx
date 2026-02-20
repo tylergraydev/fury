@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Panel,
   PanelGroup,
@@ -18,15 +18,23 @@ import { TerminalPanel } from "../terminal/TerminalPanel";
 import { RunPanel } from "../terminal/RunPanel";
 import { SetupPanel } from "../terminal/SetupPanel";
 import { ErrorBoundary } from "../ErrorBoundary";
+import { useFileViewerStore } from "../../stores/fileViewerStore";
+import { isMac } from "../../lib/keybindings";
+import type { SidebarContext } from "../../App";
 
 interface Props {
-  workspaceId: string;
+  context: SidebarContext;
 }
 
-const tabs: { key: RightSidebarTab; label: string }[] = [
+const ALL_TABS: { key: RightSidebarTab; label: string }[] = [
   { key: "files", label: "All files" },
   { key: "changes", label: "Changes" },
   { key: "checks", label: "Checks" },
+];
+
+const REPO_TABS: { key: RightSidebarTab; label: string }[] = [
+  { key: "files", label: "All files" },
+  { key: "changes", label: "Changes" },
 ];
 
 const BOTTOM_TABS: { key: BottomTab; label: string }[] = [
@@ -35,17 +43,44 @@ const BOTTOM_TABS: { key: BottomTab; label: string }[] = [
   { key: "terminal", label: "Terminal" },
 ];
 
-export function RightSidebar({ workspaceId }: Props) {
+export function RightSidebar({ context }: Props) {
   const activeTab = useUIStore((s) => s.rightSidebarTab);
   const setTab = useUIStore((s) => s.setRightSidebarTab);
   const bottomTab = useUIStore((s) => s.bottomTab);
   const setBottomTab = useUIStore((s) => s.setBottomTab);
   const changeCount = useDiffStore(
-    (s) => s.diffResults[workspaceId]?.files.length ?? 0,
+    (s) => s.diffResults[context.id]?.files.length ?? 0,
   );
+
+  const tabs = context.type === "workspace" ? ALL_TABS : REPO_TABS;
+
+  // Reset tab to "files" if current tab is "checks" and we switched to repo context
+  useEffect(() => {
+    if (context.type === "repo" && activeTab === "checks") {
+      setTab("files");
+    }
+  }, [context.type, activeTab, setTab]);
 
   const bottomPanelRef = useRef<ImperativePanelHandle>(null);
   const [bottomCollapsed, setBottomCollapsed] = useState(false);
+
+  const handleFileClick = useCallback(
+    (filePath: string) => {
+      useFileViewerStore
+        .getState()
+        .openFile(context.id, context.type, filePath);
+    },
+    [context.id, context.type],
+  );
+
+  const handleFileDoubleClick = useCallback(
+    (filePath: string) => {
+      useFileViewerStore
+        .getState()
+        .openFile(context.id, context.type, filePath, true);
+    },
+    [context.id, context.type],
+  );
 
   const toggleBottomPanel = useCallback(() => {
     const panel = bottomPanelRef.current;
@@ -66,10 +101,14 @@ export function RightSidebar({ workspaceId }: Props) {
         {/* Top section: files/changes/checks */}
         <Panel defaultSize={60} minSize={20}>
           <div className="flex h-full flex-col">
-            {/* Tab bar */}
+            {/* Tab bar — draggable region */}
             <div
-              className="flex items-center text-xs"
-              style={{ borderBottom: "1px solid var(--border)" }}
+              data-tauri-drag-region
+              className="flex items-end text-sm"
+              style={{
+                borderBottom: "1px solid var(--border)",
+                paddingTop: isMac ? 42 : 10,
+              }}
             >
               {tabs.map((tab) => {
                 const isActive = activeTab === tab.key;
@@ -81,7 +120,7 @@ export function RightSidebar({ workspaceId }: Props) {
                   <button
                     key={tab.key}
                     onClick={() => setTab(tab.key)}
-                    className="px-3 py-1.5 transition-colors"
+                    className="px-4 py-2 transition-colors"
                     style={{
                       color: isActive
                         ? "var(--accent)"
@@ -99,15 +138,19 @@ export function RightSidebar({ workspaceId }: Props) {
 
             {/* Tab content */}
             <div className="flex-1 overflow-hidden">
-              <ErrorBoundary label={activeTab} resetKey={`${workspaceId}:${activeTab}`}>
+              <ErrorBoundary label={activeTab} resetKey={`${context.id}:${activeTab}`}>
                 {activeTab === "files" && (
-                  <FileTreePanel workspaceId={workspaceId} />
+                  <FileTreePanel
+                    context={context}
+                    onFileClick={handleFileClick}
+                    onFileDoubleClick={handleFileDoubleClick}
+                  />
                 )}
                 {activeTab === "changes" && (
-                  <ChangesPanel workspaceId={workspaceId} />
+                  <ChangesPanel context={context} />
                 )}
-                {activeTab === "checks" && (
-                  <ChecksPanel workspaceId={workspaceId} />
+                {activeTab === "checks" && context.type === "workspace" && (
+                  <ChecksPanel workspaceId={context.id} />
                 )}
               </ErrorBoundary>
             </div>
@@ -129,7 +172,7 @@ export function RightSidebar({ workspaceId }: Props) {
           <div className="flex h-full flex-col">
             {/* Terminal tab bar — always visible */}
             <div
-              className="flex items-center gap-1 px-3 py-1 text-xs"
+              className="flex items-center gap-1.5 px-4 py-1.5 text-sm"
               style={{
                 borderBottom: bottomCollapsed
                   ? undefined
@@ -139,8 +182,8 @@ export function RightSidebar({ workspaceId }: Props) {
             >
               <button
                 onClick={toggleBottomPanel}
-                className="flex-shrink-0 rounded px-0.5 transition-colors hover:bg-[var(--bg-hover)]"
-                style={{ color: "var(--text-muted)", fontSize: 8 }}
+                className="flex-shrink-0 rounded px-1 transition-colors hover:bg-[var(--bg-hover)]"
+                style={{ color: "var(--text-muted)", fontSize: 10 }}
                 title={bottomCollapsed ? "Expand panel" : "Collapse panel"}
               >
                 {bottomCollapsed ? "\u25B2" : "\u25BC"}
@@ -152,7 +195,7 @@ export function RightSidebar({ workspaceId }: Props) {
                     setBottomTab(tab.key);
                     if (bottomCollapsed) bottomPanelRef.current?.expand();
                   }}
-                  className="cursor-pointer rounded px-2 py-0.5 transition-colors"
+                  className="cursor-pointer rounded px-2.5 py-1 transition-colors"
                   style={{
                     backgroundColor:
                       bottomTab === tab.key
@@ -172,15 +215,15 @@ export function RightSidebar({ workspaceId }: Props) {
             {/* Terminal content */}
             {!bottomCollapsed && (
               <div className="flex-1 overflow-hidden">
-                <ErrorBoundary label={bottomTab} resetKey={`${workspaceId}:${bottomTab}`}>
+                <ErrorBoundary label={bottomTab} resetKey={`${context.id}:${bottomTab}`}>
                   {bottomTab === "setup" && (
-                    <SetupPanel workspaceId={workspaceId} />
+                    <SetupPanel context={context} />
                   )}
                   {bottomTab === "terminal" && (
-                    <TerminalPanel workspaceId={workspaceId} />
+                    <TerminalPanel context={context} />
                   )}
                   {bottomTab === "run" && (
-                    <RunPanel workspaceId={workspaceId} />
+                    <RunPanel context={context} />
                   )}
                 </ErrorBoundary>
               </div>

@@ -1,29 +1,31 @@
 import { useEffect, useRef } from "react";
 import { useScriptStore } from "../../stores/scriptStore";
+import type { SidebarContext } from "../../App";
 
 const EMPTY_OUTPUT: string[] = [];
 
 interface Props {
-  workspaceId: string;
+  context: SidebarContext;
 }
 
-export function SetupPanel({ workspaceId }: Props) {
+export function SetupPanel({ context }: Props) {
+  const contextId = context.id;
   const scrollRef = useRef<HTMLDivElement>(null);
   const output = useScriptStore(
-    (s) => s.output[`${workspaceId}:setup`] ?? EMPTY_OUTPUT,
+    (s) => s.output[`${contextId}:setup`] ?? EMPTY_OUTPUT,
   );
   const running = useScriptStore(
-    (s) => s.running[`${workspaceId}:setup`] ?? false,
+    (s) => s.running[`${contextId}:setup`] ?? false,
   );
   const exitCode = useScriptStore(
-    (s) => s.exitCodes[`${workspaceId}:setup`],
+    (s) => s.exitCodes[`${contextId}:setup`],
   );
 
   useEffect(() => {
     const store = useScriptStore.getState();
-    store.subscribe(workspaceId, "setup");
-    return () => useScriptStore.getState().unsubscribe(workspaceId, "setup");
-  }, [workspaceId]);
+    store.subscribe(contextId, "setup");
+    return () => useScriptStore.getState().unsubscribe(contextId, "setup");
+  }, [contextId]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -31,6 +33,24 @@ export function SetupPanel({ workspaceId }: Props) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [output]);
+
+  const handleRun = () => {
+    const store = useScriptStore.getState();
+    if (context.type === "workspace") {
+      store.runScript(contextId, "setup");
+    } else {
+      store.runRepoScript(contextId, "setup");
+    }
+  };
+
+  const handleStop = () => {
+    const store = useScriptStore.getState();
+    if (context.type === "workspace") {
+      store.stopScript(contextId, "setup");
+    } else {
+      store.stopRepoScript(contextId, "setup");
+    }
+  };
 
   return (
     <div
@@ -63,7 +83,7 @@ export function SetupPanel({ workspaceId }: Props) {
             </span>
           )}
           <button
-            onClick={() => useScriptStore.getState().clearOutput(workspaceId, "setup")}
+            onClick={() => useScriptStore.getState().clearOutput(contextId, "setup")}
             className="rounded px-2 py-0.5"
             style={{
               backgroundColor: "var(--bg-surface)",
@@ -74,7 +94,7 @@ export function SetupPanel({ workspaceId }: Props) {
           </button>
           {running ? (
             <button
-              onClick={() => useScriptStore.getState().stopScript(workspaceId, "setup")}
+              onClick={handleStop}
               className="rounded px-2 py-0.5"
               style={{
                 backgroundColor: "var(--error)",
@@ -85,7 +105,7 @@ export function SetupPanel({ workspaceId }: Props) {
             </button>
           ) : (
             <button
-              onClick={() => useScriptStore.getState().runScript(workspaceId, "setup")}
+              onClick={handleRun}
               className="rounded px-2 py-0.5"
               style={{
                 backgroundColor: "var(--accent)",

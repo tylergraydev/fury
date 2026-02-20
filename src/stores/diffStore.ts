@@ -4,6 +4,8 @@ import {
   type FileDiffContent,
   getDiff as getDiffCmd,
   getFileDiff as getFileDiffCmd,
+  getRepoDiff as getRepoDiffCmd,
+  getRepoFileDiff as getRepoFileDiffCmd,
 } from "../lib/tauri";
 
 interface DiffStore {
@@ -15,14 +17,18 @@ interface DiffStore {
 
   loadDiff: (workspaceId: string) => Promise<void>;
   loadFileDiff: (workspaceId: string, filePath: string) => Promise<void>;
-  selectFile: (workspaceId: string, filePath: string) => void;
-  getDiffResult: (workspaceId: string) => DiffResult | null;
+  loadRepoDiff: (repoId: string) => Promise<void>;
+  loadRepoFileDiff: (repoId: string, filePath: string) => Promise<void>;
+  selectFile: (contextId: string, filePath: string) => void;
+  selectRepoFile: (repoId: string, filePath: string) => void;
+  getDiffResult: (contextId: string) => DiffResult | null;
   getFileDiffContent: (
-    workspaceId: string,
+    contextId: string,
     filePath: string,
   ) => FileDiffContent | null;
-  getSelectedFile: (workspaceId: string) => string | null;
+  getSelectedFile: (contextId: string) => string | null;
   refresh: (workspaceId: string) => Promise<void>;
+  refreshRepo: (repoId: string) => Promise<void>;
 }
 
 export const useDiffStore = create<DiffStore>((set, get) => ({
@@ -58,6 +64,32 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
     }
   },
 
+  loadRepoDiff: async (repoId: string) => {
+    set({ loading: true, error: null });
+    try {
+      const result = await getRepoDiffCmd(repoId);
+      set((state) => ({
+        diffResults: { ...state.diffResults, [repoId]: result },
+        loading: false,
+      }));
+    } catch (e) {
+      set({ loading: false, error: String(e) });
+    }
+  },
+
+  loadRepoFileDiff: async (repoId: string, filePath: string) => {
+    const key = `${repoId}:${filePath}`;
+    try {
+      const result = await getRepoFileDiffCmd(repoId, filePath);
+      set((state) => ({
+        fileDiffs: { ...state.fileDiffs, [key]: result },
+      }));
+    } catch (e) {
+      console.error("Failed to load repo file diff:", e);
+      set({ error: String(e) });
+    }
+  },
+
   selectFile: (workspaceId: string, filePath: string) => {
     set((state) => ({
       selectedFile: { ...state.selectedFile, [workspaceId]: filePath },
@@ -65,17 +97,24 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
     get().loadFileDiff(workspaceId, filePath);
   },
 
-  getDiffResult: (workspaceId: string) => {
-    return get().diffResults[workspaceId] ?? null;
+  selectRepoFile: (repoId: string, filePath: string) => {
+    set((state) => ({
+      selectedFile: { ...state.selectedFile, [repoId]: filePath },
+    }));
+    get().loadRepoFileDiff(repoId, filePath);
   },
 
-  getFileDiffContent: (workspaceId: string, filePath: string) => {
-    const key = `${workspaceId}:${filePath}`;
+  getDiffResult: (contextId: string) => {
+    return get().diffResults[contextId] ?? null;
+  },
+
+  getFileDiffContent: (contextId: string, filePath: string) => {
+    const key = `${contextId}:${filePath}`;
     return get().fileDiffs[key] ?? null;
   },
 
-  getSelectedFile: (workspaceId: string) => {
-    return get().selectedFile[workspaceId] ?? null;
+  getSelectedFile: (contextId: string) => {
+    return get().selectedFile[contextId] ?? null;
   },
 
   refresh: async (workspaceId: string) => {
@@ -83,6 +122,14 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
     const selected = get().selectedFile[workspaceId];
     if (selected) {
       await get().loadFileDiff(workspaceId, selected);
+    }
+  },
+
+  refreshRepo: async (repoId: string) => {
+    await get().loadRepoDiff(repoId);
+    const selected = get().selectedFile[repoId];
+    if (selected) {
+      await get().loadRepoFileDiff(repoId, selected);
     }
   },
 }));

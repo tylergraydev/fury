@@ -19,7 +19,7 @@ export function SessionTabBar({ workspaceId, workspaceName }: Props) {
 
   return (
     <div
-      className="flex items-center gap-1 px-3 py-1 text-xs"
+      className="flex items-center gap-1.5 px-4 py-1.5 text-sm"
       style={{
         backgroundColor: "var(--bg-secondary)",
         borderBottom: "1px solid var(--border)",
@@ -29,7 +29,7 @@ export function SessionTabBar({ workspaceId, workspaceName }: Props) {
         <>
           {/* Active session tab */}
           <span
-            className="rounded-t px-2.5 py-1"
+            className="rounded-t px-3 py-1.5"
             style={{
               backgroundColor: "var(--bg-primary)",
               color: "var(--text-primary)",
@@ -42,7 +42,7 @@ export function SessionTabBar({ workspaceId, workspaceName }: Props) {
           {/* New session button */}
           <button
             onClick={handleNewSession}
-            className="rounded px-1.5 py-0.5 transition-colors hover:bg-[var(--bg-hover)]"
+            className="rounded px-2 py-1 transition-colors hover:bg-[var(--bg-hover)]"
             style={{ color: "var(--text-muted)" }}
             title="New session"
           >

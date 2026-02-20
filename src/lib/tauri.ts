@@ -209,6 +209,43 @@ export async function listWorkspaceFiles(
   return invoke<string[]>("list_workspace_files", { workspaceId });
 }
 
+// Repo-scoped diff commands
+export async function getRepoDiff(repoId: string): Promise<DiffResult> {
+  return invoke<DiffResult>("get_repo_diff", { repoId });
+}
+
+export async function getRepoFileDiff(
+  repoId: string,
+  filePath: string,
+): Promise<FileDiffContent> {
+  return invoke<FileDiffContent>("get_repo_file_diff", { repoId, filePath });
+}
+
+// File content reading
+export interface FileContent {
+  content: string;
+  language: string;
+}
+
+export async function readWorkspaceFile(
+  workspaceId: string,
+  filePath: string,
+): Promise<FileContent> {
+  return invoke<FileContent>("read_workspace_file", { workspaceId, filePath });
+}
+
+export async function readRepoFile(
+  repoId: string,
+  filePath: string,
+): Promise<FileContent> {
+  return invoke<FileContent>("read_repo_file", { repoId, filePath });
+}
+
+// Repo-scoped file listing
+export async function listRepoFiles(repoId: string): Promise<string[]> {
+  return invoke<string[]>("list_repo_files", { repoId });
+}
+
 // Script types
 export type ScriptKind = "setup" | "run" | "archive";
 
@@ -245,6 +282,21 @@ export async function stopScript(
   return invoke("stop_script", { workspaceId, scriptKind });
 }
 
+// Repo-scoped script commands
+export async function runRepoScript(
+  repoId: string,
+  scriptKind: ScriptKind,
+): Promise<void> {
+  return invoke("run_repo_script", { repoId, scriptKind });
+}
+
+export async function stopRepoScript(
+  repoId: string,
+  scriptKind: ScriptKind,
+): Promise<void> {
+  return invoke("stop_repo_script", { repoId, scriptKind });
+}
+
 export async function getRepoSettings(
   repoId: string,
 ): Promise<RepoSettings> {
@@ -265,6 +317,15 @@ export async function createTerminal(
   rows: number,
 ): Promise<string> {
   return invoke<string>("create_terminal", { workspaceId, cols, rows });
+}
+
+// Repo-scoped terminal command
+export async function createRepoTerminal(
+  repoId: string,
+  cols: number,
+  rows: number,
+): Promise<string> {
+  return invoke<string>("create_repo_terminal", { repoId, cols, rows });
 }
 
 export async function writeTerminal(

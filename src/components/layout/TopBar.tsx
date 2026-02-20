@@ -5,7 +5,6 @@ import { useAgentStore } from "../../stores/agentStore";
 interface Props {
   activeWs: WorkspaceInfo | undefined;
   activeRepo: Repository | undefined;
-  onOpenSettings: () => void;
 }
 
 function AgentStatusDot({ contextId }: { contextId: string }) {
@@ -32,12 +31,13 @@ function AgentStatusDot({ contextId }: { contextId: string }) {
   );
 }
 
-export function TopBar({ activeWs, activeRepo, onOpenSettings }: Props) {
+export function TopBar({ activeWs, activeRepo }: Props) {
   return (
     <div
-      className="flex items-center gap-2 py-1.5 pr-3 text-xs"
+      data-tauri-drag-region
+      className="flex items-center gap-2.5 px-4 py-2 text-sm"
       style={{
-        paddingLeft: isMac ? 80 : 16,
+        paddingTop: isMac ? 42 : 10,
         backgroundColor: "var(--bg-secondary)",
         borderBottom: "1px solid var(--border)",
         color: "var(--text-primary)",
@@ -53,7 +53,7 @@ export function TopBar({ activeWs, activeRepo, onOpenSettings }: Props) {
           </span>
           <span style={{ color: "var(--text-muted)" }}>&gt;</span>
           <span
-            className="rounded px-1.5 py-0.5"
+            className="rounded px-2 py-0.5"
             style={{
               backgroundColor: "var(--bg-surface)",
               color: "var(--text-secondary)",
@@ -73,18 +73,8 @@ export function TopBar({ activeWs, activeRepo, onOpenSettings }: Props) {
           <AgentStatusDot contextId={activeRepo.id} />
         </>
       ) : (
-        <span className="font-semibold">Missoula</span>
+        <span className="font-semibold">Fury</span>
       )}
-
-      {/* Right side actions */}
-      <button
-        onClick={onOpenSettings}
-        className="ml-auto rounded p-1 text-[10px] transition-colors hover:bg-[var(--bg-hover)]"
-        style={{ color: "var(--text-muted)" }}
-        title="Settings"
-      >
-        &#9881;
-      </button>
     </div>
   );
 }

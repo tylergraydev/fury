@@ -6,6 +6,8 @@ import {
   type ScriptExitEvent,
   runScript as runScriptCmd,
   stopScript as stopScriptCmd,
+  runRepoScript as runRepoScriptCmd,
+  stopRepoScript as stopRepoScriptCmd,
 } from "../lib/tauri";
 
 interface ScriptStore {
@@ -14,13 +16,15 @@ interface ScriptStore {
   exitCodes: Record<string, number | null>;
   subscriptions: Record<string, UnlistenFn[]>;
 
-  subscribe: (workspaceId: string, kind: ScriptKind) => Promise<void>;
-  unsubscribe: (workspaceId: string, kind: ScriptKind) => void;
+  subscribe: (contextId: string, kind: ScriptKind) => Promise<void>;
+  unsubscribe: (contextId: string, kind: ScriptKind) => void;
   runScript: (workspaceId: string, kind: ScriptKind) => Promise<void>;
   stopScript: (workspaceId: string, kind: ScriptKind) => Promise<void>;
-  clearOutput: (workspaceId: string, kind: ScriptKind) => void;
-  getOutput: (workspaceId: string, kind: ScriptKind) => string[];
-  isRunning: (workspaceId: string, kind: ScriptKind) => boolean;
+  runRepoScript: (repoId: string, kind: ScriptKind) => Promise<void>;
+  stopRepoScript: (repoId: string, kind: ScriptKind) => Promise<void>;
+  clearOutput: (contextId: string, kind: ScriptKind) => void;
+  getOutput: (contextId: string, kind: ScriptKind) => string[];
+  isRunning: (contextId: string, kind: ScriptKind) => boolean;
 }
 
 function key(workspaceId: string, kind: ScriptKind): string {
@@ -106,6 +110,34 @@ export const useScriptStore = create<ScriptStore>((set, get) => ({
       await stopScriptCmd(workspaceId, kind);
     } catch (e) {
       console.error(`[scriptStore] Failed to stop script:`, e);
+    }
+  },
+
+  runRepoScript: async (repoId: string, kind: ScriptKind) => {
+    const k = key(repoId, kind);
+    set((state) => ({
+      running: { ...state.running, [k]: true },
+      exitCodes: { ...state.exitCodes, [k]: null },
+      output: { ...state.output, [k]: [] },
+    }));
+    try {
+      await runRepoScriptCmd(repoId, kind);
+    } catch (e) {
+      set((state) => ({
+        running: { ...state.running, [k]: false },
+        output: {
+          ...state.output,
+          [k]: [...(state.output[k] ?? []), `[error] Failed to start script: ${String(e)}`],
+        },
+      }));
+    }
+  },
+
+  stopRepoScript: async (repoId: string, kind: ScriptKind) => {
+    try {
+      await stopRepoScriptCmd(repoId, kind);
+    } catch (e) {
+      console.error(`[scriptStore] Failed to stop repo script:`, e);
     }
   },
 

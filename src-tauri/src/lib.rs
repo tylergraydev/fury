@@ -53,9 +53,16 @@ pub fn run() {
             commands::git::get_file_diff,
             commands::git::list_repo_directories,
             commands::git::list_workspace_files,
+            commands::git::list_repo_files,
+            commands::git::get_repo_diff,
+            commands::git::get_repo_file_diff,
+            commands::git::read_workspace_file,
+            commands::git::read_repo_file,
             // Script commands
             commands::script::run_script,
             commands::script::stop_script,
+            commands::script::run_repo_script,
+            commands::script::stop_repo_script,
             commands::script::get_repo_settings,
             commands::script::update_repo_settings,
             // Terminal commands
@@ -63,6 +70,7 @@ pub fn run() {
             commands::terminal::write_terminal,
             commands::terminal::resize_terminal,
             commands::terminal::close_terminal,
+            commands::terminal::create_repo_terminal,
             // PR commands
             commands::pr::create_pr,
             commands::pr::get_pr_info,

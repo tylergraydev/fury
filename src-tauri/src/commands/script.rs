@@ -164,6 +164,127 @@ pub fn stop_script(
 }
 
 #[tauri::command]
+pub async fn run_repo_script(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    repo_id: String,
+    script_kind: String,
+) -> Result<(), AppError> {
+    let id: Uuid = repo_id
+        .parse()
+        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+    let kind = ScriptKind::from_str(&script_kind)?;
+
+    // Resolve settings and repo path
+    let settings = resolve_settings(&state, &id)?;
+
+    let repo_path = {
+        let repos = state.repositories.lock().unwrap();
+        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+        repo.path.clone()
+    };
+
+    let script_body = match kind {
+        ScriptKind::Setup => settings.setup_script,
+        ScriptKind::Run => settings.run_script,
+        ScriptKind::Archive => settings.archive_script,
+    };
+
+    let script_body = script_body.ok_or_else(|| {
+        AppError::ScriptError(format!("No {} script configured", kind.as_str()))
+    })?;
+
+    // Nonconcurrent mode: kill previous run script before starting new one
+    if kind == ScriptKind::Run && matches!(settings.run_script_mode, RunScriptMode::Nonconcurrent) {
+        let key = format!("repo:{}:{}", id, kind.as_str());
+        let mut processes = state.script_processes.lock().unwrap();
+        if let Some(child) = processes.remove(&key) {
+            if let Some(pid) = child.id() {
+                let _ = crate::platform::kill_process_group(pid);
+            }
+        }
+    }
+
+    // Build env vars using repo-direct mode
+    let env_vars = {
+        let repos = state.repositories.lock().unwrap();
+        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?.clone();
+        let app_settings = state.settings.lock().unwrap().clone();
+        let mut env = claude_process::build_repo_env_vars(&repo, &app_settings);
+        for (k, v) in &settings.env_vars {
+            env.insert(k.clone(), v.clone());
+        }
+        env
+    };
+
+    // Spawn the script
+    let child = script_runner::spawn_script(
+        id,
+        kind,
+        &script_body,
+        &repo_path,
+        env_vars,
+        app.clone(),
+    )
+    .await?;
+
+    // Store process handle with repo: prefix to avoid key collisions
+    let key = format!("repo:{}:{}", id, kind.as_str());
+    {
+        let mut processes = state.script_processes.lock().unwrap();
+        processes.insert(key.clone(), child);
+    }
+
+    // Background task to wait for exit
+    let processes_ref = Arc::clone(&state.script_processes);
+    let app_clone = app.clone();
+    let exit_event = format!("script-exit:{}:{}", kind.as_str(), id);
+    tokio::spawn(async move {
+        let mut child = {
+            let mut processes = processes_ref.lock().unwrap();
+            processes.remove(&key)
+        };
+
+        let exit_status = if let Some(ref mut c) = child {
+            c.wait().await.ok()
+        } else {
+            None
+        };
+
+        let (exit_code, success) = match exit_status {
+            Some(ref status) => (status.code(), status.success()),
+            None => (None, false),
+        };
+
+        let _ = app_clone.emit(&exit_event, &ScriptExitEvent { exit_code, success });
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn stop_repo_script(
+    state: State<'_, AppState>,
+    repo_id: String,
+    script_kind: String,
+) -> Result<(), AppError> {
+    let id: Uuid = repo_id
+        .parse()
+        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+    let kind = ScriptKind::from_str(&script_kind)?;
+
+    let key = format!("repo:{}:{}", id, kind.as_str());
+    let mut processes = state.script_processes.lock().unwrap();
+    if let Some(child) = processes.remove(&key) {
+        if let Some(pid) = child.id() {
+            let _ = crate::platform::kill_process_group(pid);
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 pub fn get_repo_settings(
     state: State<'_, AppState>,
     repo_id: String,

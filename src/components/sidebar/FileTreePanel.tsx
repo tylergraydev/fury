@@ -1,11 +1,15 @@
 import { useCallback, useEffect } from "react";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
+import { getFileIcon, FolderIcon, FolderOpenIcon } from "../icons/FileIcons";
+import type { SidebarContext } from "../../App";
 
 const EMPTY_FILES: string[] = [];
 const EMPTY_DIRS = new Set<string>();
 
 interface Props {
-  workspaceId: string;
+  context: SidebarContext;
+  onFileClick?: (filePath: string) => void;
+  onFileDoubleClick?: (filePath: string) => void;
 }
 
 interface TreeNode {
@@ -57,49 +61,51 @@ function buildTree(paths: string[]): TreeNode[] {
   return root;
 }
 
-function fileIcon(name: string): string {
-  if (name.endsWith(".ts") || name.endsWith(".tsx")) return "\u{1F7E6}";
-  if (name.endsWith(".rs")) return "\u{1F7E7}";
-  if (name.endsWith(".json")) return "\u{1F7E1}";
-  if (name.endsWith(".css")) return "\u{1F7EA}";
-  if (name.endsWith(".html")) return "\u{1F7E2}";
-  if (name.endsWith(".toml")) return "\u{2699}";
-  if (name.startsWith(".")) return "\u{26AB}";
-  return "\u{1F4C4}";
-}
-
 function TreeItem({
   node,
   depth,
   expanded,
   onToggle,
+  onFileClick,
+  onFileDoubleClick,
 }: {
   node: TreeNode;
   depth: number;
   expanded: Set<string>;
   onToggle: (path: string) => void;
+  onFileClick?: (path: string) => void;
+  onFileDoubleClick?: (path: string) => void;
 }) {
   const isExpanded = expanded.has(node.path);
 
   return (
     <>
       <button
-        onClick={() => node.isDir && onToggle(node.path)}
+        onClick={() => {
+          if (node.isDir) {
+            onToggle(node.path);
+          } else if (onFileClick) {
+            onFileClick(node.path);
+          }
+        }}
+        onDoubleClick={() => {
+          if (!node.isDir && onFileDoubleClick) {
+            onFileDoubleClick(node.path);
+          }
+        }}
         className="flex w-full items-center gap-1 py-0.5 text-left text-xs hover:bg-[var(--bg-hover)]"
         style={{
           paddingLeft: `${depth * 12 + 8}px`,
           color: node.isDir ? "var(--text-secondary)" : "var(--text-primary)",
         }}
       >
-        {node.isDir ? (
-          <span className="w-3 text-center text-[10px]" style={{ color: "var(--text-muted)" }}>
-            {isExpanded ? "\u25BC" : "\u25B6"}
-          </span>
-        ) : (
-          <span className="w-3 text-center text-[8px]">
-            {fileIcon(node.name)}
-          </span>
-        )}
+        <span className="flex w-4 flex-shrink-0 items-center justify-center">
+          {node.isDir ? (
+            isExpanded ? <FolderOpenIcon /> : <FolderIcon />
+          ) : (
+            (() => { const Icon = getFileIcon(node.name); return <Icon />; })()
+          )}
+        </span>
         <span className="truncate">{node.name}</span>
       </button>
       {node.isDir && isExpanded &&
@@ -110,27 +116,35 @@ function TreeItem({
             depth={depth + 1}
             expanded={expanded}
             onToggle={onToggle}
+            onFileClick={onFileClick}
+            onFileDoubleClick={onFileDoubleClick}
           />
         ))}
     </>
   );
 }
 
-export function FileTreePanel({ workspaceId }: Props) {
-  const files = useFileTreeStore((s) => s.files[workspaceId] ?? EMPTY_FILES);
+export function FileTreePanel({ context, onFileClick, onFileDoubleClick }: Props) {
+  const contextId = context.id;
+  const files = useFileTreeStore((s) => s.files[contextId] ?? EMPTY_FILES);
   const expandedDirs = useFileTreeStore(
-    (s) => s.expandedDirs[workspaceId] ?? EMPTY_DIRS,
+    (s) => s.expandedDirs[contextId] ?? EMPTY_DIRS,
   );
-  const loading = useFileTreeStore((s) => s.loading[workspaceId] ?? false);
-  const error = useFileTreeStore((s) => s.error[workspaceId] ?? null);
+  const loading = useFileTreeStore((s) => s.loading[contextId] ?? false);
+  const error = useFileTreeStore((s) => s.error[contextId] ?? null);
 
   useEffect(() => {
-    useFileTreeStore.getState().loadFiles(workspaceId);
-  }, [workspaceId]);
+    const store = useFileTreeStore.getState();
+    if (context.type === "workspace") {
+      store.loadFiles(contextId);
+    } else {
+      store.loadRepoFiles(contextId);
+    }
+  }, [context.type, contextId]);
 
   const handleToggle = useCallback(
-    (dir: string) => useFileTreeStore.getState().toggleDir(workspaceId, dir),
-    [workspaceId],
+    (dir: string) => useFileTreeStore.getState().toggleDir(contextId, dir),
+    [contextId],
   );
 
   if (loading && files.length === 0) {
@@ -163,6 +177,8 @@ export function FileTreePanel({ workspaceId }: Props) {
           depth={0}
           expanded={expandedDirs}
           onToggle={handleToggle}
+          onFileClick={onFileClick}
+          onFileDoubleClick={onFileDoubleClick}
         />
       ))}
     </div>

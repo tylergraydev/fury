@@ -6,9 +6,14 @@ import { useAgentStore } from "../../stores/agentStore";
 import { NewWorkspaceDialog } from "../workspace/NewWorkspaceDialog";
 import { RepoSettingsPanel } from "../settings/RepoSettingsPanel";
 import { LinkWorkspaceDialog } from "../workspace/LinkWorkspaceDialog";
+import { isMac } from "../../lib/keybindings";
 import type { WorkspaceInfo } from "../../lib/tauri";
 
-export function Sidebar() {
+interface SidebarProps {
+  onOpenSettings: () => void;
+}
+
+export function Sidebar({ onOpenSettings }: SidebarProps) {
   const { repositories, loadRepositories, addRepo } = useRepositoryStore();
   const {
     workspaces,
@@ -77,30 +82,24 @@ export function Sidebar() {
       className="flex h-full flex-col"
       style={{ backgroundColor: "var(--bg-secondary)" }}
     >
-      {/* Header */}
+      {/* Header — draggable region, extra top padding on Mac for traffic light buttons */}
       <div
-        className="flex items-center justify-between px-3 py-2 text-xs"
-        style={{ borderBottom: "1px solid var(--border)" }}
+        data-tauri-drag-region
+        className="flex items-end justify-between px-4 pb-2.5 text-sm"
+        style={{
+          borderBottom: "1px solid var(--border)",
+          paddingTop: isMac ? 42 : 10,
+        }}
       >
         <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
           All repos
         </span>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={handleAddRepo}
-            className="rounded px-1.5 py-0.5 transition-colors hover:bg-[var(--bg-hover)]"
-            style={{ color: "var(--text-muted)" }}
-            title="Add repository"
-          >
-            +
-          </button>
-        </div>
       </div>
 
       {/* Error banner */}
       {repoError && (
         <div
-          className="flex items-start gap-2 px-3 py-1.5 text-[10px]"
+          className="flex items-start gap-2 px-4 py-2 text-xs"
           style={{
             backgroundColor: "rgba(243, 139, 168, 0.1)",
             borderBottom: "1px solid var(--border)",
@@ -121,7 +120,7 @@ export function Sidebar() {
       <div className="flex-1 overflow-y-auto">
         {repositories.length === 0 ? (
           <div
-            className="p-3 text-xs"
+            className="p-4 text-sm"
             style={{ color: "var(--text-muted)" }}
           >
             No repositories added yet.
@@ -138,11 +137,11 @@ export function Sidebar() {
                 {/* Repo header */}
                 <button
                   onClick={() => toggleRepo(repo.id)}
-                  className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-xs transition-colors hover:bg-[var(--bg-hover)]"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition-colors hover:bg-[var(--bg-hover)]"
                   style={{ color: "var(--text-secondary)" }}
                 >
                   <span
-                    className="text-[8px]"
+                    className="text-[10px]"
                     style={{ color: "var(--text-muted)" }}
                   >
                     {isCollapsed ? "\u25B6" : "\u25BC"}
@@ -151,7 +150,7 @@ export function Sidebar() {
                     {repo.name}
                   </span>
                   <span
-                    className="text-[10px]"
+                    className="text-xs"
                     style={{ color: "var(--text-muted)" }}
                   >
                     {repoWorkspaces.length}
@@ -161,7 +160,7 @@ export function Sidebar() {
                       e.stopPropagation();
                       setSettingsRepoId(repo.id);
                     }}
-                    className="rounded px-0.5 hover:bg-[var(--bg-surface)]"
+                    className="rounded px-1 hover:bg-[var(--bg-surface)]"
                     style={{ color: "var(--text-muted)" }}
                     title="Settings"
                   >
@@ -172,7 +171,7 @@ export function Sidebar() {
                       e.stopPropagation();
                       setNewWsRepoId(repo.id);
                     }}
-                    className="rounded px-0.5 hover:bg-[var(--bg-surface)]"
+                    className="rounded px-1 hover:bg-[var(--bg-surface)]"
                     style={{ color: "var(--text-muted)" }}
                     title="New workspace"
                   >
@@ -224,7 +223,7 @@ export function Sidebar() {
       <div style={{ borderTop: "1px solid var(--border)" }}>
         <button
           onClick={() => setShowArchived(!showArchived)}
-          className="flex w-full items-center justify-between px-3 py-1 text-[10px]"
+          className="flex w-full items-center justify-between px-4 py-1.5 text-xs"
           style={{ color: "var(--text-muted)" }}
         >
           <span>
@@ -245,7 +244,7 @@ export function Sidebar() {
           ))}
         {showArchived && archivedWorkspaces.length === 0 && (
           <div
-            className="px-4 py-1 text-[10px]"
+            className="px-5 py-1.5 text-xs"
             style={{ color: "var(--text-muted)" }}
           >
             No archived workspaces
@@ -253,18 +252,26 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* Bottom: Add repository */}
+      {/* Bottom: Add repository + settings */}
       <div
-        className="flex items-center gap-2 px-3 py-2"
+        className="flex items-center gap-2 px-4 py-2.5"
         style={{ borderTop: "1px solid var(--border)" }}
       >
         <button
           onClick={handleAddRepo}
-          className="flex w-full items-center gap-1.5 rounded py-1 text-xs transition-colors hover:bg-[var(--bg-hover)]"
+          className="flex flex-1 items-center gap-2 rounded py-1 text-sm transition-colors hover:bg-[var(--bg-hover)]"
           style={{ color: "var(--text-muted)" }}
         >
           <span>+</span>
           <span>Add repository</span>
+        </button>
+        <button
+          onClick={onOpenSettings}
+          className="flex-shrink-0 rounded p-1.5 text-sm transition-colors hover:bg-[var(--bg-hover)]"
+          style={{ color: "var(--text-muted)" }}
+          title="Settings"
+        >
+          &#9881;
         </button>
       </div>
 
@@ -326,20 +333,20 @@ function RepoBranchItem({
   return (
     <button
       onClick={onClick}
-      className="flex w-full items-center gap-2 py-1 pl-7 pr-3 text-left text-xs transition-colors hover:bg-[var(--bg-hover)]"
+      className="flex w-full items-center gap-2.5 py-1.5 pl-8 pr-4 text-left text-sm transition-colors hover:bg-[var(--bg-hover)]"
       style={{
         backgroundColor: isActive ? "var(--bg-surface)" : "transparent",
         color: "var(--text-primary)",
       }}
     >
       <span
-        className={`flex-shrink-0 text-[8px] leading-none ${isRunning ? "animate-pulse" : ""}`}
+        className={`flex-shrink-0 text-[10px] leading-none ${isRunning ? "animate-pulse" : ""}`}
         style={{ color: dotColor }}
       >
         &#9670;
       </span>
       <span
-        className="truncate text-[10px] italic"
+        className="truncate text-xs italic"
         style={{ color: "var(--text-muted)" }}
         title="Base repository"
       >
@@ -399,7 +406,7 @@ function WorkspaceItem({
 
   return (
     <div
-      className="group flex w-full items-center gap-2 py-1 pl-7 pr-3 text-left text-xs transition-colors hover:bg-[var(--bg-hover)]"
+      className="group flex w-full items-center gap-2.5 py-1.5 pl-8 pr-4 text-left text-sm transition-colors hover:bg-[var(--bg-hover)]"
       style={{
         backgroundColor: isActive ? "var(--bg-surface)" : "transparent",
         color: "var(--text-primary)",
@@ -407,15 +414,15 @@ function WorkspaceItem({
     >
       <button
         onClick={onClick}
-        className="flex min-w-0 flex-1 items-center gap-2"
+        className="flex min-w-0 flex-1 items-center gap-2.5"
       >
         <span
-          className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${isRunning ? "animate-pulse" : ""}`}
+          className={`h-2 w-2 flex-shrink-0 rounded-full ${isRunning ? "animate-pulse" : ""}`}
           style={{ backgroundColor: dotColor }}
         />
         {editing ? (
           <input
-            className="min-w-0 flex-1 rounded border-none bg-[var(--bg-primary)] px-1 text-xs outline-none"
+            className="min-w-0 flex-1 rounded border-none bg-[var(--bg-primary)] px-1.5 text-sm outline-none"
             style={{ color: "var(--text-primary)" }}
             value={editName}
             onChange={(e) => setEditName(e.target.value)}
@@ -433,7 +440,7 @@ function WorkspaceItem({
               {name}
             </span>
             <span
-              className="ml-auto truncate text-[10px]"
+              className="ml-auto truncate text-xs"
               style={{ color: "var(--text-muted)" }}
             >
               {branch}
@@ -446,7 +453,7 @@ function WorkspaceItem({
           e.stopPropagation();
           onLink();
         }}
-        className="hidden flex-shrink-0 rounded px-1 text-[10px] group-hover:block hover:bg-[var(--bg-surface)]"
+        className="hidden flex-shrink-0 rounded px-1.5 text-xs group-hover:block hover:bg-[var(--bg-surface)]"
         style={{ color: "var(--text-muted)" }}
         title="Link workspaces"
       >
@@ -480,11 +487,11 @@ function ArchivedWorkspaceItem({
 
   return (
     <div
-      className="group flex items-center gap-2 py-1 pl-7 pr-3 text-xs"
+      className="group flex items-center gap-2.5 py-1.5 pl-8 pr-4 text-sm"
       style={{ color: "var(--text-muted)" }}
     >
       <span
-        className="h-1.5 w-1.5 flex-shrink-0 rounded-full"
+        className="h-2 w-2 flex-shrink-0 rounded-full"
         style={{ backgroundColor: "var(--text-muted)", opacity: 0.4 }}
       />
       <span
@@ -497,7 +504,7 @@ function ArchivedWorkspaceItem({
       <button
         onClick={handleRestore}
         disabled={restoring}
-        className="hidden flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] group-hover:block"
+        className="hidden flex-shrink-0 rounded px-2 py-0.5 text-xs group-hover:block"
         style={{ color: error ? "var(--error)" : "var(--accent)" }}
       >
         {restoring ? "..." : error ? "Failed" : "Restore"}

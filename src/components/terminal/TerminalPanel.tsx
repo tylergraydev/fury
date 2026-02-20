@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { createTerminal, closeTerminal } from "../../lib/tauri";
+import { createTerminal, createRepoTerminal, closeTerminal } from "../../lib/tauri";
 import { TerminalView } from "./TerminalView";
+import type { SidebarContext } from "../../App";
 
 interface TerminalPanelProps {
-  workspaceId: string;
+  context: SidebarContext;
 }
 
-export function TerminalPanel({ workspaceId }: TerminalPanelProps) {
+export function TerminalPanel({ context }: TerminalPanelProps) {
   const [terminalId, setTerminalId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const prevIdRef = useRef<string | null>(null);
@@ -14,7 +15,7 @@ export function TerminalPanel({ workspaceId }: TerminalPanelProps) {
   useEffect(() => {
     let active = true;
 
-    // Close previous terminal if workspace changed
+    // Close previous terminal if context changed
     if (prevIdRef.current) {
       closeTerminal(prevIdRef.current).catch(() => {});
       prevIdRef.current = null;
@@ -23,7 +24,11 @@ export function TerminalPanel({ workspaceId }: TerminalPanelProps) {
     setTerminalId(null);
     setError(null);
 
-    createTerminal(workspaceId, 80, 24)
+    const terminalPromise = context.type === "workspace"
+      ? createTerminal(context.id, 80, 24)
+      : createRepoTerminal(context.id, 80, 24);
+
+    terminalPromise
       .then((id) => {
         if (active) {
           setTerminalId(id);
@@ -45,7 +50,7 @@ export function TerminalPanel({ workspaceId }: TerminalPanelProps) {
         prevIdRef.current = null;
       }
     };
-  }, [workspaceId]);
+  }, [context.type, context.id]);
 
   if (error) {
     return (

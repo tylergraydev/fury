@@ -1,12 +1,12 @@
 [package]
-name = "missoula"
+name = "fury"
 version = "0.1.0"
 description = "Cross-platform coding agent orchestration"
 authors = ["Tyler Gray"]
 edition = "2021"
 
 [lib]
-name = "missoula_lib"
+name = "fury_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

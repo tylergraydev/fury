@@ -30,10 +30,7 @@ pub fn create_checkpoint(
     let commit_sha = git_commit_tree(worktree_path, &tree_sha, &commit_msg)?;
 
     // 4. Create a named ref
-    let ref_name = format!(
-        "refs/missoula/checkpoints/{}/turn-{}",
-        workspace_id, turn_index
-    );
+    let ref_name = format!("refs/fury/checkpoints/{}/turn-{}", workspace_id, turn_index);
     git_update_ref(worktree_path, &ref_name, &commit_sha)?;
 
     // 5. Unstage everything (leave working directory untouched)
@@ -94,7 +91,7 @@ pub fn delete_checkpoints_after(
     workspace_id: Uuid,
     turn_index: u32,
 ) -> Result<Vec<String>, AppError> {
-    let prefix = format!("refs/missoula/checkpoints/{}/", workspace_id);
+    let prefix = format!("refs/fury/checkpoints/{}/", workspace_id);
 
     let output = Command::new("git")
         .args(["for-each-ref", "--format=%(refname)", &prefix])
@@ -114,7 +111,7 @@ pub fn delete_checkpoints_after(
             continue;
         }
 
-        // Parse turn index from ref name: refs/missoula/checkpoints/<ws_id>/turn-<N>
+        // Parse turn index from ref name: refs/fury/checkpoints/<ws_id>/turn-<N>
         if let Some(turn_str) = ref_name
             .rsplit('/')
             .next()

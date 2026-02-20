@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { DiffEditor } from "@monaco-editor/react";
+import { MONACO_THEME, configureMonacoTheme } from "../../lib/monacoTheme";
 import { useDiffStore } from "../../stores/diffStore";
 import { useAgentStore } from "../../stores/agentStore";
 import type { FileStatus } from "../../lib/tauri";
@@ -163,7 +164,8 @@ export function DiffViewer({ workspaceId }: Props) {
               original={fileDiff.original}
               modified={fileDiff.modified}
               language={fileDiff.language}
-              theme="vs-dark"
+              theme={MONACO_THEME}
+              beforeMount={configureMonacoTheme}
               options={{
                 readOnly: true,
                 renderSideBySide: true,

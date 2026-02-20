@@ -1,29 +1,31 @@
 import { useEffect, useRef } from "react";
 import { useScriptStore } from "../../stores/scriptStore";
+import type { SidebarContext } from "../../App";
 
 const EMPTY_OUTPUT: string[] = [];
 
 interface RunPanelProps {
-  workspaceId: string;
+  context: SidebarContext;
 }
 
-export function RunPanel({ workspaceId }: RunPanelProps) {
+export function RunPanel({ context }: RunPanelProps) {
+  const contextId = context.id;
   const scrollRef = useRef<HTMLDivElement>(null);
   const output = useScriptStore(
-    (s) => s.output[`${workspaceId}:run`] ?? EMPTY_OUTPUT,
+    (s) => s.output[`${contextId}:run`] ?? EMPTY_OUTPUT,
   );
   const running = useScriptStore(
-    (s) => s.running[`${workspaceId}:run`] ?? false,
+    (s) => s.running[`${contextId}:run`] ?? false,
   );
   const exitCode = useScriptStore(
-    (s) => s.exitCodes[`${workspaceId}:run`],
+    (s) => s.exitCodes[`${contextId}:run`],
   );
 
   useEffect(() => {
     const store = useScriptStore.getState();
-    store.subscribe(workspaceId, "run");
-    return () => useScriptStore.getState().unsubscribe(workspaceId, "run");
-  }, [workspaceId]);
+    store.subscribe(contextId, "run");
+    return () => useScriptStore.getState().unsubscribe(contextId, "run");
+  }, [contextId]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -31,6 +33,24 @@ export function RunPanel({ workspaceId }: RunPanelProps) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [output]);
+
+  const handleRun = () => {
+    const store = useScriptStore.getState();
+    if (context.type === "workspace") {
+      store.runScript(contextId, "run");
+    } else {
+      store.runRepoScript(contextId, "run");
+    }
+  };
+
+  const handleStop = () => {
+    const store = useScriptStore.getState();
+    if (context.type === "workspace") {
+      store.stopScript(contextId, "run");
+    } else {
+      store.stopRepoScript(contextId, "run");
+    }
+  };
 
   return (
     <div
@@ -63,7 +83,7 @@ export function RunPanel({ workspaceId }: RunPanelProps) {
             </span>
           )}
           <button
-            onClick={() => useScriptStore.getState().clearOutput(workspaceId, "run")}
+            onClick={() => useScriptStore.getState().clearOutput(contextId, "run")}
             className="rounded px-2 py-0.5"
             style={{
               backgroundColor: "var(--bg-surface)",
@@ -74,7 +94,7 @@ export function RunPanel({ workspaceId }: RunPanelProps) {
           </button>
           {running ? (
             <button
-              onClick={() => useScriptStore.getState().stopScript(workspaceId, "run")}
+              onClick={handleStop}
               className="rounded px-2 py-0.5"
               style={{
                 backgroundColor: "var(--error)",
@@ -85,7 +105,7 @@ export function RunPanel({ workspaceId }: RunPanelProps) {
             </button>
           ) : (
             <button
-              onClick={() => useScriptStore.getState().runScript(workspaceId, "run")}
+              onClick={handleRun}
               className="rounded px-2 py-0.5"
               style={{
                 backgroundColor: "var(--accent)",

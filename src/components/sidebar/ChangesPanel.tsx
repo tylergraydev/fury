@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { DiffEditor } from "@monaco-editor/react";
+import { MONACO_THEME, configureMonacoTheme } from "../../lib/monacoTheme";
 import { useDiffStore } from "../../stores/diffStore";
 import { useAgentStore } from "../../stores/agentStore";
 import type { FileStatus } from "../../lib/tauri";
+import type { SidebarContext } from "../../App";
 
 interface Props {
-  workspaceId: string;
+  context: SidebarContext;
 }
 
 function statusLabel(status: FileStatus): string {
@@ -25,15 +27,16 @@ function statusColor(status: FileStatus): string {
   return "var(--text-muted)";
 }
 
-export function ChangesPanel({ workspaceId }: Props) {
+export function ChangesPanel({ context }: Props) {
+  const contextId = context.id;
   const diffResult = useDiffStore(
-    (s) => s.diffResults[workspaceId] ?? null,
+    (s) => s.diffResults[contextId] ?? null,
   );
   const selectedFile = useDiffStore(
-    (s) => s.selectedFile[workspaceId] ?? null,
+    (s) => s.selectedFile[contextId] ?? null,
   );
   const fileDiffKey = selectedFile
-    ? `${workspaceId}:${selectedFile}`
+    ? `${contextId}:${selectedFile}`
     : null;
   const fileDiff = useDiffStore((s) =>
     fileDiffKey ? (s.fileDiffs[fileDiffKey] ?? null) : null,
@@ -41,24 +44,48 @@ export function ChangesPanel({ workspaceId }: Props) {
   const loading = useDiffStore((s) => s.loading);
   const error = useDiffStore((s) => s.error);
   const agentStatus = useAgentStore(
-    (s) => s.agents[workspaceId]?.status ?? "Idle",
+    (s) => s.agents[contextId]?.status ?? "Idle",
   );
   const [showDiffModal, setShowDiffModal] = useState(false);
 
   useEffect(() => {
-    useDiffStore.getState().loadDiff(workspaceId);
-  }, [workspaceId]);
+    const store = useDiffStore.getState();
+    if (context.type === "workspace") {
+      store.loadDiff(contextId);
+    } else {
+      store.loadRepoDiff(contextId);
+    }
+  }, [context.type, contextId]);
 
   // Auto-refresh when agent finishes
   useEffect(() => {
     if (agentStatus === "Idle") {
-      useDiffStore.getState().refresh(workspaceId);
+      const store = useDiffStore.getState();
+      if (context.type === "workspace") {
+        store.refresh(contextId);
+      } else {
+        store.refreshRepo(contextId);
+      }
     }
-  }, [agentStatus, workspaceId]);
+  }, [agentStatus, context.type, contextId]);
 
   const handleFileClick = (filePath: string) => {
-    useDiffStore.getState().selectFile(workspaceId, filePath);
+    const store = useDiffStore.getState();
+    if (context.type === "workspace") {
+      store.selectFile(contextId, filePath);
+    } else {
+      store.selectRepoFile(contextId, filePath);
+    }
     setShowDiffModal(true);
+  };
+
+  const handleRefresh = () => {
+    const store = useDiffStore.getState();
+    if (context.type === "workspace") {
+      store.refresh(contextId);
+    } else {
+      store.refreshRepo(contextId);
+    }
   };
 
   if (loading && !diffResult) {
@@ -113,7 +140,7 @@ export function ChangesPanel({ workspaceId }: Props) {
             -{diffResult.totalDeletions}
           </span>
           <button
-            onClick={() => useDiffStore.getState().refresh(workspaceId)}
+            onClick={handleRefresh}
             className="ml-auto rounded px-1.5 py-0.5 text-[10px] hover:opacity-80"
             style={{
               backgroundColor: "var(--bg-surface)",
@@ -206,7 +233,8 @@ export function ChangesPanel({ workspaceId }: Props) {
                 original={fileDiff.original}
                 modified={fileDiff.modified}
                 language={fileDiff.language}
-                theme="vs-dark"
+                theme={MONACO_THEME}
+                beforeMount={configureMonacoTheme}
                 options={{
                   readOnly: true,
                   renderSideBySide: true,

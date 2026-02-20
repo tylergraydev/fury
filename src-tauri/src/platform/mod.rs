@@ -74,5 +74,5 @@ pub fn configure_process_group(cmd: &mut Command) -> &mut Command {
 pub fn app_data_dir() -> PathBuf {
     dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("com.missoula.app")
+        .join("com.fury.app")
 }

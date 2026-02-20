@@ -169,7 +169,7 @@ fn find_merge_base(worktree_path: &Path, default_branch: &str) -> String {
 }
 
 /// Detect Monaco language ID from file extension.
-fn detect_language(file_path: &str) -> String {
+pub fn detect_language(file_path: &str) -> String {
     let ext = file_path.rsplit('.').next().unwrap_or("");
     match ext {
         "rs" => "rust",

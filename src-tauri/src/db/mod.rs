@@ -17,7 +17,7 @@ pub struct Database {
 impl Database {
     pub fn init(data_dir: &Path) -> Result<Self, AppError> {
         std::fs::create_dir_all(data_dir)?;
-        let db_path = data_dir.join("missoula.db");
+        let db_path = data_dir.join("fury.db");
         let conn = Connection::open(&db_path).map_err(|e| AppError::DbError(e.to_string()))?;
 
         // Enable WAL mode for better concurrent access

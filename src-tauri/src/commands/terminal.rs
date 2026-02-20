@@ -150,3 +150,61 @@ pub fn close_terminal(
 
     Ok(())
 }
+
+#[tauri::command]
+pub async fn create_repo_terminal(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    repo_id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<String, AppError> {
+    let id: Uuid = repo_id
+        .parse()
+        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+
+    let (repo_path, env_vars) = {
+        let repos = state.repositories.lock().unwrap();
+        let repo = repos
+            .get(&id)
+            .ok_or(AppError::RepoNotFound(id))?
+            .clone();
+        let app_settings = state.settings.lock().unwrap().clone();
+        let env = claude_process::build_repo_env_vars(&repo, &app_settings);
+        (repo.path.clone(), env)
+    };
+
+    // Create PTY session with a fresh UUID since there's no workspace
+    let session_uuid = Uuid::new_v4();
+    let (session, reader) =
+        terminal::create_session(session_uuid, &repo_path, env_vars, cols, rows)?;
+
+    let terminal_id = session.id;
+    let terminal_id_str = terminal_id.to_string();
+
+    // Store session
+    {
+        let mut sessions = state.terminal_sessions.lock().unwrap();
+        sessions.insert(terminal_id, session);
+    }
+
+    // Spawn blocking read loop for PTY output
+    let app_clone = app.clone();
+    let event_name = format!("terminal-output:{}", terminal_id);
+    tokio::task::spawn_blocking(move || {
+        let mut reader = reader;
+        let mut buf = [0u8; 4096];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let encoded = BASE64.encode(&buf[..n]);
+                    let _ = app_clone.emit(&event_name, &encoded);
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    Ok(terminal_id_str)
+}
