@@ -32,6 +32,7 @@ function MainPanel() {
   if (!hasContext) {
     return (
       <div className="flex h-full flex-col items-center justify-center">
+        <img src="/logo.png" alt="Fury" className="mb-4 h-20 w-20 rounded-xl" />
         <h1
           className="mb-2 text-2xl font-bold"
           style={{ color: "var(--text-primary)" }}

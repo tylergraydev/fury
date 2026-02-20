@@ -73,7 +73,10 @@ export function TopBar({ activeWs, activeRepo }: Props) {
           <AgentStatusDot contextId={activeRepo.id} />
         </>
       ) : (
-        <span className="font-semibold">Fury</span>
+        <>
+          <img src="/logo.png" alt="Fury" className="h-6 w-6 rounded" />
+          <span className="font-semibold">Fury</span>
+        </>
       )}
     </div>
   );
