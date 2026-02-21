@@ -79,8 +79,8 @@ impl Database {
 
     pub fn insert_workspace(&self, ws: &Workspace) -> Result<(), AppError> {
         self.conn.execute(
-            "INSERT INTO workspaces (id, repo_id, name, branch, worktree_path, status, port_base, sparse_dirs, notes, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            "INSERT INTO workspaces (id, repo_id, name, branch, worktree_path, status, port_base, sparse_dirs, notes, created_at, auto_commit)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             rusqlite::params![
                 ws.id.to_string(),
                 ws.repo_id.to_string(),
@@ -92,6 +92,7 @@ impl Database {
                 ws.sparse_dirs.as_ref().map(|d| serde_json::to_string(d).unwrap_or_default()),
                 ws.notes,
                 ws.created_at.to_rfc3339(),
+                ws.auto_commit as i32,
             ],
         )?;
         Ok(())
@@ -118,7 +119,7 @@ impl Database {
 
     pub fn list_workspaces(&self) -> Result<Vec<Workspace>, AppError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, repo_id, name, branch, worktree_path, status, port_base, sparse_dirs, notes, created_at, archived_at, error_message
+            "SELECT id, repo_id, name, branch, worktree_path, status, port_base, sparse_dirs, notes, created_at, archived_at, error_message, auto_commit
              FROM workspaces WHERE status != 'archived'",
         )?;
         let workspaces = stmt
@@ -137,6 +138,7 @@ impl Database {
                         .get::<_, Option<String>>(7)?
                         .and_then(|s| serde_json::from_str(&s).ok()),
                     notes: row.get(8)?,
+                    auto_commit: row.get::<_, i32>(12).unwrap_or(1) != 0,
                     created_at: row
                         .get::<_, String>(9)?
                         .parse()
@@ -153,7 +155,7 @@ impl Database {
 
     pub fn list_archived_workspaces(&self) -> Result<Vec<Workspace>, AppError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, repo_id, name, branch, worktree_path, status, port_base, sparse_dirs, notes, created_at, archived_at, error_message
+            "SELECT id, repo_id, name, branch, worktree_path, status, port_base, sparse_dirs, notes, created_at, archived_at, error_message, auto_commit
              FROM workspaces WHERE status = 'archived' ORDER BY archived_at DESC",
         )?;
         let workspaces = stmt
@@ -172,6 +174,7 @@ impl Database {
                         .get::<_, Option<String>>(7)?
                         .and_then(|s| serde_json::from_str(&s).ok()),
                     notes: row.get(8)?,
+                    auto_commit: row.get::<_, i32>(12).unwrap_or(1) != 0,
                     created_at: row
                         .get::<_, String>(9)?
                         .parse()
@@ -519,6 +522,20 @@ impl Database {
         self.conn.execute(
             "UPDATE workspaces SET notes = ?1 WHERE id = ?2",
             rusqlite::params![notes, id.to_string()],
+        )?;
+        Ok(())
+    }
+
+    // Workspace auto-commit
+
+    pub fn update_workspace_auto_commit(
+        &self,
+        id: &Uuid,
+        auto_commit: bool,
+    ) -> Result<(), AppError> {
+        self.conn.execute(
+            "UPDATE workspaces SET auto_commit = ?1 WHERE id = ?2",
+            rusqlite::params![auto_commit as i32, id.to_string()],
         )?;
         Ok(())
     }

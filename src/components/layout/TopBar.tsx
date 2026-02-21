@@ -1,3 +1,4 @@
+import { ChevronRight, GitBranch } from "lucide-react";
 import type { Repository, WorkspaceInfo } from "../../lib/tauri";
 import { isMac } from "../../lib/keybindings";
 import { useAgentStore } from "../../stores/agentStore";
@@ -35,7 +36,7 @@ export function TopBar({ activeWs, activeRepo }: Props) {
   return (
     <div
       data-tauri-drag-region
-      className="flex items-center gap-2.5 px-4 py-2 text-sm"
+      className="flex items-center gap-3 px-5 py-3 text-sm"
       style={{
         paddingTop: isMac ? 42 : 10,
         backgroundColor: "var(--bg-secondary)",
@@ -47,16 +48,18 @@ export function TopBar({ activeWs, activeRepo }: Props) {
       {activeWs && activeRepo ? (
         <>
           <span className="font-medium">{activeRepo.name}</span>
-          <span style={{ color: "var(--text-muted)" }}>&gt;</span>
-          <span style={{ color: "var(--text-muted)" }}>
+          <ChevronRight className="h-3.5 w-3.5" style={{ color: "var(--text-muted)" }} />
+          <span className="flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
+            <GitBranch className="h-3 w-3" />
             {activeRepo.defaultBranch}
           </span>
-          <span style={{ color: "var(--text-muted)" }}>&gt;</span>
+          <ChevronRight className="h-3.5 w-3.5" style={{ color: "var(--text-muted)" }} />
           <span
-            className="rounded px-2 py-0.5"
+            className="rounded-md px-2.5 py-1"
             style={{
               backgroundColor: "var(--bg-surface)",
-              color: "var(--text-secondary)",
+              color: "var(--accent)",
+              border: "1px solid var(--border)",
             }}
           >
             /{activeWs.name}
@@ -66,8 +69,9 @@ export function TopBar({ activeWs, activeRepo }: Props) {
       ) : activeRepo ? (
         <>
           <span className="font-medium">{activeRepo.name}</span>
-          <span style={{ color: "var(--text-muted)" }}>&gt;</span>
-          <span style={{ color: "var(--text-muted)" }}>
+          <ChevronRight className="h-3.5 w-3.5" style={{ color: "var(--text-muted)" }} />
+          <span className="flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
+            <GitBranch className="h-3 w-3" />
             {activeRepo.currentBranch ?? activeRepo.defaultBranch}
           </span>
           <AgentStatusDot contextId={activeRepo.id} />

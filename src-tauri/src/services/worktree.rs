@@ -9,6 +9,7 @@ pub fn create_worktree(
     workspace_name: &str,
     app_data_dir: &Path,
     repo_name: &str,
+    base_branch: Option<&str>,
 ) -> Result<PathBuf, AppError> {
     let base = app_data_dir.join("worktrees").join(repo_name);
     std::fs::create_dir_all(&base)?;
@@ -50,14 +51,18 @@ pub fn create_worktree(
             .current_dir(repo_path)
             .output()?
     } else {
+        let mut args = vec![
+            "worktree".to_string(),
+            "add".to_string(),
+            "-b".to_string(),
+            branch_name.to_string(),
+            worktree_path.to_string_lossy().to_string(),
+        ];
+        if let Some(base) = base_branch {
+            args.push(base.to_string());
+        }
         Command::new("git")
-            .args([
-                "worktree",
-                "add",
-                "-b",
-                branch_name,
-                worktree_path.to_string_lossy().as_ref(),
-            ])
+            .args(&args)
             .current_dir(repo_path)
             .output()?
     };

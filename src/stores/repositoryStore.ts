@@ -2,6 +2,8 @@ import { create } from "zustand";
 import {
   type Repository,
   addRepository,
+  cloneRepository,
+  initRepository,
   listRepositories,
   removeRepository,
 } from "../lib/tauri";
@@ -13,6 +15,8 @@ interface RepositoryStore {
 
   loadRepositories: () => Promise<void>;
   addRepo: (path: string) => Promise<Repository>;
+  cloneRepo: (url: string, path: string) => Promise<Repository>;
+  initRepo: (path: string, name: string) => Promise<Repository>;
   removeRepo: (id: string) => Promise<void>;
 }
 
@@ -35,6 +39,30 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
     set({ error: null });
     try {
       const repo = await addRepository(path);
+      set({ repositories: [...get().repositories, repo] });
+      return repo;
+    } catch (e) {
+      set({ error: String(e) });
+      throw e;
+    }
+  },
+
+  cloneRepo: async (url: string, path: string) => {
+    set({ error: null });
+    try {
+      const repo = await cloneRepository(url, path);
+      set({ repositories: [...get().repositories, repo] });
+      return repo;
+    } catch (e) {
+      set({ error: String(e) });
+      throw e;
+    }
+  },
+
+  initRepo: async (path: string, name: string) => {
+    set({ error: null });
+    try {
+      const repo = await initRepository(path, name);
       set({ repositories: [...get().repositories, repo] });
       return repo;
     } catch (e) {

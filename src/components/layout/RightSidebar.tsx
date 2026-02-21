@@ -5,6 +5,7 @@ import {
   PanelResizeHandle,
   type ImperativePanelHandle,
 } from "react-resizable-panels";
+import { ChevronUp, ChevronDown } from "lucide-react";
 import {
   useUIStore,
   type RightSidebarTab,
@@ -120,7 +121,7 @@ export function RightSidebar({ context }: Props) {
                   <button
                     key={tab.key}
                     onClick={() => setTab(tab.key)}
-                    className="px-4 py-2 transition-colors"
+                    className="px-5 py-2.5 transition-colors"
                     style={{
                       color: isActive
                         ? "var(--accent)"
@@ -172,7 +173,7 @@ export function RightSidebar({ context }: Props) {
           <div className="flex h-full flex-col">
             {/* Terminal tab bar — always visible */}
             <div
-              className="flex items-center gap-1.5 px-4 py-1.5 text-sm"
+              className="flex items-center gap-2 px-4 py-2 text-sm"
               style={{
                 borderBottom: bottomCollapsed
                   ? undefined
@@ -182,11 +183,15 @@ export function RightSidebar({ context }: Props) {
             >
               <button
                 onClick={toggleBottomPanel}
-                className="flex-shrink-0 rounded px-1 transition-colors hover:bg-[var(--bg-hover)]"
-                style={{ color: "var(--text-muted)", fontSize: 10 }}
+                className="flex-shrink-0 rounded p-1 transition-colors hover:bg-[var(--bg-hover)]"
+                style={{ color: "var(--text-muted)" }}
                 title={bottomCollapsed ? "Expand panel" : "Collapse panel"}
               >
-                {bottomCollapsed ? "\u25B2" : "\u25BC"}
+                {bottomCollapsed ? (
+                  <ChevronUp className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                )}
               </button>
               {BOTTOM_TABS.map((tab) => (
                 <span
@@ -195,7 +200,7 @@ export function RightSidebar({ context }: Props) {
                     setBottomTab(tab.key);
                     if (bottomCollapsed) bottomPanelRef.current?.expand();
                   }}
-                  className="cursor-pointer rounded px-2.5 py-1 transition-colors"
+                  className="cursor-pointer rounded px-3 py-1.5 transition-colors"
                   style={{
                     backgroundColor:
                       bottomTab === tab.key

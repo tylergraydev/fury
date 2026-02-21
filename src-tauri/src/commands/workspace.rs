@@ -37,6 +37,7 @@ pub fn create_workspace(
         &request.workspace_name,
         &app_data_dir,
         &repo.name,
+        request.base_branch.as_deref(),
     )?;
 
     // Apply sparse checkout if needed
@@ -56,6 +57,7 @@ pub fn create_workspace(
         port_base,
         sparse_dirs: request.sparse_dirs,
         notes: String::new(),
+        auto_commit: request.auto_commit.unwrap_or(true),
         created_at: chrono::Utc::now(),
         archived_at: None,
     };

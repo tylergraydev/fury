@@ -3,6 +3,7 @@ pub mod chat;
 pub mod checkpoint;
 pub mod diff;
 pub mod mcp;
+pub mod merge;
 pub mod pr;
 pub mod repository;
 pub mod settings;
