@@ -25,6 +25,7 @@ interface ChatStore {
   getMessages: (workspaceId: string) => ChatMessage[];
   getStreamingText: (workspaceId: string) => string;
   loadMessages: (workspaceId: string) => Promise<void>;
+  removeTrailingSystemMessages: (workspaceId: string) => void;
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -112,6 +113,18 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       console.error("Failed to load chat messages:", e);
     }
   },
+
+  removeTrailingSystemMessages: (workspaceId: string) => {
+    set((state) => {
+      const msgs = state.messages[workspaceId] ?? [];
+      let i = msgs.length;
+      while (i > 0 && msgs[i - 1].role === "system") i--;
+      if (i === msgs.length) return state;
+      return {
+        messages: { ...state.messages, [workspaceId]: msgs.slice(0, i) },
+      };
+    });
+  },
 }));
 
 // Fire-and-forget persist helper
@@ -123,7 +136,10 @@ function formatErrorMessage(raw: string): string {
   const lower = raw.toLowerCase();
 
   // API HTTP errors (e.g. "500 Internal server error", "API Error: 500 ...")
-  const statusMatch = raw.match(/\b(4\d{2}|5\d{2})\b/);
+  // Anchor to HTTP-status contexts to avoid matching arbitrary numbers like "512 tokens"
+  const statusMatch =
+    raw.match(/\b(?:status|code|error|HTTP)[:\s]+(\d{3})\b/i) ??
+    raw.match(/^(4\d{2}|5\d{2})\b/);
   if (statusMatch) {
     const code = statusMatch[1];
     if (code === "500" || lower.includes("internal server error")) {
@@ -311,6 +327,10 @@ function appendContentBlock(
         [workspaceId]: [...messages.slice(0, -1), updated],
       },
     }));
+    // Persist after each tool result for crash durability
+    if (block.type === "toolResult") {
+      persistMessage(workspaceId, updated);
+    }
   } else {
     const msg: ChatMessage = {
       id: crypto.randomUUID(),

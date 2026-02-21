@@ -86,10 +86,12 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
         conn.execute_batch("ALTER TABLE repository_settings ADD COLUMN worktree_base_path TEXT;");
 
     // Chat messages table (idempotent)
+    // Uses id TEXT UNIQUE (not PRIMARY KEY) so SQLite keeps an implicit integer
+    // rowid, giving us a stable insertion-order tiebreaker for same-timestamp msgs.
     conn.execute_batch(
         "
         CREATE TABLE IF NOT EXISTS chat_messages (
-            id TEXT PRIMARY KEY,
+            id TEXT UNIQUE,
             workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
             role TEXT NOT NULL,
             content TEXT NOT NULL,

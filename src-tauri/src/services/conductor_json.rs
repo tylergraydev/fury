@@ -47,5 +47,6 @@ pub fn merge_settings(
             ref mode => mode.clone(),
         },
         env_vars: db_settings.env_vars.clone(),
+        worktree_base_path: db_settings.worktree_base_path.clone(),
     }
 }

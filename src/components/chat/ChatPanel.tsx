@@ -90,6 +90,9 @@ export function ChatPanel({ contextId, contextType }: Props) {
       .map((b) => b.text)
       .join("");
     if (!text) return;
+    // Remove trailing system (error) messages before retrying
+    useChatStore.getState().removeTrailingSystemMessages(contextId);
+    useChatStore.getState().addUserMessage(contextId, text);
     try {
       await useAgentStore
         .getState()

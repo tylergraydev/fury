@@ -579,7 +579,7 @@ impl Database {
     pub fn list_chat_messages(&self, workspace_id: &Uuid) -> Result<Vec<ChatMessage>, AppError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, workspace_id, role, content, timestamp
-             FROM chat_messages WHERE workspace_id = ?1 ORDER BY timestamp ASC",
+             FROM chat_messages WHERE workspace_id = ?1 ORDER BY timestamp ASC, rowid ASC",
         )?;
         let messages = stmt
             .query_map(rusqlite::params![workspace_id.to_string()], |row| {
