@@ -109,26 +109,31 @@ export async function notifyDocumentOpened(
   }
 }
 
-let changeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+const changeDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function notifyDocumentChanged(
   filePath: string,
   content: string,
 ): void {
-  if (changeDebounceTimer) clearTimeout(changeDebounceTimer);
+  const uri = toFileUri(filePath);
+  const existing = changeDebounceTimers.get(uri);
+  if (existing) clearTimeout(existing);
 
-  changeDebounceTimer = setTimeout(async () => {
-    const uri = toFileUri(filePath);
-    const doc = openDocuments.get(uri);
-    if (!doc) return;
+  changeDebounceTimers.set(
+    uri,
+    setTimeout(async () => {
+      changeDebounceTimers.delete(uri);
+      const doc = openDocuments.get(uri);
+      if (!doc) return;
 
-    doc.version += 1;
-    try {
-      await copilotDidChange({ uri, version: doc.version, text: content });
-    } catch {
-      // Best-effort
-    }
-  }, 50);
+      doc.version += 1;
+      try {
+        await copilotDidChange({ uri, version: doc.version, text: content });
+      } catch {
+        // Best-effort
+      }
+    }, 50),
+  );
 }
 
 export async function notifyDocumentClosed(filePath: string): Promise<void> {
@@ -195,5 +200,9 @@ export function disposeCopilotProvider(): void {
     providerDisposable.dispose();
     providerDisposable = null;
   }
+  for (const timer of changeDebounceTimers.values()) {
+    clearTimeout(timer);
+  }
+  changeDebounceTimers.clear();
   openDocuments.clear();
 }

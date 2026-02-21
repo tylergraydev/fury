@@ -54,9 +54,20 @@ pub async fn start_copilot(
 
     let (handle, child) = copilot_lsp::start(&root_uri).await?;
 
+    // Re-check after the await: another call may have won the race.
+    let mut cleanup = None;
     {
         let mut guard = state.copilot.lock().unwrap();
-        *guard = Some((handle, child));
+        if guard.is_some() {
+            // Lost the race — clean up our process
+            cleanup = Some((handle, child));
+        } else {
+            *guard = Some((handle, child));
+        }
+    }
+
+    if let Some((ref h, ref mut c)) = cleanup {
+        copilot_lsp::stop(h, c).await;
     }
 
     Ok(())

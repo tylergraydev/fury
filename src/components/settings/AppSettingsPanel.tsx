@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useRepositoryStore } from "../../stores/repositoryStore";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useUIStore } from "../../stores/uiStore";
 import { getThemeNames, type ThemeName } from "../../lib/themes";
 import type {
@@ -470,6 +471,8 @@ function CopilotTab() {
     shutdown,
     signIn,
   } = useCopilotStore();
+  const { activeWorkspaceId, activeRepoId, workspaces } = useWorkspaceStore();
+  const { repositories } = useRepositoryStore();
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -496,8 +499,14 @@ function CopilotTab() {
       await saveSettings(newSettings);
 
       if (!enabled) {
-        // Turning on — start the LS
-        await initialize("file:///");
+        // Turning on — start the LS with the active repo's root URI
+        const activeWs = workspaces.find((w) => w.id === activeWorkspaceId);
+        const repo = activeWs
+          ? repositories.find((r) => r.id === activeWs.repoId)
+          : repositories.find((r) => activeRepoId === r.id);
+        if (repo) {
+          await initialize(`file://${repo.path}`);
+        }
       } else {
         // Turning off — stop the LS
         await shutdown();
