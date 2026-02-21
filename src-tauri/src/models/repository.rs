@@ -22,6 +22,7 @@ pub struct RepoSettings {
     pub archive_script: Option<String>,
     pub run_script_mode: RunScriptMode,
     pub env_vars: std::collections::HashMap<String, String>,
+    pub worktree_base_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

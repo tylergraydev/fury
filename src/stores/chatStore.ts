@@ -5,6 +5,13 @@ import type {
   ContentBlock,
   FrontendStreamEvent,
 } from "../lib/tauri";
+import {
+  saveChatMessage,
+  listChatMessages,
+  clearChatMessages as clearChatMessagesCmd,
+  toPersisted,
+  fromPersisted,
+} from "../lib/tauri";
 
 interface ChatStore {
   messages: Record<string, ChatMessage[]>;
@@ -17,6 +24,8 @@ interface ChatStore {
   clearMessages: (workspaceId: string) => void;
   getMessages: (workspaceId: string) => ChatMessage[];
   getStreamingText: (workspaceId: string) => string;
+  loadMessages: (workspaceId: string) => Promise<void>;
+  removeTrailingSystemMessages: (workspaceId: string) => void;
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -26,6 +35,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   subscribe: async (workspaceId: string) => {
     if (get().subscriptions[workspaceId]) return;
+
+    // Load persisted messages if we don't have any in memory
+    if (!(get().messages[workspaceId]?.length)) {
+      await get().loadMessages(workspaceId);
+    }
 
     const unlisten = await listen<FrontendStreamEvent>(
       `agent-stream:${workspaceId}`,
@@ -64,6 +78,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         [workspaceId]: [...(state.messages[workspaceId] ?? []), msg],
       },
     }));
+    persistMessage(workspaceId, msg);
   },
 
   clearMessages: (workspaceId: string) => {
@@ -71,6 +86,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       messages: { ...state.messages, [workspaceId]: [] },
       streamingText: { ...state.streamingText, [workspaceId]: "" },
     }));
+    clearChatMessagesCmd(workspaceId).catch(console.error);
   },
 
   getMessages: (workspaceId: string) => {
@@ -80,7 +96,92 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   getStreamingText: (workspaceId: string) => {
     return get().streamingText[workspaceId] ?? "";
   },
+
+  loadMessages: async (workspaceId: string) => {
+    try {
+      const persisted = await listChatMessages(workspaceId);
+      const messages = persisted.map(fromPersisted);
+      if (messages.length > 0) {
+        set((state) => ({
+          messages: {
+            ...state.messages,
+            [workspaceId]: messages,
+          },
+        }));
+      }
+    } catch (e) {
+      console.error("Failed to load chat messages:", e);
+    }
+  },
+
+  removeTrailingSystemMessages: (workspaceId: string) => {
+    set((state) => {
+      const msgs = state.messages[workspaceId] ?? [];
+      let i = msgs.length;
+      while (i > 0 && msgs[i - 1].role === "system") i--;
+      if (i === msgs.length) return state;
+      return {
+        messages: { ...state.messages, [workspaceId]: msgs.slice(0, i) },
+      };
+    });
+  },
 }));
+
+// Fire-and-forget persist helper
+function persistMessage(workspaceId: string, msg: ChatMessage) {
+  saveChatMessage(toPersisted(msg, workspaceId)).catch(console.error);
+}
+
+function formatErrorMessage(raw: string): string {
+  const lower = raw.toLowerCase();
+
+  // API HTTP errors (e.g. "500 Internal server error", "API Error: 500 ...")
+  // Anchor to HTTP-status contexts to avoid matching arbitrary numbers like "512 tokens"
+  const statusMatch =
+    raw.match(/\b(?:status|code|error|HTTP)[:\s]+(\d{3})\b/i) ??
+    raw.match(/^(4\d{2}|5\d{2})\b/);
+  if (statusMatch) {
+    const code = statusMatch[1];
+    if (code === "500" || lower.includes("internal server error")) {
+      return "API error (500) — the provider hit an internal error. Please retry.";
+    }
+    if (code === "429" || lower.includes("rate limit") || lower.includes("too many")) {
+      return "Rate limited (429) — too many requests. Wait a moment and retry.";
+    }
+    if (code === "401" || lower.includes("unauthorized") || lower.includes("authentication")) {
+      return "Authentication error (401) — check your API key.";
+    }
+    if (code === "403" || lower.includes("forbidden")) {
+      return "Access denied (403) — you don't have permission for this resource.";
+    }
+    if (code === "404") {
+      return "Not found (404) — the requested resource doesn't exist.";
+    }
+    if (code.startsWith("5")) {
+      return `Server error (${code}) — a temporary provider issue. Please retry.`;
+    }
+    if (code.startsWith("4")) {
+      return `Request error (${code}) — please check your input and retry.`;
+    }
+  }
+
+  // Timeout / network errors
+  if (lower.includes("timeout") || lower.includes("timed out")) {
+    return "Request timed out — the API took too long to respond. Please retry.";
+  }
+  if (lower.includes("network") || lower.includes("econnrefused") || lower.includes("enotfound")) {
+    return "Network error — couldn't reach the API. Check your connection.";
+  }
+
+  // Overloaded
+  if (lower.includes("overloaded")) {
+    return "API is overloaded — please wait a moment and retry.";
+  }
+
+  // Fallback: show a trimmed version
+  const trimmed = raw.length > 120 ? raw.slice(0, 117) + "..." : raw;
+  return `Error: ${trimmed}`;
+}
 
 function handleStreamEvent(
   workspaceId: string,
@@ -108,6 +209,7 @@ function handleStreamEvent(
             [workspaceId]: [...(state.messages[workspaceId] ?? []), msg],
           },
         }));
+        persistMessage(workspaceId, msg);
       }
       break;
     }
@@ -151,12 +253,13 @@ function handleStreamEvent(
       // Finalize any remaining streaming text as the final assistant message
       finalizeStreamingText(workspaceId, set, get);
 
-      // If error, add an error message
+      // If error, add a user-friendly error message
       if (event.isError && event.result) {
+        const friendly = formatErrorMessage(event.result);
         const msg: ChatMessage = {
           id: crypto.randomUUID(),
           role: "system",
-          content: [{ type: "text", text: `Error: ${event.result}` }],
+          content: [{ type: "text", text: friendly }],
           timestamp: Date.now(),
         };
         set((state) => ({
@@ -165,6 +268,14 @@ function handleStreamEvent(
             [workspaceId]: [...(state.messages[workspaceId] ?? []), msg],
           },
         }));
+        persistMessage(workspaceId, msg);
+      }
+
+      // Persist the final state of the last assistant message
+      const messages = get().messages[workspaceId] ?? [];
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg && lastMsg.role === "assistant") {
+        persistMessage(workspaceId, lastMsg);
       }
       break;
     }
@@ -191,6 +302,7 @@ function finalizeStreamingText(
       },
       streamingText: { ...state.streamingText, [workspaceId]: "" },
     }));
+    persistMessage(workspaceId, msg);
   }
 }
 
@@ -215,6 +327,10 @@ function appendContentBlock(
         [workspaceId]: [...messages.slice(0, -1), updated],
       },
     }));
+    // Persist after each tool result for crash durability
+    if (block.type === "toolResult") {
+      persistMessage(workspaceId, updated);
+    }
   } else {
     const msg: ChatMessage = {
       id: crypto.randomUUID(),

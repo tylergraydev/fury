@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod chat;
 pub mod checkpoint;
 pub mod copilot;
 pub mod git;

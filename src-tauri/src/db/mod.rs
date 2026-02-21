@@ -1,11 +1,13 @@
 mod migrations;
 
 use crate::error::AppError;
+use crate::models::chat::{ChatMessage, ContentBlock, MessageRole};
 use crate::models::checkpoint::Checkpoint;
 use crate::models::repository::{RepoSettings, Repository, RunScriptMode};
 use crate::models::settings::AppSettings;
 use crate::models::todo::TodoItem;
 use crate::models::workspace::{Workspace, WorkspaceStatus};
+use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
@@ -283,7 +285,7 @@ impl Database {
 
     pub fn get_repo_settings(&self, repo_id: &Uuid) -> Result<RepoSettings, AppError> {
         let mut stmt = self.conn.prepare(
-            "SELECT setup_script, run_script, archive_script, run_script_mode, env_vars
+            "SELECT setup_script, run_script, archive_script, run_script_mode, env_vars, worktree_base_path
              FROM repository_settings WHERE repo_id = ?1",
         )?;
         let result = stmt.query_row(rusqlite::params![repo_id.to_string()], |row| {
@@ -298,6 +300,7 @@ impl Database {
                     _ => RunScriptMode::Nonconcurrent,
                 },
                 env_vars: serde_json::from_str(&env_json).unwrap_or_default(),
+                worktree_base_path: row.get(5)?,
             })
         });
         match result {
@@ -318,8 +321,8 @@ impl Database {
         };
         let env_json = serde_json::to_string(&settings.env_vars)?;
         self.conn.execute(
-            "INSERT OR REPLACE INTO repository_settings (repo_id, setup_script, run_script, archive_script, run_script_mode, env_vars)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT OR REPLACE INTO repository_settings (repo_id, setup_script, run_script, archive_script, run_script_mode, env_vars, worktree_base_path)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             rusqlite::params![
                 repo_id.to_string(),
                 settings.setup_script,
@@ -327,6 +330,7 @@ impl Database {
                 settings.archive_script,
                 mode_str,
                 env_json,
+                settings.worktree_base_path,
             ],
         )?;
         Ok(())
@@ -546,6 +550,66 @@ impl Database {
         self.conn.execute(
             "UPDATE workspaces SET name = ?1 WHERE id = ?2",
             rusqlite::params![name, id.to_string()],
+        )?;
+        Ok(())
+    }
+
+    // Chat message operations
+
+    pub fn insert_chat_message(&self, msg: &ChatMessage) -> Result<(), AppError> {
+        let content_json = serde_json::to_string(&msg.content)?;
+        let role_str = match msg.role {
+            MessageRole::User => "user",
+            MessageRole::Assistant => "assistant",
+            MessageRole::System => "system",
+        };
+        self.conn.execute(
+            "INSERT OR REPLACE INTO chat_messages (id, workspace_id, role, content, timestamp) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![
+                msg.id.to_string(),
+                msg.workspace_id.to_string(),
+                role_str,
+                content_json,
+                msg.timestamp.to_rfc3339(),
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_chat_messages(&self, workspace_id: &Uuid) -> Result<Vec<ChatMessage>, AppError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, workspace_id, role, content, timestamp
+             FROM chat_messages WHERE workspace_id = ?1 ORDER BY timestamp ASC, rowid ASC",
+        )?;
+        let messages = stmt
+            .query_map(rusqlite::params![workspace_id.to_string()], |row| {
+                let role_str: String = row.get(2)?;
+                let content_json: String = row.get(3)?;
+                let timestamp_str: String = row.get(4)?;
+                Ok(ChatMessage {
+                    id: row.get::<_, String>(0)?.parse::<Uuid>().unwrap_or_default(),
+                    workspace_id: row.get::<_, String>(1)?.parse::<Uuid>().unwrap_or_default(),
+                    role: match role_str.as_str() {
+                        "user" => MessageRole::User,
+                        "assistant" => MessageRole::Assistant,
+                        _ => MessageRole::System,
+                    },
+                    content: serde_json::from_str::<Vec<ContentBlock>>(&content_json)
+                        .unwrap_or_default(),
+                    timestamp: timestamp_str
+                        .parse::<DateTime<Utc>>()
+                        .unwrap_or_else(|_| Utc::now()),
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(messages)
+    }
+
+    pub fn clear_chat_messages(&self, workspace_id: &Uuid) -> Result<(), AppError> {
+        self.conn.execute(
+            "DELETE FROM chat_messages WHERE workspace_id = ?1",
+            rusqlite::params![workspace_id.to_string()],
         )?;
         Ok(())
     }

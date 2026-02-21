@@ -12,8 +12,7 @@ import {
   ChevronRight,
   ChevronDown,
   Circle,
-  User,
-  Sparkles,
+  RotateCw,
 } from "lucide-react";
 import type { ChatMessage, ContentBlock } from "../../lib/tauri";
 
@@ -157,154 +156,121 @@ function getToolSummary(name: string, input: unknown): string {
 
 interface Props {
   message: ChatMessage;
+  onRetry?: () => void;
 }
 
-export function MessageBubble({ message }: Props) {
+export function MessageBubble({ message, onRetry }: Props) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
   const groups = groupContentBlocks(message.content);
 
-  return (
-    <div
-      className={`flex items-start gap-3 ${isUser ? "justify-end" : "justify-start"} mb-4`}
-    >
-      {/* Assistant/System avatar */}
-      {!isUser && (
-        <span
-          className="mt-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full"
-          style={{
-            backgroundColor: isSystem ? "rgba(243, 139, 168, 0.15)" : "var(--accent)",
-            color: isSystem ? "var(--error)" : "#1e1e2e",
-          }}
-        >
-          <Sparkles className="h-4 w-4" />
-        </span>
-      )}
-      <div
-        className="max-w-[80%] rounded-lg px-4 py-3 text-sm"
-        style={{
-          backgroundColor: isUser
-            ? "var(--accent)"
-            : isSystem
-              ? "rgba(243, 139, 168, 0.1)"
-              : "var(--bg-surface)",
-          color: isUser ? "#1e1e2e" : "var(--text-primary)",
-          border: !isUser && !isSystem ? "1px solid var(--border)" : undefined,
-        }}
-      >
-        {groups.map((group, i) =>
-          group.kind === "text" ? (
-            group.blocks.map((block, j) => (
-              <div key={`${i}-${j}`} className="whitespace-pre-wrap break-words">
-                {block.text}
-              </div>
-            ))
-          ) : (
-            <ToolCallGroup key={i} pairs={group.pairs} />
-          ),
-        )}
-      </div>
-      {/* User avatar */}
-      {isUser && (
-        <span
-          className="mt-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full"
-          style={{
-            backgroundColor: "var(--bg-surface)",
-            color: "var(--text-muted)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          <User className="h-4 w-4" />
-        </span>
-      )}
-    </div>
-  );
-}
-
-function ToolCallGroup({ pairs }: { pairs: ToolPair[] }) {
-  const [expanded, setExpanded] = useState(false);
-
-  // Collect unique normalized tool names in order of first appearance
-  const seenNames = new Map<string, number>();
-  for (const pair of pairs) {
-    const norm = normalizeToolName(pair.use.name);
-    seenNames.set(norm, (seenNames.get(norm) ?? 0) + 1);
-  }
-  const uniqueNames = [...seenNames.keys()];
-
-  const callCount = pairs.length;
-
-  return (
-    <div
-      className="my-2 rounded border text-xs"
-      style={{
-        borderColor: "var(--border)",
-        backgroundColor: "var(--bg-primary)",
-      }}
-    >
-      {/* Summary bar */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-2 px-3 py-2"
-        style={{ color: "var(--text-secondary)" }}
-      >
-        {expanded ? (
-          <ChevronDown className="h-3 w-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
-        ) : (
-          <ChevronRight className="h-3 w-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
-        )}
-        <span style={{ color: "var(--text-muted)" }}>
-          {callCount} tool call{callCount !== 1 ? "s" : ""}
-        </span>
-        <span className="flex flex-wrap items-center gap-1">
-          {uniqueNames.map((name) => {
-            const count = seenNames.get(name) ?? 0;
-            return (
-              <span
-                key={name}
-                className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px]"
-                style={{
-                  backgroundColor: "var(--bg-hover)",
-                  color: "var(--text-muted)",
-                }}
-              >
-                <span>{getToolIcon(name)}</span>
-                {count > 1 && <span>{count}</span>}
-              </span>
-            );
-          })}
-        </span>
-      </button>
-
-      {/* Expanded: individual tool entries */}
-      {expanded && (
+  // User messages: bubble with no avatar
+  if (isUser) {
+    return (
+      <div className="mb-4 flex justify-end">
         <div
-          className="border-t"
-          style={{ borderColor: "var(--border)" }}
+          className="max-w-[80%] rounded-lg px-4 py-3 text-sm"
+          style={{
+            backgroundColor: "var(--accent)",
+            color: "#1e1e2e",
+          }}
         >
-          {pairs.map((pair) => (
-            <ToolEntry key={pair.use.id} pair={pair} />
-          ))}
+          {groups.map((group, i) =>
+            group.kind === "text" ? (
+              group.blocks.map((block, j) => (
+                <div key={`${i}-${j}`} className="whitespace-pre-wrap break-words">
+                  {block.text}
+                </div>
+              ))
+            ) : null,
+          )}
         </div>
+      </div>
+    );
+  }
+
+  // System messages: keep pink-tinted bubble, no avatar
+  if (isSystem) {
+    const textContent = message.content
+      .filter((b): b is ContentBlock & { type: "text" } => b.type === "text")
+      .map((b) => b.text)
+      .join("");
+    const isError = textContent.toLowerCase().includes("error") ||
+      textContent.toLowerCase().includes("rate limit") ||
+      textContent.toLowerCase().includes("timed out");
+
+    return (
+      <div className="mb-4">
+        <div
+          className="inline-flex max-w-[80%] items-center gap-2 rounded-lg px-4 py-3 text-sm"
+          style={{
+            backgroundColor: "rgba(243, 139, 168, 0.1)",
+            color: "var(--text-primary)",
+          }}
+        >
+          <div className="whitespace-pre-wrap break-words">
+            {groups.map((group, i) =>
+              group.kind === "text" ? (
+                group.blocks.map((block, j) => (
+                  <span key={`${i}-${j}`}>{block.text}</span>
+                ))
+              ) : null,
+            )}
+          </div>
+          {isError && onRetry && (
+            <button
+              onClick={onRetry}
+              className="flex-shrink-0 rounded p-1 transition-colors hover:bg-white/10"
+              style={{ color: "var(--text-muted)" }}
+              title="Retry last message"
+            >
+              <RotateCw className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Assistant messages: plain output, no bubble, no avatar
+  return (
+    <div className="mb-3 text-sm" style={{ color: "var(--text-primary)" }}>
+      {groups.map((group, i) =>
+        group.kind === "text" ? (
+          group.blocks.map((block, j) => (
+            <div key={`${i}-${j}`} className="mb-1 whitespace-pre-wrap break-words">
+              {block.text}
+            </div>
+          ))
+        ) : (
+          <ToolCallList key={i} pairs={group.pairs} />
+        ),
       )}
     </div>
   );
 }
 
-function ToolEntry({ pair }: { pair: ToolPair }) {
+function ToolCallList({ pairs }: { pairs: ToolPair[] }) {
+  return (
+    <div className="my-1">
+      {pairs.map((pair) => (
+        <ToolRow key={pair.use.id} pair={pair} />
+      ))}
+    </div>
+  );
+}
+
+function ToolRow({ pair }: { pair: ToolPair }) {
   const [detailOpen, setDetailOpen] = useState(false);
   const normalized = normalizeToolName(pair.use.name);
   const icon = getToolIcon(normalized);
   const summary = getToolSummary(pair.use.name, pair.use.input);
 
   return (
-    <div
-      className="border-b last:border-b-0"
-      style={{ borderColor: "var(--border)" }}
-    >
+    <div>
       <button
         onClick={() => setDetailOpen(!detailOpen)}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left"
+        className="flex w-full items-center gap-2 py-0.5 text-left text-xs"
         style={{ color: "var(--text-secondary)" }}
       >
         {detailOpen ? (
@@ -313,17 +279,14 @@ function ToolEntry({ pair }: { pair: ToolPair }) {
           <ChevronRight className="h-3 w-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
         )}
         <span
-          className="inline-flex flex-shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
-          style={{
-            backgroundColor: "var(--bg-hover)",
-            color: "var(--accent)",
-          }}
+          className="inline-flex flex-shrink-0 items-center gap-1 text-xs"
+          style={{ color: "var(--accent)" }}
         >
           <span>{icon}</span>
           <span>{normalized}</span>
         </span>
         <span
-          className="truncate text-[11px]"
+          className="truncate text-xs"
           style={{ color: "var(--text-muted)" }}
         >
           {summary}
@@ -332,8 +295,8 @@ function ToolEntry({ pair }: { pair: ToolPair }) {
 
       {detailOpen && (
         <div
-          className="border-t px-3 py-2"
-          style={{ borderColor: "var(--border)" }}
+          className="mb-1 ml-5 mt-0.5 rounded border px-3 py-2"
+          style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-primary)" }}
         >
           <div
             className="mb-1 text-[10px] font-medium"

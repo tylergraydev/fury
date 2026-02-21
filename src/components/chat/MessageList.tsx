@@ -10,6 +10,7 @@ interface Props {
   checkpoints?: Checkpoint[];
   revertedTurnIndex?: number | null;
   onRevertCheckpoint?: (checkpointId: string) => void;
+  onRetry?: () => void;
 }
 
 export function MessageList({
@@ -19,6 +20,7 @@ export function MessageList({
   checkpoints = [],
   revertedTurnIndex,
   onRevertCheckpoint,
+  onRetry,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -83,7 +85,7 @@ export function MessageList({
             key={msg.id}
             style={{ opacity: isAfterRevert ? 0.4 : 1 }}
           >
-            <MessageBubble message={msg} />
+            <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} />
           </div>,
         );
 
@@ -92,57 +94,42 @@ export function MessageList({
 
       {/* Show streaming text as in-progress assistant message */}
       {streamingText && (
-        <div className="mb-3 flex justify-start">
-          <div
-            className="mr-8 max-w-[80%] rounded-lg px-4 py-3 text-sm"
-            style={{
-              backgroundColor: "var(--bg-surface)",
-              color: "var(--text-primary)",
-            }}
-          >
-            <div className="whitespace-pre-wrap break-words">
-              {streamingText}
-              <span
-                className="inline-block h-4 w-1 animate-pulse"
-                style={{ backgroundColor: "var(--accent)" }}
-              />
-            </div>
-          </div>
+        <div
+          className="mb-3 text-sm whitespace-pre-wrap break-words"
+          style={{ color: "var(--text-primary)" }}
+        >
+          {streamingText}
+          <span
+            className="inline-block h-4 w-1 animate-pulse"
+            style={{ backgroundColor: "var(--accent)" }}
+          />
         </div>
       )}
 
       {/* Show thinking indicator when running with no streaming text */}
       {isRunning && !streamingText && (
-        <div className="mb-3 flex justify-start">
-          <div
-            className="rounded-lg px-4 py-3"
-            style={{
-              backgroundColor: "var(--bg-surface)",
-              color: "var(--text-muted)",
-            }}
-          >
-            <span className="text-sm">Thinking</span>
-            <span className="ml-1 inline-flex gap-0.5">
-              <span
-                className="animate-bounce text-sm"
-                style={{ animationDelay: "0ms" }}
-              >
-                .
-              </span>
-              <span
-                className="animate-bounce text-sm"
-                style={{ animationDelay: "200ms" }}
-              >
-                .
-              </span>
-              <span
-                className="animate-bounce text-sm"
-                style={{ animationDelay: "400ms" }}
-              >
-                .
-              </span>
+        <div className="mb-3" style={{ color: "var(--text-muted)" }}>
+          <span className="text-sm">Thinking</span>
+          <span className="ml-1 inline-flex gap-0.5">
+            <span
+              className="animate-bounce text-sm"
+              style={{ animationDelay: "0ms" }}
+            >
+              .
             </span>
-          </div>
+            <span
+              className="animate-bounce text-sm"
+              style={{ animationDelay: "200ms" }}
+            >
+              .
+            </span>
+            <span
+              className="animate-bounce text-sm"
+              style={{ animationDelay: "400ms" }}
+            >
+              .
+            </span>
+          </span>
         </div>
       )}
 
