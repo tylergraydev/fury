@@ -106,6 +106,39 @@ export function RepoSettingsPanel({
             </div>
           )}
 
+          {/* Worktree location */}
+          <div>
+            <label
+              className="mb-1 block text-xs font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Worktree Location
+            </label>
+            <input
+              value={settings.worktreeBasePath ?? ""}
+              onChange={(e) =>
+                setSettings((s) => ({
+                  ...s,
+                  worktreeBasePath: e.target.value || null,
+                }))
+              }
+              placeholder="Default: ../.conductor-worktrees/"
+              className="w-full rounded px-2 py-1.5 font-mono text-xs"
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border)",
+              }}
+            />
+            <p
+              className="mt-1 text-xs"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Base directory for worktrees. Leave empty to use the default
+              (next to the repo).
+            </p>
+          </div>
+
           {/* Scripts */}
           {(["setup", "run", "archive"] as const).map((kind) => {
             const field = `${kind}Script` as keyof RepoSettings;

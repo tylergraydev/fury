@@ -7,15 +7,13 @@ pub fn create_worktree(
     repo_path: &Path,
     branch_name: &str,
     workspace_name: &str,
-    app_data_dir: &Path,
-    repo_name: &str,
+    worktree_base: &Path,
     base_branch: Option<&str>,
 ) -> Result<PathBuf, AppError> {
-    let base = app_data_dir.join("worktrees").join(repo_name);
-    std::fs::create_dir_all(&base)?;
+    std::fs::create_dir_all(worktree_base)?;
 
     let safe_name = sanitize_name(workspace_name);
-    let worktree_path = base.join(&safe_name);
+    let worktree_path = worktree_base.join(&safe_name);
 
     // Check branch not already checked out
     let existing = Command::new("git")
