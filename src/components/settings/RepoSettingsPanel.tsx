@@ -22,6 +22,7 @@ export function RepoSettingsPanel({
     archiveScript: null,
     runScriptMode: "nonconcurrent",
     envVars: {},
+    worktreeBasePath: null,
   });
   const [newEnvKey, setNewEnvKey] = useState("");
   const [newEnvValue, setNewEnvValue] = useState("");
