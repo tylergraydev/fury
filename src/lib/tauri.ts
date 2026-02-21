@@ -105,6 +105,7 @@ export interface SendMessageRequest {
   workspaceId?: string;
   repoId?: string;
   message: string;
+  model?: string;
 }
 
 export interface AgentStatusEvent {

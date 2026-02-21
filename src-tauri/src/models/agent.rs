@@ -43,6 +43,8 @@ pub struct SendMessageRequest {
     pub workspace_id: Option<Uuid>,
     pub repo_id: Option<Uuid>,
     pub message: String,
+    /// Optional model override (e.g. "sonnet", "opus", "haiku", or a full model ID).
+    pub model: Option<String>,
 }
 
 /// A parsed event from Claude Code's NDJSON stream output.
