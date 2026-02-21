@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
 import {
   ChevronRight,
   ChevronDown,
@@ -36,7 +35,7 @@ function relativeTime(dateStr: string): string {
 }
 
 export function Sidebar() {
-  const { repositories, loadRepositories, addRepo } = useRepositoryStore();
+  const { repositories, loadRepositories } = useRepositoryStore();
   const {
     workspaces,
     archivedWorkspaces,
@@ -70,22 +69,6 @@ export function Sidebar() {
       loadArchivedWorkspaces();
     }
   }, [showArchived, loadArchivedWorkspaces]);
-
-  const handleAddRepo = async () => {
-    setRepoError(null);
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: "Select a Git Repository",
-    });
-    if (selected) {
-      try {
-        await addRepo(selected as string);
-      } catch (e) {
-        setRepoError(String(e));
-      }
-    }
-  };
 
   const toggleRepo = (repoId: string) => {
     setCollapsedRepos((prev) => {
