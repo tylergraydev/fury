@@ -132,13 +132,15 @@ pub async fn spawn_and_stream(
         }
     }
 
-    // Add model override
+    // Add model override (allowlist only)
     if let Some(m) = model {
-        if !m.is_empty() {
+        const ALLOWED_MODELS: &[&str] = &["sonnet", "opus", "haiku"];
+        if ALLOWED_MODELS.contains(&m) {
             args.push("--model".to_string());
             args.push(m.to_string());
         }
     }
+
 
     let mut cmd = Command::new(&claude_bin);
     cmd.args(&args)
