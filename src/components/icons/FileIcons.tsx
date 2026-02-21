@@ -509,6 +509,7 @@ const NAME_MAP: Record<string, FileIconComponent> = {
   "tsconfig.app.json": TypeScriptIcon,
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getFileIcon(name: string): FileIconComponent {
   const lower = name.toLowerCase();
 

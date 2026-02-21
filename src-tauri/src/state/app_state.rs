@@ -3,6 +3,7 @@ use crate::models::agent::AgentInfo;
 use crate::models::repository::Repository;
 use crate::models::settings::AppSettings;
 use crate::models::workspace::Workspace;
+use crate::services::copilot_lsp::CopilotLspHandle;
 use crate::services::port_allocator::PortAllocator;
 use crate::services::spotlight::SpotlightHandle;
 use crate::services::terminal::TerminalSession;
@@ -27,6 +28,8 @@ pub struct AppState {
     pub terminal_sessions: Arc<Mutex<HashMap<Uuid, TerminalSession>>>,
     /// Spotlight file watchers — keyed by workspace ID
     pub spotlight_watchers: Arc<Mutex<HashMap<Uuid, SpotlightHandle>>>,
+    /// Copilot Language Server — global singleton (handle + child process)
+    pub copilot: Arc<Mutex<Option<(CopilotLspHandle, Child)>>>,
 }
 
 impl AppState {
@@ -42,6 +45,7 @@ impl AppState {
             script_processes: Arc::new(Mutex::new(HashMap::new())),
             terminal_sessions: Arc::new(Mutex::new(HashMap::new())),
             spotlight_watchers: Arc::new(Mutex::new(HashMap::new())),
+            copilot: Arc::new(Mutex::new(None)),
         }
     }
 }

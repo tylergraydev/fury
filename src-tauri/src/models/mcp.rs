@@ -5,14 +5,14 @@ use std::collections::HashMap;
 #[serde(rename_all = "lowercase")]
 pub enum McpScope {
     #[default]
-    Global,
+    User,
     Project,
 }
 
 impl McpScope {
     pub fn as_str(&self) -> &str {
         match self {
-            McpScope::Global => "global",
+            McpScope::User => "user",
             McpScope::Project => "project",
         }
     }

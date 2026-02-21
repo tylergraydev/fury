@@ -70,6 +70,7 @@ export function RightSidebar({ context }: Props) {
       useFileViewerStore
         .getState()
         .openFile(context.id, context.type, filePath);
+      useUIStore.getState().setActiveViewTab("chat");
     },
     [context.id, context.type],
   );
@@ -79,6 +80,7 @@ export function RightSidebar({ context }: Props) {
       useFileViewerStore
         .getState()
         .openFile(context.id, context.type, filePath, true);
+      useUIStore.getState().setActiveViewTab("chat");
     },
     [context.id, context.type],
   );

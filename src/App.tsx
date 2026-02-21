@@ -2,8 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Sidebar } from "./components/layout/Sidebar";
 import { TopBar } from "./components/layout/TopBar";
-import { SessionTabBar } from "./components/layout/SessionTabBar";
-import { ViewTabBar } from "./components/layout/ViewTabBar";
 import { RightSidebar } from "./components/layout/RightSidebar";
 import { ChatPanel } from "./components/chat/ChatPanel";
 import { FileTabBar } from "./components/file-viewer/FileTabBar";
@@ -19,6 +17,9 @@ import { useRepositoryStore } from "./stores/repositoryStore";
 import { useUIStore } from "./stores/uiStore";
 import { useFileViewerStore } from "./stores/fileViewerStore";
 import { useKeyboardShortcuts } from "./lib/keybindings";
+import { clearSession, getAppSettings } from "./lib/tauri";
+import { useChatStore } from "./stores/chatStore";
+import { useCopilotStore } from "./stores/copilotStore";
 import { applyTheme } from "./lib/themes";
 import "./App.css";
 
@@ -42,20 +43,12 @@ function MainPanel() {
   return (
     <div className="flex h-full flex-col">
       {viewType === "chat" && (
-        <>
-          {fileTabs.length > 0 && <FileTabBar />}
-          <div className="flex-1 overflow-hidden">
-            {activeFileTab ? (
-              <FileViewerPanel tab={activeFileTab} />
-            ) : (
-              <ChatPanel contextId={contextId} contextType={contextType} />
-            )}
-          </div>
-        </>
-      )}
-      {viewType === "settings" && (
         <div className="flex-1 overflow-hidden">
-          <AppSettingsPanel />
+          {activeFileTab ? (
+            <FileViewerPanel tab={activeFileTab} />
+          ) : (
+            <ChatPanel contextId={contextId} contextType={contextType} />
+          )}
         </div>
       )}
       {viewType === "merge" && (
@@ -89,6 +82,17 @@ function App() {
     applyTheme(theme);
   }, [theme]);
 
+  // Load saved theme from settings on mount
+  useEffect(() => {
+    getAppSettings()
+      .then((settings) => {
+        if (settings.theme) {
+          useUIStore.getState().setTheme(settings.theme);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Load repositories and workspaces on mount
   useEffect(() => {
     loadRepositories();
@@ -96,6 +100,27 @@ function App() {
   }, [loadRepositories, loadWorkspaces]);
 
   const hasContext = activeWorkspaceId || activeRepoId;
+
+  // Auto-start Copilot LS when a workspace/repo is selected and copilot is enabled
+  useEffect(() => {
+    if (!hasContext) return;
+
+    const activeWs = workspaces.find((w) => w.id === activeWorkspaceId);
+    const repo = activeWs
+      ? repositories.find((r) => r.id === activeWs.repoId)
+      : repositories.find((r) => activeRepoId === r.id);
+
+    if (!repo) return;
+
+    getAppSettings()
+      .then((settings) => {
+        if (settings.copilot?.enabled) {
+          const rootUri = `file://${repo.path}`;
+          useCopilotStore.getState().initialize(rootUri);
+        }
+      })
+      .catch(() => {});
+  }, [hasContext, activeWorkspaceId, activeRepoId, workspaces, repositories]);
 
   const handleAction = useCallback((action: string) => {
     const ui = useUIStore.getState();
@@ -138,6 +163,18 @@ function App() {
       case "new-workspace":
         setShowPalette(true);
         break;
+      case "save-file": {
+        useFileViewerStore.getState().saveActiveFile();
+        break;
+      }
+      case "new-session": {
+        const wsId = useWorkspaceStore.getState().activeWorkspaceId;
+        if (wsId) {
+          clearSession(wsId).catch(console.error);
+          useChatStore.getState().clearMessages(wsId);
+        }
+        break;
+      }
       case "escape":
         setShowPalette(false);
         break;
@@ -203,11 +240,7 @@ function App() {
         <Panel defaultSize={showRightSidebar ? 60 : 85} minSize={30}>
           <div className="flex h-full flex-col">
             <TopBar activeWs={activeWs} activeRepo={activeRepo} />
-            <SessionTabBar
-              workspaceId={activeWorkspaceId}
-              workspaceName={activeWs?.name ?? null}
-            />
-            <ViewTabBar />
+            <FileTabBar />
             <div className="flex-1 overflow-hidden">
               <ErrorBoundary label="MainPanel" resetKey={sidebarContext?.id}>
                 <MainPanel />
@@ -227,6 +260,15 @@ function App() {
           </>
         )}
       </PanelGroup>
+
+      {activeViewTabId === "settings" && (
+        <div
+          className="fixed inset-0 z-40 overflow-y-auto"
+          style={{ backgroundColor: "var(--bg-primary)" }}
+        >
+          <AppSettingsPanel />
+        </div>
+      )}
 
       <CommandPalette
         open={showPalette}

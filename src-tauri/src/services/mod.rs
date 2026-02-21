@@ -2,6 +2,7 @@ pub mod branch;
 pub mod checkpoint;
 pub mod claude_process;
 pub mod conductor_json;
+pub mod copilot_lsp;
 pub mod cursor_migration;
 pub mod diff;
 pub mod gh;

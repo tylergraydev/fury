@@ -14,4 +14,5 @@ pub struct SlashCommand {
 pub enum SlashCommandSource {
     Global,
     Project,
+    Plugin,
 }

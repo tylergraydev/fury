@@ -39,6 +39,9 @@ pub enum AppError {
     #[error("MCP operation failed: {0}")]
     McpError(String),
 
+    #[error("Copilot error: {0}")]
+    CopilotError(String),
+
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
 }

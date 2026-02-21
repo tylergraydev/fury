@@ -163,6 +163,9 @@ export function CommandPalette({
             >
               New Workspace
             </PaletteItem>
+            <PaletteItem onSelect={() => run("new-session")}>
+              New Session
+            </PaletteItem>
           </CommandGroup>
 
           {/* Workspace switching */}

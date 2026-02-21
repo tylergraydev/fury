@@ -12,28 +12,38 @@ use crate::state::AppState;
 use tauri::State;
 
 #[tauri::command]
-pub fn list_mcp_servers(scope: Option<String>) -> Result<Vec<McpServer>, AppError> {
+pub async fn list_mcp_servers(scope: Option<String>) -> Result<Vec<McpServer>, AppError> {
     let mcp_scope = match scope.as_deref() {
         Some("project") => McpScope::Project,
-        _ => McpScope::Global,
+        _ => McpScope::User,
     };
-    mcp_svc::list_mcp_servers(&mcp_scope)
+    tokio::task::spawn_blocking(move || mcp_svc::list_mcp_servers(&mcp_scope))
+        .await
+        .map_err(|e| AppError::McpError(format!("Task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn add_mcp_server(request: AddMcpRequest) -> Result<(), AppError> {
-    mcp_svc::add_mcp_server(
-        &request.name,
-        &request.command,
-        &request.args,
-        &request.env,
-        &request.scope,
-    )
+pub async fn add_mcp_server(request: AddMcpRequest) -> Result<(), AppError> {
+    tokio::task::spawn_blocking(move || {
+        mcp_svc::add_mcp_server(
+            &request.name,
+            &request.command,
+            &request.args,
+            &request.env,
+            &request.scope,
+        )
+    })
+    .await
+    .map_err(|e| AppError::McpError(format!("Task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn remove_mcp_server(request: RemoveMcpRequest) -> Result<(), AppError> {
-    mcp_svc::remove_mcp_server(&request.name, &request.scope)
+pub async fn remove_mcp_server(request: RemoveMcpRequest) -> Result<(), AppError> {
+    tokio::task::spawn_blocking(move || {
+        mcp_svc::remove_mcp_server(&request.name, &request.scope)
+    })
+    .await
+    .map_err(|e| AppError::McpError(format!("Task failed: {}", e)))?
 }
 
 #[tauri::command]

@@ -8,6 +8,7 @@ import {
   Download,
   Plus,
   Palette,
+  Sparkles,
 } from "lucide-react";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useRepositoryStore } from "../../stores/repositoryStore";
@@ -21,8 +22,10 @@ import type {
   CursorRulesImportResult,
 } from "../../lib/tauri";
 import { detectCursorrules, importCursorrules } from "../../lib/tauri";
+import { useCopilotStore } from "../../stores/copilotStore";
+import { isMac } from "../../lib/keybindings";
 
-type SettingsTab = "appearance" | "provider" | "mcp" | "migration" | "experimental" | "updates";
+type SettingsTab = "appearance" | "provider" | "copilot" | "mcp" | "migration" | "experimental" | "updates";
 
 const PROVIDER_ENV_HINTS: Record<ProviderType, string[]> = {
   Anthropic: ["ANTHROPIC_API_KEY"],
@@ -47,6 +50,7 @@ const PROVIDER_LABELS: Record<ProviderType, string> = {
 const NAV_ITEMS: { tab: SettingsTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { tab: "appearance", label: "Appearance", icon: Palette },
   { tab: "provider", label: "Provider", icon: Key },
+  { tab: "copilot", label: "Copilot", icon: Sparkles },
   { tab: "mcp", label: "MCP Servers", icon: Server },
   { tab: "migration", label: "Migration", icon: ArrowLeftRight },
   { tab: "experimental", label: "Experimental", icon: FlaskConical },
@@ -90,8 +94,11 @@ export function AppSettingsPanel() {
         }}
       >
         <div
-          className="flex items-center justify-between px-4 py-3"
-          style={{ borderBottom: "1px solid var(--border)" }}
+          className="flex items-center justify-between px-4 pb-3"
+          style={{
+            borderBottom: "1px solid var(--border)",
+            paddingTop: isMac ? 42 : 12,
+          }}
         >
           <h2
             className="text-sm font-semibold"
@@ -130,6 +137,7 @@ export function AppSettingsPanel() {
       <div className="flex-1 overflow-y-auto">
         {activeTab === "appearance" && <AppearanceTab />}
         {activeTab === "provider" && <ProviderTab />}
+        {activeTab === "copilot" && <CopilotTab />}
         {activeTab === "mcp" && <McpTab />}
         {activeTab === "migration" && <MigrationTab />}
         {activeTab === "experimental" && <ExperimentalTab />}
@@ -142,7 +150,19 @@ export function AppSettingsPanel() {
 function AppearanceTab() {
   const theme = useUIStore((s) => s.theme);
   const setTheme = useUIStore((s) => s.setTheme);
+  const { appSettings, saveSettings, loadSettings } = useSettingsStore();
   const themeNames = getThemeNames();
+
+  useEffect(() => {
+    if (!appSettings) loadSettings();
+  }, [appSettings, loadSettings]);
+
+  const handleSetTheme = (name: ThemeName) => {
+    setTheme(name);
+    if (appSettings) {
+      saveSettings({ ...appSettings, theme: name }).catch(() => {});
+    }
+  };
 
   return (
     <div className="p-4 space-y-4">
@@ -160,7 +180,7 @@ function AppearanceTab() {
             return (
               <button
                 key={name}
-                onClick={() => setTheme(name)}
+                onClick={() => handleSetTheme(name)}
                 className="rounded-lg p-3 text-left transition-colors"
                 style={{
                   backgroundColor: "var(--bg-surface)",
@@ -439,14 +459,245 @@ function ProviderTab() {
   );
 }
 
+function CopilotTab() {
+  const { appSettings, loadSettings, saveSettings } = useSettingsStore();
+  const {
+    connectionStatus,
+    authStatus,
+    signInResult,
+    error: copilotError,
+    initialize,
+    shutdown,
+    signIn,
+  } = useCopilotStore();
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  if (!appSettings) {
+    return (
+      <div className="p-4 text-xs" style={{ color: "var(--text-muted)" }}>
+        Loading...
+      </div>
+    );
+  }
+
+  const enabled = appSettings.copilot?.enabled ?? false;
+
+  const handleToggle = async () => {
+    setSaving(true);
+    try {
+      const newSettings = {
+        ...appSettings,
+        copilot: { ...appSettings.copilot, enabled: !enabled },
+      };
+      await saveSettings(newSettings);
+
+      if (!enabled) {
+        // Turning on — start the LS
+        await initialize("file:///");
+      } else {
+        // Turning off — stop the LS
+        await shutdown();
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSignIn = async () => {
+    await signIn();
+  };
+
+  const handleOpenGitHub = async () => {
+    // Copy user code to clipboard before opening GitHub
+    if (signInResult?.userCode) {
+      try {
+        await navigator.clipboard.writeText(signInResult.userCode);
+      } catch {
+        // Best-effort
+      }
+    }
+    const uri = signInResult?.verificationUri ?? "https://github.com/login/device";
+    try {
+      const { open } = await import("@tauri-apps/plugin-shell");
+      await open(uri);
+    } catch {
+      window.open(uri, "_blank");
+    }
+  };
+
+  const statusColor =
+    connectionStatus === "connected"
+      ? "var(--success)"
+      : connectionStatus === "connecting"
+        ? "var(--accent)"
+        : connectionStatus === "error"
+          ? "var(--error)"
+          : "var(--text-muted)";
+
+  const statusLabel =
+    connectionStatus === "connected"
+      ? "Connected"
+      : connectionStatus === "connecting"
+        ? "Connecting..."
+        : connectionStatus === "error"
+          ? "Error"
+          : "Disconnected";
+
+  // Extract user from auth status
+  const authUser =
+    authStatus && typeof authStatus === "object" && "user" in (authStatus as Record<string, unknown>)
+      ? String((authStatus as Record<string, string>).user)
+      : null;
+
+  return (
+    <div className="p-4 space-y-4">
+      {copilotError && (
+        <div className="text-xs" style={{ color: "var(--error)" }}>
+          {copilotError}
+        </div>
+      )}
+
+      {/* Enable toggle */}
+      <div
+        className="rounded p-3"
+        style={{
+          backgroundColor: "var(--bg-surface)",
+          border: "1px solid var(--border)",
+        }}
+      >
+        <label
+          className="flex items-center gap-2 text-xs"
+          style={{ color: "var(--text-primary)" }}
+        >
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={handleToggle}
+            disabled={saving}
+          />
+          Enable GitHub Copilot
+        </label>
+        <div
+          className="mt-1 text-[10px]"
+          style={{ color: "var(--text-muted)" }}
+        >
+          Use your GitHub Copilot subscription for inline code completions.
+          Requires Node.js and the @github/copilot-language-server package.
+        </div>
+      </div>
+
+      {/* Connection status */}
+      {enabled && (
+        <div
+          className="rounded p-3"
+          style={{
+            backgroundColor: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <label
+            className="mb-2 block text-xs font-medium"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            Status
+          </label>
+          <div className="flex items-center gap-2 text-xs">
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: statusColor }}
+            />
+            <span style={{ color: "var(--text-primary)" }}>
+              {statusLabel}
+            </span>
+          </div>
+          {authUser && (
+            <div
+              className="mt-1 text-[10px]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Signed in as {authUser}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Sign in */}
+      {enabled && connectionStatus === "connected" && !authUser && (
+        <div
+          className="rounded p-3 space-y-2"
+          style={{
+            backgroundColor: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <label
+            className="mb-1 block text-xs font-medium"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            Authentication
+          </label>
+
+          {signInResult?.userCode ? (
+            <div className="space-y-2">
+              <div className="text-xs" style={{ color: "var(--text-primary)" }}>
+                Enter this code on GitHub:
+              </div>
+              <div
+                className="rounded px-3 py-2 text-center font-mono text-lg font-bold tracking-widest"
+                style={{
+                  backgroundColor: "var(--bg-primary)",
+                  color: "var(--accent)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                {signInResult.userCode}
+              </div>
+              <button
+                onClick={handleOpenGitHub}
+                className="w-full rounded px-3 py-1.5 text-xs"
+                style={{
+                  backgroundColor: "var(--accent)",
+                  color: "var(--bg-primary)",
+                }}
+              >
+                Copy Code & Open GitHub
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleSignIn}
+              className="rounded px-3 py-1.5 text-xs"
+              style={{
+                backgroundColor: "var(--accent)",
+                color: "var(--bg-primary)",
+              }}
+            >
+              Sign In with GitHub
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+        GitHub Copilot completions appear as ghost text in the editor. Press Tab
+        to accept a suggestion.
+      </div>
+    </div>
+  );
+}
+
 function McpTab() {
-  const { mcpServers, loadMcpServers, addMcpServer, removeMcpServer, error } =
+  const { mcpServers, loadMcpServers, addMcpServer, removeMcpServer, error, loading } =
     useSettingsStore();
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState("");
   const [newCommand, setNewCommand] = useState("");
   const [newArgs, setNewArgs] = useState("");
-  const [newScope, setNewScope] = useState<McpScope>("global");
+  const [newScope, setNewScope] = useState<McpScope>("user");
   const [newEnvPairs, setNewEnvPairs] = useState<Record<string, string>>({});
   const [adding, setAdding] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -499,7 +750,11 @@ function McpTab() {
       )}
 
       {/* Server list */}
-      {mcpServers.length === 0 ? (
+      {loading ? (
+        <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+          Loading MCP servers…
+        </div>
+      ) : mcpServers.length === 0 ? (
         <div className="text-xs" style={{ color: "var(--text-muted)" }}>
           No MCP servers configured.
         </div>
@@ -590,7 +845,7 @@ function McpTab() {
             }}
           />
           <div className="flex gap-4 text-xs">
-            {(["global", "project"] as McpScope[]).map((scope) => (
+            {(["user", "project"] as McpScope[]).map((scope) => (
               <label
                 key={scope}
                 className="flex items-center gap-1"

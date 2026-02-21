@@ -1,5 +1,12 @@
 import { create } from "zustand";
-import { readWorkspaceFile, readRepoFile } from "../lib/tauri";
+import {
+  readWorkspaceFile,
+  readRepoFile,
+  writeWorkspaceFile,
+  writeRepoFile,
+} from "../lib/tauri";
+import { ensureTypesLoaded } from "../lib/monacoSetup";
+import { notifyDocumentClosed } from "../lib/copilot";
 
 export interface FileTab {
   id: string;
@@ -7,10 +14,13 @@ export interface FileTab {
   contextId: string;
   contextType: "workspace" | "repo";
   content: string | null;
+  editedContent: string | null;
   language: string;
   loading: boolean;
+  saving: boolean;
   error: string | null;
   pinned: boolean;
+  dirty: boolean;
 }
 
 interface FileViewerStore {
@@ -28,6 +38,8 @@ interface FileViewerStore {
   setActiveTab: (tabId: string) => void;
   showChat: () => void;
   closeAllTabs: () => void;
+  updateContent: (tabId: string, newContent: string) => void;
+  saveActiveFile: (formatOnSave?: boolean) => Promise<void>;
 }
 
 function tabId(contextId: string, filePath: string): string {
@@ -66,6 +78,11 @@ function detectLanguage(filePath: string): string {
   return map[ext] ?? "plaintext";
 }
 
+const TS_LANGUAGES = new Set([
+  "typescript",
+  "javascript",
+]);
+
 async function fetchContent(
   id: string,
   contextId: string,
@@ -78,14 +95,21 @@ async function fetchContent(
         ? await readWorkspaceFile(contextId, filePath)
         : await readRepoFile(contextId, filePath);
 
+    // Load type definitions for TypeScript/JavaScript files (non-blocking)
+    if (TS_LANGUAGES.has(result.language)) {
+      ensureTypesLoaded(contextId, contextType).catch(() => {});
+    }
+
     useFileViewerStore.setState((state) => ({
       tabs: state.tabs.map((t) =>
         t.id === id
           ? {
               ...t,
               content: result.content,
+              editedContent: null,
               language: result.language,
               loading: false,
+              dirty: false,
             }
           : t,
       ),
@@ -129,10 +153,13 @@ export const useFileViewerStore = create<FileViewerStore>((set, get) => ({
       contextId,
       contextType,
       content: null,
+      editedContent: null,
       language: detectLanguage(filePath),
       loading: true,
+      saving: false,
       error: null,
       pinned: pin,
+      dirty: false,
     };
 
     if (pin) {
@@ -168,6 +195,11 @@ export const useFileViewerStore = create<FileViewerStore>((set, get) => ({
   },
 
   closeTab: (closingId) => {
+    const closingTab = get().tabs.find((t) => t.id === closingId);
+    if (closingTab) {
+      notifyDocumentClosed(closingTab.filePath);
+    }
+
     set((state) => {
       const idx = state.tabs.findIndex((t) => t.id === closingId);
       const newTabs = state.tabs.filter((t) => t.id !== closingId);
@@ -191,4 +223,75 @@ export const useFileViewerStore = create<FileViewerStore>((set, get) => ({
   showChat: () => set({ activeTabId: null }),
 
   closeAllTabs: () => set({ tabs: [], activeTabId: null }),
+
+  updateContent: (tabId, newContent) => {
+    set((state) => ({
+      tabs: state.tabs.map((t) =>
+        t.id === tabId
+          ? {
+              ...t,
+              editedContent: newContent,
+              dirty: newContent !== t.content,
+              pinned: true,
+            }
+          : t,
+      ),
+    }));
+  },
+
+  saveActiveFile: async (formatOnSave = true) => {
+    const state = get();
+    const tab = state.tabs.find((t) => t.id === state.activeTabId);
+    if (!tab || !tab.dirty || tab.saving) return;
+
+    const contentToSave = tab.editedContent ?? tab.content;
+    if (contentToSave === null) return;
+
+    // Mark as saving
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.id === tab.id ? { ...t, saving: true } : t,
+      ),
+    }));
+
+    try {
+      const result =
+        tab.contextType === "workspace"
+          ? await writeWorkspaceFile(
+              tab.contextId,
+              tab.filePath,
+              contentToSave,
+              formatOnSave,
+            )
+          : await writeRepoFile(
+              tab.contextId,
+              tab.filePath,
+              contentToSave,
+              formatOnSave,
+            );
+
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === tab.id
+            ? {
+                ...t,
+                content: result.content,
+                editedContent: result.content,
+                dirty: false,
+                saving: false,
+                error: null,
+              }
+            : t,
+        ),
+      }));
+    } catch (e) {
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === tab.id
+            ? { ...t, saving: false, error: `Save failed: ${String(e)}` }
+            : t,
+        ),
+      }));
+    }
+  },
 }));

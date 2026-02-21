@@ -59,12 +59,12 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
 
   loadMcpServers: async (scope?: string) => {
-    set({ error: null });
+    set({ loading: true, error: null });
     try {
       const servers = await listMcpServers(scope);
-      set({ mcpServers: servers });
+      set({ mcpServers: servers, loading: false });
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: String(e), loading: false });
     }
   },
 

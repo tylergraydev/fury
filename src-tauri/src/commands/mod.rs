@@ -1,5 +1,6 @@
 pub mod agent;
 pub mod checkpoint;
+pub mod copilot;
 pub mod git;
 pub mod mcp;
 pub mod merge;

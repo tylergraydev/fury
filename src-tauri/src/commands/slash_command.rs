@@ -8,17 +8,19 @@ use uuid::Uuid;
 #[tauri::command]
 pub fn list_slash_commands(
     state: State<'_, AppState>,
-    workspace_id: String,
+    context_id: String,
+    context_type: String,
 ) -> Result<Vec<SlashCommand>, AppError> {
-    let ws_id: Uuid = workspace_id
+    let id: Uuid = context_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
-    let repo_path = {
+    let repo_path = if context_type == "repo" {
+        let repos = state.repositories.lock().unwrap();
+        repos.get(&id).map(|r| r.path.clone())
+    } else {
         let workspaces = state.workspaces.lock().unwrap();
-        let ws = workspaces
-            .get(&ws_id)
-            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        let ws = workspaces.get(&id).ok_or(AppError::WorkspaceNotFound(id))?;
         let repos = state.repositories.lock().unwrap();
         repos.get(&ws.repo_id).map(|r| r.path.clone())
     };

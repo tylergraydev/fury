@@ -61,6 +61,9 @@ pub fn run() {
             commands::git::get_repo_file_diff,
             commands::git::read_workspace_file,
             commands::git::read_repo_file,
+            commands::git::write_workspace_file,
+            commands::git::write_repo_file,
+            commands::git::load_type_definitions,
             // Merge/branch commands
             commands::merge::get_branch_status,
             commands::merge::fetch_upstream,
@@ -104,6 +107,15 @@ pub fn run() {
             // Slash command commands
             commands::slash_command::list_slash_commands,
             commands::slash_command::get_slash_command_content,
+            // Copilot commands
+            commands::copilot::start_copilot,
+            commands::copilot::stop_copilot,
+            commands::copilot::copilot_sign_in,
+            commands::copilot::copilot_check_status,
+            commands::copilot::copilot_did_open,
+            commands::copilot::copilot_did_change,
+            commands::copilot::copilot_did_close,
+            commands::copilot::copilot_complete,
             // MCP + Settings commands
             commands::mcp::list_mcp_servers,
             commands::mcp::add_mcp_server,
