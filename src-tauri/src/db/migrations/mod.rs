@@ -81,5 +81,24 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
     let _ = conn
         .execute_batch("ALTER TABLE workspaces ADD COLUMN auto_commit INTEGER NOT NULL DEFAULT 1;");
 
+    // Add worktree_base_path column (idempotent)
+    let _ =
+        conn.execute_batch("ALTER TABLE repository_settings ADD COLUMN worktree_base_path TEXT;");
+
+    // Chat messages table (idempotent)
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            timestamp TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_chat_messages_workspace ON chat_messages(workspace_id);
+        ",
+    )
+    .map_err(|e| AppError::DbError(e.to_string()))?;
+
     Ok(())
 }

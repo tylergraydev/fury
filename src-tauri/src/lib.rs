@@ -47,6 +47,10 @@ pub fn run() {
             commands::agent::stop_agent,
             commands::agent::get_agent_status,
             commands::agent::clear_session,
+            // Chat commands
+            commands::chat::save_chat_message,
+            commands::chat::list_chat_messages,
+            commands::chat::clear_chat_messages,
             // Checkpoint commands
             commands::checkpoint::list_checkpoints,
             commands::checkpoint::revert_to_checkpoint,
