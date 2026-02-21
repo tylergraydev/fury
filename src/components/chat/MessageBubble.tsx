@@ -267,6 +267,7 @@ function ToolCallList({ pairs }: { pairs: ToolPair[] }) {
 
 function ToolRow({ pair }: { pair: ToolPair }) {
   const [detailOpen, setDetailOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const normalized = normalizeToolName(pair.use.name);
   const icon = getToolIcon(normalized);
   const summary = getToolSummary(pair.use.name, pair.use.input);
@@ -275,10 +276,12 @@ function ToolRow({ pair }: { pair: ToolPair }) {
     <div>
       <button
         onClick={() => setDetailOpen(!detailOpen)}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
         className="flex w-full items-center gap-2 py-0.5 text-left text-xs"
         style={{ color: "var(--text-secondary)" }}
       >
-        {detailOpen ? (
+        {(detailOpen || isHovered) ? (
           <ChevronDown className="h-3 w-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
         ) : (
           <ChevronRight className="h-3 w-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
