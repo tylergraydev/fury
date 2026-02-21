@@ -39,9 +39,14 @@ function segmentTurns(messages: ChatMessage[]): { orphans: ChatMessage[]; turns:
 function getTurnStats(responses: ChatMessage[]) {
   let toolCallCount = 0;
   let textMessageCount = 0;
+  let systemMessageCount = 0;
   let finalTextMessage: ChatMessage | null = null;
 
   for (const msg of responses) {
+    if (msg.role === "system") {
+      systemMessageCount++;
+      continue;
+    }
     if (msg.role !== "assistant") continue;
 
     const hasText = msg.content.some(
@@ -56,19 +61,19 @@ function getTurnStats(responses: ChatMessage[]) {
     }
   }
 
-  return { toolCallCount, textMessageCount, finalTextMessage };
+  return { toolCallCount, textMessageCount, systemMessageCount, finalTextMessage };
 }
 
 // --- Components ---
 
 function CollapsedTurnSummary({
   toolCallCount,
-  textMessageCount,
+  hiddenTextCount,
   isExpanded,
   onToggle,
 }: {
   toolCallCount: number;
-  textMessageCount: number;
+  hiddenTextCount: number;
   isExpanded: boolean;
   onToggle: () => void;
 }) {
@@ -77,8 +82,8 @@ function CollapsedTurnSummary({
   if (toolCallCount > 0) {
     parts.push(`${toolCallCount} tool call${toolCallCount !== 1 ? "s" : ""}`);
   }
-  if (textMessageCount > 0) {
-    parts.push(`${textMessageCount} message${textMessageCount !== 1 ? "s" : ""}`);
+  if (hiddenTextCount > 0) {
+    parts.push(`${hiddenTextCount} message${hiddenTextCount !== 1 ? "s" : ""}`);
   }
 
   if (parts.length === 0) return null;
@@ -121,7 +126,7 @@ export function MessageList({
   onRetry,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
-  const [expandedTurns, setExpandedTurns] = useState<Set<number>>(new Set());
+  const [expandedTurns, setExpandedTurns] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -130,13 +135,13 @@ export function MessageList({
   const isRunning = agentStatus === "Running";
   const isAgentActive = agentStatus === "Running" || agentStatus === "Stopping";
 
-  const toggleTurn = useCallback((turnIndex: number) => {
+  const toggleTurn = useCallback((turnId: string) => {
     setExpandedTurns((prev) => {
       const next = new Set(prev);
-      if (next.has(turnIndex)) {
-        next.delete(turnIndex);
+      if (next.has(turnId)) {
+        next.delete(turnId);
       } else {
-        next.add(turnIndex);
+        next.add(turnId);
       }
       return next;
     });
@@ -178,8 +183,11 @@ export function MessageList({
         const isLastTurn = turnIdx === turns.length - 1;
         const isActiveTurn = isLastTurn && isAgentActive;
         const stats = getTurnStats(turn.responses);
-        const isCollapsible = !isActiveTurn && stats.toolCallCount > 0;
-        const isExpanded = expandedTurns.has(turnIdx);
+        // Never collapse turns that contain system (error) messages
+        const isCollapsible =
+          !isActiveTurn && stats.toolCallCount > 0 && stats.systemMessageCount === 0;
+        const turnId = turn.userMessage.id;
+        const isExpanded = expandedTurns.has(turnId);
 
         const isAfterRevert =
           revertedTurnIndex != null && turnIdx > revertedTurnIndex;
@@ -210,14 +218,15 @@ export function MessageList({
         );
 
         if (isCollapsible) {
-          // Collapsed turn summary
+          // Subtract the final visible message from the summary count
+          const hiddenTextCount = stats.textMessageCount - (stats.finalTextMessage ? 1 : 0);
           elements.push(
             <CollapsedTurnSummary
-              key={`summary-${turnIdx}`}
+              key={`summary-${turnId}`}
               toolCallCount={stats.toolCallCount}
-              textMessageCount={stats.textMessageCount}
+              hiddenTextCount={hiddenTextCount}
               isExpanded={isExpanded}
-              onToggle={() => toggleTurn(turnIdx)}
+              onToggle={() => toggleTurn(turnId)}
             />,
           );
 
@@ -234,20 +243,26 @@ export function MessageList({
               );
             }
           } else {
-            // When collapsed, show only the final text message
+            // When collapsed, show only the text content of the final message
             if (stats.finalTextMessage) {
+              const textOnly: ChatMessage = {
+                ...stats.finalTextMessage,
+                content: stats.finalTextMessage.content.filter(
+                  (b) => b.type === "text",
+                ),
+              };
               elements.push(
                 <div
                   key={stats.finalTextMessage.id}
                   style={{ opacity: isAfterRevert ? 0.4 : 1 }}
                 >
-                  <MessageBubble message={stats.finalTextMessage} />
+                  <MessageBubble message={textOnly} />
                 </div>,
               );
             }
           }
         } else {
-          // Active turn or no tool calls — render all responses normally
+          // Active turn, no tool calls, or has system messages — render all responses normally
           for (const msg of turn.responses) {
             elements.push(
               <div
@@ -260,7 +275,7 @@ export function MessageList({
           }
         }
 
-        return <div key={turnIdx}>{elements}</div>;
+        return <div key={turnId}>{elements}</div>;
       })}
 
       {/* Show streaming text as in-progress assistant message */}
