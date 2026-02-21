@@ -25,6 +25,8 @@ pub fn run() {
             commands::repository::remove_repository,
             commands::repository::list_repositories,
             commands::repository::list_branches,
+            commands::repository::clone_repository,
+            commands::repository::init_repository,
             // Workspace commands
             commands::workspace::create_workspace,
             commands::workspace::list_workspaces,
@@ -51,6 +53,7 @@ pub fn run() {
             // Git/diff commands
             commands::git::get_diff,
             commands::git::get_file_diff,
+            commands::git::get_git_log,
             commands::git::list_repo_directories,
             commands::git::list_workspace_files,
             commands::git::list_repo_files,
@@ -58,6 +61,18 @@ pub fn run() {
             commands::git::get_repo_file_diff,
             commands::git::read_workspace_file,
             commands::git::read_repo_file,
+            // Merge/branch commands
+            commands::merge::get_branch_status,
+            commands::merge::fetch_upstream,
+            commands::merge::pull_rebase,
+            commands::merge::pull_merge,
+            commands::merge::get_conflicted_files,
+            commands::merge::get_conflict_content,
+            commands::merge::resolve_conflict,
+            commands::merge::abort_merge_cmd,
+            commands::merge::continue_merge,
+            commands::merge::cross_worktree_diff,
+            commands::merge::get_cross_worktree_file_diff,
             // Script commands
             commands::script::run_script,
             commands::script::stop_script,

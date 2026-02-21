@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
 
 export function FileTabBar() {
@@ -60,10 +61,10 @@ export function FileTabBar() {
                 e.stopPropagation();
                 closeTab(tab.id);
               }}
-              className="ml-0.5 rounded px-1 text-[10px] hover:bg-[var(--bg-hover)]"
+              className="ml-0.5 rounded p-0.5 hover:bg-[var(--bg-hover)]"
               style={{ color: "var(--text-muted)" }}
             >
-              ×
+              <X className="h-3 w-3" />
             </button>
           </span>
         );

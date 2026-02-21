@@ -1,3 +1,4 @@
+pub mod branch;
 pub mod checkpoint;
 pub mod claude_process;
 pub mod conductor_json;

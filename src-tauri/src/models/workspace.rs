@@ -44,6 +44,7 @@ pub struct Workspace {
     pub port_base: u16,
     pub sparse_dirs: Option<Vec<String>>,
     pub notes: String,
+    pub auto_commit: bool,
     pub created_at: DateTime<Utc>,
     pub archived_at: Option<DateTime<Utc>>,
 }
@@ -55,6 +56,8 @@ pub struct CreateWorkspaceRequest {
     pub workspace_name: String,
     pub branch_name: String,
     pub sparse_dirs: Option<Vec<String>>,
+    pub base_branch: Option<String>,
+    pub auto_commit: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,6 +69,7 @@ pub struct WorkspaceInfo {
     pub branch: String,
     pub status: WorkspaceStatus,
     pub port_base: u16,
+    pub auto_commit: bool,
     pub created_at: DateTime<Utc>,
     pub archived_at: Option<DateTime<Utc>>,
 }
@@ -79,6 +83,7 @@ impl From<&Workspace> for WorkspaceInfo {
             branch: ws.branch.clone(),
             status: ws.status.clone(),
             port_base: ws.port_base,
+            auto_commit: ws.auto_commit,
             created_at: ws.created_at,
             archived_at: ws.archived_at,
         }

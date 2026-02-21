@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { Send, Square } from "lucide-react";
 import type { AgentStatus, SlashCommand } from "../../lib/tauri";
 import { useTodoStore } from "../../stores/todoStore";
 import { useSlashCommandStore } from "../../stores/slashCommandStore";
@@ -207,9 +208,9 @@ export function Composer({ workspaceId, agentStatus, onSend, onStop }: Props) {
         : "Idle";
 
   return (
-    <div className="p-3" style={{ borderTop: "1px solid var(--border)" }}>
+    <div className="p-4" style={{ borderTop: "1px solid var(--border)" }}>
       {/* Status bar */}
-      <div className="mb-2 flex items-center gap-2 text-[10px]">
+      <div className="mb-2 flex items-center gap-2 text-[11px]">
         <span
           className={`h-1.5 w-1.5 rounded-full ${isRunning ? "animate-pulse" : ""}`}
           style={{ backgroundColor: statusColor }}
@@ -220,13 +221,14 @@ export function Composer({ workspaceId, agentStatus, onSend, onStop }: Props) {
           <button
             onClick={onStop}
             disabled={isStopping}
-            className="ml-auto rounded px-2 py-0.5 text-[10px]"
+            className="ml-auto flex items-center gap-1 rounded px-2 py-0.5 text-[10px]"
             style={{
               backgroundColor: "rgba(243, 139, 168, 0.15)",
               color: "var(--error)",
               border: "1px solid rgba(243, 139, 168, 0.3)",
             }}
           >
+            <Square className="h-2.5 w-2.5" />
             {isStopping ? "Stopping..." : "Stop"}
           </button>
         )}
@@ -300,7 +302,7 @@ export function Composer({ workspaceId, agentStatus, onSend, onStop }: Props) {
         )}
 
         <div
-          className="flex items-end gap-2 rounded-lg px-3 py-2"
+          className="flex items-end gap-2.5 rounded-xl px-4 py-3"
           style={{
             backgroundColor: "var(--bg-surface)",
             border: "1px solid var(--border)",
@@ -327,49 +329,22 @@ export function Composer({ workspaceId, agentStatus, onSend, onStop }: Props) {
           <button
             onClick={handleSend}
             disabled={!canSend}
-            className="rounded px-3 py-1 text-xs transition-colors"
+            className="flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-colors"
             style={{
               backgroundColor: canSend ? "var(--accent)" : "var(--bg-hover)",
-              color: canSend ? "#1e1e2e" : "var(--text-muted)",
+              color: canSend ? "#ffffff" : "var(--text-muted)",
             }}
           >
+            <Send className="h-3.5 w-3.5" />
             Send
           </button>
         </div>
 
-        {/* Model and mode pills */}
-        <div className="mt-1.5 flex items-center gap-1.5">
-          <span
-            className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px]"
-            style={{
-              backgroundColor: "var(--bg-surface)",
-              color: "var(--text-muted)",
-            }}
-          >
-            <span
-              className="h-1.5 w-1.5 rounded-full"
-              style={{ backgroundColor: "var(--accent)" }}
-            />
-            Opus 4.6
+        {/* Shortcut hint */}
+        <div className="mt-2 flex items-center">
+          <span className="ml-auto text-[11px]" style={{ color: "var(--text-muted)" }}>
+            ⌘ Enter to send, Shift+Enter for new line
           </span>
-          <button
-            className="rounded-full px-2 py-0.5 text-[10px] transition-colors hover:bg-[var(--bg-hover)]"
-            style={{
-              backgroundColor: "var(--bg-surface)",
-              color: "var(--text-muted)",
-            }}
-          >
-            Thinking
-          </button>
-          <button
-            className="rounded-full px-2 py-0.5 text-[10px] transition-colors hover:bg-[var(--bg-hover)]"
-            style={{
-              backgroundColor: "var(--bg-surface)",
-              color: "var(--text-muted)",
-            }}
-          >
-            Plan
-          </button>
         </div>
       </div>
     </div>

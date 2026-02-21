@@ -17,6 +17,7 @@ export interface WorkspaceInfo {
   branch: string;
   status: WorkspaceStatus;
   portBase: number;
+  autoCommit: boolean;
   createdAt: string;
   archivedAt: string | null;
 }
@@ -32,6 +33,8 @@ export interface CreateWorkspaceRequest {
   workspaceName: string;
   branchName: string;
   sparseDirs?: string[];
+  baseBranch?: string;
+  autoCommit?: boolean;
 }
 
 // Repository commands
@@ -49,6 +52,20 @@ export async function listRepositories(): Promise<Repository[]> {
 
 export async function listBranches(repoId: string): Promise<string[]> {
   return invoke<string[]>("list_branches", { repoId });
+}
+
+export async function cloneRepository(
+  url: string,
+  path: string,
+): Promise<Repository> {
+  return invoke<Repository>("clone_repository", { url, path });
+}
+
+export async function initRepository(
+  path: string,
+  name: string,
+): Promise<Repository> {
+  return invoke<Repository>("init_repository", { path, name });
 }
 
 // Workspace commands
@@ -691,5 +708,133 @@ export async function importCursorrules(
   return invoke<CursorRulesImportResult>("import_cursorrules", {
     repoId,
     overwrite,
+  });
+}
+
+// Git log types
+export interface GitLogEntry {
+  hash: string;
+  fullHash: string;
+  message: string;
+  author: string;
+  timestamp: string;
+}
+
+// Git log command
+export async function getGitLog(
+  workspaceId: string,
+  maxCount?: number,
+): Promise<GitLogEntry[]> {
+  return invoke<GitLogEntry[]>("get_git_log", { workspaceId, maxCount });
+}
+
+// Merge/branch types
+export interface BranchStatus {
+  branch: string;
+  defaultBranch: string;
+  ahead: number;
+  behind: number;
+  hasUpstream: boolean;
+}
+
+export interface PullResult {
+  success: boolean;
+  message: string;
+  hasConflicts: boolean;
+  conflictedFiles: string[];
+}
+
+export interface ConflictedFile {
+  path: string;
+  conflictType: ConflictType;
+}
+
+export type ConflictType =
+  | "BothModified"
+  | "DeletedByUs"
+  | "DeletedByThem"
+  | "AddedByBoth"
+  | "BothDeleted"
+  | "Unknown";
+
+export interface ConflictContent {
+  path: string;
+  base: string;
+  ours: string;
+  theirs: string;
+  merged: string;
+  language: string;
+}
+
+// Merge/branch commands
+export async function getBranchStatus(
+  workspaceId: string,
+): Promise<BranchStatus> {
+  return invoke<BranchStatus>("get_branch_status", { workspaceId });
+}
+
+export async function fetchUpstream(workspaceId: string): Promise<void> {
+  return invoke("fetch_upstream", { workspaceId });
+}
+
+export async function pullRebase(workspaceId: string): Promise<PullResult> {
+  return invoke<PullResult>("pull_rebase", { workspaceId });
+}
+
+export async function pullMerge(workspaceId: string): Promise<PullResult> {
+  return invoke<PullResult>("pull_merge", { workspaceId });
+}
+
+export async function getConflictedFiles(
+  workspaceId: string,
+): Promise<ConflictedFile[]> {
+  return invoke<ConflictedFile[]>("get_conflicted_files", { workspaceId });
+}
+
+export async function getConflictContent(
+  workspaceId: string,
+  filePath: string,
+): Promise<ConflictContent> {
+  return invoke<ConflictContent>("get_conflict_content", {
+    workspaceId,
+    filePath,
+  });
+}
+
+export async function resolveConflict(
+  workspaceId: string,
+  filePath: string,
+  strategy: string,
+): Promise<void> {
+  return invoke("resolve_conflict", { workspaceId, filePath, strategy });
+}
+
+export async function abortMerge(workspaceId: string): Promise<void> {
+  return invoke("abort_merge_cmd", { workspaceId });
+}
+
+export async function continueMerge(workspaceId: string): Promise<void> {
+  return invoke("continue_merge", { workspaceId });
+}
+
+export async function crossWorktreeDiff(
+  workspaceId: string,
+  linkedWorkspaceId: string,
+): Promise<DiffResult> {
+  return invoke<DiffResult>("cross_worktree_diff", {
+    workspaceId,
+    linkedWorkspaceId,
+  });
+}
+
+export async function getCrossWorktreeFileDiff(
+  workspaceId: string,
+  linkedWorkspaceId: string,
+  filePath: string,
+): Promise<FileDiffContent> {
+  return invoke<FileDiffContent>("get_cross_worktree_file_diff", {
+    workspaceId,
+    linkedWorkspaceId,
+    filePath,
   });
 }

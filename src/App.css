@@ -1,16 +1,21 @@
 @import "tailwindcss";
 
+/* Default theme: blend (black base + Figma panels + blue accent).
+   Themes are applied dynamically via src/lib/themes.ts — these are fallback defaults. */
 :root {
   --bg-primary: #000000;
-  --bg-secondary: #0a0a0a;
-  --bg-surface: #1a1a1a;
-  --bg-hover: #252525;
-  --text-primary: #ffffff;
+  --bg-secondary: #0d1117;
+  --bg-surface: #161b22;
+  --bg-hover: #1c2128;
+  --text-primary: #f0f6fc;
   --text-secondary: #b0b0b0;
-  --text-muted: #666666;
-  --border: #262626;
-  --accent: #ffffff;
-  --accent-hover: #d4d4d4;
+  --text-muted: #6e7681;
+  --border: #30363d;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-green: #22c55e;
+  --accent-purple: #a855f7;
+  --accent-orange: #f97316;
   --success: #4ade80;
   --warning: #facc15;
   --error: #f87171;
@@ -34,13 +39,13 @@ body,
     Ubuntu,
     Cantarell,
     sans-serif;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 /* Scrollbar styling */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {

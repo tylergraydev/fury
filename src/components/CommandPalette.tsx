@@ -122,17 +122,35 @@ export function CommandPalette({
 
           <CommandSeparator style={{ height: 1, backgroundColor: "var(--border)", margin: "4px 0" }} />
 
-          {/* Actions */}
+          {/* Views */}
           <CommandGroup
-            heading="Actions"
+            heading="Views"
             style={{ padding: "0 8px" }}
           >
+            <PaletteItem onSelect={() => run("view-chat")}>
+              Switch to Chat
+            </PaletteItem>
             <PaletteItem
               onSelect={() => run("open-settings")}
               shortcut={shortcutFor("open-settings")}
             >
               Open Settings
             </PaletteItem>
+            <PaletteItem onSelect={() => run("view-merge")}>
+              Open Merge View
+            </PaletteItem>
+            <PaletteItem onSelect={() => run("view-history")}>
+              Open History
+            </PaletteItem>
+          </CommandGroup>
+
+          <CommandSeparator style={{ height: 1, backgroundColor: "var(--border)", margin: "4px 0" }} />
+
+          {/* Actions */}
+          <CommandGroup
+            heading="Actions"
+            style={{ padding: "0 8px" }}
+          >
             <PaletteItem
               onSelect={() => run("focus-terminal")}
               shortcut={shortcutFor("focus-terminal")}

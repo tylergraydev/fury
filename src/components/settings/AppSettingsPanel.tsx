@@ -1,6 +1,18 @@
 import { useEffect, useState } from "react";
+import {
+  X,
+  Key,
+  Server,
+  ArrowLeftRight,
+  FlaskConical,
+  Download,
+  Plus,
+  Palette,
+} from "lucide-react";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useRepositoryStore } from "../../stores/repositoryStore";
+import { useUIStore } from "../../stores/uiStore";
+import { getThemeNames, type ThemeName } from "../../lib/themes";
 import type {
   AppSettings,
   ProviderType,
@@ -10,7 +22,7 @@ import type {
 } from "../../lib/tauri";
 import { detectCursorrules, importCursorrules } from "../../lib/tauri";
 
-type SettingsTab = "provider" | "mcp" | "migration" | "experimental" | "updates";
+type SettingsTab = "appearance" | "provider" | "mcp" | "migration" | "experimental" | "updates";
 
 const PROVIDER_ENV_HINTS: Record<ProviderType, string[]> = {
   Anthropic: ["ANTHROPIC_API_KEY"],
@@ -32,93 +44,175 @@ const PROVIDER_LABELS: Record<ProviderType, string> = {
   Custom: "Custom",
 };
 
-interface AppSettingsPanelProps {
-  onClose: () => void;
-}
+const NAV_ITEMS: { tab: SettingsTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { tab: "appearance", label: "Appearance", icon: Palette },
+  { tab: "provider", label: "Provider", icon: Key },
+  { tab: "mcp", label: "MCP Servers", icon: Server },
+  { tab: "migration", label: "Migration", icon: ArrowLeftRight },
+  { tab: "experimental", label: "Experimental", icon: FlaskConical },
+  { tab: "updates", label: "Updates", icon: Download },
+];
 
-export function AppSettingsPanel({ onClose }: AppSettingsPanelProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("provider");
+// Theme display metadata (must stay in sync with themes.ts definitions)
+const THEME_META: Record<ThemeName, { label: string; description: string; swatches: string[] }> = {
+  blend: {
+    label: "Blend",
+    description: "Black base with blue accents",
+    swatches: ["#000000", "#161b22", "#3b82f6", "#f0f6fc"],
+  },
+  midnight: {
+    label: "Midnight",
+    description: "Pure black with white accents",
+    swatches: ["#000000", "#1a1a1a", "#ffffff", "#4ade80"],
+  },
+  github: {
+    label: "GitHub Dark",
+    description: "GitHub's dark default palette",
+    swatches: ["#0d1117", "#1c2128", "#3b82f6", "#f0f6fc"],
+  },
+};
+
+export function AppSettingsPanel() {
+  const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
+  const closeSettings = () => useUIStore.getState().closeViewTab("settings");
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      className="flex h-full"
+      style={{ backgroundColor: "var(--bg-primary)" }}
     >
+      {/* Sidebar navigation */}
       <div
-        className="flex w-[560px] max-h-[80vh] flex-col rounded-lg"
+        className="flex h-full w-48 flex-shrink-0 flex-col"
         style={{
-          backgroundColor: "var(--bg-primary)",
-          border: "1px solid var(--border)",
+          backgroundColor: "var(--bg-secondary)",
+          borderRight: "1px solid var(--border)",
         }}
       >
-        {/* Header with tabs */}
         <div
           className="flex items-center justify-between px-4 py-3"
           style={{ borderBottom: "1px solid var(--border)" }}
         >
-          <div className="flex items-center gap-3">
-            <h2
-              className="text-sm font-semibold"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Settings
-            </h2>
-            <div className="flex gap-1">
-              {(["provider", "mcp", "migration", "experimental", "updates"] as SettingsTab[]).map(
-                (tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className="rounded px-2 py-0.5 text-xs transition-colors"
-                    style={{
-                      backgroundColor:
-                        activeTab === tab
-                          ? "var(--bg-surface)"
-                          : "transparent",
-                      color:
-                        activeTab === tab
-                          ? "var(--accent)"
-                          : "var(--text-muted)",
-                    }}
-                  >
-                    {tab === "provider"
-                      ? "Provider"
-                      : tab === "mcp"
-                        ? "MCP Servers"
-                        : tab === "migration"
-                          ? "Migration"
-                          : tab === "experimental"
-                            ? "Experimental"
-                            : "Updates"}
-                  </button>
-                ),
-              )}
-            </div>
-          </div>
+          <h2
+            className="text-sm font-semibold"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Settings
+          </h2>
           <button
-            onClick={onClose}
-            className="text-sm"
+            onClick={closeSettings}
+            className="rounded-lg p-1 transition-colors hover:bg-[var(--bg-hover)]"
             style={{ color: "var(--text-muted)" }}
           >
-            x
+            <X className="h-4 w-4" />
           </button>
         </div>
+        <nav className="flex-1 overflow-y-auto py-2">
+          {NAV_ITEMS.map(({ tab, label, icon: Icon }) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-xs transition-colors"
+              style={{
+                backgroundColor: activeTab === tab ? "var(--bg-surface)" : "transparent",
+                color: activeTab === tab ? "var(--accent)" : "var(--text-secondary)",
+                borderLeft: activeTab === tab ? "2px solid var(--accent)" : "2px solid transparent",
+              }}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
+        </nav>
+      </div>
 
-        {/* Tab content */}
-        <div className="flex-1 overflow-y-auto">
-          {activeTab === "provider" && <ProviderTab onClose={onClose} />}
-          {activeTab === "mcp" && <McpTab />}
-          {activeTab === "migration" && <MigrationTab />}
-          {activeTab === "experimental" && <ExperimentalTab />}
-          {activeTab === "updates" && <UpdatesTab />}
+      {/* Content area */}
+      <div className="flex-1 overflow-y-auto">
+        {activeTab === "appearance" && <AppearanceTab />}
+        {activeTab === "provider" && <ProviderTab />}
+        {activeTab === "mcp" && <McpTab />}
+        {activeTab === "migration" && <MigrationTab />}
+        {activeTab === "experimental" && <ExperimentalTab />}
+        {activeTab === "updates" && <UpdatesTab />}
+      </div>
+    </div>
+  );
+}
+
+function AppearanceTab() {
+  const theme = useUIStore((s) => s.theme);
+  const setTheme = useUIStore((s) => s.setTheme);
+  const themeNames = getThemeNames();
+
+  return (
+    <div className="p-4 space-y-4">
+      <div>
+        <label
+          className="mb-3 block text-xs font-medium"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          Theme
+        </label>
+        <div className="grid grid-cols-3 gap-3">
+          {themeNames.map((name) => {
+            const meta = THEME_META[name];
+            const isActive = theme === name;
+            return (
+              <button
+                key={name}
+                onClick={() => setTheme(name)}
+                className="rounded-lg p-3 text-left transition-colors"
+                style={{
+                  backgroundColor: "var(--bg-surface)",
+                  border: isActive
+                    ? "2px solid var(--accent)"
+                    : "1px solid var(--border)",
+                }}
+              >
+                <div className="mb-2 flex gap-1">
+                  {meta.swatches.map((color, i) => (
+                    <div
+                      key={i}
+                      className="h-5 flex-1 rounded"
+                      style={{
+                        backgroundColor: color,
+                        border: "1px solid rgba(255,255,255,0.1)",
+                      }}
+                    />
+                  ))}
+                </div>
+                <div
+                  className="text-xs font-medium"
+                  style={{
+                    color: isActive ? "var(--accent)" : "var(--text-primary)",
+                  }}
+                >
+                  {meta.label}
+                </div>
+                <div
+                  className="text-[10px]"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {meta.description}
+                </div>
+                {isActive && (
+                  <div
+                    className="mt-1.5 text-[10px] font-medium"
+                    style={{ color: "var(--accent)" }}
+                  >
+                    Active
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
   );
 }
 
-function ProviderTab({ onClose }: { onClose: () => void }) {
+function ProviderTab() {
   const { appSettings, loadSettings, saveSettings } = useSettingsStore();
   const [localSettings, setLocalSettings] = useState<AppSettings | null>(null);
   const [saving, setSaving] = useState(false);
@@ -151,7 +245,7 @@ function ProviderTab({ onClose }: { onClose: () => void }) {
     setError(null);
     try {
       await saveSettings(localSettings);
-      onClose();
+      useUIStore.getState().closeViewTab("settings");
     } catch (e) {
       setError(String(e));
     } finally {
@@ -306,9 +400,10 @@ function ProviderTab({ onClose }: { onClose: () => void }) {
               </span>
               <button
                 onClick={() => removeEnvVar(key)}
+                className="rounded p-0.5 transition-colors hover:bg-[var(--bg-hover)]"
                 style={{ color: "var(--error)" }}
               >
-                x
+                <X className="h-3 w-3" />
               </button>
             </div>
           ))}
@@ -318,7 +413,7 @@ function ProviderTab({ onClose }: { onClose: () => void }) {
       {/* Footer */}
       <div className="flex justify-end gap-2 pt-2">
         <button
-          onClick={onClose}
+          onClick={() => useUIStore.getState().closeViewTab("settings")}
           className="rounded px-3 py-1.5 text-xs"
           style={{
             backgroundColor: "var(--bg-surface)",
@@ -442,10 +537,10 @@ function McpTab() {
               </span>
               <button
                 onClick={() => handleRemove(server.name, server.scope)}
-                className="text-xs"
+                className="rounded p-0.5 transition-colors hover:bg-[var(--bg-hover)]"
                 style={{ color: "var(--error)" }}
               >
-                x
+                <X className="h-3 w-3" />
               </button>
             </div>
           ))}
@@ -534,9 +629,10 @@ function McpTab() {
                     const { [key]: _, ...rest } = newEnvPairs;
                     setNewEnvPairs(rest);
                   }}
+                  className="rounded p-0.5 transition-colors hover:bg-[var(--bg-hover)]"
                   style={{ color: "var(--error)" }}
                 >
-                  x
+                  <X className="h-3 w-3" />
                 </button>
               </div>
             ))}
@@ -574,14 +670,15 @@ function McpTab() {
       ) : (
         <button
           onClick={() => setShowAddForm(true)}
-          className="rounded px-3 py-1.5 text-xs"
+          className="flex items-center gap-1.5 rounded px-3 py-1.5 text-xs"
           style={{
             backgroundColor: "var(--bg-surface)",
             color: "var(--text-secondary)",
             border: "1px solid var(--border)",
           }}
         >
-          + Add MCP Server
+          <Plus className="h-3.5 w-3.5" />
+          Add MCP Server
         </button>
       )}
     </div>

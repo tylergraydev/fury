@@ -77,5 +77,9 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
     )
     .map_err(|e| AppError::DbError(e.to_string()))?;
 
+    // Add auto_commit column (idempotent — ignore error if column already exists)
+    let _ = conn
+        .execute_batch("ALTER TABLE workspaces ADD COLUMN auto_commit INTEGER NOT NULL DEFAULT 1;");
+
     Ok(())
 }

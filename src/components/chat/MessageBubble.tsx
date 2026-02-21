@@ -1,4 +1,20 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import {
+  FileText,
+  Pencil,
+  FileOutput,
+  Terminal,
+  Search,
+  FolderSearch,
+  Zap,
+  BookOpen,
+  Globe,
+  ChevronRight,
+  ChevronDown,
+  Circle,
+  User,
+  Sparkles,
+} from "lucide-react";
 import type { ChatMessage, ContentBlock } from "../../lib/tauri";
 
 // --- Grouping logic ---
@@ -71,20 +87,20 @@ function normalizeToolName(name: string): string {
   return name;
 }
 
-const TOOL_ICONS: Record<string, string> = {
-  Read: "\uD83D\uDCC4",
-  Edit: "\u270F\uFE0F",
-  Write: "\uD83D\uDCDD",
-  Bash: ">_",
-  Grep: "\uD83D\uDD0D",
-  Glob: "\uD83D\uDCC1",
-  Task: "\u26A1",
-  Notebook: "\uD83D\uDCD3",
-  Web: "\uD83C\uDF10",
+const TOOL_ICON_MAP: Record<string, ReactNode> = {
+  Read: <FileText className="h-3 w-3" />,
+  Edit: <Pencil className="h-3 w-3" />,
+  Write: <FileOutput className="h-3 w-3" />,
+  Bash: <Terminal className="h-3 w-3" />,
+  Grep: <Search className="h-3 w-3" />,
+  Glob: <FolderSearch className="h-3 w-3" />,
+  Task: <Zap className="h-3 w-3" />,
+  Notebook: <BookOpen className="h-3 w-3" />,
+  Web: <Globe className="h-3 w-3" />,
 };
 
-function getToolIcon(normalized: string): string {
-  return TOOL_ICONS[normalized] ?? "\u2022";
+function getToolIcon(normalized: string): ReactNode {
+  return TOOL_ICON_MAP[normalized] ?? <Circle className="h-3 w-3" />;
 }
 
 function shortenPath(filepath: string): string {
@@ -150,10 +166,22 @@ export function MessageBubble({ message }: Props) {
 
   return (
     <div
-      className={`flex ${isUser ? "justify-end" : "justify-start"} mb-3`}
+      className={`flex items-start gap-3 ${isUser ? "justify-end" : "justify-start"} mb-4`}
     >
+      {/* Assistant/System avatar */}
+      {!isUser && (
+        <span
+          className="mt-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full"
+          style={{
+            backgroundColor: isSystem ? "rgba(243, 139, 168, 0.15)" : "var(--accent)",
+            color: isSystem ? "var(--error)" : "#1e1e2e",
+          }}
+        >
+          <Sparkles className="h-4 w-4" />
+        </span>
+      )}
       <div
-        className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${isUser ? "ml-8" : "mr-8"}`}
+        className="max-w-[80%] rounded-lg px-4 py-3 text-sm"
         style={{
           backgroundColor: isUser
             ? "var(--accent)"
@@ -161,6 +189,7 @@ export function MessageBubble({ message }: Props) {
               ? "rgba(243, 139, 168, 0.1)"
               : "var(--bg-surface)",
           color: isUser ? "#1e1e2e" : "var(--text-primary)",
+          border: !isUser && !isSystem ? "1px solid var(--border)" : undefined,
         }}
       >
         {groups.map((group, i) =>
@@ -175,6 +204,19 @@ export function MessageBubble({ message }: Props) {
           ),
         )}
       </div>
+      {/* User avatar */}
+      {isUser && (
+        <span
+          className="mt-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full"
+          style={{
+            backgroundColor: "var(--bg-surface)",
+            color: "var(--text-muted)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <User className="h-4 w-4" />
+        </span>
+      )}
     </div>
   );
 }
@@ -194,7 +236,7 @@ function ToolCallGroup({ pairs }: { pairs: ToolPair[] }) {
 
   return (
     <div
-      className="my-1.5 rounded border text-xs"
+      className="my-2 rounded border text-xs"
       style={{
         borderColor: "var(--border)",
         backgroundColor: "var(--bg-primary)",
@@ -203,19 +245,14 @@ function ToolCallGroup({ pairs }: { pairs: ToolPair[] }) {
       {/* Summary bar */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-2 px-2 py-1.5"
+        className="flex w-full items-center gap-2 px-3 py-2"
         style={{ color: "var(--text-secondary)" }}
       >
-        <span
-          className="flex-shrink-0 text-[10px]"
-          style={{
-            transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
-            transition: "transform 0.15s",
-            display: "inline-block",
-          }}
-        >
-          {"\u25B6"}
-        </span>
+        {expanded ? (
+          <ChevronDown className="h-3 w-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
+        ) : (
+          <ChevronRight className="h-3 w-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
+        )}
         <span style={{ color: "var(--text-muted)" }}>
           {callCount} tool call{callCount !== 1 ? "s" : ""}
         </span>
@@ -267,20 +304,14 @@ function ToolEntry({ pair }: { pair: ToolPair }) {
     >
       <button
         onClick={() => setDetailOpen(!detailOpen)}
-        className="flex w-full items-center gap-2 px-2 py-1 text-left"
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left"
         style={{ color: "var(--text-secondary)" }}
       >
-        <span
-          className="flex-shrink-0 text-[9px]"
-          style={{
-            transform: detailOpen ? "rotate(90deg)" : "rotate(0deg)",
-            transition: "transform 0.15s",
-            display: "inline-block",
-            color: "var(--text-muted)",
-          }}
-        >
-          {"\u25B6"}
-        </span>
+        {detailOpen ? (
+          <ChevronDown className="h-3 w-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
+        ) : (
+          <ChevronRight className="h-3 w-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
+        )}
         <span
           className="inline-flex flex-shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
           style={{
@@ -301,7 +332,7 @@ function ToolEntry({ pair }: { pair: ToolPair }) {
 
       {detailOpen && (
         <div
-          className="border-t px-2 py-1.5"
+          className="border-t px-3 py-2"
           style={{ borderColor: "var(--border)" }}
         >
           <div

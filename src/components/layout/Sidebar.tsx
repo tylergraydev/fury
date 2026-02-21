@@ -1,19 +1,41 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import {
+  ChevronRight,
+  ChevronDown,
+  Plus,
+  Settings,
+  GitBranch,
+  Link2,
+  FolderGit2,
+  Archive,
+  RotateCcw,
+  Clock,
+} from "lucide-react";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { NewWorkspaceDialog } from "../workspace/NewWorkspaceDialog";
 import { RepoSettingsPanel } from "../settings/RepoSettingsPanel";
 import { LinkWorkspaceDialog } from "../workspace/LinkWorkspaceDialog";
+import { useUIStore } from "../../stores/uiStore";
 import { isMac } from "../../lib/keybindings";
 import type { WorkspaceInfo } from "../../lib/tauri";
 
-interface SidebarProps {
-  onOpenSettings: () => void;
+function relativeTime(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffMs = now - then;
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
 }
 
-export function Sidebar({ onOpenSettings }: SidebarProps) {
+export function Sidebar() {
   const { repositories, loadRepositories, addRepo } = useRepositoryStore();
   const {
     workspaces,
@@ -85,15 +107,28 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
       {/* Header — draggable region, extra top padding on Mac for traffic light buttons */}
       <div
         data-tauri-drag-region
-        className="flex items-end justify-between px-4 pb-2.5 text-sm"
+        className="px-5 pb-3"
         style={{
           borderBottom: "1px solid var(--border)",
           paddingTop: isMac ? 42 : 10,
         }}
       >
-        <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
-          All repos
-        </span>
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+            <FolderGit2 className="h-4 w-4" />
+            Worktrees
+          </span>
+          <button
+            onClick={() => {
+              if (repositories.length > 0) setNewWsRepoId(repositories[0].id);
+            }}
+            className="rounded-md p-1 transition-colors hover:bg-[var(--bg-hover)]"
+            style={{ color: "var(--text-muted)" }}
+            title="New worktree"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Error banner */}
@@ -101,7 +136,7 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
         <div
           className="flex items-start gap-2 px-4 py-2 text-xs"
           style={{
-            backgroundColor: "rgba(243, 139, 168, 0.1)",
+            backgroundColor: "rgba(248, 113, 113, 0.1)",
             borderBottom: "1px solid var(--border)",
             color: "var(--error)",
           }}
@@ -111,7 +146,7 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
             onClick={() => setRepoError(null)}
             className="flex-shrink-0 opacity-60 hover:opacity-100"
           >
-            x
+            &times;
           </button>
         </div>
       )}
@@ -134,48 +169,25 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
 
             return (
               <div key={repo.id}>
-                {/* Repo header */}
+                {/* Repo subtitle */}
                 <button
                   onClick={() => toggleRepo(repo.id)}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition-colors hover:bg-[var(--bg-hover)]"
-                  style={{ color: "var(--text-secondary)" }}
+                  className="flex w-full items-center gap-2 px-5 py-2.5 text-left text-xs"
+                  style={{ color: "var(--text-muted)" }}
                 >
-                  <span
-                    className="text-[10px]"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    {isCollapsed ? "\u25B6" : "\u25BC"}
-                  </span>
-                  <span className="flex-1 truncate font-medium">
-                    {repo.name}
-                  </span>
-                  <span
-                    className="text-xs"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    {repoWorkspaces.length}
+                  <span className="flex-1 truncate">
+                    Repository: <span className="font-semibold" style={{ color: "var(--text-secondary)" }}>{repo.name}</span>
                   </span>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setSettingsRepoId(repo.id);
                     }}
-                    className="rounded px-1 hover:bg-[var(--bg-surface)]"
+                    className="rounded p-1 transition-colors hover:bg-[var(--bg-hover)]"
                     style={{ color: "var(--text-muted)" }}
                     title="Settings"
                   >
-                    &#9881;
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setNewWsRepoId(repo.id);
-                    }}
-                    className="rounded px-1 hover:bg-[var(--bg-surface)]"
-                    style={{ color: "var(--text-muted)" }}
-                    title="New workspace"
-                  >
-                    +
+                    <Settings className="h-3.5 w-3.5" />
                   </button>
                 </button>
 
@@ -198,6 +210,7 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
                         id={ws.id}
                         name={ws.name}
                         branch={ws.branch}
+                        createdAt={ws.createdAt}
                         wsStatus={ws.status}
                         isActive={activeWorkspaceId === ws.id}
                         onClick={() => setActive(ws.id)}
@@ -223,16 +236,21 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
       <div style={{ borderTop: "1px solid var(--border)" }}>
         <button
           onClick={() => setShowArchived(!showArchived)}
-          className="flex w-full items-center justify-between px-4 py-1.5 text-xs"
+          className="flex w-full items-center justify-between px-5 py-2 text-xs"
           style={{ color: "var(--text-muted)" }}
         >
-          <span>
+          <span className="flex items-center gap-1.5">
+            <Archive className="h-3 w-3" />
             Archived
             {archivedWorkspaces.length > 0
               ? ` (${archivedWorkspaces.length})`
               : ""}
           </span>
-          <span>{showArchived ? "\u25BC" : "\u25B6"}</span>
+          {showArchived ? (
+            <ChevronDown className="h-3 w-3" />
+          ) : (
+            <ChevronRight className="h-3 w-3" />
+          )}
         </button>
         {showArchived &&
           archivedWorkspaces.map((ws) => (
@@ -244,7 +262,7 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
           ))}
         {showArchived && archivedWorkspaces.length === 0 && (
           <div
-            className="px-5 py-1.5 text-xs"
+            className="px-5 py-2 text-xs"
             style={{ color: "var(--text-muted)" }}
           >
             No archived workspaces
@@ -252,27 +270,34 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
         )}
       </div>
 
-      {/* Bottom: Add repository + settings */}
+      {/* Bottom: New worktree + settings */}
       <div
-        className="flex items-center gap-2 px-4 py-2.5"
+        className="px-4 py-3"
         style={{ borderTop: "1px solid var(--border)" }}
       >
-        <button
-          onClick={handleAddRepo}
-          className="flex flex-1 items-center gap-2 rounded py-1 text-sm transition-colors hover:bg-[var(--bg-hover)]"
-          style={{ color: "var(--text-muted)" }}
-        >
-          <span>+</span>
-          <span>Add repository</span>
-        </button>
-        <button
-          onClick={onOpenSettings}
-          className="flex-shrink-0 rounded p-1.5 text-sm transition-colors hover:bg-[var(--bg-hover)]"
-          style={{ color: "var(--text-muted)" }}
-          title="Settings"
-        >
-          &#9881;
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              if (repositories.length > 0) setNewWsRepoId(repositories[0].id);
+            }}
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-colors"
+            style={{
+              backgroundColor: "var(--accent-green)",
+              color: "#000000",
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            <span>New Chat Worktree</span>
+          </button>
+          <button
+            onClick={() => useUIStore.getState().openViewTab("settings", true)}
+            className="flex-shrink-0 rounded-lg p-2 text-sm transition-colors hover:bg-[var(--bg-hover)]"
+            style={{ color: "var(--text-muted)" }}
+            title="Settings"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Dialogs */}
@@ -331,28 +356,35 @@ function RepoBranchItem({
       : "var(--text-muted)";
 
   return (
-    <button
+    <div
       onClick={onClick}
-      className="flex w-full items-center gap-2.5 py-1.5 pl-8 pr-4 text-left text-sm transition-colors hover:bg-[var(--bg-hover)]"
+      className="group mx-3 my-1.5 cursor-pointer rounded-lg px-4 py-3.5 text-left text-sm transition-colors hover:bg-[var(--bg-hover)]"
       style={{
         backgroundColor: isActive ? "var(--bg-surface)" : "transparent",
+        border: isActive
+          ? "1px solid var(--accent)"
+          : "1px solid var(--border)",
         color: "var(--text-primary)",
       }}
     >
-      <span
-        className={`flex-shrink-0 text-[10px] leading-none ${isRunning ? "animate-pulse" : ""}`}
-        style={{ color: dotColor }}
-      >
-        &#9670;
-      </span>
-      <span
-        className="truncate text-xs italic"
+      {/* Row 1: status dot + name */}
+      <div className="flex items-center gap-2">
+        <span
+          className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${isRunning ? "animate-pulse" : ""}`}
+          style={{ backgroundColor: dotColor }}
+        />
+        <span className="truncate font-semibold">{branch}</span>
+      </div>
+
+      {/* Row 2: branch */}
+      <div
+        className="mt-1.5 flex items-center gap-1.5 pl-[18px] text-xs"
         style={{ color: "var(--text-muted)" }}
-        title="Base repository"
       >
-        {branch}
-      </span>
-    </button>
+        <GitBranch className="h-3 w-3 flex-shrink-0" />
+        <span className="truncate">{branch}</span>
+      </div>
+    </div>
   );
 }
 
@@ -360,6 +392,7 @@ function WorkspaceItem({
   id,
   name,
   branch,
+  createdAt,
   wsStatus,
   isActive,
   onClick,
@@ -369,6 +402,7 @@ function WorkspaceItem({
   id: string;
   name: string;
   branch: string;
+  createdAt: string;
   wsStatus: string | { Error: string };
   isActive: boolean;
   onClick: () => void;
@@ -406,18 +440,20 @@ function WorkspaceItem({
 
   return (
     <div
-      className="group flex w-full items-center gap-2.5 py-1.5 pl-8 pr-4 text-left text-sm transition-colors hover:bg-[var(--bg-hover)]"
+      onClick={onClick}
+      className="group mx-3 my-1.5 cursor-pointer rounded-lg px-4 py-3.5 text-left text-sm transition-colors hover:bg-[var(--bg-hover)]"
       style={{
         backgroundColor: isActive ? "var(--bg-surface)" : "transparent",
+        border: isActive
+          ? "1px solid var(--accent)"
+          : "1px solid var(--border)",
         color: "var(--text-primary)",
       }}
     >
-      <button
-        onClick={onClick}
-        className="flex min-w-0 flex-1 items-center gap-2.5"
-      >
+      {/* Row 1: status dot + name */}
+      <div className="flex items-center gap-2">
         <span
-          className={`h-2 w-2 flex-shrink-0 rounded-full ${isRunning ? "animate-pulse" : ""}`}
+          className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${isRunning ? "animate-pulse" : ""}`}
           style={{ backgroundColor: dotColor }}
         />
         {editing ? (
@@ -435,30 +471,40 @@ function WorkspaceItem({
             autoFocus
           />
         ) : (
-          <>
-            <span className="truncate" onDoubleClick={handleDoubleClick}>
-              {name}
-            </span>
-            <span
-              className="ml-auto truncate text-xs"
-              style={{ color: "var(--text-muted)" }}
-            >
-              {branch}
-            </span>
-          </>
+          <span className="truncate font-semibold" onDoubleClick={handleDoubleClick}>
+            {name}
+          </span>
         )}
-      </button>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onLink();
-        }}
-        className="hidden flex-shrink-0 rounded px-1.5 text-xs group-hover:block hover:bg-[var(--bg-surface)]"
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onLink();
+          }}
+          className="ml-auto hidden flex-shrink-0 rounded p-1 group-hover:block hover:bg-[var(--bg-surface)]"
+          style={{ color: "var(--text-muted)" }}
+          title="Link workspaces"
+        >
+          <Link2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* Row 2: branch */}
+      <div
+        className="mt-1.5 flex items-center gap-1.5 pl-[18px] text-xs"
         style={{ color: "var(--text-muted)" }}
-        title="Link workspaces"
       >
-        &#8660;
-      </button>
+        <GitBranch className="h-3 w-3 flex-shrink-0" />
+        <span className="truncate">{branch}</span>
+      </div>
+
+      {/* Row 3: created time */}
+      <div
+        className="mt-1 flex items-center gap-1.5 pl-[18px] text-xs"
+        style={{ color: "var(--text-muted)" }}
+      >
+        <Clock className="h-3 w-3 flex-shrink-0" />
+        <span>{relativeTime(createdAt)}</span>
+      </div>
     </div>
   );
 }
@@ -504,9 +550,10 @@ function ArchivedWorkspaceItem({
       <button
         onClick={handleRestore}
         disabled={restoring}
-        className="hidden flex-shrink-0 rounded px-2 py-0.5 text-xs group-hover:block"
+        className="hidden flex-shrink-0 items-center gap-1 rounded px-2 py-0.5 text-xs group-hover:flex"
         style={{ color: error ? "var(--error)" : "var(--accent)" }}
       >
+        <RotateCcw className="h-3 w-3" />
         {restoring ? "..." : error ? "Failed" : "Restore"}
       </button>
     </div>

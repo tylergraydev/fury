@@ -14,6 +14,72 @@ pub struct FileContent {
     pub language: String,
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitLogEntry {
+    pub hash: String,
+    pub full_hash: String,
+    pub message: String,
+    pub author: String,
+    pub timestamp: String,
+}
+
+#[tauri::command]
+pub fn get_git_log(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    max_count: Option<u32>,
+) -> Result<Vec<GitLogEntry>, AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let worktree_path = {
+        let workspaces = state
+            .workspaces
+            .lock()
+            .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
+        let ws = workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        ws.worktree_path.clone()
+    };
+
+    let count = max_count.unwrap_or(100).to_string();
+    let format_arg = "--format=%h\x1f%H\x1f%s\x1f%an\x1f%aI";
+
+    let output = Command::new("git")
+        .args(["log", &format!("--max-count={}", count), format_arg])
+        .current_dir(&worktree_path)
+        .output()?;
+
+    if !output.status.success() {
+        // Empty repo or no commits - return empty list
+        return Ok(Vec::new());
+    }
+
+    let entries = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|l| !l.is_empty())
+        .filter_map(|line| {
+            let parts: Vec<&str> = line.splitn(5, '\x1f').collect();
+            if parts.len() == 5 {
+                Some(GitLogEntry {
+                    hash: parts[0].to_string(),
+                    full_hash: parts[1].to_string(),
+                    message: parts[2].to_string(),
+                    author: parts[3].to_string(),
+                    timestamp: parts[4].to_string(),
+                })
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    Ok(entries)
+}
+
 #[tauri::command]
 pub fn get_diff(state: State<'_, AppState>, workspace_id: String) -> Result<DiffResult, AppError> {
     let ws_id: Uuid = workspace_id

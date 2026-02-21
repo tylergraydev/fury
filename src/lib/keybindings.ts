@@ -14,6 +14,9 @@ export type ShortcutAction =
   | "right-sidebar-files"
   | "right-sidebar-changes"
   | "right-sidebar-checks"
+  | "view-chat"
+  | "view-merge"
+  | "view-history"
   | "escape";
 
 interface ShortcutDef {

@@ -2,6 +2,7 @@ pub mod agent;
 pub mod checkpoint;
 pub mod git;
 pub mod mcp;
+pub mod merge;
 pub mod pr;
 pub mod repository;
 pub mod script;
