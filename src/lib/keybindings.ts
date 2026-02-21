@@ -17,6 +17,7 @@ export type ShortcutAction =
   | "view-chat"
   | "view-merge"
   | "view-history"
+  | "save-file"
   | "escape";
 
 interface ShortcutDef {
@@ -28,6 +29,7 @@ interface ShortcutDef {
 }
 
 export const SHORTCUTS: ShortcutDef[] = [
+  { key: "s", mod: true, action: "save-file", label: "Save File" },
   { key: "k", mod: true, action: "toggle-palette", label: "Command Palette" },
   { key: "b", mod: true, action: "toggle-right-sidebar", label: "Toggle Sidebar" },
   { key: "j", mod: true, action: "focus-terminal", label: "Focus Terminal" },

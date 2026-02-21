@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::error::AppError;
@@ -12,6 +12,14 @@ use uuid::Uuid;
 pub struct FileContent {
     pub content: String,
     pub language: String,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WriteFileResult {
+    pub content: String,
+    pub language: String,
+    pub formatted: bool,
 }
 
 #[derive(serde::Serialize)]
@@ -378,4 +386,285 @@ pub fn read_repo_file(
     let language = diff_svc::detect_language(&file_path);
 
     Ok(FileContent { content, language })
+}
+
+/// Attempt to format a file using available CLI formatters.
+/// Returns true if formatting was applied, false otherwise.
+fn try_format_file(file_path: &std::path::Path, working_dir: &std::path::Path) -> bool {
+    let file_str = match file_path.to_str() {
+        Some(s) => s,
+        None => return false,
+    };
+    let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+
+    let formatter: Option<(std::ffi::OsString, Vec<&str>)> = match ext {
+        "ts" | "tsx" | "js" | "jsx" | "json" | "css" | "scss" | "html" | "md" | "yaml" | "yml" => {
+            let local = working_dir.join("node_modules/.bin/prettier");
+            if local.exists() {
+                Some((local.into_os_string(), vec!["--write", file_str]))
+            } else if which::which("prettier").is_ok() {
+                Some(("prettier".into(), vec!["--write", file_str]))
+            } else {
+                None
+            }
+        }
+        "rs" => {
+            if which::which("rustfmt").is_ok() {
+                Some(("rustfmt".into(), vec![file_str]))
+            } else {
+                None
+            }
+        }
+        "go" => {
+            if which::which("gofmt").is_ok() {
+                Some(("gofmt".into(), vec!["-w", file_str]))
+            } else {
+                None
+            }
+        }
+        "py" => {
+            if which::which("black").is_ok() {
+                Some(("black".into(), vec!["--quiet", file_str]))
+            } else if which::which("ruff").is_ok() {
+                Some(("ruff".into(), vec!["format", file_str]))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
+
+    if let Some((cmd, args)) = formatter {
+        let result = Command::new(&cmd)
+            .args(&args)
+            .current_dir(working_dir)
+            .output();
+        matches!(result, Ok(output) if output.status.success())
+    } else {
+        false
+    }
+}
+
+#[tauri::command]
+pub fn write_workspace_file(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    file_path: String,
+    content: String,
+    format_on_save: bool,
+) -> Result<WriteFileResult, AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let worktree_path = {
+        let workspaces = state
+            .workspaces
+            .lock()
+            .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
+        let ws = workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        ws.worktree_path.clone()
+    };
+
+    let base = worktree_path
+        .canonicalize()
+        .map_err(|e| AppError::GitError(format!("failed to resolve workspace path: {}", e)))?;
+    let full_path = PathBuf::from(&worktree_path).join(&file_path);
+    let full_path = full_path
+        .canonicalize()
+        .map_err(|e| AppError::GitError(format!("failed to resolve file path: {}", e)))?;
+    if !full_path.starts_with(&base) {
+        return Err(AppError::GitError("file path outside workspace".into()));
+    }
+
+    std::fs::write(&full_path, &content)
+        .map_err(|e| AppError::GitError(format!("failed to write file: {}", e)))?;
+
+    let formatted = if format_on_save {
+        try_format_file(&full_path, &worktree_path)
+    } else {
+        false
+    };
+
+    let final_content = std::fs::read_to_string(&full_path)
+        .map_err(|e| AppError::GitError(format!("failed to read back file: {}", e)))?;
+    let language = diff_svc::detect_language(&file_path);
+
+    Ok(WriteFileResult {
+        content: final_content,
+        language,
+        formatted,
+    })
+}
+
+#[tauri::command]
+pub fn write_repo_file(
+    state: State<'_, AppState>,
+    repo_id: String,
+    file_path: String,
+    content: String,
+    format_on_save: bool,
+) -> Result<WriteFileResult, AppError> {
+    let id: Uuid = repo_id
+        .parse()
+        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+
+    let repo_path = {
+        let repos = state
+            .repositories
+            .lock()
+            .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
+        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+        repo.path.clone()
+    };
+
+    let base = repo_path
+        .canonicalize()
+        .map_err(|e| AppError::GitError(format!("failed to resolve repo path: {}", e)))?;
+    let full_path = PathBuf::from(&repo_path).join(&file_path);
+    let full_path = full_path
+        .canonicalize()
+        .map_err(|e| AppError::GitError(format!("failed to resolve file path: {}", e)))?;
+    if !full_path.starts_with(&base) {
+        return Err(AppError::GitError("file path outside repository".into()));
+    }
+
+    std::fs::write(&full_path, &content)
+        .map_err(|e| AppError::GitError(format!("failed to write file: {}", e)))?;
+
+    let formatted = if format_on_save {
+        try_format_file(&full_path, &repo_path)
+    } else {
+        false
+    };
+
+    let final_content = std::fs::read_to_string(&full_path)
+        .map_err(|e| AppError::GitError(format!("failed to read back file: {}", e)))?;
+    let language = diff_svc::detect_language(&file_path);
+
+    Ok(WriteFileResult {
+        content: final_content,
+        language,
+        formatted,
+    })
+}
+
+// --- Type definition loading for Monaco language services ---
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TypeDefFile {
+    pub file_path: String,
+    pub content: String,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TypeDefinitions {
+    pub tsconfig: Option<String>,
+    pub libs: Vec<TypeDefFile>,
+}
+
+const MAX_DTS_FILE_SIZE: u64 = 500_000; // 500KB per file
+const MAX_DTS_TOTAL_SIZE: usize = 10_000_000; // 10MB total
+
+fn collect_dts_files(
+    dir: &Path,
+    root: &Path,
+    libs: &mut Vec<TypeDefFile>,
+    total_size: &mut usize,
+    depth: u8,
+) {
+    if depth > 4 || *total_size >= MAX_DTS_TOTAL_SIZE {
+        return;
+    }
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        if *total_size >= MAX_DTS_TOTAL_SIZE {
+            return;
+        }
+        let path = entry.path();
+        if path.is_dir() {
+            collect_dts_files(&path, root, libs, total_size, depth + 1);
+        } else if path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n.ends_with(".d.ts"))
+            .unwrap_or(false)
+        {
+            if let Ok(meta) = path.metadata() {
+                if meta.len() > MAX_DTS_FILE_SIZE {
+                    continue;
+                }
+            }
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                *total_size += content.len();
+                let rel = path.strip_prefix(root).unwrap_or(&path);
+                libs.push(TypeDefFile {
+                    file_path: rel.to_string_lossy().into_owned(),
+                    content,
+                });
+            }
+        }
+    }
+}
+
+#[tauri::command]
+pub fn load_type_definitions(
+    state: State<'_, AppState>,
+    workspace_id: Option<String>,
+    repo_id: Option<String>,
+) -> Result<TypeDefinitions, AppError> {
+    let root_path = if let Some(ws_id_str) = workspace_id {
+        let ws_id: Uuid = ws_id_str
+            .parse()
+            .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+        let workspaces = state
+            .workspaces
+            .lock()
+            .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
+        let ws = workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        ws.worktree_path.clone()
+    } else if let Some(repo_id_str) = repo_id {
+        let id: Uuid = repo_id_str
+            .parse()
+            .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+        let repos = state
+            .repositories
+            .lock()
+            .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
+        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+        repo.path.clone()
+    } else {
+        return Err(AppError::GitError("no workspace or repo specified".into()));
+    };
+
+    let mut result = TypeDefinitions {
+        tsconfig: None,
+        libs: Vec::new(),
+    };
+
+    // Read tsconfig.json if present
+    let tsconfig_path = root_path.join("tsconfig.json");
+    if tsconfig_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&tsconfig_path) {
+            result.tsconfig = Some(content);
+        }
+    }
+
+    // Scan node_modules/@types/ for type definition packages
+    let types_dir = root_path.join("node_modules/@types");
+    if types_dir.exists() {
+        let mut total_size: usize = 0;
+        collect_dts_files(&types_dir, &root_path, &mut result.libs, &mut total_size, 0);
+    }
+
+    Ok(result)
 }

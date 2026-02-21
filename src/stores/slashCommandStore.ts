@@ -9,9 +9,9 @@ interface SlashCommandStore {
   loading: Record<string, boolean>;
   error: Record<string, string | null>;
 
-  loadCommands: (workspaceId: string) => Promise<void>;
-  getCommands: (workspaceId: string) => SlashCommand[];
-  findMatching: (workspaceId: string, prefix: string) => SlashCommand[];
+  loadCommands: (contextId: string, contextType?: "workspace" | "repo") => Promise<void>;
+  getCommands: (contextId: string) => SlashCommand[];
+  findMatching: (contextId: string, prefix: string) => SlashCommand[];
 }
 
 export const useSlashCommandStore = create<SlashCommandStore>((set, get) => ({
@@ -19,33 +19,33 @@ export const useSlashCommandStore = create<SlashCommandStore>((set, get) => ({
   loading: {},
   error: {},
 
-  loadCommands: async (workspaceId: string) => {
-    if (get().loading[workspaceId]) return;
+  loadCommands: async (contextId: string, contextType: "workspace" | "repo" = "workspace") => {
+    if (get().loading[contextId]) return;
     set((s) => ({
-      loading: { ...s.loading, [workspaceId]: true },
-      error: { ...s.error, [workspaceId]: null },
+      loading: { ...s.loading, [contextId]: true },
+      error: { ...s.error, [contextId]: null },
     }));
     try {
-      const cmds = await listSlashCommandsCmd(workspaceId);
+      const cmds = await listSlashCommandsCmd(contextId, contextType);
       set((s) => ({
-        commands: { ...s.commands, [workspaceId]: cmds },
-        loading: { ...s.loading, [workspaceId]: false },
+        commands: { ...s.commands, [contextId]: cmds },
+        loading: { ...s.loading, [contextId]: false },
       }));
     } catch (e) {
       console.error(`[slashCommandStore] Failed to load commands:`, e);
       set((s) => ({
-        loading: { ...s.loading, [workspaceId]: false },
-        error: { ...s.error, [workspaceId]: String(e) },
+        loading: { ...s.loading, [contextId]: false },
+        error: { ...s.error, [contextId]: String(e) },
       }));
     }
   },
 
-  getCommands: (workspaceId: string) => {
-    return get().commands[workspaceId] ?? [];
+  getCommands: (contextId: string) => {
+    return get().commands[contextId] ?? [];
   },
 
-  findMatching: (workspaceId: string, prefix: string) => {
-    const cmds = get().commands[workspaceId] ?? [];
+  findMatching: (contextId: string, prefix: string) => {
+    const cmds = get().commands[contextId] ?? [];
     if (!prefix) return cmds;
     const lower = prefix.toLowerCase();
     return cmds.filter((c) => c.name.toLowerCase().startsWith(lower));

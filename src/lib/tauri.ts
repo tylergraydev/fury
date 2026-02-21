@@ -258,6 +258,62 @@ export async function readRepoFile(
   return invoke<FileContent>("read_repo_file", { repoId, filePath });
 }
 
+// Type definitions for Monaco language services
+export interface TypeDefFile {
+  filePath: string;
+  content: string;
+}
+
+export interface TypeDefinitions {
+  tsconfig: string | null;
+  libs: TypeDefFile[];
+}
+
+export async function loadTypeDefinitions(
+  contextId: string,
+  contextType: "workspace" | "repo",
+): Promise<TypeDefinitions> {
+  return invoke<TypeDefinitions>("load_type_definitions", {
+    workspaceId: contextType === "workspace" ? contextId : undefined,
+    repoId: contextType === "repo" ? contextId : undefined,
+  });
+}
+
+// File content writing
+export interface WriteFileResult {
+  content: string;
+  language: string;
+  formatted: boolean;
+}
+
+export async function writeWorkspaceFile(
+  workspaceId: string,
+  filePath: string,
+  content: string,
+  formatOnSave: boolean = true,
+): Promise<WriteFileResult> {
+  return invoke<WriteFileResult>("write_workspace_file", {
+    workspaceId,
+    filePath,
+    content,
+    formatOnSave,
+  });
+}
+
+export async function writeRepoFile(
+  repoId: string,
+  filePath: string,
+  content: string,
+  formatOnSave: boolean = true,
+): Promise<WriteFileResult> {
+  return invoke<WriteFileResult>("write_repo_file", {
+    repoId,
+    filePath,
+    content,
+    formatOnSave,
+  });
+}
+
 // Repo-scoped file listing
 export async function listRepoFiles(repoId: string): Promise<string[]> {
   return invoke<string[]>("list_repo_files", { repoId });
@@ -460,7 +516,7 @@ export interface TodoSummary {
 // Slash command types
 export interface SlashCommand {
   name: string;
-  source: "global" | "project";
+  source: "global" | "project" | "plugin" | "built-in";
   description: string;
   content: string;
 }
@@ -499,7 +555,7 @@ export async function getTodoSummary(
 }
 
 // MCP types
-export type McpScope = "global" | "project";
+export type McpScope = "user" | "project";
 
 export interface McpServer {
   name: string;
@@ -548,12 +604,17 @@ export interface ExperimentalSettings {
   agentTeams: boolean;
 }
 
+export interface CopilotSettings {
+  enabled: boolean;
+}
+
 export interface AppSettings {
-  theme: "light" | "dark" | "system";
+  theme: "blend" | "midnight" | "github";
   provider: ProviderConfig;
   systemPromptAdditions: string | null;
   analyticsEnabled: boolean;
   experimental: ExperimentalSettings;
+  copilot: CopilotSettings;
 }
 
 // MCP commands
@@ -645,9 +706,10 @@ export async function stopSpotlight(
 
 // Slash command commands
 export async function listSlashCommands(
-  workspaceId: string,
+  contextId: string,
+  contextType: "workspace" | "repo" = "workspace",
 ): Promise<SlashCommand[]> {
-  return invoke<SlashCommand[]>("list_slash_commands", { workspaceId });
+  return invoke<SlashCommand[]>("list_slash_commands", { contextId, contextType });
 }
 
 export async function getSlashCommandContent(

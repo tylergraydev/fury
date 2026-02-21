@@ -64,7 +64,7 @@ pub fn parse_cursor_mcp(path: &Path) -> Result<Vec<McpServer>, AppError> {
                 .get("env")
                 .and_then(|v| serde_json::from_value::<HashMap<String, String>>(v.clone()).ok())
                 .unwrap_or_default(),
-            scope: McpScope::Global,
+            scope: McpScope::User,
         })
         .collect();
 
@@ -87,7 +87,7 @@ pub fn import_cursor_mcp_servers() -> Result<CursorMigrationResult, AppError> {
             &server.command,
             &server.args,
             &server.env,
-            &McpScope::Global,
+            &McpScope::User,
         ) {
             Ok(()) => imported += 1,
             Err(e) => {

@@ -5,12 +5,69 @@ use crate::error::AppError;
 use crate::models::mcp::{McpScope, McpServer};
 use crate::services::claude_process;
 
+/// Get details for a single MCP server by name.
+fn get_mcp_server(claude: &std::path::Path, name: &str) -> Option<McpServer> {
+    let output = Command::new(claude)
+        .args(["mcp", "get", name])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut command = String::new();
+    let mut args = Vec::new();
+    let mut env = HashMap::new();
+    let mut scope = McpScope::User;
+
+    for line in stdout.lines() {
+        let line = line.trim();
+        if let Some(val) = line.strip_prefix("Type:") {
+            let _ = val.trim();
+        } else if let Some(val) = line.strip_prefix("Command:") {
+            command = val.trim().to_string();
+        } else if let Some(val) = line.strip_prefix("Args:") {
+            let val = val.trim();
+            if !val.is_empty() {
+                args = val.split_whitespace().map(String::from).collect();
+            }
+        } else if let Some(val) = line.strip_prefix("Scope:") {
+            let val = val.trim();
+            scope = if val == "project" {
+                McpScope::Project
+            } else {
+                McpScope::User
+            };
+        } else if let Some(val) = line.strip_prefix("Env:") {
+            let val = val.trim();
+            if !val.is_empty() {
+                for pair in val.split(',') {
+                    let pair = pair.trim();
+                    if let Some((k, v)) = pair.split_once('=') {
+                        env.insert(k.trim().to_string(), v.trim().to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    Some(McpServer {
+        name: name.to_string(),
+        command,
+        args,
+        env,
+        scope,
+    })
+}
+
 /// List MCP servers configured in Claude Code.
-pub fn list_mcp_servers(scope: &McpScope) -> Result<Vec<McpServer>, AppError> {
+pub fn list_mcp_servers(_scope: &McpScope) -> Result<Vec<McpServer>, AppError> {
     let claude = claude_process::find_claude_binary()?;
 
     let output = Command::new(&claude)
-        .args(["mcp", "list", "-s", scope.as_str(), "--json"])
+        .args(["mcp", "list"])
         .output()
         .map_err(|e| AppError::McpError(format!("Failed to run claude mcp list: {}", e)))?;
 
@@ -31,36 +88,19 @@ pub fn list_mcp_servers(scope: &McpScope) -> Result<Vec<McpServer>, AppError> {
         return Ok(Vec::new());
     }
 
-    // claude mcp list --json outputs a JSON object: { "name": { "command": ..., "args": [...], "env": {...} }, ... }
-    let raw: HashMap<String, serde_json::Value> = serde_json::from_str(&stdout).map_err(|e| {
-        AppError::McpError(format!("Failed to parse claude mcp list output: {}", e))
-    })?;
-
-    let servers = raw
-        .into_iter()
-        .map(|(name, val)| McpServer {
-            name,
-            command: val
-                .get("command")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            args: val
-                .get("args")
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_str().map(String::from))
-                        .collect()
-                })
-                .unwrap_or_default(),
-            env: val
-                .get("env")
-                .and_then(|v| serde_json::from_value(v.clone()).ok())
-                .unwrap_or_default(),
-            scope: scope.clone(),
-        })
-        .collect();
+    // Parse server names from text output (one per line, may have extra columns)
+    let mut servers = Vec::new();
+    for line in stdout.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        // The first whitespace-delimited token is the server name
+        let name = line.split_whitespace().next().unwrap_or(line);
+        if let Some(server) = get_mcp_server(&claude, name) {
+            servers.push(server);
+        }
+    }
 
     Ok(servers)
 }

@@ -3,17 +3,28 @@ import { Send, Square } from "lucide-react";
 import type { AgentStatus, SlashCommand } from "../../lib/tauri";
 import { useTodoStore } from "../../stores/todoStore";
 import { useSlashCommandStore } from "../../stores/slashCommandStore";
+import { useFileTreeStore } from "../../stores/fileTreeStore";
+import { BUILTIN_COMMANDS, type BuiltinCommand } from "../../lib/builtinCommands";
 
 const EMPTY_COMMANDS: SlashCommand[] = [];
+const EMPTY_FILES: string[] = [];
+
+interface AtMenuItem {
+  label: string;
+  description: string;
+  value: string;
+}
 
 interface Props {
-  workspaceId?: string;
+  contextId: string;
+  contextType: "workspace" | "repo";
   agentStatus: AgentStatus;
   onSend: (message: string) => void;
   onStop: () => void;
 }
 
-export function Composer({ workspaceId, agentStatus, onSend, onStop }: Props) {
+export function Composer({ contextId, contextType, agentStatus, onSend, onStop }: Props) {
+  const workspaceId = contextType === "workspace" ? contextId : undefined;
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -24,27 +35,58 @@ export function Composer({ workspaceId, agentStatus, onSend, onStop }: Props) {
 
   // @mention autocomplete state
   const [showAtMenu, setShowAtMenu] = useState(false);
+  const [atFilter, setAtFilter] = useState("");
+  const [selectedAtIndex, setSelectedAtIndex] = useState(0);
 
   const isRunning = agentStatus === "Running";
   const isStopping = agentStatus === "Stopping";
   const isError = typeof agentStatus === "object" && "Error" in agentStatus;
   const canSend = text.trim().length > 0 && !isRunning && !isStopping;
 
-  // Load slash commands when workspace changes
+  // Load slash commands when context changes
   useEffect(() => {
-    if (workspaceId) {
-      useSlashCommandStore.getState().loadCommands(workspaceId);
-    }
-  }, [workspaceId]);
+    useSlashCommandStore.getState().loadCommands(contextId, contextType);
+  }, [contextId, contextType]);
 
-  const allCommands = useSlashCommandStore((s) =>
-    workspaceId ? (s.commands[workspaceId] ?? EMPTY_COMMANDS) : EMPTY_COMMANDS,
+  // Load file list for @mention autocomplete
+  useEffect(() => {
+    const store = useFileTreeStore.getState();
+    if (!store.files[contextId]) {
+      if (contextType === "workspace") store.loadFiles(contextId);
+      else store.loadRepoFiles(contextId);
+    }
+  }, [contextId, contextType]);
+
+  const fileCommands = useSlashCommandStore((s) =>
+    s.commands[contextId] ?? EMPTY_COMMANDS,
+  );
+  const allCommands: SlashCommand[] = useMemo(
+    () => [...BUILTIN_COMMANDS, ...fileCommands],
+    [fileCommands],
   );
   const matchingCommands = useMemo(() => {
     if (!slashFilter) return allCommands;
     const lower = slashFilter.toLowerCase();
     return allCommands.filter((c) => c.name.toLowerCase().startsWith(lower));
   }, [allCommands, slashFilter]);
+
+  // @mention autocomplete items: @todos + file paths
+  const files = useFileTreeStore((s) => s.files[contextId] ?? EMPTY_FILES);
+  const atMenuItems: AtMenuItem[] = useMemo(() => {
+    const items: AtMenuItem[] = [];
+    if (workspaceId && (!atFilter || "todos".startsWith(atFilter.toLowerCase()))) {
+      items.push({ label: "@todos", description: "Insert todo list", value: "@todos" });
+    }
+    const lower = atFilter.toLowerCase();
+    for (const f of files) {
+      if (!atFilter || f.toLowerCase().includes(lower)) {
+        const name = f.split("/").pop()!;
+        items.push({ label: name, description: f, value: f });
+      }
+      if (items.length >= 8) break;
+    }
+    return items;
+  }, [atFilter, files, workspaceId]);
 
   const handleSend = useCallback(() => {
     if (!canSend) return;
@@ -75,25 +117,39 @@ export function Composer({ workspaceId, agentStatus, onSend, onStop }: Props) {
       const textAfterCursor = text.substring(cursorPos);
       const textBeforeLine = text.substring(0, lineStart);
 
+      // Action commands execute immediately without sending a message
+      const asBuiltin = cmd as BuiltinCommand;
+      if (asBuiltin.action) {
+        asBuiltin.action();
+        setText(textBeforeLine + textAfterCursor);
+        setShowSlashMenu(false);
+        return;
+      }
+
       setText(textBeforeLine + cmd.content + textAfterCursor);
       setShowSlashMenu(false);
     },
     [text],
   );
 
-  const insertAtTodos = useCallback(() => {
-    const ta = textareaRef.current;
-    const cursorPos = ta?.selectionStart ?? text.length;
-    const textBeforeCursor = text.substring(0, cursorPos);
-    const textAfterCursor = text.substring(cursorPos);
+  const selectAtItem = useCallback(
+    (item: AtMenuItem) => {
+      const ta = textareaRef.current;
+      const cursorPos = ta?.selectionStart ?? text.length;
+      const textBeforeCursor = text.substring(0, cursorPos);
+      const textAfterCursor = text.substring(cursorPos);
+      const atIndex = textBeforeCursor.lastIndexOf("@");
+      const before = text.substring(0, atIndex);
 
-    // Find the @ that triggered this
-    const atIndex = textBeforeCursor.lastIndexOf("@");
-    const before = text.substring(0, atIndex);
-
-    setText(before + "@todos" + textAfterCursor);
-    setShowAtMenu(false);
-  }, [text]);
+      if (item.value === "@todos") {
+        setText(before + "@todos " + textAfterCursor);
+      } else {
+        setText(before + item.value + " " + textAfterCursor);
+      }
+      setShowAtMenu(false);
+    },
+    [text],
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Slash command menu keyboard navigation
@@ -123,10 +179,22 @@ export function Composer({ workspaceId, agentStatus, onSend, onStop }: Props) {
     }
 
     // @mention menu keyboard navigation
-    if (showAtMenu) {
+    if (showAtMenu && atMenuItems.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedAtIndex((prev) =>
+          Math.min(prev + 1, atMenuItems.length - 1),
+        );
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedAtIndex((prev) => Math.max(prev - 1, 0));
+        return;
+      }
       if (e.key === "Enter" || e.key === "Tab") {
         e.preventDefault();
-        insertAtTodos();
+        selectAtItem(atMenuItems[selectedAtIndex]);
         return;
       }
       if (e.key === "Escape") {
@@ -153,7 +221,7 @@ export function Composer({ workspaceId, agentStatus, onSend, onStop }: Props) {
     const currentLine = textBeforeCursor.substring(lineStart);
 
     // Detect slash command trigger: "/" at start of line
-    if (currentLine.startsWith("/") && workspaceId) {
+    if (currentLine.startsWith("/")) {
       setShowSlashMenu(true);
       setSlashFilter(currentLine.substring(1));
       setSelectedSlashIndex(0);
@@ -163,27 +231,24 @@ export function Composer({ workspaceId, agentStatus, onSend, onStop }: Props) {
     }
 
     // Detect @mention trigger
-    if (workspaceId) {
-      const lastAt = textBeforeCursor.lastIndexOf("@");
-      if (lastAt >= 0) {
-        const afterAt = textBeforeCursor.substring(lastAt + 1);
-        if (
-          afterAt === "" ||
-          "todos".startsWith(afterAt.toLowerCase())
-        ) {
-          // Only show if @ is at word boundary
-          const charBefore = lastAt > 0 ? textBeforeCursor[lastAt - 1] : " ";
-          if (charBefore === " " || charBefore === "\n" || lastAt === 0) {
-            setShowAtMenu(true);
-          } else {
-            setShowAtMenu(false);
-          }
+    const lastAt = textBeforeCursor.lastIndexOf("@");
+    if (lastAt >= 0) {
+      const afterAt = textBeforeCursor.substring(lastAt + 1);
+      // Only trigger if no spaces in the filter text (file paths don't have spaces)
+      if (!afterAt.includes(" ")) {
+        const charBefore = lastAt > 0 ? textBeforeCursor[lastAt - 1] : " ";
+        if (charBefore === " " || charBefore === "\n" || lastAt === 0) {
+          setShowAtMenu(true);
+          setAtFilter(afterAt);
+          setSelectedAtIndex(0);
         } else {
           setShowAtMenu(false);
         }
       } else {
         setShowAtMenu(false);
       }
+    } else {
+      setShowAtMenu(false);
     }
 
     // Auto-resize textarea
@@ -267,7 +332,9 @@ export function Composer({ workspaceId, agentStatus, onSend, onStop }: Props) {
                 </span>
                 <span
                   className="ml-auto text-[10px]"
-                  style={{ color: "var(--text-muted)" }}
+                  style={{
+                    color: cmd.source === "built-in" || cmd.source === "plugin" ? "var(--accent)" : "var(--text-muted)",
+                  }}
                 >
                   {cmd.source}
                 </span>
@@ -277,27 +344,38 @@ export function Composer({ workspaceId, agentStatus, onSend, onStop }: Props) {
         )}
 
         {/* @mention autocomplete dropdown */}
-        {showAtMenu && workspaceId && (
+        {showAtMenu && atMenuItems.length > 0 && (
           <div
-            className="absolute bottom-full left-0 z-10 mb-1 w-48 rounded-lg shadow-lg"
+            className="absolute bottom-full left-0 z-10 mb-1 w-full max-h-48 overflow-y-auto rounded-lg shadow-lg"
             style={{
               backgroundColor: "var(--bg-surface)",
               border: "1px solid var(--border)",
             }}
           >
-            <button
-              onClick={insertAtTodos}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs"
-              style={{
-                backgroundColor: "var(--bg-hover)",
-                color: "var(--text-primary)",
-              }}
-            >
-              <span style={{ color: "var(--accent)" }}>@todos</span>
-              <span style={{ color: "var(--text-muted)" }}>
-                Insert todo list
-              </span>
-            </button>
+            {atMenuItems.map((item, i) => (
+              <button
+                key={item.value}
+                onClick={() => selectAtItem(item)}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs"
+                style={{
+                  backgroundColor:
+                    i === selectedAtIndex
+                      ? "var(--bg-hover)"
+                      : "transparent",
+                  color: "var(--text-primary)",
+                }}
+              >
+                <span style={{ color: "var(--accent)" }}>{item.label}</span>
+                {item.label !== item.description && (
+                  <span
+                    className="truncate"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {item.description}
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
         )}
 

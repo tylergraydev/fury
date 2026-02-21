@@ -9,16 +9,19 @@ pub struct AppSettings {
     pub system_prompt_additions: Option<String>,
     pub analytics_enabled: bool,
     pub experimental: ExperimentalSettings,
+    #[serde(default)]
+    pub copilot: CopilotSettings,
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            theme: Theme::Dark,
+            theme: Theme::Blend,
             provider: ProviderConfig::default(),
             system_prompt_additions: None,
             analytics_enabled: false,
             experimental: ExperimentalSettings::default(),
+            copilot: CopilotSettings::default(),
         }
     }
 }
@@ -26,10 +29,10 @@ impl Default for AppSettings {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Theme {
-    Light,
     #[default]
-    Dark,
-    System,
+    Blend,
+    Midnight,
+    Github,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,4 +68,10 @@ pub enum ProviderType {
 pub struct ExperimentalSettings {
     pub spotlight_testing: bool,
     pub agent_teams: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CopilotSettings {
+    pub enabled: bool,
 }

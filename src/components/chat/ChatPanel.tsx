@@ -106,7 +106,8 @@ export function ChatPanel({ contextId, contextType }: Props) {
         }
       />
       <Composer
-        workspaceId={contextType === "workspace" ? contextId : undefined}
+        contextId={contextId}
+        contextType={contextType}
         agentStatus={agentStatus}
         onSend={handleSend}
         onStop={handleStop}
