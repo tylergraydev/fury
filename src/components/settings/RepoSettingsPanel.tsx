@@ -122,7 +122,7 @@ export function RepoSettingsPanel({
                   worktreeBasePath: e.target.value || null,
                 }))
               }
-              placeholder="Default: ../.conductor-worktrees/"
+              placeholder="Default: ../.conductor-worktrees/<repo-name>"
               className="w-full rounded px-2 py-1.5 font-mono text-xs"
               style={{
                 backgroundColor: "var(--bg-surface)",
@@ -134,8 +134,9 @@ export function RepoSettingsPanel({
               className="mt-1 text-xs"
               style={{ color: "var(--text-muted)" }}
             >
-              Base directory for worktrees. Leave empty to use the default
-              (next to the repo).
+              Base directory for worktrees (repo name is appended
+              automatically). Leave empty to use the default (next to the
+              repo).
             </p>
           </div>
 

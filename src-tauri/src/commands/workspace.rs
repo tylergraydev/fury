@@ -31,7 +31,15 @@ pub fn create_workspace(
     // Resolve worktree base: user override → default (repo parent dir)
     let repo_settings = script_cmd::resolve_settings(&state, &request.repo_id)?;
     let worktree_base = match repo_settings.worktree_base_path {
-        Some(ref custom) if !custom.is_empty() => PathBuf::from(custom).join(&repo.name),
+        Some(ref custom) if !custom.trim().is_empty() => {
+            let p = PathBuf::from(custom.trim());
+            if !p.is_absolute() {
+                return Err(AppError::GitError(
+                    "Worktree base path must be an absolute path".to_string(),
+                ));
+            }
+            p.join(&repo.name)
+        }
         _ => repo
             .path
             .parent()
