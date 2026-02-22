@@ -141,7 +141,6 @@ pub async fn spawn_and_stream(
         }
     }
 
-
     let mut cmd = Command::new(&claude_bin);
     cmd.args(&args)
         .current_dir(worktree_path)
