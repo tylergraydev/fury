@@ -27,9 +27,10 @@ test.describe("Chat Flow", () => {
       appPage.getByText("examining the current route structure"),
     ).toBeVisible();
 
-    // Tool call badges should be visible
-    await expect(appPage.getByText("Read").first()).toBeVisible();
-    await expect(appPage.getByText("Write").first()).toBeVisible();
+    // Completed turns are collapsed — expand to see tool call badges
+    await appPage.getByText("2 tool calls").click();
+    await expect(appPage.locator("button", { hasText: "Read" }).first()).toBeVisible();
+    await expect(appPage.locator("button", { hasText: "Write" }).first()).toBeVisible();
   });
 
   test("typing a message enables send button", async ({ appPage }) => {

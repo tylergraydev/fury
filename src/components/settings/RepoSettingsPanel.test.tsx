@@ -84,8 +84,8 @@ describe("RepoSettingsPanel", () => {
 
     await waitFor(() => {
       const textareas = screen.getAllByRole("textbox");
-      // 3 textareas for scripts + 2 inputs for env vars
-      const setupTextarea = textareas[0] as HTMLTextAreaElement;
+      // textareas[0] is the worktree location input, scripts start at [1]
+      const setupTextarea = textareas[1] as HTMLTextAreaElement;
       expect(setupTextarea.value).toBe("npm install");
     });
   });

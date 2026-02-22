@@ -131,7 +131,7 @@ describe("ChatPanel", () => {
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     await user.click(screen.getByTestId("send-btn"));
     expect(addUserMessageSpy).toHaveBeenCalledWith("ws-1", "test message");
-    expect(sendMessageSpy).toHaveBeenCalledWith("ws-1", "test message", "workspace");
+    expect(sendMessageSpy).toHaveBeenCalledWith("ws-1", "test message", "workspace", undefined);
   });
 
   it("handleSend catches send errors", async () => {
@@ -423,7 +423,7 @@ describe("ChatPanel", () => {
     const user = userEvent.setup();
     render(<ChatPanel contextId="repo-1" contextType="repo" />);
     await user.click(screen.getByTestId("send-btn"));
-    expect(sendMessageSpy).toHaveBeenCalledWith("repo-1", "test message", "repo");
+    expect(sendMessageSpy).toHaveBeenCalledWith("repo-1", "test message", "repo", undefined);
   });
 
   // --- handleRetry with repo context ---

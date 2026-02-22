@@ -1909,7 +1909,9 @@ describe("UpdatesTab", () => {
     );
 
     goToUpdatesTab();
-    fireEvent.click(screen.getByText("Check for Updates"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Check for Updates"));
+    });
     await waitFor(() => {
       expect(screen.getByText("Checking...")).toBeInTheDocument();
     });
