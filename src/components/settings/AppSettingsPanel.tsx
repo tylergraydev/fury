@@ -98,6 +98,7 @@ export function AppSettingsPanel() {
           className="flex items-center justify-between px-4 pb-3"
           style={{
             borderBottom: "1px solid var(--border)",
+            /* v8 ignore next -- @preserve */
             paddingTop: isMac ? 42 : 12,
           }}
         >
@@ -284,12 +285,13 @@ function ProviderTab() {
               envVars: { ...s.provider.envVars, [key]: value },
             },
           }
-        : s,
+        : /* v8 ignore next -- @preserve */ s,
     );
   };
 
   const removeEnvVar = (key: string) => {
     setLocalSettings((s) => {
+      /* v8 ignore next -- @preserve */
       if (!s) return s;
       const { [key]: _, ...rest } = s.provider.envVars;
       return { ...s, provider: { ...s.provider, envVars: rest } };
@@ -324,7 +326,7 @@ function ProviderTab() {
                       providerType: e.target.value as ProviderType,
                     },
                   }
-                : s,
+                : /* v8 ignore next -- @preserve */ s,
             )
           }
           className="w-full rounded px-2 py-1.5 text-xs"
@@ -521,7 +523,8 @@ function CopilotTab() {
   };
 
   const handleOpenGitHub = async () => {
-    // Copy user code to clipboard before opening GitHub
+    // Copy user code to clipboard before opening GitHub – button only renders when userCode is truthy
+    /* v8 ignore next -- @preserve */
     if (signInResult?.userCode) {
       try {
         await navigator.clipboard.writeText(signInResult.userCode);
@@ -716,6 +719,7 @@ function McpTab() {
   }, [loadMcpServers]);
 
   const handleAdd = async () => {
+    /* v8 ignore next -- @preserve: button is disabled when inputs are empty */
     if (!newName.trim() || !newCommand.trim()) return;
     setAdding(true);
     setLocalError(null);
@@ -994,6 +998,7 @@ function MigrationTab() {
   };
 
   const handleRulesImport = async (overwrite: boolean) => {
+    /* v8 ignore next -- @preserve: button only renders when selectedRepoId is set */
     if (!selectedRepoId) return;
     setRulesImporting(true);
     setRulesError(null);

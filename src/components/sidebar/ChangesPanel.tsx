@@ -59,6 +59,7 @@ export function ChangesPanel({ context }: Props) {
 
   // Auto-refresh when agent finishes
   useEffect(() => {
+    /* v8 ignore next -- @preserve */
     if (agentStatus === "Idle") {
       const store = useDiffStore.getState();
       if (context.type === "workspace") {

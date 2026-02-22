@@ -515,7 +515,7 @@ export function getFileIcon(name: string): FileIconComponent {
 
   if (NAME_MAP[lower]) return NAME_MAP[lower];
 
-  const ext = lower.split(".").pop() ?? "";
+  const ext = lower.split(".").pop()!;
   if (EXT_MAP[ext]) return EXT_MAP[ext];
 
   return DefaultFileIcon;

@@ -44,3 +44,8 @@ vi.mock("@tauri-apps/plugin-process", () => ({
 vi.mock("@tauri-apps/plugin-updater", () => ({
   check: vi.fn().mockResolvedValue(null),
 }));
+
+// Mock @tauri-apps/api/path
+vi.mock("@tauri-apps/api/path", () => ({
+  homeDir: vi.fn().mockResolvedValue("/home/user/"),
+}));

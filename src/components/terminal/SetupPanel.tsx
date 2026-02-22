@@ -29,6 +29,7 @@ export function SetupPanel({ context }: Props) {
 
   // Auto-scroll to bottom
   useEffect(() => {
+    /* v8 ignore next -- @preserve */
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }

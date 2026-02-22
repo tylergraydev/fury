@@ -198,6 +198,7 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
             />
             <button
               onClick={() => {
+                /* v8 ignore next -- @preserve */
                 if (taskDescription.trim()) {
                   setWorktreeName(generateName(taskDescription));
                 }

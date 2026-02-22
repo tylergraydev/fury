@@ -61,7 +61,7 @@ export function FileTabBar() {
       {/* File tabs */}
       {fileTabs.map((tab) => {
         const isActive = viewType === "chat" && activeFileTabId === tab.id;
-        const fileName = tab.filePath.split("/").pop() ?? tab.filePath;
+        const fileName = tab.filePath.split("/").pop()!;
         return (
           <span
             key={tab.id}

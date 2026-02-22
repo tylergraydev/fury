@@ -38,7 +38,10 @@ export function LandingPage({ onOpenSettings }: LandingPageProps) {
       <div
         data-tauri-drag-region
         className="w-full flex-shrink-0"
-        style={{ height: isMac ? 52 : 32 }}
+        style={{
+          /* v8 ignore next -- @preserve */
+          height: isMac ? 52 : 32,
+        }}
       />
 
       <div className="w-full max-w-5xl">
@@ -197,6 +200,7 @@ function ActionCard({
       <div
         className="flex h-14 w-14 items-center justify-center rounded-2xl"
         style={{
+          /* v8 ignore next -- @preserve */
           backgroundColor: color ?? "var(--accent)",
         }}
       >

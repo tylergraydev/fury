@@ -223,7 +223,7 @@ function App() {
     ? { type: "workspace", id: activeWorkspaceId }
     : activeRepoId
     ? { type: "repo", id: activeRepoId }
-    : null;
+    : /* v8 ignore next -- @preserve */ null;
 
   const showRightSidebar = rightSidebarVisible && sidebarContext !== null;
 

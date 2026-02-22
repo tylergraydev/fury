@@ -17,7 +17,9 @@ export function TerminalView({ terminalId }: TerminalViewProps) {
   const terminalRef = useRef<Terminal | null>(null);
 
   useEffect(() => {
+    /* v8 ignore start -- defensive guard; ref is always assigned by React */
     if (!containerRef.current) return;
+    /* v8 ignore stop */
 
     const term = new Terminal({
       theme: {

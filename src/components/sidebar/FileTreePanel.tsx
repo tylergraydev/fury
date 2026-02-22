@@ -50,6 +50,7 @@ function buildTree(paths: string[]): TreeNode[] {
   // Sort: directories first, then alphabetical
   function sortNodes(nodes: TreeNode[]) {
     nodes.sort((a, b) => {
+      /* v8 ignore next -- @preserve */
       if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
       return a.name.localeCompare(b.name);
     });

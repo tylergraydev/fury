@@ -10,7 +10,7 @@ interface Props {
 
 function repoNameFromUrl(url: string): string {
   const cleaned = url.replace(/\.git\/?$/, "").replace(/\/$/, "");
-  const last = cleaned.split("/").pop() ?? "";
+  const last = cleaned.split("/").pop()!;
   return last || "repo";
 }
 

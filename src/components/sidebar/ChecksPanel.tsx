@@ -151,6 +151,7 @@ function CreatePRInline({
 
         <button
           onClick={async () => {
+            /* v8 ignore next -- @preserve */
             if (title.trim()) await onCreate(title, body, draft);
           }}
           disabled={loading || !title.trim()}

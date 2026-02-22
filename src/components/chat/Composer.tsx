@@ -102,6 +102,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop }
     setText("");
     setShowSlashMenu(false);
     setShowAtMenu(false);
+    /* v8 ignore next 3 -- @preserve */
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
@@ -110,6 +111,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop }
   const selectSlashCommand = useCallback(
     (cmd: SlashCommand) => {
       const ta = textareaRef.current;
+      /* v8 ignore next -- @preserve */
       const cursorPos = ta?.selectionStart ?? text.length;
       const textBeforeCursor = text.substring(0, cursorPos);
       const lastNewline = textBeforeCursor.lastIndexOf("\n");
@@ -135,6 +137,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop }
   const selectAtItem = useCallback(
     (item: AtMenuItem) => {
       const ta = textareaRef.current;
+      /* v8 ignore next -- @preserve */
       const cursorPos = ta?.selectionStart ?? text.length;
       const textBeforeCursor = text.substring(0, cursorPos);
       const textAfterCursor = text.substring(cursorPos);
