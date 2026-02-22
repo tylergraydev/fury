@@ -77,6 +77,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       });
     } catch (e) {
       set({ error: String(e) });
+      throw e;
     }
   },
 

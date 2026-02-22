@@ -47,6 +47,7 @@ export function Sidebar() {
     loadArchivedWorkspaces,
     restoreWs,
     renameWs,
+    archiveWs,
   } = useWorkspaceStore();
   const [newWsRepoId, setNewWsRepoId] = useState<string | null>(null);
   const [settingsRepoId, setSettingsRepoId] = useState<string | null>(null);
@@ -205,6 +206,13 @@ export function Sidebar() {
                           })
                         }
                         onRename={(newName) => renameWs(ws.id, newName)}
+                        onArchive={async () => {
+                          try {
+                            await archiveWs(ws.id);
+                          } catch (e) {
+                            setRepoError(`Failed to archive "${ws.name}": ${String(e)}`);
+                          }
+                        }}
                       />
                     ))}
                   </>
@@ -381,6 +389,7 @@ function WorkspaceItem({
   onClick,
   onLink,
   onRename,
+  onArchive,
 }: {
   id: string;
   name: string;
@@ -391,6 +400,7 @@ function WorkspaceItem({
   onClick: () => void;
   onLink: () => void;
   onRename: (newName: string) => void;
+  onArchive: () => void;
 }) {
   const agentStatus = useAgentStore((s) => s.getStatus(id));
   const isRunning = agentStatus === "Running";
@@ -458,17 +468,30 @@ function WorkspaceItem({
             {name}
           </span>
         )}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onLink();
-          }}
-          className="ml-auto hidden flex-shrink-0 rounded p-1 group-hover:block hover:bg-[var(--bg-surface)]"
-          style={{ color: "var(--text-muted)" }}
-          title="Link workspaces"
-        >
-          <Link2 className="h-3.5 w-3.5" />
-        </button>
+        <div className="ml-auto hidden flex-shrink-0 items-center gap-0.5 group-hover:flex">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onLink();
+            }}
+            className="rounded p-1 hover:bg-[var(--bg-surface)]"
+            style={{ color: "var(--text-muted)" }}
+            title="Link workspaces"
+          >
+            <Link2 className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onArchive();
+            }}
+            className="rounded p-1 hover:bg-[var(--bg-surface)]"
+            style={{ color: "var(--text-muted)" }}
+            title="Archive worktree"
+          >
+            <Archive className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Row 2: branch */}
