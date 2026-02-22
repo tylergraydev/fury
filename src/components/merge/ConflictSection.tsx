@@ -3,7 +3,11 @@ import { AlertCircle, CheckCircle, XCircle } from "lucide-react";
 import { useMergeStore } from "../../stores/mergeStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { ConflictResolver } from "./ConflictResolver";
-import type { ConflictType } from "../../lib/tauri";
+import type { ConflictType, ConflictedFile } from "../../lib/tauri";
+
+// Stable empty-array reference to avoid infinite re-render loops
+// with Zustand 5's useSyncExternalStore integration.
+const EMPTY_CONFLICTED_FILES: ConflictedFile[] = [];
 
 interface Props {
   workspaceId: string;
@@ -28,7 +32,7 @@ function conflictTypeLabel(ct: ConflictType): string {
 
 export function ConflictSection({ workspaceId }: Props) {
   const conflictedFiles = useMergeStore(
-    (s) => s.conflictedFiles[workspaceId] ?? [],
+    (s) => s.conflictedFiles[workspaceId] ?? EMPTY_CONFLICTED_FILES,
   );
   const selectedFile = useMergeStore(
     (s) => s.selectedConflictFile[workspaceId] ?? null,

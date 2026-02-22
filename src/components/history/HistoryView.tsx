@@ -14,6 +14,12 @@ import { useHistoryStore } from "../../stores/historyStore";
 import { useAgentStore } from "../../stores/agentStore";
 import type { GitLogEntry } from "../../lib/tauri";
 
+// Stable empty-array references to avoid infinite re-render loops
+// with Zustand 5's useSyncExternalStore integration.
+const EMPTY_MESSAGES: never[] = [];
+const EMPTY_CHECKPOINTS: never[] = [];
+const EMPTY_GIT_LOG: GitLogEntry[] = [];
+
 type TimelineItem =
   | {
       kind: "commit";
@@ -57,13 +63,13 @@ function formatRelativeTime(ms: number): string {
 export function HistoryView() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const messages = useChatStore(
-    (s) => s.messages[activeWorkspaceId ?? ""] ?? [],
+    (s) => s.messages[activeWorkspaceId ?? ""] ?? EMPTY_MESSAGES,
   );
   const checkpoints = useCheckpointStore(
-    (s) => s.checkpoints[activeWorkspaceId ?? ""] ?? [],
+    (s) => s.checkpoints[activeWorkspaceId ?? ""] ?? EMPTY_CHECKPOINTS,
   );
   const gitLog = useHistoryStore(
-    (s) => s.gitLog[activeWorkspaceId ?? ""] ?? [],
+    (s) => s.gitLog[activeWorkspaceId ?? ""] ?? EMPTY_GIT_LOG,
   );
   const loading = useHistoryStore(
     (s) => s.loading[activeWorkspaceId ?? ""] ?? false,
