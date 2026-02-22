@@ -7,7 +7,6 @@ use uuid::Uuid;
 use crate::commands::script as script_cmd;
 use crate::error::AppError;
 use crate::models::workspace::{CreateWorkspaceRequest, Workspace, WorkspaceInfo, WorkspaceStatus};
-use crate::platform;
 use crate::services::script_runner::ScriptKind;
 use crate::services::{claude_process, script_runner, worktree};
 use crate::state::AppState;
@@ -29,14 +28,32 @@ pub fn create_workspace(
     // Allocate ports
     let port_base = state.port_allocator.lock().unwrap().allocate()?;
 
+    // Resolve worktree base: user override → default (repo parent dir)
+    let repo_settings = script_cmd::resolve_settings(&state, &request.repo_id)?;
+    let worktree_base = match repo_settings.worktree_base_path {
+        Some(ref custom) if !custom.trim().is_empty() => {
+            let p = PathBuf::from(custom.trim());
+            if !p.is_absolute() {
+                return Err(AppError::GitError(
+                    "Worktree base path must be an absolute path".to_string(),
+                ));
+            }
+            p.join(&repo.name)
+        }
+        _ => repo
+            .path
+            .parent()
+            .unwrap_or(&repo.path)
+            .join(".conductor-worktrees")
+            .join(&repo.name),
+    };
+
     // Create git worktree
-    let app_data_dir = platform::app_data_dir();
     let worktree_path = worktree::create_worktree(
         &repo.path,
         &request.branch_name,
         &request.workspace_name,
-        &app_data_dir,
-        &repo.name,
+        &worktree_base,
         request.base_branch.as_deref(),
     )?;
 
