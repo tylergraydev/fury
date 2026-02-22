@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import type { AgentStatus, ChatMessage, Checkpoint } from "../../lib/tauri";
 import { MessageBubble } from "./MessageBubble";
@@ -168,7 +168,7 @@ export function MessageList({
       ? Math.max(...checkpoints.map((cp) => cp.turnIndex))
       : -1;
 
-  const { orphans, turns } = segmentTurns(messages);
+  const { orphans, turns } = useMemo(() => segmentTurns(messages), [messages]);
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-5">
@@ -248,7 +248,7 @@ export function MessageList({
               const textOnly: ChatMessage = {
                 ...stats.finalTextMessage,
                 content: stats.finalTextMessage.content.filter(
-                  (b) => b.type === "text",
+                  (b) => b.type === "text" && b.text.trim().length > 0,
                 ),
               };
               elements.push(
