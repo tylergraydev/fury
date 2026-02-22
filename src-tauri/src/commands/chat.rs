@@ -6,7 +6,10 @@ use uuid::Uuid;
 
 #[tauri::command]
 pub fn save_chat_message(state: State<'_, AppState>, message: ChatMessage) -> Result<(), AppError> {
-    let db_lock = state.db.lock().unwrap();
+    let db_lock = state
+        .db
+        .lock()
+        .map_err(|_| AppError::DbError("Failed to acquire database lock".into()))?;
     let db = db_lock
         .as_ref()
         .ok_or(AppError::DbError("DB not initialized".into()))?;
@@ -22,7 +25,10 @@ pub fn list_chat_messages(
     let ws_id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::DbError("Invalid workspace ID".into()))?;
-    let db_lock = state.db.lock().unwrap();
+    let db_lock = state
+        .db
+        .lock()
+        .map_err(|_| AppError::DbError("Failed to acquire database lock".into()))?;
     let db = db_lock
         .as_ref()
         .ok_or(AppError::DbError("DB not initialized".into()))?;
@@ -37,7 +43,10 @@ pub fn clear_chat_messages(
     let ws_id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::DbError("Invalid workspace ID".into()))?;
-    let db_lock = state.db.lock().unwrap();
+    let db_lock = state
+        .db
+        .lock()
+        .map_err(|_| AppError::DbError("Failed to acquire database lock".into()))?;
     let db = db_lock
         .as_ref()
         .ok_or(AppError::DbError("DB not initialized".into()))?;

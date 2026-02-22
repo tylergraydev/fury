@@ -90,7 +90,7 @@ function App() {
           useUIStore.getState().setTheme(settings.theme);
         }
       })
-      .catch(() => {});
+      .catch((e) => console.error("Failed to load app settings:", e));
   }, []);
 
   // Load repositories and workspaces on mount
@@ -119,7 +119,7 @@ function App() {
           useCopilotStore.getState().initialize(rootUri);
         }
       })
-      .catch(() => {});
+      .catch((e) => console.error("Failed to load Copilot settings:", e));
   }, [hasContext, activeWorkspaceId, activeRepoId, workspaces, repositories]);
 
   const handleAction = useCallback((action: string) => {

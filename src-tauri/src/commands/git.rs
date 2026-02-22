@@ -472,9 +472,18 @@ pub fn write_workspace_file(
         .canonicalize()
         .map_err(|e| AppError::GitError(format!("failed to resolve workspace path: {}", e)))?;
     let full_path = PathBuf::from(&worktree_path).join(&file_path);
-    let full_path = full_path
+    // Canonicalize the parent directory (which must exist) and append the filename,
+    // so that new files that don't yet exist can still be validated.
+    let parent = full_path
+        .parent()
+        .ok_or_else(|| AppError::GitError("file path has no parent directory".into()))?;
+    let parent = parent
         .canonicalize()
-        .map_err(|e| AppError::GitError(format!("failed to resolve file path: {}", e)))?;
+        .map_err(|e| AppError::GitError(format!("failed to resolve parent directory: {}", e)))?;
+    let file_name = full_path
+        .file_name()
+        .ok_or_else(|| AppError::GitError("file path has no filename".into()))?;
+    let full_path = parent.join(file_name);
     if !full_path.starts_with(&base) {
         return Err(AppError::GitError("file path outside workspace".into()));
     }
@@ -524,9 +533,18 @@ pub fn write_repo_file(
         .canonicalize()
         .map_err(|e| AppError::GitError(format!("failed to resolve repo path: {}", e)))?;
     let full_path = PathBuf::from(&repo_path).join(&file_path);
-    let full_path = full_path
+    // Canonicalize the parent directory (which must exist) and append the filename,
+    // so that new files that don't yet exist can still be validated.
+    let parent = full_path
+        .parent()
+        .ok_or_else(|| AppError::GitError("file path has no parent directory".into()))?;
+    let parent = parent
         .canonicalize()
-        .map_err(|e| AppError::GitError(format!("failed to resolve file path: {}", e)))?;
+        .map_err(|e| AppError::GitError(format!("failed to resolve parent directory: {}", e)))?;
+    let file_name = full_path
+        .file_name()
+        .ok_or_else(|| AppError::GitError("file path has no filename".into()))?;
+    let full_path = parent.join(file_name);
     if !full_path.starts_with(&base) {
         return Err(AppError::GitError("file path outside repository".into()));
     }

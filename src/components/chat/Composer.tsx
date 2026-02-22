@@ -421,7 +421,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop }
         {/* Shortcut hint */}
         <div className="mt-2 flex items-center">
           <span className="ml-auto text-[11px]" style={{ color: "var(--text-muted)" }}>
-            ⌘ Enter to send, Shift+Enter for new line
+            Enter to send, Shift+Enter for new line
           </span>
         </div>
       </div>

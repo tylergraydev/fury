@@ -176,10 +176,12 @@ pub async fn start(root_uri: &str) -> Result<(CopilotLspHandle, Child), AppError
     tokio::spawn(async move {
         let mut stdin = stdin;
         while let Some(msg) = stdin_rx.recv().await {
-            if stdin.write_all(&msg).await.is_err() {
+            if let Err(e) = stdin.write_all(&msg).await {
+                eprintln!("[copilot-lsp] stdin write error: {}", e);
                 break;
             }
-            if stdin.flush().await.is_err() {
+            if let Err(e) = stdin.flush().await {
+                eprintln!("[copilot-lsp] stdin flush error: {}", e);
                 break;
             }
         }
@@ -206,7 +208,9 @@ pub async fn start(root_uri: &str) -> Result<(CopilotLspHandle, Child), AppError
                             // This is a response, not a server request
                             let mut map = pending_clone.lock().await;
                             if let Some(tx) = map.remove(&id) {
-                                let _ = tx.send(parsed);
+                                if tx.send(parsed).is_err() {
+                                    eprintln!("[copilot-lsp] Response receiver dropped for request id={}", id);
+                                }
                             }
                             continue;
                         }
@@ -387,8 +391,12 @@ pub async fn send_notification(
 /// Gracefully stop the Copilot Language Server.
 pub async fn stop(handle: &CopilotLspHandle, child: &mut Child) {
     // Try graceful shutdown
-    let _ = send_request(handle, "shutdown", Value::Null).await;
-    let _ = send_notification(handle, "exit", Value::Null).await;
+    if let Err(e) = send_request(handle, "shutdown", Value::Null).await {
+        eprintln!("[copilot-lsp] shutdown request failed: {}", e);
+    }
+    if let Err(e) = send_notification(handle, "exit", Value::Null).await {
+        eprintln!("[copilot-lsp] exit notification failed: {}", e);
+    }
 
     // Give it a moment to exit
     tokio::select! {
@@ -396,9 +404,13 @@ pub async fn stop(handle: &CopilotLspHandle, child: &mut Child) {
         _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {
             // Force kill
             if let Some(pid) = handle.child_pid {
-                let _ = crate::platform::kill_process_group(pid);
+                if let Err(e) = crate::platform::kill_process_group(pid) {
+                    eprintln!("[copilot-lsp] Failed to kill process group (pid={}): {}", pid, e);
+                }
             }
-            let _ = child.kill().await;
+            if let Err(e) = child.kill().await {
+                eprintln!("[copilot-lsp] Failed to kill child process: {}", e);
+            }
         }
     }
 }
