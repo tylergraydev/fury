@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::models::pr::{CreatePrRequest, MergeResult, PrCheck, PrInfo};
+use crate::models::pr::{CreatePrRequest, MergeResult, PrCheck, PrDescription, PrInfo};
 use crate::services::gh as gh_svc;
 use crate::state::AppState;
 use tauri::{Emitter, State};
@@ -163,6 +163,34 @@ pub fn fix_failing_checks(
     message.push_str("Please investigate the failures, fix the code, and ensure the tests pass.");
 
     Ok(message)
+}
+
+#[tauri::command]
+pub fn generate_pr_description(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<PrDescription, AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let (worktree_path, branch, default_branch) = {
+        let workspaces = state.workspaces.lock().unwrap();
+        let ws = workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        let repos = state.repositories.lock().unwrap();
+        let repo = repos
+            .get(&ws.repo_id)
+            .ok_or(AppError::RepoNotFound(ws.repo_id))?;
+        (
+            ws.worktree_path.clone(),
+            ws.branch.clone(),
+            repo.default_branch.clone(),
+        )
+    };
+
+    gh_svc::generate_pr_description(&worktree_path, &branch, &default_branch)
 }
 
 #[tauri::command]

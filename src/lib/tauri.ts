@@ -396,6 +396,11 @@ export interface MergeResult {
   mergeMethod: string;
 }
 
+export interface PrDescription {
+  title: string;
+  body: string;
+}
+
 // PR commands
 export async function createPr(request: CreatePrRequest): Promise<PrInfo> {
   return invoke<PrInfo>("create_pr", { request });
@@ -415,6 +420,12 @@ export async function pushChanges(workspaceId: string): Promise<void> {
 
 export async function fixFailingChecks(workspaceId: string): Promise<string> {
   return invoke<string>("fix_failing_checks", { workspaceId });
+}
+
+export async function generatePrDescription(
+  workspaceId: string,
+): Promise<PrDescription> {
+  return invoke<PrDescription>("generate_pr_description", { workspaceId });
 }
 
 export async function mergePr(

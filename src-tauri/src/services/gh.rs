@@ -173,6 +173,87 @@ pub fn get_pr_checks(worktree_path: &Path) -> Result<Vec<PrCheck>, AppError> {
         .collect())
 }
 
+pub fn generate_pr_description(
+    worktree_path: &Path,
+    branch: &str,
+    default_branch: &str,
+) -> Result<crate::models::pr::PrDescription, AppError> {
+    // Get commits on this branch that aren't on the default branch
+    let output = Command::new("git")
+        .args([
+            "log",
+            &format!("origin/{}..HEAD", default_branch),
+            "--format=%s",
+            "--reverse",
+        ])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::PrError(format!("Failed to get git log: {}", e)))?;
+
+    let commits: Vec<String> = if output.status.success() {
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(String::from)
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    // Get diff stat against default branch
+    let stat_output = Command::new("git")
+        .args([
+            "diff",
+            &format!("origin/{}", default_branch),
+            "--stat",
+            "--stat-width=72",
+        ])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::PrError(format!("Failed to get diff stat: {}", e)))?;
+
+    let diff_stat = if stat_output.status.success() {
+        let full = String::from_utf8_lossy(&stat_output.stdout).to_string();
+        // Get the summary line (last line like " 5 files changed, 100 insertions(+), 20 deletions(-)")
+        full.lines().last().unwrap_or("").trim().to_string()
+    } else {
+        String::new()
+    };
+
+    // Generate title from branch name
+    let title = branch
+        .rsplit('/')
+        .next()
+        .unwrap_or(branch)
+        .replace('-', " ")
+        .replace('_', " ");
+    // Capitalize first letter
+    let title = if let Some(first) = title.chars().next() {
+        format!("{}{}", first.to_uppercase(), &title[first.len_utf8()..])
+    } else {
+        title
+    };
+
+    // Generate body
+    let mut body = String::new();
+
+    if !commits.is_empty() {
+        body.push_str("## Changes\n\n");
+        for commit in &commits {
+            body.push_str(&format!("- {}\n", commit));
+        }
+    }
+
+    if !diff_stat.is_empty() {
+        if !body.is_empty() {
+            body.push('\n');
+        }
+        body.push_str(&format!("**Stats:** {}\n", diff_stat));
+    }
+
+    Ok(crate::models::pr::PrDescription { title, body })
+}
+
 pub fn merge_pr(worktree_path: &Path, method: &str) -> Result<MergeResult, AppError> {
     let gh = find_gh_binary()?;
     let merge_flag = match method {

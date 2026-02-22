@@ -92,6 +92,7 @@ pub fn run() {
             commands::pr::get_pr_checks,
             commands::pr::push_changes,
             commands::pr::fix_failing_checks,
+            commands::pr::generate_pr_description,
             commands::pr::merge_pr,
             // Todo commands
             commands::todo::add_todo,

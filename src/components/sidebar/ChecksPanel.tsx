@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { usePrStore } from "../../stores/prStore";
-import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTodoStore } from "../../stores/todoStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
+import { generatePrDescription } from "../../lib/tauri";
 import type { PrCheck } from "../../lib/tauri";
 
 interface Props {
@@ -65,22 +65,30 @@ function CreatePRInline({
   error: string | null;
   onCreate: (title: string, body: string, draft: boolean) => Promise<unknown>;
 }) {
-  const workspace = useWorkspaceStore((s) =>
-    s.workspaces.find((w) => w.id === workspaceId),
-  );
-  const [title, setTitle] = useState(workspace?.branch ?? "");
-  const [body, setBody] = useState("");
   const [draft, setDraft] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  const handleCreate = async () => {
+    setGenerating(true);
+    try {
+      const desc = await generatePrDescription(workspaceId);
+      await onCreate(desc.title, desc.body, draft);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const busy = loading || generating;
 
   return (
-    <div className="space-y-3 p-3">
-      <div className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>
-        Create Pull Request
+    <div className="flex h-full flex-col items-center justify-center gap-3 p-4">
+      <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+        No pull request for this branch
       </div>
 
       {error && (
         <div
-          className="rounded p-2 text-xs"
+          className="w-full rounded p-2 text-xs"
           style={{
             backgroundColor: "color-mix(in srgb, var(--error) 15%, transparent)",
             color: "var(--error)",
@@ -89,32 +97,6 @@ function CreatePRInline({
           {error}
         </div>
       )}
-
-      <input
-        type="text"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        className="w-full rounded px-2 py-1 text-xs outline-none"
-        style={{
-          backgroundColor: "var(--bg-primary)",
-          color: "var(--text-primary)",
-          border: "1px solid var(--border)",
-        }}
-        placeholder="PR title"
-      />
-
-      <textarea
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        rows={4}
-        className="w-full resize-none rounded px-2 py-1 text-xs outline-none"
-        style={{
-          backgroundColor: "var(--bg-primary)",
-          color: "var(--text-primary)",
-          border: "1px solid var(--border)",
-        }}
-        placeholder="Description..."
-      />
 
       <div className="flex items-center gap-2">
         <label
@@ -130,17 +112,15 @@ function CreatePRInline({
         </label>
 
         <button
-          onClick={async () => {
-            if (title.trim()) await onCreate(title, body, draft);
-          }}
-          disabled={loading || !title.trim()}
-          className="ml-auto rounded px-3 py-1 text-xs disabled:opacity-50"
+          onClick={handleCreate}
+          disabled={busy}
+          className="rounded px-3 py-1 text-xs disabled:opacity-50"
           style={{
             backgroundColor: "var(--accent)",
             color: "var(--bg-primary)",
           }}
         >
-          {loading ? "Creating..." : "Create PR"}
+          {busy ? "Creating..." : "Create PR"}
         </button>
       </div>
     </div>
