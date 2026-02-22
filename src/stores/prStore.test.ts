@@ -1,0 +1,388 @@
+import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(),
+}));
+
+vi.mock("../lib/tauri", () => ({
+  createPr: vi.fn(),
+  getPrInfo: vi.fn(),
+  getPrChecks: vi.fn(),
+  pushChanges: vi.fn(),
+  fixFailingChecks: vi.fn(),
+  mergePr: vi.fn(),
+}));
+
+import { usePrStore } from "./prStore";
+import { listen } from "@tauri-apps/api/event";
+import {
+  createPr,
+  getPrInfo,
+  getPrChecks,
+  pushChanges,
+  fixFailingChecks,
+  mergePr,
+} from "../lib/tauri";
+
+const makePrInfo = (overrides: Record<string, unknown> = {}) => ({
+  workspaceId: "ws-1",
+  prNumber: 42,
+  prUrl: "https://github.com/test/pr/42",
+  title: "Test PR",
+  state: "open",
+  checks: [],
+  mergeable: "MERGEABLE",
+  ...overrides,
+});
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  usePrStore.setState(
+    {
+      prInfo: {},
+      loading: {},
+      error: {},
+      subscriptions: {},
+      pollIntervals: {},
+    },
+  );
+  vi.clearAllMocks();
+});
+
+afterEach(() => {
+  // Clean up any remaining intervals
+  const state = usePrStore.getState();
+  Object.keys(state.pollIntervals).forEach((key) => {
+    clearInterval(state.pollIntervals[key]);
+  });
+  vi.useRealTimers();
+});
+
+describe("prStore - subscribe", () => {
+  it("registers two listeners (updated + merged)", async () => {
+    const unlisten1 = vi.fn();
+    const unlisten2 = vi.fn();
+    vi.mocked(listen)
+      .mockResolvedValueOnce(unlisten1)
+      .mockResolvedValueOnce(unlisten2);
+
+    await usePrStore.getState().subscribe("ws-1");
+
+    expect(listen).toHaveBeenCalledTimes(2);
+    expect(listen).toHaveBeenCalledWith(
+      "pr-updated:ws-1",
+      expect.any(Function),
+    );
+    expect(listen).toHaveBeenCalledWith(
+      "pr-merged:ws-1",
+      expect.any(Function),
+    );
+    expect(usePrStore.getState().subscriptions["ws-1"]).toEqual([
+      unlisten1,
+      unlisten2,
+    ]);
+  });
+
+  it("skips if already subscribed", async () => {
+    usePrStore.setState({
+      subscriptions: { "ws-1": [vi.fn()] as any },
+    });
+
+    await usePrStore.getState().subscribe("ws-1");
+
+    expect(listen).not.toHaveBeenCalled();
+  });
+
+  it("pr-updated event stores payload", async () => {
+    let updatedHandler: any;
+    vi.mocked(listen).mockImplementation(async (channel, handler) => {
+      if (channel === "pr-updated:ws-1") {
+        updatedHandler = handler;
+      }
+      return vi.fn();
+    });
+
+    await usePrStore.getState().subscribe("ws-1");
+
+    const info = makePrInfo({ prNumber: 99 });
+    updatedHandler({ payload: info });
+
+    expect(usePrStore.getState().prInfo["ws-1"]).toEqual(info);
+  });
+});
+
+describe("prStore - unsubscribe", () => {
+  it("calls all unlisten functions and removes subscription", () => {
+    const unsub1 = vi.fn();
+    const unsub2 = vi.fn();
+    usePrStore.setState({
+      subscriptions: { "ws-1": [unsub1, unsub2] as any },
+    });
+
+    usePrStore.getState().unsubscribe("ws-1");
+
+    expect(unsub1).toHaveBeenCalled();
+    expect(unsub2).toHaveBeenCalled();
+    expect(usePrStore.getState().subscriptions["ws-1"]).toBeUndefined();
+  });
+
+  it("stops polling when unsubscribing", () => {
+    const unsub = vi.fn();
+    usePrStore.setState({
+      subscriptions: { "ws-1": [unsub] as any },
+    });
+    // Start polling first
+    usePrStore.getState().startPolling("ws-1");
+    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeDefined();
+
+    usePrStore.getState().unsubscribe("ws-1");
+
+    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeUndefined();
+  });
+});
+
+describe("prStore - loadPrInfo", () => {
+  it("loads PR info", async () => {
+    const info = makePrInfo();
+    vi.mocked(getPrInfo).mockResolvedValue(info as any);
+
+    await usePrStore.getState().loadPrInfo("ws-1");
+
+    expect(usePrStore.getState().prInfo["ws-1"]).toEqual(info);
+    expect(usePrStore.getState().loading["ws-1"]).toBe(false);
+  });
+
+  it("sets error on failure", async () => {
+    vi.mocked(getPrInfo).mockRejectedValue(new Error("load fail"));
+
+    await usePrStore.getState().loadPrInfo("ws-1");
+
+    expect(usePrStore.getState().error["ws-1"]).toBe("Error: load fail");
+    expect(usePrStore.getState().loading["ws-1"]).toBe(false);
+  });
+});
+
+describe("prStore - refreshChecks", () => {
+  it("updates checks on existing PR info", async () => {
+    usePrStore.setState({ prInfo: { "ws-1": makePrInfo() as any } });
+    const checks = [
+      { name: "ci", status: "IN_PROGRESS", conclusion: null, detailsUrl: null, description: null },
+    ];
+    vi.mocked(getPrChecks).mockResolvedValue(checks as any);
+
+    await usePrStore.getState().refreshChecks("ws-1");
+
+    expect(usePrStore.getState().prInfo["ws-1"]?.checks).toEqual(checks);
+  });
+
+  it("is a no-op if no PR info exists", async () => {
+    vi.mocked(getPrChecks).mockResolvedValue([]);
+
+    await usePrStore.getState().refreshChecks("ws-1");
+
+    expect(usePrStore.getState().prInfo["ws-1"]).toBeUndefined();
+  });
+
+  it("stops polling when all checks complete", async () => {
+    usePrStore.setState({ prInfo: { "ws-1": makePrInfo() as any } });
+    usePrStore.getState().startPolling("ws-1");
+    const checks = [
+      { name: "ci", status: "COMPLETED", conclusion: "SUCCESS", detailsUrl: null, description: null },
+    ];
+    vi.mocked(getPrChecks).mockResolvedValue(checks as any);
+
+    await usePrStore.getState().refreshChecks("ws-1");
+
+    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeUndefined();
+  });
+
+  it("keeps polling when checks are still running", async () => {
+    usePrStore.setState({ prInfo: { "ws-1": makePrInfo() as any } });
+    usePrStore.getState().startPolling("ws-1");
+    const checks = [
+      { name: "ci", status: "IN_PROGRESS", conclusion: null, detailsUrl: null, description: null },
+    ];
+    vi.mocked(getPrChecks).mockResolvedValue(checks as any);
+
+    await usePrStore.getState().refreshChecks("ws-1");
+
+    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeDefined();
+    // Clean up
+    usePrStore.getState().stopPolling("ws-1");
+  });
+
+  it("sets error on failure", async () => {
+    usePrStore.setState({ prInfo: { "ws-1": makePrInfo() as any } });
+    vi.mocked(getPrChecks).mockRejectedValue(new Error("check fail"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await usePrStore.getState().refreshChecks("ws-1");
+
+    expect(usePrStore.getState().error["ws-1"]).toContain("check fail");
+  });
+});
+
+describe("prStore - createPr", () => {
+  it("creates PR, stores info, and starts polling", async () => {
+    const info = makePrInfo();
+    vi.mocked(createPr).mockResolvedValue(info as any);
+
+    const result = await usePrStore.getState().createPr({
+      workspaceId: "ws-1",
+      title: "Test PR",
+      body: "body",
+    });
+
+    expect(result).toEqual(info);
+    expect(usePrStore.getState().prInfo["ws-1"]).toEqual(info);
+    expect(usePrStore.getState().loading["ws-1"]).toBe(false);
+    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeDefined();
+    // Clean up
+    usePrStore.getState().stopPolling("ws-1");
+  });
+
+  it("sets error and throws on failure", async () => {
+    vi.mocked(createPr).mockRejectedValue(new Error("create fail"));
+
+    await expect(
+      usePrStore.getState().createPr({
+        workspaceId: "ws-1",
+        title: "Test",
+        body: "body",
+      }),
+    ).rejects.toThrow("create fail");
+
+    expect(usePrStore.getState().error["ws-1"]).toBe("Error: create fail");
+  });
+});
+
+describe("prStore - pushChanges", () => {
+  it("pushes and starts polling", async () => {
+    vi.mocked(pushChanges).mockResolvedValue(undefined);
+
+    await usePrStore.getState().pushChanges("ws-1");
+
+    expect(pushChanges).toHaveBeenCalledWith("ws-1");
+    expect(usePrStore.getState().loading["ws-1"]).toBe(false);
+    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeDefined();
+    usePrStore.getState().stopPolling("ws-1");
+  });
+
+  it("sets error and throws on failure", async () => {
+    vi.mocked(pushChanges).mockRejectedValue(new Error("push fail"));
+
+    await expect(
+      usePrStore.getState().pushChanges("ws-1"),
+    ).rejects.toThrow("push fail");
+
+    expect(usePrStore.getState().error["ws-1"]).toBe("Error: push fail");
+  });
+});
+
+describe("prStore - getFixMessage", () => {
+  it("delegates to fixFailingChecks", async () => {
+    vi.mocked(fixFailingChecks).mockResolvedValue("fix suggestion");
+
+    const result = await usePrStore.getState().getFixMessage("ws-1");
+
+    expect(result).toBe("fix suggestion");
+    expect(fixFailingChecks).toHaveBeenCalledWith("ws-1");
+  });
+});
+
+describe("prStore - mergePr", () => {
+  it("merges and reloads PR info", async () => {
+    const mergeResult = {
+      success: true,
+      message: "merged",
+      mergeMethod: "squash",
+    };
+    vi.mocked(mergePr).mockResolvedValue(mergeResult as any);
+    vi.mocked(getPrInfo).mockResolvedValue(
+      makePrInfo({ state: "merged" }) as any,
+    );
+
+    const result = await usePrStore.getState().mergePr("ws-1", "squash");
+
+    expect(result).toEqual(mergeResult);
+    expect(mergePr).toHaveBeenCalledWith("ws-1", "squash");
+    expect(usePrStore.getState().loading["ws-1"]).toBe(false);
+  });
+
+  it("sets error and throws on failure", async () => {
+    vi.mocked(mergePr).mockRejectedValue(new Error("merge fail"));
+
+    await expect(
+      usePrStore.getState().mergePr("ws-1"),
+    ).rejects.toThrow("merge fail");
+
+    expect(usePrStore.getState().error["ws-1"]).toBe("Error: merge fail");
+  });
+});
+
+describe("prStore - polling", () => {
+  it("startPolling sets up an interval", () => {
+    usePrStore.getState().startPolling("ws-1");
+
+    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeDefined();
+    usePrStore.getState().stopPolling("ws-1");
+  });
+
+  it("startPolling skips if already polling", () => {
+    usePrStore.getState().startPolling("ws-1");
+    const first = usePrStore.getState().pollIntervals["ws-1"];
+    usePrStore.getState().startPolling("ws-1");
+    const second = usePrStore.getState().pollIntervals["ws-1"];
+
+    expect(first).toBe(second);
+    usePrStore.getState().stopPolling("ws-1");
+  });
+
+  it("stopPolling clears the interval", () => {
+    usePrStore.getState().startPolling("ws-1");
+    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeDefined();
+
+    usePrStore.getState().stopPolling("ws-1");
+
+    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeUndefined();
+  });
+
+  it("polling interval calls refreshChecks", async () => {
+    usePrStore.setState({ prInfo: { "ws-1": makePrInfo() as any } });
+    const checks = [
+      { name: "ci", status: "IN_PROGRESS", conclusion: null, detailsUrl: null, description: null },
+    ];
+    vi.mocked(getPrChecks).mockResolvedValue(checks as any);
+
+    usePrStore.getState().startPolling("ws-1");
+
+    await vi.advanceTimersByTimeAsync(30000);
+
+    expect(getPrChecks).toHaveBeenCalledWith("ws-1");
+    usePrStore.getState().stopPolling("ws-1");
+  });
+});
+
+describe("prStore - getters", () => {
+  it("getPrInfo returns info for known workspace", () => {
+    const info = makePrInfo();
+    usePrStore.setState({ prInfo: { "ws-1": info as any } });
+    expect(usePrStore.getState().getPrInfo("ws-1")).toEqual(info);
+  });
+
+  it("getPrInfo returns null for unknown workspace", () => {
+    expect(usePrStore.getState().getPrInfo("unknown")).toBeNull();
+  });
+
+  it("isLoading returns correct state", () => {
+    expect(usePrStore.getState().isLoading("ws-1")).toBe(false);
+    usePrStore.setState({ loading: { "ws-1": true } });
+    expect(usePrStore.getState().isLoading("ws-1")).toBe(true);
+  });
+
+  it("getError returns correct state", () => {
+    expect(usePrStore.getState().getError("ws-1")).toBeNull();
+    usePrStore.setState({ error: { "ws-1": "some error" } });
+    expect(usePrStore.getState().getError("ws-1")).toBe("some error");
+  });
+});
