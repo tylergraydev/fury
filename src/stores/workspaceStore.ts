@@ -67,13 +67,16 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     try {
       await archiveWorkspace(id);
       const archived = get().workspaces.find((w) => w.id === id);
+      const wasActive = get().activeWorkspaceId === id;
       set({
         workspaces: get().workspaces.filter((w) => w.id !== id),
         archivedWorkspaces: archived
           ? [...get().archivedWorkspaces, archived]
           : get().archivedWorkspaces,
-        activeWorkspaceId:
-          get().activeWorkspaceId === id ? null : get().activeWorkspaceId,
+        activeWorkspaceId: wasActive ? null : get().activeWorkspaceId,
+        activeRepoId: wasActive
+          ? (archived?.repoId ?? get().activeRepoId)
+          : get().activeRepoId,
       });
     } catch (e) {
       set({ error: String(e) });
@@ -83,11 +86,15 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
   deleteWs: async (id: string) => {
     try {
+      const deleted = get().workspaces.find((w) => w.id === id);
+      const wasActive = get().activeWorkspaceId === id;
       await deleteWorkspace(id);
       set({
         workspaces: get().workspaces.filter((w) => w.id !== id),
-        activeWorkspaceId:
-          get().activeWorkspaceId === id ? null : get().activeWorkspaceId,
+        activeWorkspaceId: wasActive ? null : get().activeWorkspaceId,
+        activeRepoId: wasActive
+          ? (deleted?.repoId ?? get().activeRepoId)
+          : get().activeRepoId,
       });
     } catch (e) {
       set({ error: String(e) });

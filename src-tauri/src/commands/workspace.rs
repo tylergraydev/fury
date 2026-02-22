@@ -99,7 +99,11 @@ pub fn create_workspace(
 #[tauri::command]
 pub fn list_workspaces(state: State<'_, AppState>) -> Result<Vec<WorkspaceInfo>, AppError> {
     let workspaces = state.workspaces.lock().unwrap();
-    Ok(workspaces.values().map(WorkspaceInfo::from).collect())
+    Ok(workspaces
+        .values()
+        .filter(|ws| ws.status != WorkspaceStatus::Archived)
+        .map(WorkspaceInfo::from)
+        .collect())
 }
 
 #[tauri::command]
