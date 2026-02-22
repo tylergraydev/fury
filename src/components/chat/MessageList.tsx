@@ -147,15 +147,7 @@ export function MessageList({
     });
   }, []);
 
-  if (messages.length === 0 && !streamingText) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          Send a message to start chatting with Claude Code
-        </p>
-      </div>
-    );
-  }
+  const { orphans, turns } = useMemo(() => segmentTurns(messages), [messages]);
 
   // Build a map of turn_index -> checkpoint for quick lookup
   const checkpointByTurn = new Map<number, Checkpoint>();
@@ -168,7 +160,15 @@ export function MessageList({
       ? Math.max(...checkpoints.map((cp) => cp.turnIndex))
       : -1;
 
-  const { orphans, turns } = useMemo(() => segmentTurns(messages), [messages]);
+  if (messages.length === 0 && !streamingText) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          Send a message to start chatting with Claude Code
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-5">
