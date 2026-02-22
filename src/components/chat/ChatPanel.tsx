@@ -81,6 +81,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
   }, [contextId]);
 
   const handleRetry = useCallback(async () => {
+    if (agentStatus === "Running" || agentStatus === "Stopping") return;
     // Find the last user message and resend it
     const allMessages = useChatStore.getState().getMessages(contextId);
     const lastUserMsg = [...allMessages].reverse().find((m) => m.role === "user");
@@ -100,7 +101,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
     } catch (e) {
       console.error("Failed to retry message:", e);
     }
-  }, [contextId, contextType]);
+  }, [contextId, contextType, agentStatus]);
 
   const handleRevert = useCallback(
     async (checkpointId: string) => {

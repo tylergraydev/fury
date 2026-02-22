@@ -85,8 +85,8 @@ export async function ensureTypesLoaded(
       typescript.typescriptDefaults.addExtraLib(lib.content, uri);
       typescript.javascriptDefaults.addExtraLib(lib.content, uri);
     }
-  } catch {
-    // Type loading is best-effort; don't block the editor
+  } catch (e) {
+    console.warn("[monaco] Failed to load type definitions:", e);
     loadedContexts.delete(key);
   }
 }

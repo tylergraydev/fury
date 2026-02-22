@@ -279,6 +279,11 @@ function handleStreamEvent(
       }
       break;
     }
+
+    default: {
+      console.warn(`[chat] Unknown stream event type: ${(event as { type: string }).type}`);
+      break;
+    }
   }
 }
 

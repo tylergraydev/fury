@@ -94,7 +94,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     try {
       const detected = await detectCursorConfig();
       set({ cursorDetected: detected });
-    } catch {
+    } catch (e) {
+      console.warn("Failed to detect Cursor config:", e);
       set({ cursorDetected: false });
     }
   },

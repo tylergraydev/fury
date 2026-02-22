@@ -31,7 +31,8 @@ pub struct DocChangeEvent {
 
 /// Extract a cloned CopilotLspHandle from AppState without holding the lock across awaits.
 fn get_handle(state: &State<'_, AppState>) -> Result<CopilotLspHandle, AppError> {
-    let guard = state.copilot.lock().unwrap();
+    let guard = state.copilot.lock()
+        .map_err(|_| AppError::CopilotError("Failed to acquire copilot lock".into()))?;
     guard
         .as_ref()
         .map(|(handle, _)| handle.clone())
@@ -46,7 +47,8 @@ pub async fn start_copilot(
 ) -> Result<(), AppError> {
     // Check if already running
     {
-        let guard = state.copilot.lock().unwrap();
+        let guard = state.copilot.lock()
+            .map_err(|_| AppError::CopilotError("Failed to acquire copilot lock".into()))?;
         if guard.is_some() {
             return Ok(());
         }
@@ -57,7 +59,8 @@ pub async fn start_copilot(
     // Re-check after the await: another call may have won the race.
     let mut cleanup = None;
     {
-        let mut guard = state.copilot.lock().unwrap();
+        let mut guard = state.copilot.lock()
+            .map_err(|_| AppError::CopilotError("Failed to acquire copilot lock".into()))?;
         if guard.is_some() {
             // Lost the race — clean up our process
             cleanup = Some((handle, child));
@@ -77,7 +80,8 @@ pub async fn start_copilot(
 #[tauri::command]
 pub async fn stop_copilot(state: State<'_, AppState>) -> Result<(), AppError> {
     let taken = {
-        let mut guard = state.copilot.lock().unwrap();
+        let mut guard = state.copilot.lock()
+            .map_err(|_| AppError::CopilotError("Failed to acquire copilot lock".into()))?;
         guard.take()
     };
 
@@ -104,12 +108,9 @@ pub async fn copilot_sign_in(
 
     let result_val = result.get("result").cloned().unwrap_or(Value::Null);
 
-    Ok(serde_json::from_value(result_val).unwrap_or(CopilotSignInResult {
-        status: "Unknown".to_string(),
-        user_code: None,
-        verification_uri: None,
-        user: None,
-    }))
+    serde_json::from_value(result_val.clone()).map_err(|e| {
+        AppError::CopilotError(format!("Failed to parse sign-in result: {} - raw: {}", e, result_val))
+    })
 }
 
 /// Check Copilot authentication status.
@@ -233,7 +234,15 @@ pub async fn copilot_complete(
         .as_array()
         .map(|arr| {
             arr.iter()
-                .filter_map(|item| serde_json::from_value(item.clone()).ok())
+                .filter_map(|item| {
+                    match serde_json::from_value::<CopilotCompletion>(item.clone()) {
+                        Ok(c) => Some(c),
+                        Err(e) => {
+                            eprintln!("[copilot] Failed to parse completion item: {} - raw: {}", e, item);
+                            None
+                        }
+                    }
+                })
                 .collect()
         })
         .unwrap_or_default();

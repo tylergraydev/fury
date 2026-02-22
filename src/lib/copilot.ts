@@ -85,7 +85,12 @@ let providerDisposable: monaco.IDisposable | null = null;
 
 function toFileUri(filePath: string): string {
   if (filePath.startsWith("file://")) return filePath;
-  return `file://${filePath}`;
+  // Handle Windows drive letter paths (e.g. C:\Users\... -> file:///C:/Users/...)
+  const normalized = filePath.replace(/\\/g, "/");
+  if (/^[a-zA-Z]:/.test(normalized)) {
+    return `file:///${normalized}`;
+  }
+  return `file://${normalized}`;
 }
 
 // --- Document sync ---
@@ -103,8 +108,8 @@ export async function notifyDocumentOpened(
 
   try {
     await copilotDidOpen({ uri, languageId, version, text: content });
-  } catch {
-    // Copilot may not be running yet
+  } catch (e) {
+    console.warn("[copilot] Failed to notify document opened (Copilot may not be running):", e);
     openDocuments.delete(uri);
   }
 }
@@ -129,8 +134,8 @@ export function notifyDocumentChanged(
       doc.version += 1;
       try {
         await copilotDidChange({ uri, version: doc.version, text: content });
-      } catch {
-        // Best-effort
+      } catch (e) {
+        console.warn("[copilot] Failed to notify document change:", e);
       }
     }, 50),
   );
@@ -143,8 +148,8 @@ export async function notifyDocumentClosed(filePath: string): Promise<void> {
   openDocuments.delete(uri);
   try {
     await copilotDidClose(uri);
-  } catch {
-    // Best-effort
+  } catch (e) {
+    console.warn("[copilot] Failed to notify document closed:", e);
   }
 }
 
@@ -183,7 +188,8 @@ export function registerCopilotProvider(): void {
                 : undefined,
             })),
           };
-        } catch {
+        } catch (e) {
+          console.warn("[copilot] Inline completion request failed:", e);
           return { items: [] };
         }
       },

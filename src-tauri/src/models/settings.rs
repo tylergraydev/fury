@@ -30,8 +30,11 @@ impl Default for AppSettings {
 #[serde(rename_all = "lowercase")]
 pub enum Theme {
     #[default]
+    #[serde(alias = "system")]
     Blend,
+    #[serde(alias = "dark")]
     Midnight,
+    #[serde(alias = "light")]
     Github,
 }
 

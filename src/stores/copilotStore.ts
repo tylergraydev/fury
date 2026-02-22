@@ -47,7 +47,7 @@ export const useCopilotStore = create<CopilotStore>((set, get) => ({
       registerCopilotProvider();
       set({ connectionStatus: "connected" });
       // Auto-check auth status
-      get().checkStatus().catch(() => {});
+      get().checkStatus().catch((e) => console.warn("[copilot] Failed to check auth status:", e));
     } catch (e) {
       set({ connectionStatus: "error", error: String(e) });
     }
@@ -58,8 +58,8 @@ export const useCopilotStore = create<CopilotStore>((set, get) => ({
     disposeCopilotProvider();
     try {
       await stopCopilot();
-    } catch {
-      // Best effort
+    } catch (e) {
+      console.warn("[copilot] Failed to stop Copilot LS:", e);
     }
     set({
       connectionStatus: "disconnected",
@@ -79,7 +79,7 @@ export const useCopilotStore = create<CopilotStore>((set, get) => ({
         result.status === "AlreadySignedIn" ||
         result.status === "OK"
       ) {
-        get().checkStatus().catch(() => {});
+        get().checkStatus().catch((e) => console.warn("[copilot] Failed to check auth status after sign-in:", e));
       } else if (result.userCode) {
         // Device flow started — poll checkStatus until signed in
         get().pollUntilSignedIn();
@@ -106,6 +106,7 @@ export const useCopilotStore = create<CopilotStore>((set, get) => ({
     pollTimer = setInterval(async () => {
       attempts++;
       if (attempts > maxAttempts) {
+        set({ error: "Sign-in verification timed out. Please try again.", signInResult: null });
         get().stopPolling();
         return;
       }
@@ -125,8 +126,8 @@ export const useCopilotStore = create<CopilotStore>((set, get) => ({
           set({ signInResult: null });
           get().stopPolling();
         }
-      } catch {
-        // Keep polling
+      } catch (e) {
+        console.warn("[copilot] Polling check-status failed:", e);
       }
     }, 5000);
   },
