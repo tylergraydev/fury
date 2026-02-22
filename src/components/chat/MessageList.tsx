@@ -30,7 +30,7 @@ export function MessageList({
 
   if (messages.length === 0 && !streamingText) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex items-center justify-center pb-4">
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
           Send a message to start chatting with Claude Code
         </p>

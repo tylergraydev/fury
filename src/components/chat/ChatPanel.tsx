@@ -93,8 +93,12 @@ export function ChatPanel({ contextId, contextType }: Props) {
     [contextId],
   );
 
+  const isEmpty = messages.length === 0 && !streamingText;
+
   return (
-    <div className="flex h-full flex-col">
+    <div
+      className={`flex h-full flex-col ${isEmpty ? "justify-center" : ""}`}
+    >
       <MessageList
         messages={messages}
         streamingText={streamingText}
