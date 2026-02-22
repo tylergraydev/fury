@@ -99,6 +99,7 @@ pub async fn spawn_and_stream(
     env_vars: HashMap<String, String>,
     linked_dirs: Vec<PathBuf>,
     system_prompt_additions: Option<&str>,
+    model: Option<&str>,
     app_handle: AppHandle,
 ) -> Result<Child, AppError> {
     let claude_bin = find_claude_binary()?;
@@ -128,6 +129,15 @@ pub async fn spawn_and_stream(
         if !prompt.is_empty() {
             args.push("--append-system-prompt".to_string());
             args.push(prompt.to_string());
+        }
+    }
+
+    // Add model override (allowlist only)
+    if let Some(m) = model {
+        const ALLOWED_MODELS: &[&str] = &["sonnet", "opus", "haiku"];
+        if ALLOWED_MODELS.contains(&m) {
+            args.push("--model".to_string());
+            args.push(m.to_string());
         }
     }
 

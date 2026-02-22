@@ -20,6 +20,7 @@ interface AgentStore {
     contextId: string,
     message: string,
     contextType?: "workspace" | "repo",
+    model?: string,
   ) => Promise<void>;
   stopAgent: (workspaceId: string) => Promise<void>;
   fetchStatus: (workspaceId: string) => Promise<void>;
@@ -73,12 +74,13 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     contextId: string,
     message: string,
     contextType: "workspace" | "repo" = "workspace",
+    model?: string,
   ) => {
     try {
       const request =
         contextType === "workspace"
-          ? { workspaceId: contextId, message }
-          : { repoId: contextId, message };
+          ? { workspaceId: contextId, message, model: model || undefined }
+          : { repoId: contextId, message, model: model || undefined };
       await sendMessageCmd(request);
     } catch (e) {
       console.error(`[agentStore] Failed to send message:`, e);

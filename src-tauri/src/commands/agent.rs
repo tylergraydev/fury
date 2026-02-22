@@ -172,6 +172,7 @@ pub async fn send_message(
         env_vars,
         linked_dirs,
         system_prompt.as_deref(),
+        request.model.as_deref(),
         app.clone(),
     )
     .await?;

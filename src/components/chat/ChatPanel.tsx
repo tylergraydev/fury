@@ -59,12 +59,12 @@ export function ChatPanel({ contextId, contextType }: Props) {
   }, [contextId, contextType]);
 
   const handleSend = useCallback(
-    async (message: string) => {
+    async (message: string, model?: string) => {
       useChatStore.getState().addUserMessage(contextId, message);
       try {
         await useAgentStore
           .getState()
-          .sendMessage(contextId, message, contextType);
+          .sendMessage(contextId, message, contextType, model);
       } catch (e) {
         console.error("Failed to send message:", e);
       }

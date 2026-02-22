@@ -1,10 +1,17 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Send, Square } from "lucide-react";
+import { Send, Square, ChevronDown } from "lucide-react";
 import type { AgentStatus, SlashCommand } from "../../lib/tauri";
 import { useTodoStore } from "../../stores/todoStore";
 import { useSlashCommandStore } from "../../stores/slashCommandStore";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
 import { BUILTIN_COMMANDS, type BuiltinCommand } from "../../lib/builtinCommands";
+
+const MODEL_OPTIONS = [
+  { value: "", label: "Default" },
+  { value: "sonnet", label: "Sonnet" },
+  { value: "opus", label: "Opus" },
+  { value: "haiku", label: "Haiku" },
+] as const;
 
 const EMPTY_COMMANDS: SlashCommand[] = [];
 const EMPTY_FILES: string[] = [];
@@ -19,13 +26,14 @@ interface Props {
   contextId: string;
   contextType: "workspace" | "repo";
   agentStatus: AgentStatus;
-  onSend: (message: string) => void;
+  onSend: (message: string, model?: string) => void;
   onStop: () => void;
 }
 
 export function Composer({ contextId, contextType, agentStatus, onSend, onStop }: Props) {
   const workspaceId = contextType === "workspace" ? contextId : undefined;
   const [text, setText] = useState("");
+  const [selectedModel, setSelectedModel] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Slash command autocomplete state
@@ -98,7 +106,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop }
       message = message.replace(/@todos/g, todosText);
     }
 
-    onSend(message);
+    onSend(message, selectedModel || undefined);
     setText("");
     setShowSlashMenu(false);
     setShowAtMenu(false);
@@ -106,7 +114,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop }
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-  }, [canSend, text, onSend, workspaceId]);
+  }, [canSend, text, onSend, workspaceId, selectedModel]);
 
   const selectSlashCommand = useCallback(
     (cmd: SlashCommand) => {
@@ -285,11 +293,36 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop }
         />
         <span style={{ color: "var(--text-muted)" }}>{statusLabel}</span>
 
+        {/* Model selector */}
+        <div className="relative ml-auto">
+          <select
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            disabled={isRunning || isStopping}
+            className="appearance-none rounded py-0.5 pl-2 pr-5 text-[11px] cursor-pointer"
+            style={{
+              backgroundColor: "var(--bg-surface)",
+              color: selectedModel ? "var(--accent)" : "var(--text-muted)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            {MODEL_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            className="pointer-events-none absolute right-1 top-1/2 h-3 w-3 -translate-y-1/2"
+            style={{ color: "var(--text-muted)" }}
+          />
+        </div>
+
         {(isRunning || isStopping) && (
           <button
             onClick={onStop}
             disabled={isStopping}
-            className="ml-auto flex items-center gap-1 rounded px-2 py-0.5 text-[10px]"
+            className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px]"
             style={{
               backgroundColor: "rgba(243, 139, 168, 0.15)",
               color: "var(--error)",
