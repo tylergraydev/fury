@@ -13,6 +13,8 @@ test.describe("Tool Calls", () => {
     await expect(
       appPage.getByText("/add-auth", { exact: true }),
     ).toBeVisible();
+    // Completed turns are collapsed — expand to see tool call badges
+    await appPage.getByText("2 tool calls").first().click();
   });
 
   test("expand tool call shows input and result sections", async ({
@@ -117,6 +119,9 @@ test.describe("Tool Calls", () => {
 
     await emitResult(appPage, "ws-auth");
     await emitAgentStatus(appPage, "ws-auth", "Idle");
+
+    // The new completed turn is collapsed — expand it
+    await appPage.locator("button", { hasText: /\d+ tool call/ }).last().click();
 
     // Glob and Bash tool badges should appear
     await expect(
