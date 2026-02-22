@@ -206,7 +206,13 @@ export function Sidebar() {
                           })
                         }
                         onRename={(newName) => renameWs(ws.id, newName)}
-                        onArchive={() => archiveWs(ws.id)}
+                        onArchive={async () => {
+                          try {
+                            await archiveWs(ws.id);
+                          } catch (e) {
+                            setRepoError(`Failed to archive "${ws.name}": ${String(e)}`);
+                          }
+                        }}
                       />
                     ))}
                   </>

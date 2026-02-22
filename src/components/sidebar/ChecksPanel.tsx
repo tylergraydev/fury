@@ -30,12 +30,6 @@ function CheckRow({ check }: { check: PrCheck }) {
       ? "var(--error)"
       : "var(--text-muted)";
 
-  const conclusionColor = isSuccess
-    ? "var(--success)"
-    : isFailure
-      ? "var(--error)"
-      : "var(--text-muted)";
-
   const content = (
     <>
       <span
@@ -53,7 +47,7 @@ function CheckRow({ check }: { check: PrCheck }) {
       )}
       <span
         className="ml-auto flex-shrink-0"
-        style={{ color: conclusionColor }}
+        style={{ color: dotColor }}
       >
         {check.conclusion?.toLowerCase() ?? "pending"}
       </span>
