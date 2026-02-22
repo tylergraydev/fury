@@ -226,11 +226,11 @@
       return handler;
     }
     if (cmd === "plugin:event|emit") {
-      const { event: eventName } = args;
+      const { event: eventName, payload } = args;
       const listeners = eventListeners.get(eventName);
       if (listeners) {
         for (const handlerId of listeners) {
-          runCallback(handlerId, args);
+          runCallback(handlerId, { event: eventName, payload });
         }
       }
       return null;
@@ -272,7 +272,7 @@
     switch (cmd) {
       // Repositories
       case "list_repositories":
-        return REPOS;
+        return [...REPOS];
       case "add_repository":
         return { id: "repo-new", name: "new-repo", path: args.path, defaultBranch: "main", currentBranch: "main" };
       case "remove_repository":
@@ -286,7 +286,7 @@
 
       // Workspaces
       case "list_workspaces":
-        return WORKSPACES;
+        return [...WORKSPACES];
       case "list_archived_workspaces":
         return [];
       case "create_workspace":

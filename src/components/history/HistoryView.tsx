@@ -15,7 +15,7 @@ import { useAgentStore } from "../../stores/agentStore";
 import type { GitLogEntry } from "../../lib/tauri";
 
 // Stable empty-array references to avoid infinite re-render loops
-// with Zustand 5 + React 18's useSyncExternalStore.
+// with Zustand 5's useSyncExternalStore integration.
 const EMPTY_MESSAGES: never[] = [];
 const EMPTY_CHECKPOINTS: never[] = [];
 const EMPTY_GIT_LOG: GitLogEntry[] = [];
