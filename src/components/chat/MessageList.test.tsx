@@ -9,8 +9,8 @@ beforeEach(() => {
 });
 
 vi.mock("./MessageBubble", () => ({
-  MessageBubble: ({ message }: { message: ChatMessage }) => (
-    <div data-testid={`msg-${message.id}`}>{message.content}</div>
+  MessageBubble: ({ message }: any) => (
+    <div data-testid={`msg-${message.id}`}>{message.content.map((c: any) => c.text).join("")}</div>
   ),
 }));
 
@@ -24,10 +24,15 @@ function makeMsg(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {
     id: "msg-1",
     role: "user",
-    content: "hello",
-    timestamp: "2025-01-01T00:00:00Z",
+    content: [{ type: "text" as const, text: "hello" }],
+    timestamp: Date.now(),
     ...overrides,
-  } as ChatMessage;
+  };
+}
+
+type ContentInput = ChatMessage["content"];
+function txt(text: string): ContentInput {
+  return [{ type: "text" as const, text }];
 }
 
 describe("MessageList", () => {
@@ -44,8 +49,8 @@ describe("MessageList", () => {
 
   it("renders messages", () => {
     const msgs = [
-      makeMsg({ id: "m1", content: "hello" }),
-      makeMsg({ id: "m2", role: "assistant", content: "hi" }),
+      makeMsg({ id: "m1", content: txt("hello") }),
+      makeMsg({ id: "m2", role: "assistant", content: txt("hi") }),
     ];
     render(
       <MessageList messages={msgs} streamingText="" agentStatus="Idle" />,

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { applyTheme, getThemeNames, type ThemeName } from "./themes";
+import { applyTheme, getThemeNames } from "./themes";
 
 beforeEach(() => {
   // Clear any previously set CSS vars

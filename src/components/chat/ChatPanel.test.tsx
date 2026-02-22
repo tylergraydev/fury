@@ -17,7 +17,7 @@ vi.mock("./MessageList", () => ({
 }));
 
 vi.mock("./Composer", () => ({
-  Composer: ({ contextId, agentStatus, onSend, onStop }: any) => (
+  Composer: ({ contextId, onSend, onStop }: any) => (
     <div data-testid="composer">
       <span data-testid="composer-ctx">{contextId}</span>
       <button data-testid="send-btn" onClick={() => onSend("test message")}>Send</button>
@@ -87,7 +87,7 @@ describe("ChatPanel", () => {
 
   it("passes agent status from agent store", () => {
     useAgentStore.setState({
-      agents: { "ws-1": { status: "Running", sessionId: null, startedAt: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null } },
     });
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     expect(screen.getByTestId("agent-status")).toHaveTextContent("Running");

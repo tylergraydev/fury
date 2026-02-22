@@ -11,7 +11,6 @@ vi.mock("../lib/tauri", () => ({
 import { useScriptStore } from "./scriptStore";
 import {
   runScript as runScriptCmd,
-  stopScript as stopScriptCmd,
   runRepoScript as runRepoScriptCmd,
 } from "../lib/tauri";
 

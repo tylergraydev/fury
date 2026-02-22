@@ -40,8 +40,8 @@ describe("FileTabBar", () => {
   it("renders file tabs with file names", () => {
     useFileViewerStore.setState({
       tabs: [
-        { id: "tab-1", filePath: "src/main.ts", pinned: false, dirty: false, saving: false },
-        { id: "tab-2", filePath: "src/app.tsx", pinned: false, dirty: false, saving: false },
+        { id: "tab-1", filePath: "src/main.ts", contextId: "ws-1", contextType: "workspace", content: null, editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: false, dirty: false },
+        { id: "tab-2", filePath: "src/app.tsx", contextId: "ws-1", contextType: "workspace", content: null, editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: false, dirty: false },
       ],
       activeTabId: null,
     });
@@ -53,7 +53,7 @@ describe("FileTabBar", () => {
   it("shows dirty indicator for unsaved files", () => {
     useFileViewerStore.setState({
       tabs: [
-        { id: "tab-1", filePath: "src/main.ts", pinned: false, dirty: true, saving: false },
+        { id: "tab-1", filePath: "src/main.ts", contextId: "ws-1", contextType: "workspace", content: null, editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: false, dirty: true },
       ],
       activeTabId: "tab-1",
     });
@@ -64,7 +64,7 @@ describe("FileTabBar", () => {
   it("shows saving indicator", () => {
     useFileViewerStore.setState({
       tabs: [
-        { id: "tab-1", filePath: "src/main.ts", pinned: false, dirty: false, saving: true },
+        { id: "tab-1", filePath: "src/main.ts", contextId: "ws-1", contextType: "workspace", content: null, editedContent: null, language: "typescript", loading: false, saving: true, error: null, pinned: false, dirty: false },
       ],
       activeTabId: null,
     });

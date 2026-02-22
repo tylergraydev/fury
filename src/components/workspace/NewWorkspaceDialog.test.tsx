@@ -31,7 +31,7 @@ beforeEach(() => {
     workspaces: [],
     activeWorkspaceId: null,
   });
-  useAgentStore.setState({ statuses: {} });
+  useAgentStore.setState({ agents: {} });
   vi.clearAllMocks();
 });
 

@@ -20,7 +20,6 @@ import {
   readWorkspaceFile,
   readRepoFile,
   writeWorkspaceFile,
-  writeRepoFile,
 } from "../lib/tauri";
 import { notifyDocumentClosed } from "../lib/copilot";
 

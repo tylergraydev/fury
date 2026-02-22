@@ -64,7 +64,7 @@ describe("MergeView", () => {
 
   it("shows conflict count badge when conflicts exist", () => {
     useMergeStore.setState({
-      conflictedFiles: { "ws-1": ["file1.ts", "file2.ts"] },
+      conflictedFiles: { "ws-1": [{ path: "file1.ts", conflictType: "BothModified" }, { path: "file2.ts", conflictType: "BothModified" }] },
     });
     render(<MergeView workspaceId="ws-1" />);
     expect(screen.getByText("2")).toBeInTheDocument();

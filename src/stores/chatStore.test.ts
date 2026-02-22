@@ -299,7 +299,7 @@ describe("chatStore - stream events", () => {
   beforeEach(async () => {
     vi.mocked(listen).mockImplementation(async (_channel, handler) => {
       handleEvent = handler as any;
-      return vi.fn();
+      return () => {};
     });
     vi.mocked(listChatMessages).mockResolvedValue([]);
     vi.mocked(saveChatMessage).mockResolvedValue(undefined);
@@ -450,7 +450,7 @@ describe("chatStore - formatErrorMessage (via result events)", () => {
   beforeEach(async () => {
     vi.mocked(listen).mockImplementation(async (_channel, handler) => {
       handleEvent = handler as any;
-      return vi.fn();
+      return () => {};
     });
     vi.mocked(listChatMessages).mockResolvedValue([]);
     vi.mocked(saveChatMessage).mockResolvedValue(undefined);

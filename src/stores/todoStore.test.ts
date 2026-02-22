@@ -181,7 +181,7 @@ describe("todoStore - toggleTodo (optimistic)", () => {
     useTodoStore.setState({
       todos: { "ws-1": [makeTodo({ id: "t1", completed: false })] as any },
     });
-    vi.mocked(toggleTodo).mockResolvedValue(undefined);
+    vi.mocked(toggleTodo).mockResolvedValue(true);
 
     await useTodoStore.getState().toggleTodo("ws-1", "t1");
 

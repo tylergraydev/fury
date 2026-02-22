@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { NotesPanel } from "./NotesPanel";
 import { useTodoStore } from "../../stores/todoStore";
 
@@ -41,8 +41,8 @@ describe("NotesPanel", () => {
     useTodoStore.setState({
       todos: {
         "ws-1": [
-          { id: "t1", text: "Task 1", completed: true, workspaceId: "ws-1" },
-          { id: "t2", text: "Task 2", completed: false, workspaceId: "ws-1" },
+          { id: "t1", text: "Task 1", completed: true, workspaceId: "ws-1", sortOrder: 0 },
+          { id: "t2", text: "Task 2", completed: false, workspaceId: "ws-1", sortOrder: 1 },
         ],
       },
     });
@@ -54,7 +54,7 @@ describe("NotesPanel", () => {
     useTodoStore.setState({
       todos: {
         "ws-1": [
-          { id: "t1", text: "Task 1", completed: false, workspaceId: "ws-1" },
+          { id: "t1", text: "Task 1", completed: false, workspaceId: "ws-1", sortOrder: 0 },
         ],
       },
     });
@@ -66,7 +66,7 @@ describe("NotesPanel", () => {
     useTodoStore.setState({
       todos: {
         "ws-1": [
-          { id: "t1", text: "Task 1", completed: true, workspaceId: "ws-1" },
+          { id: "t1", text: "Task 1", completed: true, workspaceId: "ws-1", sortOrder: 0 },
         ],
       },
     });
@@ -78,8 +78,8 @@ describe("NotesPanel", () => {
     useTodoStore.setState({
       todos: {
         "ws-1": [
-          { id: "t1", text: "Buy milk", completed: false, workspaceId: "ws-1" },
-          { id: "t2", text: "Write tests", completed: true, workspaceId: "ws-1" },
+          { id: "t1", text: "Buy milk", completed: false, workspaceId: "ws-1", sortOrder: 0 },
+          { id: "t2", text: "Write tests", completed: true, workspaceId: "ws-1", sortOrder: 1 },
         ],
       },
     });

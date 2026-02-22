@@ -27,8 +27,8 @@ beforeEach(() => {
     prInfo: {},
     loading: {},
     error: {},
-    listeners: {},
-    polling: {},
+    subscriptions: {},
+    pollIntervals: {},
   });
   useWorkspaceStore.setState({
     workspaces: [
@@ -50,6 +50,7 @@ describe("ChecksPanel", () => {
     usePrStore.setState({
       prInfo: {
         "ws-1": {
+          workspaceId: "ws-1",
           prNumber: 42,
           title: "My PR",
           state: "OPEN",
@@ -68,12 +69,13 @@ describe("ChecksPanel", () => {
     usePrStore.setState({
       prInfo: {
         "ws-1": {
+          workspaceId: "ws-1",
           prNumber: 1,
           title: "PR",
           state: "OPEN",
           checks: [
-            { name: "CI Build", conclusion: "SUCCESS", status: "COMPLETED", detailsUrl: null },
-            { name: "Lint", conclusion: "FAILURE", status: "COMPLETED", detailsUrl: null },
+            { name: "CI Build", conclusion: "SUCCESS", status: "COMPLETED", detailsUrl: null, description: null },
+            { name: "Lint", conclusion: "FAILURE", status: "COMPLETED", detailsUrl: null, description: null },
           ],
           mergeable: null,
           prUrl: null,
@@ -89,11 +91,12 @@ describe("ChecksPanel", () => {
     usePrStore.setState({
       prInfo: {
         "ws-1": {
+          workspaceId: "ws-1",
           prNumber: 1,
           title: "PR",
           state: "OPEN",
           checks: [
-            { name: "CI", conclusion: "FAILURE", status: "COMPLETED", detailsUrl: null },
+            { name: "CI", conclusion: "FAILURE", status: "COMPLETED", detailsUrl: null, description: null },
           ],
           mergeable: null,
           prUrl: null,
@@ -108,6 +111,7 @@ describe("ChecksPanel", () => {
     usePrStore.setState({
       prInfo: {
         "ws-1": {
+          workspaceId: "ws-1",
           prNumber: 10,
           title: "Merged PR",
           state: "MERGED",
@@ -125,6 +129,7 @@ describe("ChecksPanel", () => {
     usePrStore.setState({
       prInfo: {
         "ws-1": {
+          workspaceId: "ws-1",
           prNumber: 1,
           title: "PR",
           state: "OPEN",

@@ -51,7 +51,8 @@ describe("HistoryView", () => {
       gitLog: {
         "ws-1": [
           {
-            sha: "abc123",
+            hash: "abc1234",
+            fullHash: "abc1234567890",
             message: "Initial commit",
             author: "John",
             timestamp: "2025-01-01T00:00:00Z",

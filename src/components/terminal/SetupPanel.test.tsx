@@ -16,7 +16,7 @@ beforeEach(() => {
     output: {},
     running: {},
     exitCodes: {},
-    listeners: {},
+    subscriptions: {},
   });
   vi.clearAllMocks();
 });

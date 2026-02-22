@@ -99,7 +99,7 @@ describe("prStore - subscribe", () => {
       if (channel === "pr-updated:ws-1") {
         updatedHandler = handler;
       }
-      return vi.fn();
+      return () => {};
     });
 
     await usePrStore.getState().subscribe("ws-1");
