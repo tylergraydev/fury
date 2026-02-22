@@ -84,12 +84,35 @@ describe("settingsStore - MCP servers", () => {
     expect(listMcpServers).toHaveBeenCalled();
   });
 
+  it("addMcpServer sets error and throws on failure", async () => {
+    vi.mocked(addMcpServer).mockRejectedValue(new Error("add mcp fail"));
+    await expect(
+      useSettingsStore.getState().addMcpServer({ name: "s" } as any),
+    ).rejects.toThrow("add mcp fail");
+    expect(useSettingsStore.getState().error).toBe("Error: add mcp fail");
+  });
+
   it("removeMcpServer calls command then reloads", async () => {
     vi.mocked(removeMcpServer).mockResolvedValue(undefined);
     vi.mocked(listMcpServers).mockResolvedValue([]);
     await useSettingsStore.getState().removeMcpServer({ name: "s" } as any);
     expect(removeMcpServer).toHaveBeenCalledWith({ name: "s" });
     expect(listMcpServers).toHaveBeenCalled();
+  });
+
+  it("removeMcpServer sets error and throws on failure", async () => {
+    vi.mocked(removeMcpServer).mockRejectedValue(new Error("rm mcp fail"));
+    await expect(
+      useSettingsStore.getState().removeMcpServer({ name: "s" } as any),
+    ).rejects.toThrow("rm mcp fail");
+    expect(useSettingsStore.getState().error).toBe("Error: rm mcp fail");
+  });
+
+  it("loadMcpServers sets error on failure", async () => {
+    vi.mocked(listMcpServers).mockRejectedValue(new Error("load mcp fail"));
+    await useSettingsStore.getState().loadMcpServers();
+    expect(useSettingsStore.getState().error).toBe("Error: load mcp fail");
+    expect(useSettingsStore.getState().loading).toBe(false);
   });
 });
 
@@ -114,5 +137,13 @@ describe("settingsStore - Cursor config", () => {
     const res = await useSettingsStore.getState().importCursor();
     expect(res).toEqual(result);
     expect(listMcpServers).toHaveBeenCalled();
+  });
+
+  it("importCursor sets error and throws on failure", async () => {
+    vi.mocked(importCursorConfig).mockRejectedValue(new Error("import fail"));
+    await expect(
+      useSettingsStore.getState().importCursor(),
+    ).rejects.toThrow("import fail");
+    expect(useSettingsStore.getState().error).toBe("Error: import fail");
   });
 });

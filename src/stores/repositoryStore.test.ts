@@ -73,6 +73,14 @@ describe("repositoryStore - cloneRepo", () => {
     expect(result).toEqual(repo);
     expect(cloneRepository).toHaveBeenCalledWith("url", "/p");
   });
+
+  it("sets error and throws on failure", async () => {
+    vi.mocked(cloneRepository).mockRejectedValue(new Error("clone fail"));
+    await expect(
+      useRepositoryStore.getState().cloneRepo("url", "/p"),
+    ).rejects.toThrow("clone fail");
+    expect(useRepositoryStore.getState().error).toBe("Error: clone fail");
+  });
 });
 
 describe("repositoryStore - initRepo", () => {
@@ -84,6 +92,14 @@ describe("repositoryStore - initRepo", () => {
       .initRepo("/p", "my-repo");
     expect(result).toEqual(repo);
     expect(initRepository).toHaveBeenCalledWith("/p", "my-repo");
+  });
+
+  it("sets error and throws on failure", async () => {
+    vi.mocked(initRepository).mockRejectedValue(new Error("init fail"));
+    await expect(
+      useRepositoryStore.getState().initRepo("/p", "my-repo"),
+    ).rejects.toThrow("init fail");
+    expect(useRepositoryStore.getState().error).toBe("Error: init fail");
   });
 });
 

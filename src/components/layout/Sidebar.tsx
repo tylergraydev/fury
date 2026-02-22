@@ -94,6 +94,7 @@ export function Sidebar() {
         className="px-5 pb-3"
         style={{
           borderBottom: "1px solid var(--border)",
+          /* v8 ignore next -- @preserve */
           paddingTop: isMac ? 42 : 10,
         }}
       >

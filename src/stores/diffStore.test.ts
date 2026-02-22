@@ -67,6 +67,29 @@ describe("diffStore - loadRepoDiff", () => {
     await useDiffStore.getState().loadRepoDiff("repo-1");
     expect(useDiffStore.getState().diffResults["repo-1"]).toEqual(result);
   });
+
+  it("sets error on failure", async () => {
+    vi.mocked(getRepoDiff).mockRejectedValue(new Error("repo diff fail"));
+    await useDiffStore.getState().loadRepoDiff("repo-1");
+    expect(useDiffStore.getState().error).toBe("Error: repo diff fail");
+    expect(useDiffStore.getState().loading).toBe(false);
+  });
+});
+
+describe("diffStore - loadRepoFileDiff", () => {
+  it("loads repo file diff content", async () => {
+    const content = { before: "old", after: "new" };
+    vi.mocked(getRepoFileDiff).mockResolvedValue(content as any);
+    await useDiffStore.getState().loadRepoFileDiff("repo-1", "main.rs");
+    expect(useDiffStore.getState().fileDiffs["repo-1:main.rs"]).toEqual(content);
+  });
+
+  it("sets error on failure", async () => {
+    vi.mocked(getRepoFileDiff).mockRejectedValue(new Error("repo file fail"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await useDiffStore.getState().loadRepoFileDiff("repo-1", "main.rs");
+    expect(useDiffStore.getState().error).toBe("Error: repo file fail");
+  });
 });
 
 describe("diffStore - selectFile", () => {
@@ -118,5 +141,22 @@ describe("diffStore - refresh", () => {
     vi.mocked(getDiff).mockResolvedValue({ files: [] } as any);
     await useDiffStore.getState().refresh("ws-1");
     expect(getFileDiff).not.toHaveBeenCalled();
+  });
+});
+
+describe("diffStore - refreshRepo", () => {
+  it("reloads repo diff and selected file diff", async () => {
+    vi.mocked(getRepoDiff).mockResolvedValue({ files: [] } as any);
+    vi.mocked(getRepoFileDiff).mockResolvedValue({} as any);
+    useDiffStore.setState({ selectedFile: { "repo-1": "main.rs" } });
+    await useDiffStore.getState().refreshRepo("repo-1");
+    expect(getRepoDiff).toHaveBeenCalledWith("repo-1");
+    expect(getRepoFileDiff).toHaveBeenCalledWith("repo-1", "main.rs");
+  });
+
+  it("skips file diff reload when no file is selected", async () => {
+    vi.mocked(getRepoDiff).mockResolvedValue({ files: [] } as any);
+    await useDiffStore.getState().refreshRepo("repo-1");
+    expect(getRepoFileDiff).not.toHaveBeenCalled();
   });
 });

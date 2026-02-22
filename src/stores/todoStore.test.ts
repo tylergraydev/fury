@@ -114,6 +114,40 @@ describe("todoStore - updateTodo", () => {
     expect(useTodoStore.getState().todos["ws-1"][0].text).toBe("new");
   });
 
+  it("handles update for workspace with no todos (empty fallback)", async () => {
+    vi.mocked(updateTodo).mockResolvedValue(undefined);
+
+    await useTodoStore.getState().updateTodo({
+      id: "t1",
+      workspaceId: "ws-unknown",
+      text: "new",
+    });
+
+    // Should have empty array since no matching todo was found
+    expect(useTodoStore.getState().todos["ws-unknown"]).toEqual([]);
+  });
+
+  it("leaves non-matching todos unchanged", async () => {
+    useTodoStore.setState({
+      todos: {
+        "ws-1": [
+          makeTodo({ id: "t1", text: "one" }),
+          makeTodo({ id: "t2", text: "two" }),
+        ] as any,
+      },
+    });
+    vi.mocked(updateTodo).mockResolvedValue(undefined);
+
+    await useTodoStore.getState().updateTodo({
+      id: "t1",
+      workspaceId: "ws-1",
+      text: "updated",
+    });
+
+    expect(useTodoStore.getState().todos["ws-1"][0].text).toBe("updated");
+    expect(useTodoStore.getState().todos["ws-1"][1].text).toBe("two");
+  });
+
   it("updates a todo's completed status", async () => {
     useTodoStore.setState({
       todos: {
@@ -150,6 +184,12 @@ describe("todoStore - updateTodo", () => {
 });
 
 describe("todoStore - deleteTodo (optimistic)", () => {
+  it("handles deletion from unknown workspace (empty prev)", async () => {
+    vi.mocked(deleteTodo).mockResolvedValue(undefined);
+    await useTodoStore.getState().deleteTodo("ws-unknown", "t1");
+    expect(useTodoStore.getState().todos["ws-unknown"]).toEqual([]);
+  });
+
   it("removes todo optimistically", async () => {
     useTodoStore.setState({
       todos: {
@@ -177,6 +217,27 @@ describe("todoStore - deleteTodo (optimistic)", () => {
 });
 
 describe("todoStore - toggleTodo (optimistic)", () => {
+  it("handles toggle from unknown workspace (empty prev)", async () => {
+    vi.mocked(toggleTodo).mockResolvedValue(true);
+    await useTodoStore.getState().toggleTodo("ws-unknown", "t1");
+    expect(useTodoStore.getState().todos["ws-unknown"]).toEqual([]);
+  });
+
+  it("leaves non-matching todos unchanged during toggle", async () => {
+    useTodoStore.setState({
+      todos: {
+        "ws-1": [
+          makeTodo({ id: "t1", completed: false }),
+          makeTodo({ id: "t2", completed: true }),
+        ] as any,
+      },
+    });
+    vi.mocked(toggleTodo).mockResolvedValue(true);
+    await useTodoStore.getState().toggleTodo("ws-1", "t1");
+    expect(useTodoStore.getState().todos["ws-1"][0].completed).toBe(true);
+    expect(useTodoStore.getState().todos["ws-1"][1].completed).toBe(true); // unchanged
+  });
+
   it("toggles completed optimistically", async () => {
     useTodoStore.setState({
       todos: { "ws-1": [makeTodo({ id: "t1", completed: false })] as any },
@@ -202,6 +263,12 @@ describe("todoStore - toggleTodo (optimistic)", () => {
 });
 
 describe("todoStore - reorderTodos (optimistic)", () => {
+  it("handles reorder from unknown workspace (empty prev)", async () => {
+    vi.mocked(reorderTodos).mockResolvedValue(undefined);
+    await useTodoStore.getState().reorderTodos("ws-unknown", ["t1", "t2"]);
+    expect(useTodoStore.getState().todos["ws-unknown"]).toEqual([]);
+  });
+
   it("reorders todos optimistically", async () => {
     const t1 = makeTodo({ id: "t1", sortOrder: 0 });
     const t2 = makeTodo({ id: "t2", sortOrder: 1 });

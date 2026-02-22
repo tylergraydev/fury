@@ -11,7 +11,9 @@ vi.mock("../lib/tauri", () => ({
 import { useScriptStore } from "./scriptStore";
 import {
   runScript as runScriptCmd,
+  stopScript as stopScriptCmd,
   runRepoScript as runRepoScriptCmd,
+  stopRepoScript as stopRepoScriptCmd,
 } from "../lib/tauri";
 
 const mockListen = vi.mocked(listen);
@@ -75,6 +77,11 @@ describe("scriptStore - subscribe", () => {
 });
 
 describe("scriptStore - unsubscribe", () => {
+  it("is a no-op for non-existent key", () => {
+    useScriptStore.getState().unsubscribe("non-existent", "setup");
+    expect(useScriptStore.getState().subscriptions).toEqual({});
+  });
+
   it("calls both unlisten functions", async () => {
     const unsub1 = vi.fn();
     const unsub2 = vi.fn();
@@ -103,6 +110,32 @@ describe("scriptStore - runScript", () => {
       "[error]",
     );
   });
+
+  it("handles error when output key was cleared externally", async () => {
+    vi.mocked(runScriptCmd).mockImplementation(async () => {
+      // Simulate the output being cleared during the async operation
+      useScriptStore.setState({ output: {} });
+      throw new Error("fail after clear");
+    });
+    await useScriptStore.getState().runScript("ws-1", "setup");
+    expect(useScriptStore.getState().running["ws-1:setup"]).toBe(false);
+    expect(useScriptStore.getState().output["ws-1:setup"][0]).toContain("[error]");
+  });
+});
+
+describe("scriptStore - stopScript", () => {
+  it("calls stopScript command", async () => {
+    vi.mocked(stopScriptCmd).mockResolvedValue(undefined);
+    await useScriptStore.getState().stopScript("ws-1", "setup");
+    expect(stopScriptCmd).toHaveBeenCalledWith("ws-1", "setup");
+  });
+
+  it("swallows errors from stopScript", async () => {
+    vi.mocked(stopScriptCmd).mockRejectedValue(new Error("stop fail"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await useScriptStore.getState().stopScript("ws-1", "setup");
+    // Should not throw
+  });
 });
 
 describe("scriptStore - runRepoScript", () => {
@@ -111,6 +144,40 @@ describe("scriptStore - runRepoScript", () => {
     await useScriptStore.getState().runRepoScript("repo-1", "setup");
     expect(runRepoScriptCmd).toHaveBeenCalledWith("repo-1", "setup");
     expect(useScriptStore.getState().running["repo-1:setup"]).toBe(true);
+  });
+
+  it("handles error by setting running=false and appending error", async () => {
+    vi.mocked(runRepoScriptCmd).mockRejectedValue(new Error("repo fail"));
+    await useScriptStore.getState().runRepoScript("repo-1", "setup");
+    expect(useScriptStore.getState().running["repo-1:setup"]).toBe(false);
+    expect(useScriptStore.getState().output["repo-1:setup"][0]).toContain(
+      "[error]",
+    );
+  });
+
+  it("handles error when output key was cleared externally (uses ?? [] fallback)", async () => {
+    vi.mocked(runRepoScriptCmd).mockImplementation(async () => {
+      useScriptStore.setState({ output: {} });
+      throw new Error("fail after clear");
+    });
+    await useScriptStore.getState().runRepoScript("repo-1", "setup");
+    expect(useScriptStore.getState().running["repo-1:setup"]).toBe(false);
+    expect(useScriptStore.getState().output["repo-1:setup"][0]).toContain("[error]");
+  });
+});
+
+describe("scriptStore - stopRepoScript", () => {
+  it("calls stopRepoScript command", async () => {
+    vi.mocked(stopRepoScriptCmd).mockResolvedValue(undefined);
+    await useScriptStore.getState().stopRepoScript("repo-1", "setup");
+    expect(stopRepoScriptCmd).toHaveBeenCalledWith("repo-1", "setup");
+  });
+
+  it("swallows errors from stopRepoScript", async () => {
+    vi.mocked(stopRepoScriptCmd).mockRejectedValue(new Error("stop repo fail"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await useScriptStore.getState().stopRepoScript("repo-1", "setup");
+    // Should not throw
   });
 });
 

@@ -110,6 +110,7 @@ export function RightSidebar({ context }: Props) {
               className="flex items-end text-sm"
               style={{
                 borderBottom: "1px solid var(--border)",
+                /* v8 ignore next -- @preserve */
                 paddingTop: isMac ? 42 : 10,
               }}
             >

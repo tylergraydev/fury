@@ -84,4 +84,39 @@ describe("TopBar", () => {
     const dot = screen.getByTitle("Agent error");
     expect(dot).toBeInTheDocument();
   });
+
+  it("falls back to defaultBranch when currentBranch is null (repo only)", () => {
+    const repoWithNoBranch: Repository = {
+      ...mockRepo,
+      currentBranch: null,
+    };
+    render(<TopBar activeWs={undefined} activeRepo={repoWithNoBranch} />);
+    // Should show defaultBranch ("main") instead of currentBranch
+    expect(screen.getByText("main")).toBeInTheDocument();
+  });
+
+  it("renders with isMac padding (line 41 branch)", () => {
+    // The paddingTop is computed based on isMac - just verify the component renders
+    const { container } = render(<TopBar activeWs={undefined} activeRepo={undefined} />);
+    const topBar = container.firstElementChild as HTMLElement;
+    expect(topBar).toHaveAttribute("data-tauri-drag-region");
+    // paddingTop is either 42 (mac) or 10 (non-mac) - just verify it's rendered
+    expect(topBar.style.paddingTop).toBeTruthy();
+  });
+
+  it("shows agent status dot for repo-only context", () => {
+    useAgentStore.setState({
+      agents: {
+        "repo-1": {
+          workspaceId: "repo-1",
+          sessionId: "s1",
+          status: "Running",
+          startedAt: null,
+        },
+      },
+    });
+    render(<TopBar activeWs={undefined} activeRepo={mockRepo} />);
+    const dot = screen.getByTitle("Agent running");
+    expect(dot).toBeInTheDocument();
+  });
 });

@@ -78,9 +78,25 @@ describe("checkpointStore - subscribe", () => {
     expect(cps).toHaveLength(2);
     expect(useCheckpointStore.getState().revertedTurnIndex["ws-1"]).toBe(1);
   });
+
+  it("handles reverted event when no checkpoints exist (uses empty array fallback)", async () => {
+    mockListen.mockResolvedValue(vi.fn());
+    // Subscribe without any pre-existing checkpoints
+    await useCheckpointStore.getState().subscribe("ws-1");
+    const revertedCallback = mockListen.mock.calls[1][1] as (e: any) => void;
+    revertedCallback({ payload: { turnIndex: 0 } });
+    const cps = useCheckpointStore.getState().checkpoints["ws-1"];
+    expect(cps).toEqual([]);
+    expect(useCheckpointStore.getState().revertedTurnIndex["ws-1"]).toBe(0);
+  });
 });
 
 describe("checkpointStore - unsubscribe", () => {
+  it("is a no-op for non-existent workspace", () => {
+    useCheckpointStore.getState().unsubscribe("non-existent");
+    expect(useCheckpointStore.getState().subscriptions).toEqual({});
+  });
+
   it("calls both unlisten functions", async () => {
     const unsub1 = vi.fn();
     const unsub2 = vi.fn();

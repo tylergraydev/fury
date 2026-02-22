@@ -76,4 +76,9 @@ describe("slashCommandStore - findMatching", () => {
     const result = useSlashCommandStore.getState().findMatching("ws-1", "/z");
     expect(result).toHaveLength(0);
   });
+
+  it("returns empty array for unknown context", () => {
+    const result = useSlashCommandStore.getState().findMatching("unknown", "/h");
+    expect(result).toEqual([]);
+  });
 });

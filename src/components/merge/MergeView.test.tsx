@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { MergeView } from "./MergeView";
+import { MergeView, MergeViewWrapper } from "./MergeView";
 import { useMergeStore } from "../../stores/mergeStore";
 
 vi.mock("lucide-react", () => ({
@@ -68,5 +68,22 @@ describe("MergeView", () => {
     });
     render(<MergeView workspaceId="ws-1" />);
     expect(screen.getByText("2")).toBeInTheDocument();
+  });
+
+  it("does not show conflict badge when count is 0", () => {
+    useMergeStore.setState({
+      conflictedFiles: { "ws-1": [] },
+    });
+    render(<MergeView workspaceId="ws-1" />);
+    // There should be no badge number
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+  });
+});
+
+describe("MergeViewWrapper", () => {
+  it("renders the no-workspace message", () => {
+    render(<MergeViewWrapper />);
+    expect(screen.getByText("Select a workspace to use merge tools")).toBeInTheDocument();
+    expect(screen.getByTestId("merge-icon")).toBeInTheDocument();
   });
 });

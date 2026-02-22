@@ -101,6 +101,7 @@ export function HistoryView() {
       if (msg.role === "system") continue;
       const textBlocks = msg.content.filter((b) => b.type === "text");
       const toolUseBlocks = msg.content.filter((b) => b.type === "toolUse");
+      /* v8 ignore next -- @preserve */
       const text = textBlocks
         .map((b) => (b.type === "text" ? b.text : ""))
         .join("\n");

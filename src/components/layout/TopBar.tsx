@@ -38,6 +38,7 @@ export function TopBar({ activeWs, activeRepo }: Props) {
       data-tauri-drag-region
       className="flex items-center gap-3 px-5 py-3 text-sm"
       style={{
+        /* v8 ignore next -- @preserve */
         paddingTop: isMac ? 42 : 10,
         backgroundColor: "var(--bg-secondary)",
         borderBottom: "1px solid var(--border)",

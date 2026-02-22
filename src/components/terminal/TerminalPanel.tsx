@@ -15,12 +15,6 @@ export function TerminalPanel({ context }: TerminalPanelProps) {
   useEffect(() => {
     let active = true;
 
-    // Close previous terminal if context changed
-    if (prevIdRef.current) {
-      closeTerminal(prevIdRef.current).catch(() => {});
-      prevIdRef.current = null;
-    }
-
     setTerminalId(null);
     setError(null);
 

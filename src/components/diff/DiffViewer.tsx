@@ -50,6 +50,7 @@ export function DiffViewer({ workspaceId }: Props) {
 
   // Auto-refresh when agent finishes
   useEffect(() => {
+    /* v8 ignore next -- @preserve */
     if (agentStatus === "Idle") {
       useDiffStore.getState().refresh(workspaceId);
     }

@@ -29,6 +29,8 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+import { fireEvent } from "@testing-library/react";
+
 describe("BranchSyncSection", () => {
   it("shows error when load fails", async () => {
     mockGetBranchStatus.mockRejectedValueOnce(new Error("Sync failed"));
@@ -85,5 +87,185 @@ describe("BranchSyncSection", () => {
     await waitFor(() => {
       expect(screen.getByText("Up to date")).toBeInTheDocument();
     });
+  });
+
+  it("clicking Fetch calls fetchUpstream", async () => {
+    const mockFetchUpstream = vi.fn();
+    mockGetBranchStatus.mockResolvedValueOnce({
+      branch: "feature-1",
+      defaultBranch: "main",
+      ahead: 0,
+      behind: 0,
+      hasUpstream: true,
+    });
+    useMergeStore.setState({ fetchUpstream: mockFetchUpstream });
+    render(<BranchSyncSection workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Fetch")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Fetch"));
+    expect(mockFetchUpstream).toHaveBeenCalledWith("ws-1");
+  });
+
+  it("clicking Pull (Rebase) calls pullRebase", async () => {
+    const mockPullRebase = vi.fn().mockResolvedValue(undefined);
+    mockGetBranchStatus.mockResolvedValueOnce({
+      branch: "feature-1",
+      defaultBranch: "main",
+      ahead: 0,
+      behind: 3,
+      hasUpstream: true,
+    });
+    useMergeStore.setState({ pullRebase: mockPullRebase });
+    render(<BranchSyncSection workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Pull (Rebase)")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Pull (Rebase)"));
+    expect(mockPullRebase).toHaveBeenCalledWith("ws-1");
+  });
+
+  it("clicking Pull (Merge) calls pullMerge", async () => {
+    const mockPullMerge = vi.fn().mockResolvedValue(undefined);
+    mockGetBranchStatus.mockResolvedValueOnce({
+      branch: "feature-1",
+      defaultBranch: "main",
+      ahead: 0,
+      behind: 3,
+      hasUpstream: true,
+    });
+    useMergeStore.setState({ pullMerge: mockPullMerge });
+    render(<BranchSyncSection workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Pull (Merge)")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Pull (Merge)"));
+    expect(mockPullMerge).toHaveBeenCalledWith("ws-1");
+  });
+
+  it("shows 'No upstream' when hasUpstream is false", async () => {
+    mockGetBranchStatus.mockResolvedValueOnce({
+      branch: "feature-1",
+      defaultBranch: "main",
+      ahead: 0,
+      behind: 0,
+      hasUpstream: false,
+    });
+    render(<BranchSyncSection workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("No upstream")).toBeInTheDocument();
+    });
+  });
+
+  it("shows 'Tracking upstream' when hasUpstream is true", async () => {
+    mockGetBranchStatus.mockResolvedValueOnce({
+      branch: "feature-1",
+      defaultBranch: "main",
+      ahead: 0,
+      behind: 0,
+      hasUpstream: true,
+    });
+    render(<BranchSyncSection workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Tracking upstream")).toBeInTheDocument();
+    });
+  });
+
+  it("shows 'Loading branch status...' when loading and no status", () => {
+    useMergeStore.setState({ loading: { "ws-1": true } });
+    render(<BranchSyncSection workspaceId="ws-1" />);
+    expect(screen.getByText("Loading branch status...")).toBeInTheDocument();
+  });
+
+  it("shows Fetching... text when loading", async () => {
+    mockGetBranchStatus.mockResolvedValueOnce({
+      branch: "feature-1",
+      defaultBranch: "main",
+      ahead: 0,
+      behind: 3,
+      hasUpstream: true,
+    });
+    render(<BranchSyncSection workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Fetch")).toBeInTheDocument();
+    });
+    // Set loading
+    useMergeStore.setState({ loading: { "ws-1": true } });
+    await waitFor(() => {
+      expect(screen.getByText("Fetching...")).toBeInTheDocument();
+    });
+    // The pull buttons show "Pulling..." too
+    const pullingElements = screen.getAllByText("Pulling...");
+    expect(pullingElements.length).toBeGreaterThan(0);
+  });
+
+  it("does not show Pull buttons when not behind", async () => {
+    mockGetBranchStatus.mockResolvedValueOnce({
+      branch: "feature-1",
+      defaultBranch: "main",
+      ahead: 3,
+      behind: 0,
+      hasUpstream: true,
+    });
+    render(<BranchSyncSection workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Fetch")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Pull (Rebase)")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pull (Merge)")).not.toBeInTheDocument();
+  });
+
+  it("pullRebase handles rejected promise gracefully", async () => {
+    const mockPullRebase = vi.fn().mockRejectedValue(new Error("conflict"));
+    mockGetBranchStatus.mockResolvedValueOnce({
+      branch: "feature-1",
+      defaultBranch: "main",
+      ahead: 0,
+      behind: 3,
+      hasUpstream: true,
+    });
+    useMergeStore.setState({ pullRebase: mockPullRebase });
+    render(<BranchSyncSection workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Pull (Rebase)")).toBeInTheDocument();
+    });
+    // Should not throw
+    fireEvent.click(screen.getByText("Pull (Rebase)"));
+    expect(mockPullRebase).toHaveBeenCalledWith("ws-1");
+  });
+
+  it("pullMerge handles rejected promise gracefully", async () => {
+    const mockPullMerge = vi.fn().mockRejectedValue(new Error("conflict"));
+    mockGetBranchStatus.mockResolvedValueOnce({
+      branch: "feature-1",
+      defaultBranch: "main",
+      ahead: 0,
+      behind: 3,
+      hasUpstream: true,
+    });
+    useMergeStore.setState({ pullMerge: mockPullMerge });
+    render(<BranchSyncSection workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Pull (Merge)")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Pull (Merge)"));
+    expect(mockPullMerge).toHaveBeenCalledWith("ws-1");
+  });
+
+  it("shows visual bar when ahead or behind", async () => {
+    mockGetBranchStatus.mockResolvedValueOnce({
+      branch: "feature-1",
+      defaultBranch: "main",
+      ahead: 5,
+      behind: 3,
+      hasUpstream: true,
+    });
+    const { container } = render(<BranchSyncSection workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("5 ahead")).toBeInTheDocument();
+    });
+    // Visual bars should be present
+    const bars = container.querySelectorAll(".h-1\\.5.rounded-full");
+    expect(bars.length).toBe(2);
   });
 });

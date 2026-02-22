@@ -127,11 +127,43 @@ describe("uiStore - view tabs", () => {
     expect(useUIStore.getState().viewTabs[0].id).toBe("chat");
   });
 
+  it("closeViewTab is a no-op for non-existent tab id", () => {
+    useUIStore.getState().closeViewTab("nonexistent");
+    expect(useUIStore.getState().viewTabs).toHaveLength(1);
+    expect(useUIStore.getState().activeViewTabId).toBe("chat");
+  });
+
   it("closeViewTab activates a neighbor when closing the active tab", () => {
     useUIStore.getState().openViewTab("settings");
     useUIStore.getState().setActiveViewTab("settings");
     useUIStore.getState().closeViewTab("settings");
     expect(useUIStore.getState().activeViewTabId).toBe("chat");
+  });
+
+  it("closeViewTab activates neighbor at clamped index when closing last tab", () => {
+    // Add settings and history tabs
+    useUIStore.getState().openViewTab("settings");
+    useUIStore.getState().openViewTab("history");
+    // Active is history (last tab)
+    expect(useUIStore.getState().activeViewTabId).toBe("history");
+    // Close history - should activate settings (the new last tab)
+    useUIStore.getState().closeViewTab("history");
+    expect(useUIStore.getState().activeViewTabId).toBe("settings");
+  });
+
+  it("closeViewTab does not change activeViewTabId when closing a non-active tab", () => {
+    useUIStore.getState().openViewTab("settings");
+    useUIStore.getState().openViewTab("history");
+    // Active is "history"
+    useUIStore.getState().setActiveViewTab("history");
+    expect(useUIStore.getState().activeViewTabId).toBe("history");
+
+    // Close "settings" which is NOT active
+    useUIStore.getState().closeViewTab("settings");
+
+    // Active should still be "history"
+    expect(useUIStore.getState().activeViewTabId).toBe("history");
+    expect(useUIStore.getState().viewTabs).toHaveLength(2);
   });
 
   it("setActiveViewTab changes the active view tab", () => {
@@ -143,6 +175,18 @@ describe("uiStore - view tabs", () => {
   it("setActiveViewTab ignores non-existent tab ids", () => {
     useUIStore.getState().setActiveViewTab("nonexistent");
     expect(useUIStore.getState().activeViewTabId).toBe("chat");
+  });
+
+  it("closeViewTab falls back to 'chat' when no neighbor exists (line 96 ?? branch)", () => {
+    // Set state with only a single non-chat tab (bypass the normal chat-protection)
+    useUIStore.setState({
+      viewTabs: [{ id: "settings", type: "settings", pinned: true, label: "Settings" }],
+      activeViewTabId: "settings",
+    });
+    useUIStore.getState().closeViewTab("settings");
+    // With no tabs remaining, neighbor is undefined, so nextActive falls back to "chat"
+    expect(useUIStore.getState().activeViewTabId).toBe("chat");
+    expect(useUIStore.getState().viewTabs).toHaveLength(0);
   });
 
   it("pinViewTab marks a view tab as pinned", () => {

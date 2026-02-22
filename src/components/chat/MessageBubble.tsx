@@ -47,20 +47,25 @@ function groupContentBlocks(blocks: ContentBlock[]): RenderGroup[] {
   };
 
   for (const block of blocks) {
-    if (block.type === "text") {
-      flushTools();
-      currentTextBlocks.push(block);
-    } else if (block.type === "toolUse") {
-      flushText();
-      currentToolPairs.push({
-        use: { id: block.id, name: block.name, input: block.input },
-        result: null,
-      });
-    } else if (block.type === "toolResult") {
-      // Attach to the last tool pair that doesn't have a result yet
-      const pending = [...currentToolPairs].reverse().find((p) => p.result === null);
-      if (pending) {
-        pending.result = { content: block.content };
+    switch (block.type) {
+      case "text":
+        flushTools();
+        currentTextBlocks.push(block);
+        break;
+      case "toolUse":
+        flushText();
+        currentToolPairs.push({
+          use: { id: block.id, name: block.name, input: block.input },
+          result: null,
+        });
+        break;
+      case "toolResult": {
+        // Attach to the last tool pair that doesn't have a result yet
+        const pending = [...currentToolPairs].reverse().find((p) => p.result === null);
+        if (pending) {
+          pending.result = { content: block.content };
+        }
+        break;
       }
     }
   }

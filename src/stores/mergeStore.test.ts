@@ -221,6 +221,16 @@ describe("mergeStore - cross-worktree comparison", () => {
     expect(useMergeStore.getState().comparisonDiff["ws-1"]).toEqual(diff);
   });
 
+  it("loadComparisonDiff sets error on failure", async () => {
+    useMergeStore.setState({ comparisonTarget: { "ws-1": "ws-2" } });
+    vi.mocked(crossWorktreeDiff).mockRejectedValue(new Error("diff fail"));
+
+    await useMergeStore.getState().loadComparisonDiff("ws-1");
+
+    expect(useMergeStore.getState().error["ws-1"]).toBe("Error: diff fail");
+    expect(useMergeStore.getState().loading["ws-1"]).toBe(false);
+  });
+
   it("selectComparisonFile loads file diff", async () => {
     const fileDiff = { original: "a", modified: "b" };
     useMergeStore.setState({ comparisonTarget: { "ws-1": "ws-2" } });
@@ -239,6 +249,15 @@ describe("mergeStore - cross-worktree comparison", () => {
   it("selectComparisonFile skips without target", async () => {
     await useMergeStore.getState().selectComparisonFile("ws-1", "test.ts");
     expect(getCrossWorktreeFileDiff).not.toHaveBeenCalled();
+  });
+
+  it("selectComparisonFile sets error on failure", async () => {
+    useMergeStore.setState({ comparisonTarget: { "ws-1": "ws-2" } });
+    vi.mocked(getCrossWorktreeFileDiff).mockRejectedValue(new Error("file diff fail"));
+
+    await useMergeStore.getState().selectComparisonFile("ws-1", "test.ts");
+
+    expect(useMergeStore.getState().error["ws-1"]).toBe("Error: file diff fail");
   });
 });
 
@@ -271,6 +290,23 @@ describe("mergeStore - conflicts", () => {
     );
   });
 
+  it("loadConflictedFiles sets error on failure", async () => {
+    vi.mocked(getConflictedFiles).mockRejectedValue(new Error("conflict fail"));
+
+    await useMergeStore.getState().loadConflictedFiles("ws-1");
+
+    expect(useMergeStore.getState().error["ws-1"]).toBe("Error: conflict fail");
+  });
+
+  it("loadConflictContent sets error on failure", async () => {
+    vi.mocked(getConflictContent).mockRejectedValue(new Error("content fail"));
+
+    await useMergeStore.getState().loadConflictContent("ws-1", "a.ts");
+
+    expect(useMergeStore.getState().selectedConflictFile["ws-1"]).toBe("a.ts");
+    expect(useMergeStore.getState().error["ws-1"]).toBe("Error: content fail");
+  });
+
   it("resolveConflict removes file from list", async () => {
     useMergeStore.setState({
       conflictedFiles: {
@@ -289,6 +325,23 @@ describe("mergeStore - conflicts", () => {
       "b.ts",
     );
     expect(useMergeStore.getState().selectedConflictFile["ws-1"]).toBeNull();
+  });
+
+  it("resolveConflict handles workspace with no prior conflicted files", async () => {
+    vi.mocked(resolveConflict).mockResolvedValue(undefined);
+
+    await useMergeStore.getState().resolveConflict("ws-new", "a.ts", "ours");
+
+    expect(useMergeStore.getState().conflictedFiles["ws-new"]).toEqual([]);
+    expect(useMergeStore.getState().selectedConflictFile["ws-new"]).toBeNull();
+  });
+
+  it("resolveConflict sets error on failure", async () => {
+    vi.mocked(resolveConflict).mockRejectedValue(new Error("resolve fail"));
+
+    await useMergeStore.getState().resolveConflict("ws-1", "a.ts", "ours");
+
+    expect(useMergeStore.getState().error["ws-1"]).toBe("Error: resolve fail");
   });
 });
 

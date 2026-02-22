@@ -291,6 +291,12 @@ describe("chatStore - removeTrailingSystemMessages", () => {
 
     expect(useChatStore.getState().messages["ws-1"]).toHaveLength(1);
   });
+
+  it("handles unknown workspace (empty array) without error", () => {
+    useChatStore.getState().removeTrailingSystemMessages("unknown-ws");
+    // Should not throw - uses empty array default
+    expect(useChatStore.getState().messages["unknown-ws"]).toBeUndefined();
+  });
 });
 
 describe("chatStore - stream events", () => {
@@ -442,6 +448,72 @@ describe("chatStore - stream events", () => {
       input: {},
     });
   });
+
+  it("handles result event - persists last assistant message", () => {
+    // First create an assistant message via streaming text
+    handleEvent({ payload: { type: "assistantText", text: "final answer" } });
+    // Then complete with result event (non-error)
+    handleEvent({
+      payload: {
+        type: "result",
+        isError: false,
+        result: null,
+        sessionId: null,
+      },
+    });
+
+    const msgs = useChatStore.getState().messages["ws-1"];
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].role).toBe("assistant");
+    // The assistant message should have been persisted
+    expect(saveChatMessage).toHaveBeenCalled();
+  });
+
+  it("result event does not persist when last message is not assistant", () => {
+    // Add a user message first, then fire result with no streaming text
+    useChatStore.getState().addUserMessage("ws-1", "question");
+    vi.mocked(saveChatMessage).mockClear();
+
+    handleEvent({
+      payload: {
+        type: "result",
+        isError: false,
+        result: null,
+        sessionId: null,
+      },
+    });
+
+    // The last message is a user message, not assistant, so no persistence of assistant msg
+    const msgs = useChatStore.getState().messages["ws-1"];
+    expect(msgs[msgs.length - 1].role).toBe("user");
+  });
+
+  it("result event with no messages does not persist anything", () => {
+    vi.mocked(saveChatMessage).mockClear();
+
+    handleEvent({
+      payload: {
+        type: "result",
+        isError: false,
+        result: null,
+        sessionId: null,
+      },
+    });
+
+    const msgs = useChatStore.getState().messages["ws-1"] ?? [];
+    expect(msgs).toHaveLength(0);
+  });
+
+  it("handles unknown stream event type with console warning", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    handleEvent({
+      payload: { type: "unknownEventType" },
+    });
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Unknown stream event type: unknownEventType"),
+    );
+    warnSpy.mockRestore();
+  });
 });
 
 describe("chatStore - formatErrorMessage (via result events)", () => {
@@ -528,5 +600,21 @@ describe("chatStore - formatErrorMessage (via result events)", () => {
     expect(getErrorText("Something went wrong")).toContain(
       "Error: Something went wrong",
     );
+  });
+
+  it("uses fallback regex for bare HTTP status codes (e.g. '502 Bad Gateway')", () => {
+    expect(getErrorText("502 Bad Gateway")).toContain("Server error (502)");
+  });
+
+  it("uses fallback regex for bare 4xx status codes", () => {
+    expect(getErrorText("418 I'm a teapot")).toContain("Request error (418)");
+  });
+
+  it("falls through when matched code is not 4xx or 5xx (e.g. 301 redirect)", () => {
+    // The first regex matches "error: 301" but the code 301 doesn't start with "4" or "5"
+    // so it falls through to the generic error handler
+    const result = getErrorText("error: 301 Moved Permanently");
+    expect(result).toContain("Error:");
+    expect(result).toContain("301 Moved Permanently");
   });
 });

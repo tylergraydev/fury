@@ -121,6 +121,14 @@ describe("agentStore - stopAgent", () => {
     await useAgentStore.getState().stopAgent("ws-1");
     expect(stopAgentCmd).toHaveBeenCalledWith("ws-1");
   });
+
+  it("re-throws errors from stopAgent", async () => {
+    vi.mocked(stopAgentCmd).mockRejectedValue(new Error("stop fail"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(
+      useAgentStore.getState().stopAgent("ws-1"),
+    ).rejects.toThrow("stop fail");
+  });
 });
 
 describe("agentStore - fetchStatus", () => {

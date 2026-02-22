@@ -109,9 +109,39 @@ describe("prStore - subscribe", () => {
 
     expect(usePrStore.getState().prInfo["ws-1"]).toEqual(info);
   });
+
+  it("pr-merged event reloads PR info and stops polling", async () => {
+    let mergedHandler: any;
+    vi.mocked(listen).mockImplementation(async (channel, handler) => {
+      if (channel === "pr-merged:ws-1") {
+        mergedHandler = handler;
+      }
+      return () => {};
+    });
+    vi.mocked(getPrInfo).mockResolvedValue(makePrInfo({ state: "merged" }) as any);
+
+    await usePrStore.getState().subscribe("ws-1");
+    // Start polling so we can verify it gets stopped
+    usePrStore.getState().startPolling("ws-1");
+    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeDefined();
+
+    mergedHandler({ payload: { success: true } });
+
+    // loadPrInfo should be called
+    await vi.waitFor(() => {
+      expect(getPrInfo).toHaveBeenCalledWith("ws-1");
+    });
+    // Polling should be stopped
+    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeUndefined();
+  });
 });
 
 describe("prStore - unsubscribe", () => {
+  it("is a no-op for non-existent workspace", () => {
+    usePrStore.getState().unsubscribe("non-existent");
+    expect(usePrStore.getState().subscriptions).toEqual({});
+  });
+
   it("calls all unlisten functions and removes subscription", () => {
     const unsub1 = vi.fn();
     const unsub2 = vi.fn();

@@ -9,8 +9,11 @@ beforeEach(() => {
 });
 
 vi.mock("./MessageBubble", () => ({
-  MessageBubble: ({ message }: any) => (
-    <div data-testid={`msg-${message.id}`}>{message.content.map((c: any) => c.text).join("")}</div>
+  MessageBubble: ({ message, onRetry }: any) => (
+    <div data-testid={`msg-${message.id}`} data-role={message.role}>
+      {message.content.map((c: any) => c.text).join("")}
+      {onRetry && <button data-testid={`retry-${message.id}`} onClick={onRetry}>Retry</button>}
+    </div>
   ),
 }));
 
@@ -110,5 +113,85 @@ describe("MessageList", () => {
       />,
     );
     expect(screen.getByTestId("cp-cp-1")).toBeInTheDocument();
+  });
+
+  // --- Tests for revertedTurnIndex dimming ---
+
+  it("dims user messages after the revert point", () => {
+    const msgs = [
+      makeMsg({ id: "m1", role: "user", content: txt("first user msg") }),
+      makeMsg({ id: "m2", role: "assistant", content: txt("first assistant") }),
+      makeMsg({ id: "m3", role: "user", content: txt("second user msg") }),
+      makeMsg({ id: "m4", role: "assistant", content: txt("second assistant") }),
+    ];
+    render(
+      <MessageList
+        messages={msgs}
+        streamingText=""
+        agentStatus="Idle"
+        revertedTurnIndex={0}
+      />,
+    );
+    // m1 is user msg index 0, revertedTurnIndex is 0, so userMsgIndex-1 = 0 which is NOT > 0
+    // m3 is user msg index 1, revertedTurnIndex is 0, so userMsgIndex-1 = 1 which IS > 0
+    const m3Wrapper = screen.getByTestId("msg-m3").parentElement;
+    expect(m3Wrapper?.style.opacity).toBe("0.4");
+
+    // m1 should NOT be dimmed
+    const m1Wrapper = screen.getByTestId("msg-m1").parentElement;
+    expect(m1Wrapper?.style.opacity).toBe("1");
+  });
+
+  it("does not dim non-user messages after revert point", () => {
+    const msgs = [
+      makeMsg({ id: "m1", role: "user", content: txt("user msg") }),
+      makeMsg({ id: "m2", role: "assistant", content: txt("assistant msg") }),
+      makeMsg({ id: "m3", role: "user", content: txt("second user") }),
+    ];
+    render(
+      <MessageList
+        messages={msgs}
+        streamingText=""
+        agentStatus="Idle"
+        revertedTurnIndex={0}
+      />,
+    );
+    // Assistant messages should NOT be dimmed regardless of position
+    const m2Wrapper = screen.getByTestId("msg-m2").parentElement;
+    expect(m2Wrapper?.style.opacity).toBe("1");
+  });
+
+  // --- Test that onRetry is passed to system messages ---
+
+  it("passes onRetry to system messages only", () => {
+    const onRetry = vi.fn();
+    const msgs = [
+      makeMsg({ id: "m1", role: "user", content: txt("hello") }),
+      makeMsg({ id: "m2", role: "assistant", content: txt("hi") }),
+      makeMsg({ id: "m3", role: "system", content: txt("error occurred") }),
+    ];
+    render(
+      <MessageList
+        messages={msgs}
+        streamingText=""
+        agentStatus="Idle"
+        onRetry={onRetry}
+      />,
+    );
+    // System message should have retry button
+    expect(screen.getByTestId("retry-m3")).toBeInTheDocument();
+    // User and assistant should NOT have retry buttons
+    expect(screen.queryByTestId("retry-m1")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("retry-m2")).not.toBeInTheDocument();
+  });
+
+  // --- scrollIntoView is called ---
+
+  it("calls scrollIntoView when messages change", () => {
+    const msgs = [makeMsg({ id: "m1" })];
+    render(
+      <MessageList messages={msgs} streamingText="" agentStatus="Idle" />,
+    );
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
   });
 });

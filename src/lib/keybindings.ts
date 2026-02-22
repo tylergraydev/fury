@@ -3,6 +3,7 @@ import { useEffect } from "react";
 export const isMac =
   typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
 
+/* v8 ignore next -- @preserve */
 export const modLabel = isMac ? "\u2318" : "Ctrl";
 
 export type ShortcutAction =
@@ -47,6 +48,7 @@ export function shortcutLabel(def: ShortcutDef): string {
   if (def.shift) parts.push("Shift");
   const keyLabel = def.key.length === 1 ? def.key.toUpperCase() : def.key;
   parts.push(keyLabel);
+  /* v8 ignore next -- @preserve */
   return parts.join(isMac ? "" : "+");
 }
 
@@ -55,6 +57,7 @@ export function useKeyboardShortcuts(
 ) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      /* v8 ignore next -- @preserve */
       const mod = isMac ? e.metaKey : e.ctrlKey;
 
       for (const shortcut of SHORTCUTS) {

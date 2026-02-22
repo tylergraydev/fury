@@ -138,6 +138,44 @@ describe("workspaceStore - archiveWs", () => {
 
     expect(useWorkspaceStore.getState().activeWorkspaceId).toBe("ws-2");
   });
+
+  it("sets error and throws on failure", async () => {
+    const ws = makeWs({ id: "ws-1" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(archiveWorkspace).mockRejectedValue(new Error("archive fail"));
+
+    await expect(
+      useWorkspaceStore.getState().archiveWs("ws-1"),
+    ).rejects.toThrow("archive fail");
+
+    expect(useWorkspaceStore.getState().error).toBe("Error: archive fail");
+  });
+
+  it("handles archiving workspace that is not found in list", async () => {
+    useWorkspaceStore.setState({ workspaces: [] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-missing");
+
+    expect(useWorkspaceStore.getState().archivedWorkspaces).toEqual([]);
+  });
+
+  it("sets activeRepoId from workspace repoId when archiving active workspace without repoId", async () => {
+    // Create a workspace without repoId
+    const ws = makeWs({ id: "ws-1", repoId: undefined as any });
+    useWorkspaceStore.setState({
+      workspaces: [ws],
+      activeWorkspaceId: "ws-1",
+      activeRepoId: "existing-repo",
+    });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-1");
+
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBeNull();
+    // Falls back to existing activeRepoId since workspace.repoId is undefined
+    expect(useWorkspaceStore.getState().activeRepoId).toBe("existing-repo");
+  });
 });
 
 describe("workspaceStore - deleteWs", () => {
@@ -163,6 +201,47 @@ describe("workspaceStore - deleteWs", () => {
 
     expect(useWorkspaceStore.getState().activeWorkspaceId).toBeNull();
     expect(useWorkspaceStore.getState().activeRepoId).toBe("repo-1");
+  });
+
+  it("preserves activeWorkspaceId when deleting non-active workspace", async () => {
+    const ws1 = makeWs({ id: "ws-1" });
+    const ws2 = makeWs({ id: "ws-2" });
+    useWorkspaceStore.setState({
+      workspaces: [ws1, ws2],
+      activeWorkspaceId: "ws-2",
+      activeRepoId: "repo-existing",
+    });
+    vi.mocked(deleteWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().deleteWs("ws-1");
+
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBe("ws-2");
+    expect(useWorkspaceStore.getState().activeRepoId).toBe("repo-existing");
+  });
+
+  it("sets error on failure without throwing", async () => {
+    const ws = makeWs({ id: "ws-1" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(deleteWorkspace).mockRejectedValue(new Error("delete fail"));
+
+    await useWorkspaceStore.getState().deleteWs("ws-1");
+
+    expect(useWorkspaceStore.getState().error).toBe("Error: delete fail");
+  });
+
+  it("uses fallback activeRepoId when deleting active workspace without repoId", async () => {
+    const ws = makeWs({ id: "ws-1", repoId: undefined as any });
+    useWorkspaceStore.setState({
+      workspaces: [ws],
+      activeWorkspaceId: "ws-1",
+      activeRepoId: "existing-repo",
+    });
+    vi.mocked(deleteWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().deleteWs("ws-1");
+
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBeNull();
+    expect(useWorkspaceStore.getState().activeRepoId).toBe("existing-repo");
   });
 });
 
@@ -191,6 +270,14 @@ describe("workspaceStore - loadArchivedWorkspaces", () => {
 
     expect(useWorkspaceStore.getState().archivedWorkspaces).toEqual(archived);
   });
+
+  it("sets error on failure", async () => {
+    vi.mocked(listArchivedWorkspaces).mockRejectedValue(new Error("load fail"));
+
+    await useWorkspaceStore.getState().loadArchivedWorkspaces();
+
+    expect(useWorkspaceStore.getState().error).toBe("Error: load fail");
+  });
 });
 
 describe("workspaceStore - restoreWs", () => {
@@ -203,6 +290,16 @@ describe("workspaceStore - restoreWs", () => {
 
     expect(useWorkspaceStore.getState().workspaces).toContainEqual(ws);
     expect(useWorkspaceStore.getState().archivedWorkspaces).toHaveLength(0);
+  });
+
+  it("sets error and throws on failure", async () => {
+    vi.mocked(restoreWorkspace).mockRejectedValue(new Error("restore fail"));
+
+    await expect(
+      useWorkspaceStore.getState().restoreWs("ws-1"),
+    ).rejects.toThrow("restore fail");
+
+    expect(useWorkspaceStore.getState().error).toBe("Error: restore fail");
   });
 });
 
@@ -217,5 +314,29 @@ describe("workspaceStore - renameWs", () => {
     const updated = useWorkspaceStore.getState().workspaces[0];
     expect(updated.name).toBe("new-name");
     expect(renameWorkspace).toHaveBeenCalledWith("ws-1", "new-name");
+  });
+
+  it("leaves non-matching workspaces unchanged", async () => {
+    const ws1 = makeWs({ id: "ws-1", name: "one" });
+    const ws2 = makeWs({ id: "ws-2", name: "two" });
+    useWorkspaceStore.setState({ workspaces: [ws1, ws2] });
+    vi.mocked(renameWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().renameWs("ws-1", "renamed");
+
+    expect(useWorkspaceStore.getState().workspaces[0].name).toBe("renamed");
+    expect(useWorkspaceStore.getState().workspaces[1].name).toBe("two");
+  });
+
+  it("sets error and throws on failure", async () => {
+    const ws = makeWs({ id: "ws-1", name: "old" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(renameWorkspace).mockRejectedValue(new Error("rename fail"));
+
+    await expect(
+      useWorkspaceStore.getState().renameWs("ws-1", "new"),
+    ).rejects.toThrow("rename fail");
+
+    expect(useWorkspaceStore.getState().error).toBe("Error: rename fail");
   });
 });

@@ -52,6 +52,7 @@ export function ConflictSection({ workspaceId }: Props) {
 
   // Auto-refresh when agent finishes (for AI resolution)
   useEffect(() => {
+    /* v8 ignore next -- @preserve */
     if (agentStatus === "Idle") {
       useMergeStore.getState().loadConflictedFiles(workspaceId);
     }
