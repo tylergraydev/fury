@@ -56,6 +56,7 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
   },
 
   addTodo: async (workspaceId: string, text: string) => {
+    set((s) => ({ error: { ...s.error, [workspaceId]: null } }));
     try {
       const item = await addTodoCmd({ workspaceId, text });
       set((s) => ({
@@ -101,18 +102,18 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
   },
 
   deleteTodo: async (workspaceId: string, todoId: string) => {
-    // Optimistic removal
+    // Snapshot before optimistic update
     const prev = get().todos[workspaceId] ?? [];
     set((s) => ({
+      error: { ...s.error, [workspaceId]: null },
       todos: {
         ...s.todos,
-        [workspaceId]: prev.filter((t) => t.id !== todoId),
+        [workspaceId]: (s.todos[workspaceId] ?? []).filter((t) => t.id !== todoId),
       },
     }));
     try {
       await deleteTodoCmd(todoId);
     } catch (e) {
-      // Revert on error
       set((s) => ({
         todos: { ...s.todos, [workspaceId]: prev },
         error: { ...s.error, [workspaceId]: String(e) },
@@ -121,12 +122,13 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
   },
 
   toggleTodo: async (workspaceId: string, todoId: string) => {
-    // Optimistic toggle
+    // Snapshot before optimistic update
     const prev = get().todos[workspaceId] ?? [];
     set((s) => ({
+      error: { ...s.error, [workspaceId]: null },
       todos: {
         ...s.todos,
-        [workspaceId]: prev.map((t) =>
+        [workspaceId]: (s.todos[workspaceId] ?? []).map((t) =>
           t.id === todoId ? { ...t, completed: !t.completed } : t,
         ),
       },
@@ -134,7 +136,6 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
     try {
       await toggleTodoCmd(todoId);
     } catch (e) {
-      // Revert on error
       set((s) => ({
         todos: { ...s.todos, [workspaceId]: prev },
         error: { ...s.error, [workspaceId]: String(e) },
@@ -143,19 +144,22 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
   },
 
   reorderTodos: async (workspaceId: string, todoIds: string[]) => {
-    // Optimistic reorder
+    // Snapshot before optimistic update
     const prev = get().todos[workspaceId] ?? [];
-    const reordered = todoIds
-      .map((id) => prev.find((t) => t.id === id))
-      .filter((t): t is TodoItem => t != null)
-      .map((t, i) => ({ ...t, sortOrder: i }));
-    set((s) => ({
-      todos: { ...s.todos, [workspaceId]: reordered },
-    }));
+    set((s) => {
+      const current = s.todos[workspaceId] ?? [];
+      const reordered = todoIds
+        .map((id) => current.find((t) => t.id === id))
+        .filter((t): t is TodoItem => t != null)
+        .map((t, i) => ({ ...t, sortOrder: i }));
+      return {
+        todos: { ...s.todos, [workspaceId]: reordered },
+        error: { ...s.error, [workspaceId]: null },
+      };
+    });
     try {
       await reorderTodosCmd({ workspaceId, todoIds });
     } catch (e) {
-      // Revert on error
       set((s) => ({
         todos: { ...s.todos, [workspaceId]: prev },
         error: { ...s.error, [workspaceId]: String(e) },

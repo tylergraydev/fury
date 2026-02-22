@@ -159,7 +159,9 @@ fn git_add_all_with_retry(worktree_path: &Path) -> Result<(), AppError> {
             stderr
         )));
     }
-    unreachable!()
+    Err(AppError::CheckpointError(
+        "git add --all failed after 3 retries".into(),
+    ))
 }
 
 fn git_write_tree(worktree_path: &Path) -> Result<String, AppError> {

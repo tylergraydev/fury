@@ -41,8 +41,8 @@ export function ChangesPanel({ context }: Props) {
   const fileDiff = useDiffStore((s) =>
     fileDiffKey ? (s.fileDiffs[fileDiffKey] ?? null) : null,
   );
-  const loading = useDiffStore((s) => s.loading);
-  const error = useDiffStore((s) => s.error);
+  const loading = useDiffStore((s) => s.loading[contextId] ?? false);
+  const error = useDiffStore((s) => s.error[contextId] ?? null);
   const agentStatus = useAgentStore(
     (s) => s.agents[contextId]?.status ?? "Idle",
   );

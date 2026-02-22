@@ -39,7 +39,7 @@ export function DiffViewer({ workspaceId }: Props) {
   const fileDiff = useDiffStore((s) =>
     fileDiffKey ? (s.fileDiffs[fileDiffKey] ?? null) : null,
   );
-  const loading = useDiffStore((s) => s.loading);
+  const loading = useDiffStore((s) => s.loading[workspaceId] ?? false);
   const agentStatus = useAgentStore(
     (s) => s.agents[workspaceId]?.status ?? "Idle",
   );

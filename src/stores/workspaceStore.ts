@@ -64,6 +64,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   },
 
   archiveWs: async (id: string) => {
+    set({ error: null });
     try {
       await archiveWorkspace(id);
       const archived = get().workspaces.find((w) => w.id === id);
@@ -81,6 +82,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   },
 
   deleteWs: async (id: string) => {
+    set({ error: null });
     try {
       await deleteWorkspace(id);
       set({
@@ -102,6 +104,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   },
 
   loadArchivedWorkspaces: async () => {
+    set({ error: null });
     try {
       const archived = await listArchivedWorkspaces();
       set({ archivedWorkspaces: archived });
@@ -111,6 +114,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   },
 
   restoreWs: async (id: string) => {
+    set({ error: null });
     try {
       const ws = await restoreWorkspace(id);
       set({
@@ -126,6 +130,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   },
 
   renameWs: async (id: string, name: string) => {
+    set({ error: null });
     try {
       await renameWorkspace(id, name);
       set({

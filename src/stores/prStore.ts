@@ -116,9 +116,7 @@ export const usePrStore = create<PrStore>((set, get) => ({
       });
 
       // Stop polling if all checks are completed
-      const allDone = checks.every(
-        (c) => c.status === "COMPLETED" || c.conclusion !== null,
-      );
+      const allDone = checks.every((c) => c.status === "COMPLETED");
       if (allDone && checks.length > 0) {
         get().stopPolling(workspaceId);
       }

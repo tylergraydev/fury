@@ -476,7 +476,10 @@ impl Database {
         id: &Uuid,
         dirs: &Option<Vec<String>>,
     ) -> Result<(), AppError> {
-        let json = dirs.as_ref().map(|d| serde_json::to_string(d).unwrap());
+        let json = match dirs.as_ref() {
+            Some(d) => Some(serde_json::to_string(d)?),
+            None => None,
+        };
         self.conn.execute(
             "UPDATE workspaces SET sparse_dirs = ?1 WHERE id = ?2",
             rusqlite::params![json, id.to_string()],
