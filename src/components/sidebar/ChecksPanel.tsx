@@ -4,6 +4,7 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTodoStore } from "../../stores/todoStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
+import { ExternalLink } from "lucide-react";
 import type { PrCheck } from "../../lib/tauri";
 
 interface Props {
@@ -29,27 +30,52 @@ function CheckRow({ check }: { check: PrCheck }) {
       ? "var(--error)"
       : "var(--text-muted)";
 
-  return (
-    <div className="flex items-center gap-2 px-2 py-1 text-xs">
+  const conclusionColor = isSuccess
+    ? "var(--success)"
+    : isFailure
+      ? "var(--error)"
+      : "var(--text-muted)";
+
+  const content = (
+    <>
       <span
-        className={`h-2 w-2 rounded-full ${isPending ? "animate-pulse" : ""}`}
+        className={`h-2 w-2 flex-shrink-0 rounded-full ${isPending ? "animate-pulse" : ""}`}
         style={{ backgroundColor: dotColor }}
       />
       <span className="truncate" style={{ color: "var(--text-primary)" }}>
         {check.name}
       </span>
+      {check.detailsUrl && (
+        <ExternalLink
+          className="h-2.5 w-2.5 flex-shrink-0 opacity-0 transition-opacity group-hover/check:opacity-60"
+          style={{ color: "var(--text-muted)" }}
+        />
+      )}
       <span
         className="ml-auto flex-shrink-0"
-        style={{
-          color: isSuccess
-            ? "var(--success)"
-            : isFailure
-              ? "var(--error)"
-              : "var(--text-muted)",
-        }}
+        style={{ color: conclusionColor }}
       >
         {check.conclusion?.toLowerCase() ?? "pending"}
       </span>
+    </>
+  );
+
+  if (check.detailsUrl) {
+    return (
+      <a
+        href={check.detailsUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group/check flex items-center gap-2 rounded px-2 py-1 text-xs no-underline transition-colors hover:bg-[var(--bg-surface)]"
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <div className="group/check flex items-center gap-2 px-2 py-1 text-xs">
+      {content}
     </div>
   );
 }
@@ -243,9 +269,22 @@ export function ChecksPanel({ workspaceId }: Props) {
         className="flex items-center gap-2 px-3 py-2 text-xs"
         style={{ borderBottom: "1px solid var(--border)" }}
       >
-        <span className="font-medium" style={{ color: "var(--text-primary)" }}>
-          #{prInfo!.prNumber}
-        </span>
+        {prInfo!.prUrl ? (
+          <a
+            href={prInfo!.prUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 font-medium no-underline hover:underline"
+            style={{ color: "var(--accent)" }}
+          >
+            #{prInfo!.prNumber}
+            <ExternalLink className="h-2.5 w-2.5" />
+          </a>
+        ) : (
+          <span className="font-medium" style={{ color: "var(--text-primary)" }}>
+            #{prInfo!.prNumber}
+          </span>
+        )}
         <span
           className="truncate text-[10px]"
           style={{ color: "var(--text-muted)" }}
