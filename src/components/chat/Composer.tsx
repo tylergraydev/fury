@@ -280,10 +280,16 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
 
   const handleAddAttachment = useCallback(async () => {
     setShowPlusMenu(false);
-    const selected = await openFileDialog({
-      multiple: true,
-      title: "Add attachment",
-    });
+    let selected;
+    try {
+      selected = await openFileDialog({
+        multiple: true,
+        title: "Add attachment",
+      });
+    } catch (e) {
+      console.error("Failed to open file dialog:", e);
+      return;
+    }
     if (!selected) return;
     const paths = Array.isArray(selected) ? selected : [selected];
     const newFiles: DroppedFile[] = paths.map((p) => {
@@ -299,7 +305,8 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
               prev.map((df) => (df.id === f.id ? { ...df, dataUrl } : df)),
             );
           })
-          .catch(() => {
+          .catch((err) => {
+            console.warn(`Failed to load image preview for ${f.name}:`, err);
             setDroppedFiles((prev) =>
               prev.map((df) => (df.id === f.id ? { ...df, dataUrl: "error" } : df)),
             );
@@ -352,8 +359,8 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     if (!canSend) return;
     let message = pendingCommandContent ?? text.trim();
 
-    // Expand @todos mention
-    if (workspaceId && message.includes("@todos")) {
+    // Expand @todos mention (only for user-typed text, not command content)
+    if (!pendingCommandContent && workspaceId && message.includes("@todos")) {
       const todosText = useTodoStore.getState().getTodosAsText(workspaceId);
       message = message.replace(/@todos/g, todosText);
     }

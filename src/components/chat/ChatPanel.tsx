@@ -46,6 +46,9 @@ export function ChatPanel({ contextId, contextType }: Props) {
   const [thinkingEnabled, setThinkingEnabled] = useState(true);
   const [planEnabled, setPlanEnabled] = useState(true);
   const [showLinkWorkspaceDialog, setShowLinkWorkspaceDialog] = useState(false);
+  const workspace = useWorkspaceStore(
+    (s) => s.workspaces.find((w) => w.id === contextId) ?? null,
+  );
 
   // Subscribe to events when context changes
   useEffect(() => {
@@ -116,7 +119,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
     if (!text) return;
     // Remove trailing system (error) messages before retrying
     useChatStore.getState().removeTrailingSystemMessages(contextId);
-    useChatStore.getState().addUserMessage(contextId, text);
+    useChatStore.getState().addUserMessage(contextId, text, lastUserMsg.displayText);
     const disableThinking = thinkingEnabled ? undefined : true;
     const disablePlanMode = planEnabled ? undefined : true;
     try {
@@ -194,18 +197,14 @@ export function ChatPanel({ contextId, contextType }: Props) {
         onPlanEnabledChange={setPlanEnabled}
         onLinkWorkspaces={contextType === "workspace" ? () => setShowLinkWorkspaceDialog(true) : undefined}
       />
-      {showLinkWorkspaceDialog && contextType === "workspace" && (() => {
-        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === contextId);
-        if (!ws) return null;
-        return (
-          <LinkWorkspaceDialog
-            workspaceId={contextId}
-            workspaceName={ws.name}
-            repoId={ws.repoId}
-            onClose={() => setShowLinkWorkspaceDialog(false)}
-          />
-        );
-      })()}
+      {showLinkWorkspaceDialog && contextType === "workspace" && workspace && (
+        <LinkWorkspaceDialog
+          workspaceId={contextId}
+          workspaceName={workspace.name}
+          repoId={workspace.repoId}
+          onClose={() => setShowLinkWorkspaceDialog(false)}
+        />
+      )}
     </div>
   );
 }

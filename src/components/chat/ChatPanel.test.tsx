@@ -211,7 +211,7 @@ describe("ChatPanel", () => {
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     await user.click(screen.getByTestId("retry-btn"));
     expect(removeTrailingSpy).toHaveBeenCalledWith("ws-1");
-    expect(addUserMessageSpy).toHaveBeenCalledWith("ws-1", "Hello");
+    expect(addUserMessageSpy).toHaveBeenCalledWith("ws-1", "Hello", undefined);
     expect(sendMessageSpy).toHaveBeenCalledWith("ws-1", "Hello", "workspace", undefined, undefined, undefined);
   });
 
