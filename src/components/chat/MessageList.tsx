@@ -28,16 +28,6 @@ export function MessageList({
 
   const isRunning = agentStatus === "Running";
 
-  if (messages.length === 0 && !streamingText) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          Send a message to start chatting with Claude Code
-        </p>
-      </div>
-    );
-  }
-
   // Build a map of turn_index -> checkpoint for quick lookup
   const checkpointByTurn = new Map<number, Checkpoint>();
   for (const cp of checkpoints) {

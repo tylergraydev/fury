@@ -93,24 +93,44 @@ export function ChatPanel({ contextId, contextType }: Props) {
     [contextId],
   );
 
+  const isEmpty = messages.length === 0 && !streamingText;
+
   return (
-    <div className="flex h-full flex-col">
-      <MessageList
-        messages={messages}
-        streamingText={streamingText}
-        agentStatus={agentStatus}
-        checkpoints={contextType === "workspace" ? checkpoints : undefined}
-        revertedTurnIndex={revertedTurnIndex}
-        onRevertCheckpoint={
-          contextType === "workspace" ? handleRevert : undefined
-        }
-      />
-      <Composer
-        workspaceId={contextType === "workspace" ? contextId : undefined}
-        agentStatus={agentStatus}
-        onSend={handleSend}
-        onStop={handleStop}
-      />
+    <div className={`flex h-full flex-col ${isEmpty ? "items-center justify-center" : ""}`}>
+      {isEmpty ? (
+        <>
+          <p className="mb-4 text-sm" style={{ color: "var(--text-muted)" }}>
+            Send a message to start chatting with Claude Code
+          </p>
+          <div className="w-full max-w-2xl">
+            <Composer
+              workspaceId={contextType === "workspace" ? contextId : undefined}
+              agentStatus={agentStatus}
+              onSend={handleSend}
+              onStop={handleStop}
+            />
+          </div>
+        </>
+      ) : (
+        <>
+          <MessageList
+            messages={messages}
+            streamingText={streamingText}
+            agentStatus={agentStatus}
+            checkpoints={contextType === "workspace" ? checkpoints : undefined}
+            revertedTurnIndex={revertedTurnIndex}
+            onRevertCheckpoint={
+              contextType === "workspace" ? handleRevert : undefined
+            }
+          />
+          <Composer
+            workspaceId={contextType === "workspace" ? contextId : undefined}
+            agentStatus={agentStatus}
+            onSend={handleSend}
+            onStop={handleStop}
+          />
+        </>
+      )}
     </div>
   );
 }

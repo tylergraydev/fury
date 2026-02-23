@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Sparkles, X, GitFork, MessageSquare, ChevronDown } from "lucide-react";
 import { listBranches } from "../../lib/tauri";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { useAgentStore } from "../../stores/agentStore";
 
 interface Props {
   repoId: string;
@@ -22,7 +21,6 @@ function generateName(text: string): string {
 
 export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
   const { createWs } = useWorkspaceStore();
-  const { sendMessage } = useAgentStore();
 
   const [taskDescription, setTaskDescription] = useState("");
   const [worktreeName, setWorktreeName] = useState("");
@@ -63,12 +61,6 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
         baseBranch: baseBranch.trim(),
         autoCommit,
       });
-      // Send task description as first message
-      if (taskDescription.trim()) {
-        sendMessage(ws.id, taskDescription.trim()).catch(() => {
-          // Non-blocking — workspace was created, message send is best-effort
-        });
-      }
       onClose();
     } catch (e) {
       setError(String(e));
