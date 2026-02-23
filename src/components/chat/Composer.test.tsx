@@ -243,6 +243,29 @@ describe("Composer", () => {
       expect(textarea).toHaveValue("test content");
     });
 
+    it("passes command name as displayText when sending after command selection", async () => {
+      const onSend = vi.fn();
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} onSend={onSend} />);
+      const textarea = screen.getByRole("textbox");
+      await user.type(textarea, "/te");
+      await user.keyboard("{Enter}"); // selects /test command
+      await user.click(screen.getByText("Send").closest("button")!);
+      expect(onSend).toHaveBeenCalledWith("test content", undefined, "/test");
+    });
+
+    it("clears displayText when user edits text after selecting command", async () => {
+      const onSend = vi.fn();
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} onSend={onSend} />);
+      const textarea = screen.getByRole("textbox");
+      await user.type(textarea, "/te");
+      await user.keyboard("{Enter}"); // selects /test command
+      await user.type(textarea, " extra"); // edit clears pendingCommandName
+      await user.click(screen.getByText("Send").closest("button")!);
+      expect(onSend).toHaveBeenCalledWith("test content extra", undefined, undefined);
+    });
+
     it("selects slash command with Tab key", async () => {
       const user = userEvent.setup();
       render(<Composer {...defaultProps} />);

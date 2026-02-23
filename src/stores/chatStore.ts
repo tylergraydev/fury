@@ -27,7 +27,7 @@ interface ChatStore {
 
   subscribe: (workspaceId: string) => Promise<void>;
   unsubscribe: (workspaceId: string) => void;
-  addUserMessage: (workspaceId: string, text: string) => void;
+  addUserMessage: (workspaceId: string, text: string, displayText?: string) => void;
   clearMessages: (workspaceId: string) => void;
   getMessages: (workspaceId: string) => ChatMessage[];
   getStreamingText: (workspaceId: string) => string;

@@ -20,6 +20,24 @@ describe("MessageBubble", () => {
     expect(screen.getByText("Hello world")).toBeInTheDocument();
   });
 
+  it("renders displayText instead of content when set", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          content: [{ type: "text", text: "expanded prompt content" }],
+          displayText: "/test",
+        })}
+      />,
+    );
+    expect(screen.getByText("/test")).toBeInTheDocument();
+    expect(screen.queryByText("expanded prompt content")).not.toBeInTheDocument();
+  });
+
+  it("renders content text when displayText is not set", () => {
+    render(<MessageBubble message={makeMessage()} />);
+    expect(screen.getByText("Hello world")).toBeInTheDocument();
+  });
+
   it("renders assistant message text", () => {
     render(
       <MessageBubble
