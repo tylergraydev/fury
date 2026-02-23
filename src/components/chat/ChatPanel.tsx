@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { List } from "lucide-react";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatStore } from "../../stores/chatStore";
@@ -85,21 +85,26 @@ export function ChatPanel({ contextId, contextType }: Props) {
     }
   }, [agentStatus, contextId, permissionRequest]);
 
+  const tocRef = useRef<HTMLDivElement>(null);
+  const tocButtonRef = useRef<HTMLButtonElement>(null);
+
   const { turns } = useMemo(() => segmentTurns(messages), [messages]);
   const showTOCButton = turns.length >= 3;
 
-  // Dismiss TOC on outside click
+  // Dismiss TOC on outside click using ref-based containment check
   useEffect(() => {
     if (!showTOC) return;
-    const handleClick = () => setShowTOC(false);
-    const id = setTimeout(
-      () => document.addEventListener("click", handleClick),
-      0,
-    );
-    return () => {
-      clearTimeout(id);
-      document.removeEventListener("click", handleClick);
+    const handleMouseDown = (e: MouseEvent) => {
+      if (
+        tocRef.current?.contains(e.target as Node) ||
+        tocButtonRef.current?.contains(e.target as Node)
+      ) {
+        return;
+      }
+      setShowTOC(false);
     };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
   }, [showTOC]);
 
   const handleSend = useCallback(
@@ -203,10 +208,8 @@ export function ChatPanel({ contextId, contextType }: Props) {
         />
         {showTOCButton && (
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowTOC((prev) => !prev);
-            }}
+            ref={tocButtonRef}
+            onClick={() => setShowTOC((prev) => !prev)}
             className="absolute right-3 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-hover)]"
             style={{
               color: showTOC ? "var(--accent)" : "var(--text-muted)",
@@ -218,7 +221,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
           </button>
         )}
         {showTOC && (
-          <div onClick={(e) => e.stopPropagation()}>
+          <div ref={tocRef}>
             <ChatTOC turns={turns} onClose={() => setShowTOC(false)} />
           </div>
         )}

@@ -521,4 +521,44 @@ describe("ChatPanel", () => {
     expect(screen.getByTestId("chat-toc")).toBeInTheDocument();
     expect(screen.getByTestId("toc-turn-count")).toHaveTextContent("3");
   });
+
+  it("closes ChatTOC when toggle button is clicked again", async () => {
+    useChatStore.setState({
+      messages: {
+        "ws-1": [
+          { id: "m1", role: "user", content: [{ type: "text", text: "A" }], timestamp: 1 },
+          { id: "m2", role: "user", content: [{ type: "text", text: "B" }], timestamp: 2 },
+          { id: "m3", role: "user", content: [{ type: "text", text: "C" }], timestamp: 3 },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    await user.click(screen.getByTitle("Table of Contents"));
+    expect(screen.getByTestId("chat-toc")).toBeInTheDocument();
+
+    await user.click(screen.getByTitle("Table of Contents"));
+    expect(screen.queryByTestId("chat-toc")).not.toBeInTheDocument();
+  });
+
+  it("closes ChatTOC when onClose callback fires", async () => {
+    useChatStore.setState({
+      messages: {
+        "ws-1": [
+          { id: "m1", role: "user", content: [{ type: "text", text: "A" }], timestamp: 1 },
+          { id: "m2", role: "user", content: [{ type: "text", text: "B" }], timestamp: 2 },
+          { id: "m3", role: "user", content: [{ type: "text", text: "C" }], timestamp: 3 },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    await user.click(screen.getByTitle("Table of Contents"));
+    expect(screen.getByTestId("chat-toc")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("toc-close"));
+    expect(screen.queryByTestId("chat-toc")).not.toBeInTheDocument();
+  });
 });

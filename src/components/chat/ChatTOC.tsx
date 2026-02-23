@@ -12,6 +12,10 @@ export function ChatTOC({ turns, onClose }: Props) {
     const el = document.querySelector(`[data-turn-index="${turnIndex}"]`);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      console.warn(
+        `[ChatTOC] Could not find turn element with data-turn-index="${turnIndex}"`,
+      );
     }
   }, []);
 
@@ -42,6 +46,7 @@ export function ChatTOC({ turns, onClose }: Props) {
           onClick={onClose}
           className="rounded p-0.5 transition-colors hover:bg-[var(--bg-hover)]"
           style={{ color: "var(--text-muted)" }}
+          title="Close"
         >
           <X className="h-3.5 w-3.5" />
         </button>

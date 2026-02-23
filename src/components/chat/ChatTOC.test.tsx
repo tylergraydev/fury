@@ -80,10 +80,7 @@ describe("ChatTOC", () => {
     const turns = [makeTurn("Hello")];
     const user = userEvent.setup();
     render(<ChatTOC turns={turns} onClose={onClose} />);
-    // The X button is the only button in the header area
-    const closeButtons = screen.getAllByRole("button");
-    // First button is the close button (in header), rest are turn entries
-    await user.click(closeButtons[0]);
+    await user.click(screen.getByTitle("Close"));
     expect(onClose).toHaveBeenCalledOnce();
   });
 
@@ -109,6 +106,39 @@ describe("ChatTOC", () => {
     });
 
     querySpy.mockRestore();
+  });
+
+  it("warns when scroll target element is not found", async () => {
+    const turns = [makeTurn("Only turn", "t1")];
+    const user = userEvent.setup();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const querySpy = vi.spyOn(document, "querySelector").mockReturnValue(null);
+
+    render(<ChatTOC turns={turns} onClose={vi.fn()} />);
+    await user.click(screen.getByText("Only turn"));
+
+    expect(querySpy).toHaveBeenCalledWith('[data-turn-index="0"]');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Could not find turn element"),
+    );
+
+    querySpy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it("filters out non-text content blocks from preview", () => {
+    const msg: ChatMessage = {
+      id: "mixed-1",
+      role: "user",
+      content: [
+        { type: "text", text: "Run tests" },
+        { type: "toolUse", id: "t1", name: "bash", input: {} },
+      ],
+      timestamp: Date.now(),
+    };
+    const turns: Turn[] = [{ userMessage: msg, responses: [] }];
+    render(<ChatTOC turns={turns} onClose={vi.fn()} />);
+    expect(screen.getByText("Run tests")).toBeInTheDocument();
   });
 
   it("renders Table of Contents header", () => {
