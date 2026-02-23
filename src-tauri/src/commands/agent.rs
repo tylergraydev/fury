@@ -1,4 +1,5 @@
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use crate::error::AppError;
 use crate::models::agent::{AgentInfo, AgentStatus, AgentStatusEvent, SendMessageRequest};
@@ -6,6 +7,28 @@ use crate::services::claude_process;
 use crate::state::AppState;
 use tauri::{Emitter, State};
 use uuid::Uuid;
+
+/// Reset agent status to Idle after a failed spawn/write.
+fn reset_agent_on_error(
+    agents: &Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
+    app: &tauri::AppHandle,
+    context_id: Uuid,
+) {
+    {
+        let mut lock = agents.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(agent) = lock.get_mut(&context_id) {
+            agent.status = AgentStatus::Idle;
+            agent.pid = None;
+        }
+    }
+    let _ = app.emit(
+        &format!("agent-status:{}", context_id),
+        &AgentStatusEvent {
+            workspace_id: context_id,
+            status: AgentStatus::Idle,
+        },
+    );
+}
 
 #[tauri::command]
 pub async fn send_message(
@@ -157,34 +180,30 @@ pub async fn send_message(
         vec![]
     };
 
-    // Get system prompt additions
-    let system_prompt = {
+    // Get system prompt additions and persistent mode setting in a single lock
+    let (system_prompt, persistent_mode) = {
         let settings = state.settings.lock().unwrap();
-        settings.system_prompt_additions.clone()
-    };
-
-    // Check if Performance Mode (persistent processes) is enabled
-    let persistent_mode = {
-        let settings = state.settings.lock().unwrap();
-        settings.experimental.persistent_processes
+        (
+            settings.system_prompt_additions.clone(),
+            settings.experimental.persistent_processes,
+        )
     };
 
     if persistent_mode {
         // Performance Mode: reuse a long-running process or spawn one
-        let has_persistent = {
-            state.persistent_agents.lock().unwrap().contains_key(&context_id)
-        };
+        // Single remove avoids TOCTOU race between contains_key + remove
+        let existing_stdin = state
+            .persistent_agents
+            .lock()
+            .unwrap()
+            .remove(&context_id);
 
-        if has_persistent {
-            // Reuse existing persistent process — take stdin, write, put back
-            let mut stdin = {
-                state.persistent_agents.lock().unwrap().remove(&context_id)
+        if let Some(mut stdin) = existing_stdin {
+            // Reuse existing persistent process
+            if let Err(e) = claude_process::write_message(&mut stdin, &request.message).await {
+                reset_agent_on_error(&state.agents, &app, context_id);
+                return Err(e);
             }
-            .ok_or_else(|| {
-                AppError::AgentError("Persistent process disappeared".to_string())
-            })?;
-
-            claude_process::write_message(&mut stdin, &request.message).await?;
 
             // Put stdin back for next turn
             state
@@ -194,7 +213,7 @@ pub async fn send_message(
                 .insert(context_id, stdin);
         } else {
             // Spawn new persistent process
-            let (child, mut stdin) = claude_process::spawn_persistent(
+            let (child, mut stdin) = match claude_process::spawn_persistent(
                 context_id,
                 session_id.as_deref(),
                 &working_dir,
@@ -206,10 +225,28 @@ pub async fn send_message(
                 Arc::clone(&state.agents),
                 Arc::clone(&state.persistent_agents),
             )
-            .await?;
+            .await
+            {
+                Ok(result) => result,
+                Err(e) => {
+                    reset_agent_on_error(&state.agents, &app, context_id);
+                    return Err(e);
+                }
+            };
+
+            // Store PID in agent info for stop_agent
+            if let Some(pid) = child.id() {
+                let mut agents = state.agents.lock().unwrap();
+                if let Some(agent) = agents.get_mut(&context_id) {
+                    agent.pid = Some(pid);
+                }
+            }
 
             // Write the first message
-            claude_process::write_message(&mut stdin, &request.message).await?;
+            if let Err(e) = claude_process::write_message(&mut stdin, &request.message).await {
+                reset_agent_on_error(&state.agents, &app, context_id);
+                return Err(e);
+            }
 
             // Store handles
             state
@@ -230,7 +267,8 @@ pub async fn send_message(
             let app_clone = app.clone();
             tokio::spawn(async move {
                 let mut child = {
-                    let mut processes = processes_ref.lock().unwrap();
+                    let mut processes =
+                        processes_ref.lock().unwrap_or_else(|e| e.into_inner());
                     processes.remove(&context_id)
                 };
 
@@ -241,7 +279,10 @@ pub async fn send_message(
                 };
 
                 // Process exited — clean up persistent state
-                persistent_ref.lock().unwrap().remove(&context_id);
+                persistent_ref
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .remove(&context_id);
 
                 let new_status = match exit_status {
                     Some(ref status) if status.success() => AgentStatus::Idle,
@@ -253,9 +294,11 @@ pub async fn send_message(
                 };
 
                 {
-                    let mut agents = agents_ref.lock().unwrap();
+                    let mut agents =
+                        agents_ref.lock().unwrap_or_else(|e| e.into_inner());
                     if let Some(agent) = agents.get_mut(&context_id) {
                         agent.status = new_status.clone();
+                        agent.pid = None;
                     }
                 }
 
@@ -270,7 +313,7 @@ pub async fn send_message(
         }
     } else {
         // Low RAM Mode: spawn a new process per turn
-        let child = claude_process::spawn_and_stream(
+        let child = match claude_process::spawn_and_stream(
             context_id,
             &request.message,
             session_id.as_deref(),
@@ -282,7 +325,22 @@ pub async fn send_message(
             app.clone(),
             Arc::clone(&state.agents),
         )
-        .await?;
+        .await
+        {
+            Ok(child) => child,
+            Err(e) => {
+                reset_agent_on_error(&state.agents, &app, context_id);
+                return Err(e);
+            }
+        };
+
+        // Store PID in agent info for stop_agent
+        if let Some(pid) = child.id() {
+            let mut agents = state.agents.lock().unwrap();
+            if let Some(agent) = agents.get_mut(&context_id) {
+                agent.pid = Some(pid);
+            }
+        }
 
         // Store child process handle
         {
@@ -296,7 +354,8 @@ pub async fn send_message(
         let app_clone = app.clone();
         tokio::spawn(async move {
             let mut child = {
-                let mut processes = processes_ref.lock().unwrap();
+                let mut processes =
+                    processes_ref.lock().unwrap_or_else(|e| e.into_inner());
                 processes.remove(&context_id)
             };
 
@@ -316,9 +375,11 @@ pub async fn send_message(
             };
 
             {
-                let mut agents = agents_ref.lock().unwrap();
+                let mut agents =
+                    agents_ref.lock().unwrap_or_else(|e| e.into_inner());
                 if let Some(agent) = agents.get_mut(&context_id) {
                     agent.status = new_status.clone();
+                    agent.pid = None;
                 }
             }
 
@@ -345,15 +406,23 @@ pub fn stop_agent(
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
-    // Set status to Stopping
-    {
+    // Set status to Stopping and get PID for kill
+    let pid = {
         let mut agents = state.agents.lock().unwrap();
         if let Some(agent) = agents.get_mut(&id) {
             agent.status = AgentStatus::Stopping;
+            agent.pid
+        } else {
+            None
         }
+    };
+
+    // Kill via PID stored in agent info (works even if background task took the Child)
+    if let Some(pid) = pid {
+        let _ = crate::platform::kill_process_group(pid);
     }
 
-    // Kill the process and clean up persistent state
+    // Also try agent_processes as fallback
     {
         let mut processes = state.agent_processes.lock().unwrap();
         if let Some(child) = processes.remove(&id) {
@@ -362,15 +431,16 @@ pub fn stop_agent(
             }
         }
     }
-    {
-        state.persistent_agents.lock().unwrap().remove(&id);
-    }
 
-    // Set status to Idle
+    // Clean up persistent state
+    state.persistent_agents.lock().unwrap().remove(&id);
+
+    // Set status to Idle and clear PID
     {
         let mut agents = state.agents.lock().unwrap();
         if let Some(agent) = agents.get_mut(&id) {
             agent.status = AgentStatus::Idle;
+            agent.pid = None;
         }
     }
 

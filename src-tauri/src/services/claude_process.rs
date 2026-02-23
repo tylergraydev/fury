@@ -8,7 +8,7 @@ use tokio::process::{Child, ChildStdin, Command};
 use uuid::Uuid;
 
 use crate::error::AppError;
-use crate::models::agent::{AgentInfo, FrontendStreamEvent};
+use crate::models::agent::{AgentInfo, AgentStatus, AgentStatusEvent, FrontendStreamEvent};
 use crate::models::repository::Repository;
 use crate::models::settings::AppSettings;
 use crate::models::workspace::Workspace;
@@ -88,6 +88,71 @@ pub fn build_repo_env_vars(
     env
 }
 
+/// Build common CLI arguments shared between spawn modes.
+fn build_common_args(
+    session_id: Option<&str>,
+    linked_dirs: &[PathBuf],
+    system_prompt_additions: Option<&str>,
+    model: Option<&str>,
+) -> Vec<String> {
+    let mut args = vec![
+        "--output-format".to_string(),
+        "stream-json".to_string(),
+        "--verbose".to_string(),
+        "--dangerously-skip-permissions".to_string(),
+    ];
+
+    if let Some(sid) = session_id {
+        args.push("--resume".to_string());
+        args.push(sid.to_string());
+    }
+
+    for dir in linked_dirs {
+        args.push("--add-dir".to_string());
+        args.push(dir.to_string_lossy().to_string());
+    }
+
+    if let Some(prompt) = system_prompt_additions {
+        if !prompt.is_empty() {
+            args.push("--append-system-prompt".to_string());
+            args.push(prompt.to_string());
+        }
+    }
+
+    if let Some(m) = model {
+        const ALLOWED_MODELS: &[&str] = &["sonnet", "opus", "haiku"];
+        if ALLOWED_MODELS.contains(&m) {
+            args.push("--model".to_string());
+            args.push(m.to_string());
+        }
+    }
+
+    args
+}
+
+/// Try to capture session_id from a stream event and save it to agent info.
+/// Returns true if a session_id was found and stored.
+fn try_capture_session_id(
+    event: &FrontendStreamEvent,
+    agents: &Mutex<HashMap<Uuid, AgentInfo>>,
+    workspace_id: Uuid,
+) -> bool {
+    let sid = match event {
+        FrontendStreamEvent::System { session_id, .. } => session_id.clone(),
+        FrontendStreamEvent::Result { session_id, .. } => session_id.clone(),
+        _ => None,
+    };
+    if let Some(sid) = sid {
+        let mut lock = agents.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(agent) = lock.get_mut(&workspace_id) {
+            agent.session_id = Some(sid);
+        }
+        true
+    } else {
+        false
+    }
+}
+
 /// Spawn Claude Code CLI and stream its output via Tauri events.
 ///
 /// Returns the child process handle. The session_id will be emitted
@@ -106,42 +171,13 @@ pub async fn spawn_and_stream(
 ) -> Result<Child, AppError> {
     let claude_bin = find_claude_binary()?;
 
-    let mut args = vec![
-        "-p".to_string(),
-        message.to_string(),
-        "--output-format".to_string(),
-        "stream-json".to_string(),
-        "--verbose".to_string(),
-        "--dangerously-skip-permissions".to_string(),
-    ];
-
-    if let Some(sid) = session_id {
-        args.push("--resume".to_string());
-        args.push(sid.to_string());
-    }
-
-    // Add linked workspace directories
-    for dir in &linked_dirs {
-        args.push("--add-dir".to_string());
-        args.push(dir.to_string_lossy().to_string());
-    }
-
-    // Add system prompt additions
-    if let Some(prompt) = system_prompt_additions {
-        if !prompt.is_empty() {
-            args.push("--append-system-prompt".to_string());
-            args.push(prompt.to_string());
-        }
-    }
-
-    // Add model override (allowlist only)
-    if let Some(m) = model {
-        const ALLOWED_MODELS: &[&str] = &["sonnet", "opus", "haiku"];
-        if ALLOWED_MODELS.contains(&m) {
-            args.push("--model".to_string());
-            args.push(m.to_string());
-        }
-    }
+    let mut args = vec!["-p".to_string(), message.to_string()];
+    args.extend(build_common_args(
+        session_id,
+        &linked_dirs,
+        system_prompt_additions,
+        model,
+    ));
 
     let mut cmd = Command::new(&claude_bin);
     cmd.args(&args)
@@ -196,21 +232,9 @@ pub async fn spawn_and_stream(
             }
 
             if let Some(frontend_event) = parse_stream_line(&line) {
-                // Capture session_id from the first event that contains one
                 if !session_id_captured {
-                    let sid = match &frontend_event {
-                        FrontendStreamEvent::System { session_id, .. } => session_id.clone(),
-                        FrontendStreamEvent::Result { session_id, .. } => session_id.clone(),
-                        _ => None,
-                    };
-                    if let Some(sid) = sid {
-                        if let Ok(mut agents_lock) = agents.lock() {
-                            if let Some(agent) = agents_lock.get_mut(&ws_id) {
-                                agent.session_id = Some(sid);
-                            }
-                        }
-                        session_id_captured = true;
-                    }
+                    session_id_captured =
+                        try_capture_session_id(&frontend_event, &agents, ws_id);
                 }
 
                 let _ = app_handle_stdout.emit(&event_name, &frontend_event);
@@ -263,37 +287,7 @@ pub async fn spawn_persistent(
 ) -> Result<(Child, ChildStdin), AppError> {
     let claude_bin = find_claude_binary()?;
 
-    let mut args = vec![
-        "--output-format".to_string(),
-        "stream-json".to_string(),
-        "--verbose".to_string(),
-        "--dangerously-skip-permissions".to_string(),
-    ];
-
-    if let Some(sid) = session_id {
-        args.push("--resume".to_string());
-        args.push(sid.to_string());
-    }
-
-    for dir in &linked_dirs {
-        args.push("--add-dir".to_string());
-        args.push(dir.to_string_lossy().to_string());
-    }
-
-    if let Some(prompt) = system_prompt_additions {
-        if !prompt.is_empty() {
-            args.push("--append-system-prompt".to_string());
-            args.push(prompt.to_string());
-        }
-    }
-
-    if let Some(m) = model {
-        const ALLOWED_MODELS: &[&str] = &["sonnet", "opus", "haiku"];
-        if ALLOWED_MODELS.contains(&m) {
-            args.push("--model".to_string());
-            args.push(m.to_string());
-        }
-    }
+    let args = build_common_args(session_id, &linked_dirs, system_prompt_additions, model);
 
     let mut cmd = Command::new(&claude_bin);
     cmd.args(&args)
@@ -352,35 +346,25 @@ pub async fn spawn_persistent(
             }
 
             if let Some(frontend_event) = parse_stream_line(&line) {
-                // Capture session_id from the first event that contains one
                 if !session_id_captured {
-                    let sid = match &frontend_event {
-                        FrontendStreamEvent::System { session_id, .. } => session_id.clone(),
-                        FrontendStreamEvent::Result { session_id, .. } => session_id.clone(),
-                        _ => None,
-                    };
-                    if let Some(sid) = sid {
-                        if let Ok(mut agents_lock) = agents_stdout.lock() {
-                            if let Some(agent) = agents_lock.get_mut(&ws_id) {
-                                agent.session_id = Some(sid);
-                            }
-                        }
-                        session_id_captured = true;
-                    }
+                    session_id_captured =
+                        try_capture_session_id(&frontend_event, &agents_stdout, ws_id);
                 }
 
                 // In persistent mode, a result event means the turn is done (set Idle)
                 if matches!(&frontend_event, FrontendStreamEvent::Result { .. }) {
-                    if let Ok(mut agents_lock) = agents_stdout.lock() {
-                        if let Some(agent) = agents_lock.get_mut(&ws_id) {
-                            agent.status = crate::models::agent::AgentStatus::Idle;
+                    {
+                        let mut lock =
+                            agents_stdout.lock().unwrap_or_else(|e| e.into_inner());
+                        if let Some(agent) = lock.get_mut(&ws_id) {
+                            agent.status = AgentStatus::Idle;
                         }
                     }
                     let _ = app_handle_stdout.emit(
                         &format!("agent-status:{}", ws_id),
-                        &crate::models::agent::AgentStatusEvent {
+                        &AgentStatusEvent {
                             workspace_id: ws_id,
-                            status: crate::models::agent::AgentStatus::Idle,
+                            status: AgentStatus::Idle,
                         },
                     );
                 }
@@ -390,19 +374,22 @@ pub async fn spawn_persistent(
         }
 
         // EOF — process exited unexpectedly, clean up
-        if let Ok(mut pa) = persistent_agents.lock() {
-            pa.remove(&ws_id);
-        }
-        if let Ok(mut agents_lock) = agents_stdout.lock() {
-            if let Some(agent) = agents_lock.get_mut(&ws_id) {
-                agent.status = crate::models::agent::AgentStatus::Idle;
+        persistent_agents
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&ws_id);
+        {
+            let mut lock = agents_stdout.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(agent) = lock.get_mut(&ws_id) {
+                agent.status = AgentStatus::Idle;
+                agent.pid = None;
             }
         }
         let _ = app_handle_stdout.emit(
             &format!("agent-status:{}", ws_id),
-            &crate::models::agent::AgentStatusEvent {
+            &AgentStatusEvent {
                 workspace_id: ws_id,
-                status: crate::models::agent::AgentStatus::Idle,
+                status: AgentStatus::Idle,
             },
         );
     });

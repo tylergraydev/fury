@@ -23,6 +23,7 @@ pub struct AgentInfo {
     pub session_id: Option<String>,
     pub status: AgentStatus,
     pub started_at: Option<DateTime<Utc>>,
+    pub pid: Option<u32>,
 }
 
 impl AgentInfo {
@@ -32,6 +33,7 @@ impl AgentInfo {
             session_id: None,
             status: AgentStatus::Idle,
             started_at: None,
+            pid: None,
         }
     }
 }
