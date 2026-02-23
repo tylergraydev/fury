@@ -69,6 +69,7 @@ pub fn run() {
             commands::git::write_workspace_file,
             commands::git::write_repo_file,
             commands::git::load_type_definitions,
+            commands::git::read_file_base64,
             // Merge/branch commands
             commands::merge::get_branch_status,
             commands::merge::fetch_upstream,

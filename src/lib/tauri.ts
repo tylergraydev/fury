@@ -317,6 +317,10 @@ export async function readRepoFile(
   return invoke<FileContent>("read_repo_file", { repoId, filePath });
 }
 
+export async function readFileBase64(filePath: string): Promise<string> {
+  return invoke<string>("read_file_base64", { filePath });
+}
+
 // Type definitions for Monaco language services
 export interface TypeDefFile {
   filePath: string;

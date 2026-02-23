@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import {
   FileText,
   Pencil,
@@ -18,8 +18,78 @@ import {
   ListPlus,
   ListChecks,
   GitCompare,
+  ImageIcon,
 } from "lucide-react";
 import type { ChatMessage, ContentBlock } from "../../lib/tauri";
+import { readFileBase64 } from "../../lib/tauri";
+
+// --- Attachment parsing ---
+
+interface ParsedAttachment {
+  type: "image" | "file";
+  path: string;
+  name: string;
+}
+
+const ATTACHMENT_RE = /\[Attached (image|file): ([^\]]+)\]/g;
+
+function parseAttachments(text: string): { attachments: ParsedAttachment[]; remainingText: string } {
+  const attachments: ParsedAttachment[] = [];
+  let match;
+  while ((match = ATTACHMENT_RE.exec(text)) !== null) {
+    const kind = match[1] as "image" | "file";
+    const path = match[2];
+    attachments.push({ type: kind, path, name: path.split("/").pop() ?? path });
+  }
+  // Reset regex state
+  ATTACHMENT_RE.lastIndex = 0;
+  const remainingText = text.replace(ATTACHMENT_RE, "").trim();
+  return { attachments, remainingText };
+}
+
+function AttachmentImage({ path, name }: { path: string; name: string }) {
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    readFileBase64(path)
+      .then((url) => {
+        if (!cancelled) setDataUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => { cancelled = true; };
+  }, [path]);
+
+  if (failed) {
+    return (
+      <div className="mb-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px]" style={{ backgroundColor: "rgba(0,0,0,0.15)" }}>
+        <ImageIcon className="h-3.5 w-3.5" />
+        <span>{name}</span>
+      </div>
+    );
+  }
+
+  if (!dataUrl) {
+    return (
+      <div className="mb-2 h-24 w-32 animate-pulse rounded" style={{ backgroundColor: "rgba(0,0,0,0.1)" }} />
+    );
+  }
+
+  return (
+    <div className="mb-2">
+      <img
+        src={dataUrl}
+        alt={name}
+        className="max-h-48 max-w-full rounded"
+        style={{ objectFit: "contain" }}
+      />
+      <div className="mt-0.5 text-[11px] opacity-70">{name}</div>
+    </div>
+  );
+}
 
 // --- Grouping logic ---
 
@@ -388,6 +458,13 @@ export function MessageBubble({ message, onRetry }: Props) {
 
   // User messages: bubble with no avatar
   if (isUser) {
+    // Parse attachments from text blocks
+    const allText = groups
+      .filter((g): g is RenderGroup & { kind: "text" } => g.kind === "text")
+      .flatMap((g) => g.blocks.map((b) => b.text))
+      .join("\n");
+    const { attachments, remainingText } = parseAttachments(allText);
+
     return (
       <div className="mb-4 flex justify-end">
         <div
@@ -397,14 +474,26 @@ export function MessageBubble({ message, onRetry }: Props) {
             color: "#1e1e2e",
           }}
         >
-          {groups.map((group, i) =>
-            group.kind === "text" ? (
-              group.blocks.map((block, j) => (
-                <div key={`${i}-${j}`} className="whitespace-pre-wrap break-words">
-                  {block.text}
-                </div>
-              ))
-            ) : null,
+          {/* Render image attachments */}
+          {attachments.filter((a) => a.type === "image").map((a, i) => (
+            <AttachmentImage key={`img-${i}`} path={a.path} name={a.name} />
+          ))}
+          {/* Render file attachments as badges */}
+          {attachments.filter((a) => a.type === "file").map((a, i) => (
+            <div
+              key={`file-${i}`}
+              className="mb-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px]"
+              style={{ backgroundColor: "rgba(0,0,0,0.15)" }}
+            >
+              <FileText className="h-3.5 w-3.5" />
+              <span>{a.name}</span>
+            </div>
+          ))}
+          {/* Render remaining text */}
+          {remainingText && (
+            <div className="whitespace-pre-wrap break-words">
+              {remainingText}
+            </div>
           )}
         </div>
       </div>
