@@ -147,6 +147,7 @@ export interface PersistedChatMessage {
   role: MessageRole;
   content: ContentBlock[];
   timestamp: string; // ISO 8601
+  displayText?: string;
 }
 
 export function toPersisted(
@@ -159,6 +160,7 @@ export function toPersisted(
     role: msg.role,
     content: msg.content,
     timestamp: new Date(msg.timestamp).toISOString(),
+    ...(msg.displayText ? { displayText: msg.displayText } : {}),
   };
 }
 
@@ -168,6 +170,7 @@ export function fromPersisted(msg: PersistedChatMessage): ChatMessage {
     role: msg.role,
     content: msg.content,
     timestamp: new Date(msg.timestamp).getTime(),
+    ...(msg.displayText ? { displayText: msg.displayText } : {}),
   };
 }
 

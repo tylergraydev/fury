@@ -41,26 +41,19 @@ describe("Composer", () => {
   it("renders textarea and send button", () => {
     render(<Composer {...defaultProps} />);
     expect(screen.getByRole("textbox")).toBeInTheDocument();
-    expect(screen.getByText("Send")).toBeInTheDocument();
-  });
-
-  it("shows Idle status by default", () => {
-    render(<Composer {...defaultProps} />);
-    expect(screen.getByText("Idle")).toBeInTheDocument();
+    expect(screen.getByTitle("Send message")).toBeInTheDocument();
   });
 
   it("send button is disabled when text is empty", () => {
     render(<Composer {...defaultProps} />);
-    const sendBtn = screen.getByText("Send").closest("button")!;
-    expect(sendBtn).toBeDisabled();
+    expect(screen.getByTitle("Send message")).toBeDisabled();
   });
 
   it("send button is enabled when text is entered", async () => {
     const user = userEvent.setup();
     render(<Composer {...defaultProps} />);
     await user.type(screen.getByRole("textbox"), "hello");
-    const sendBtn = screen.getByText("Send").closest("button")!;
-    expect(sendBtn).not.toBeDisabled();
+    expect(screen.getByTitle("Send message")).not.toBeDisabled();
   });
 
   it("calls onSend when send button is clicked", async () => {
@@ -68,7 +61,7 @@ describe("Composer", () => {
     const user = userEvent.setup();
     render(<Composer {...defaultProps} onSend={onSend} />);
     await user.type(screen.getByRole("textbox"), "test message");
-    await user.click(screen.getByText("Send").closest("button")!);
+    await user.click(screen.getByTitle("Send message"));
     expect(onSend).toHaveBeenCalledWith("test message", undefined, undefined);
   });
 
@@ -96,10 +89,9 @@ describe("Composer", () => {
     expect(textarea).toHaveValue("");
   });
 
-  it("shows Running status and stop button when agent is running", () => {
+  it("shows stop button when agent is running", () => {
     render(<Composer {...defaultProps} agentStatus="Running" />);
-    expect(screen.getByText("Running")).toBeInTheDocument();
-    expect(screen.getByText("Stop")).toBeInTheDocument();
+    expect(screen.getByTitle("Stop the running agent")).toBeInTheDocument();
   });
 
   it("disables textarea when agent is running", () => {
@@ -111,21 +103,13 @@ describe("Composer", () => {
     const onStop = vi.fn();
     const user = userEvent.setup();
     render(<Composer {...defaultProps} agentStatus="Running" onStop={onStop} />);
-    await user.click(screen.getByText("Stop"));
+    await user.click(screen.getByTitle("Stop the running agent"));
     expect(onStop).toHaveBeenCalledOnce();
   });
 
-  it("shows Stopping status when agent is stopping", () => {
+  it("shows Stopping text when agent is stopping", () => {
     render(<Composer {...defaultProps} agentStatus="Stopping" />);
-    expect(screen.getByText("Stopping")).toBeInTheDocument();
     expect(screen.getByText("Stopping...")).toBeInTheDocument();
-  });
-
-  it("shows Error status when agent has error", () => {
-    render(
-      <Composer {...defaultProps} agentStatus={{ Error: "something broke" }} />,
-    );
-    expect(screen.getByText("Error")).toBeInTheDocument();
   });
 
   // --- contextType "repo" loads repo files ---
@@ -148,7 +132,7 @@ describe("Composer", () => {
     const onSend = vi.fn();
     const user = userEvent.setup();
     render(<Composer {...defaultProps} onSend={onSend} />);
-    await user.click(screen.getByText("Send").closest("button")!);
+    await user.click(screen.getByTitle("Send message"));
     expect(onSend).not.toHaveBeenCalled();
   });
 
@@ -177,7 +161,7 @@ describe("Composer", () => {
     render(<Composer {...defaultProps} onSend={onSend} />);
     const textarea = screen.getByRole("textbox");
     await user.type(textarea, "Here are @todos please review");
-    await user.click(screen.getByText("Send").closest("button")!);
+    await user.click(screen.getByTitle("Send message"));
     expect(onSend).toHaveBeenCalledTimes(1);
     const sentMessage = onSend.mock.calls[0][0];
     expect(sentMessage).toContain("Fix bug");
@@ -240,7 +224,7 @@ describe("Composer", () => {
       await user.type(textarea, "/te");
       // "test" should be the only matching command; press Enter to select it
       await user.keyboard("{Enter}");
-      expect(textarea).toHaveValue("test content");
+      expect(textarea).toHaveValue("/test");
     });
 
     it("passes command name as displayText when sending after command selection", async () => {
@@ -250,7 +234,7 @@ describe("Composer", () => {
       const textarea = screen.getByRole("textbox");
       await user.type(textarea, "/te");
       await user.keyboard("{Enter}"); // selects /test command
-      await user.click(screen.getByText("Send").closest("button")!);
+      await user.click(screen.getByTitle("Send message"));
       expect(onSend).toHaveBeenCalledWith("test content", undefined, "/test");
     });
 
@@ -262,8 +246,8 @@ describe("Composer", () => {
       await user.type(textarea, "/te");
       await user.keyboard("{Enter}"); // selects /test command
       await user.type(textarea, " extra"); // edit clears pendingCommandName
-      await user.click(screen.getByText("Send").closest("button")!);
-      expect(onSend).toHaveBeenCalledWith("test content extra", undefined, undefined);
+      await user.click(screen.getByTitle("Send message"));
+      expect(onSend).toHaveBeenCalledWith("/test extra", undefined, undefined);
     });
 
     it("selects slash command with Tab key", async () => {
@@ -272,7 +256,7 @@ describe("Composer", () => {
       const textarea = screen.getByRole("textbox");
       await user.type(textarea, "/te");
       await user.keyboard("{Tab}");
-      expect(textarea).toHaveValue("test content");
+      expect(textarea).toHaveValue("/test");
     });
 
     it("closes slash menu on Escape key", async () => {
@@ -291,7 +275,7 @@ describe("Composer", () => {
       await user.type(textarea, "/");
       // Click on /test command
       await user.click(screen.getByText("/test"));
-      expect(textarea).toHaveValue("test content");
+      expect(textarea).toHaveValue("/test");
     });
 
     it("hides slash menu when text does not start with /", async () => {
@@ -344,7 +328,7 @@ describe("Composer", () => {
       await user.keyboard("{ArrowDown}");
       await user.keyboard("{ArrowDown}");
       await user.keyboard("{Enter}");
-      expect(textarea).toHaveValue("only content");
+      expect(textarea).toHaveValue("/only");
     });
 
     it("ArrowUp at first item stays at 0", async () => {
@@ -355,7 +339,7 @@ describe("Composer", () => {
       // Already at index 0; ArrowUp should stay there
       await user.keyboard("{ArrowUp}");
       await user.keyboard("{Enter}");
-      expect(textarea).toHaveValue("test content");
+      expect(textarea).toHaveValue("/test");
     });
 
     it("shows plugin source with accent color", async () => {
@@ -607,48 +591,47 @@ describe("Composer", () => {
   describe("thinking and plan mode toggles", () => {
     it("renders Thinking and Plan toggle buttons", () => {
       render(<Composer {...defaultProps} />);
-      expect(screen.getByTitle("Thinking enabled (click to disable)")).toBeInTheDocument();
-      expect(screen.getByTitle("Plan mode enabled (click to disable)")).toBeInTheDocument();
+      expect(screen.getByTitle("Disable thinking (⌥T)")).toBeInTheDocument();
+      expect(screen.getByTitle("Disable plan mode (⇧⇥)")).toBeInTheDocument();
     });
 
     it("calls onThinkingEnabledChange when thinking toggle is clicked", async () => {
       const onThinkingEnabledChange = vi.fn();
       const user = userEvent.setup();
       render(<Composer {...defaultProps} onThinkingEnabledChange={onThinkingEnabledChange} />);
-      await user.click(screen.getByTitle("Thinking enabled (click to disable)"));
+      await user.click(screen.getByTitle("Disable thinking (⌥T)"));
       expect(onThinkingEnabledChange).toHaveBeenCalledWith(false);
     });
 
     it("shows disabled state when thinkingEnabled=false", () => {
       render(<Composer {...defaultProps} thinkingEnabled={false} />);
-      expect(screen.getByTitle("Thinking disabled (click to enable)")).toBeInTheDocument();
+      expect(screen.getByTitle("Enable thinking (⌥T)")).toBeInTheDocument();
     });
 
     it("calls onPlanEnabledChange when plan toggle is clicked", async () => {
       const onPlanEnabledChange = vi.fn();
       const user = userEvent.setup();
       render(<Composer {...defaultProps} onPlanEnabledChange={onPlanEnabledChange} />);
-      await user.click(screen.getByTitle("Plan mode enabled (click to disable)"));
+      await user.click(screen.getByTitle("Disable plan mode (⇧⇥)"));
       expect(onPlanEnabledChange).toHaveBeenCalledWith(false);
     });
 
     it("shows disabled state when planEnabled=false", () => {
       render(<Composer {...defaultProps} planEnabled={false} />);
-      expect(screen.getByTitle("Plan mode disabled (click to enable)")).toBeInTheDocument();
+      expect(screen.getByTitle("Enable plan mode (⇧⇥)")).toBeInTheDocument();
     });
 
     it("toggles are disabled when agent is running", () => {
       render(<Composer {...defaultProps} agentStatus="Running" />);
-      expect(screen.getByTitle("Thinking enabled (click to disable)")).toBeDisabled();
-      expect(screen.getByTitle("Plan mode enabled (click to disable)")).toBeDisabled();
+      expect(screen.getByTitle("Disable thinking (⌥T)")).toBeDisabled();
+      expect(screen.getByTitle("Disable plan mode (⇧⇥)")).toBeDisabled();
     });
   });
 
   // --- Stopping state disables stop button ---
   it("disables stop button when agent is stopping", () => {
     render(<Composer {...defaultProps} agentStatus="Stopping" />);
-    const stopBtn = screen.getByText("Stopping...").closest("button")!;
-    expect(stopBtn).toBeDisabled();
+    expect(screen.getByTitle("Stop the running agent")).toBeDisabled();
   });
 
   // --- Disables textarea when agent is stopping ---
@@ -685,7 +668,7 @@ describe("Composer", () => {
     );
     const textarea = screen.getByRole("textbox");
     await user.type(textarea, "Check @todos now");
-    await user.click(screen.getByText("Send").closest("button")!);
+    await user.click(screen.getByTitle("Send message"));
     // In repo context, workspaceId is undefined, so @todos is NOT expanded
     expect(onSend).toHaveBeenCalledWith("Check @todos now", undefined, undefined);
   });

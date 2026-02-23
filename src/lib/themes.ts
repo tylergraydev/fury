@@ -17,6 +17,7 @@ interface ThemeVars {
   "--success": string;
   "--warning": string;
   "--error": string;
+  "--composer-border": string;
 }
 
 const themes: Record<ThemeName, ThemeVars> = {
@@ -38,6 +39,7 @@ const themes: Record<ThemeName, ThemeVars> = {
     "--success": "#4ade80",
     "--warning": "#facc15",
     "--error": "#f87171",
+    "--composer-border": "#8B6E5A",
   },
 
   // Midnight: original Fury pure-black theme
@@ -58,6 +60,7 @@ const themes: Record<ThemeName, ThemeVars> = {
     "--success": "#4ade80",
     "--warning": "#facc15",
     "--error": "#f87171",
+    "--composer-border": "#8B6E5A",
   },
 
   // GitHub: full GitHub dark theme from Figma
@@ -78,6 +81,7 @@ const themes: Record<ThemeName, ThemeVars> = {
     "--success": "#4ade80",
     "--warning": "#facc15",
     "--error": "#f87171",
+    "--composer-border": "#8B6E5A",
   },
 };
 

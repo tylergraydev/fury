@@ -13,10 +13,9 @@ test.describe("Error & Edge States", () => {
       Error: "Connection lost to Claude API",
     });
 
-    // The status indicator should show error state
-    // The composer area shows the agent status
+    // The status dot in the top bar should show error state
     await expect(
-      appPage.getByText("Error").first(),
+      appPage.locator("[title='Agent error']"),
     ).toBeVisible({ timeout: 5000 });
   });
 
@@ -49,9 +48,9 @@ test.describe("Error & Edge States", () => {
     // Set agent to Running without sending any stream text yet
     await emitAgentStatus(appPage, "ws-auth", "Running");
 
-    // Should show "Running" status in the composer area
+    // Should show "Stop" button in the composer area when running
     await expect(
-      appPage.getByText("Running").first(),
+      appPage.getByText("Stop").first(),
     ).toBeVisible({ timeout: 5000 });
   });
 });

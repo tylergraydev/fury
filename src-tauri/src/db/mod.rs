@@ -564,13 +564,14 @@ impl Database {
             MessageRole::System => "system",
         };
         self.conn.execute(
-            "INSERT OR REPLACE INTO chat_messages (id, workspace_id, role, content, timestamp) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT OR REPLACE INTO chat_messages (id, workspace_id, role, content, timestamp, display_text) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             rusqlite::params![
                 msg.id.to_string(),
                 msg.workspace_id.to_string(),
                 role_str,
                 content_json,
                 msg.timestamp.to_rfc3339(),
+                msg.display_text,
             ],
         )?;
         Ok(())
@@ -578,7 +579,7 @@ impl Database {
 
     pub fn list_chat_messages(&self, workspace_id: &Uuid) -> Result<Vec<ChatMessage>, AppError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, workspace_id, role, content, timestamp
+            "SELECT id, workspace_id, role, content, timestamp, display_text
              FROM chat_messages WHERE workspace_id = ?1 ORDER BY timestamp ASC, rowid ASC",
         )?;
         let messages = stmt
@@ -586,6 +587,7 @@ impl Database {
                 let role_str: String = row.get(2)?;
                 let content_json: String = row.get(3)?;
                 let timestamp_str: String = row.get(4)?;
+                let display_text: Option<String> = row.get(5)?;
                 Ok(ChatMessage {
                     id: row.get::<_, String>(0)?.parse::<Uuid>().unwrap_or_default(),
                     workspace_id: row.get::<_, String>(1)?.parse::<Uuid>().unwrap_or_default(),
@@ -599,6 +601,7 @@ impl Database {
                     timestamp: timestamp_str
                         .parse::<DateTime<Utc>>()
                         .unwrap_or_else(|_| Utc::now()),
+                    display_text,
                 })
             })?
             .filter_map(|r| r.ok())

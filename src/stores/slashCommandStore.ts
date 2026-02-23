@@ -6,16 +6,19 @@ import {
 
 interface SlashCommandStore {
   commands: Record<string, SlashCommand[]>;
+  discoveredSkills: Record<string, SlashCommand[]>;
   loading: Record<string, boolean>;
   error: Record<string, string | null>;
 
   loadCommands: (contextId: string, contextType?: "workspace" | "repo") => Promise<void>;
+  addDiscoveredSkills: (contextId: string, skills: SlashCommand[]) => void;
   getCommands: (contextId: string) => SlashCommand[];
   findMatching: (contextId: string, prefix: string) => SlashCommand[];
 }
 
 export const useSlashCommandStore = create<SlashCommandStore>((set, get) => ({
   commands: {},
+  discoveredSkills: {},
   loading: {},
   error: {},
 
@@ -38,6 +41,12 @@ export const useSlashCommandStore = create<SlashCommandStore>((set, get) => ({
         error: { ...s.error, [contextId]: String(e) },
       }));
     }
+  },
+
+  addDiscoveredSkills: (contextId: string, skills: SlashCommand[]) => {
+    set((s) => ({
+      discoveredSkills: { ...s.discoveredSkills, [contextId]: skills },
+    }));
   },
 
   getCommands: (contextId: string) => {
