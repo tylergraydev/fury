@@ -94,7 +94,7 @@ function TreeItem({
             onFileDoubleClick(node.path);
           }
         }}
-        className="flex w-full items-center gap-1 py-0.5 text-left text-xs hover:bg-[var(--bg-hover)]"
+        className="flex w-full items-center gap-1 py-0.5 text-left text-sm hover:bg-[var(--bg-hover)]"
         style={{
           paddingLeft: `${depth * 12 + 8}px`,
           color: node.isDir ? "var(--text-secondary)" : "var(--text-primary)",

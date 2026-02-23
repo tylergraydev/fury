@@ -30,6 +30,8 @@ pub struct AppState {
     pub spotlight_watchers: Arc<Mutex<HashMap<Uuid, SpotlightHandle>>>,
     /// Persistent agent stdin handles — for Performance Mode (kept alive between turns)
     pub persistent_agents: Arc<Mutex<HashMap<Uuid, ChildStdin>>>,
+    /// Agent stdin handles — for Safe Mode permission responses (all spawn modes)
+    pub agent_stdins: Arc<Mutex<HashMap<Uuid, ChildStdin>>>,
     /// Copilot Language Server — global singleton (handle + child process)
     pub copilot: Arc<Mutex<Option<(CopilotLspHandle, Child)>>>,
 }
@@ -45,6 +47,7 @@ impl AppState {
             agents: Arc::new(Mutex::new(HashMap::new())),
             agent_processes: Arc::new(Mutex::new(HashMap::new())),
             persistent_agents: Arc::new(Mutex::new(HashMap::new())),
+            agent_stdins: Arc::new(Mutex::new(HashMap::new())),
             script_processes: Arc::new(Mutex::new(HashMap::new())),
             terminal_sessions: Arc::new(Mutex::new(HashMap::new())),
             spotlight_watchers: Arc::new(Mutex::new(HashMap::new())),

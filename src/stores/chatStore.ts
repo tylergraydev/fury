@@ -13,10 +13,16 @@ import {
   fromPersisted,
 } from "../lib/tauri";
 
+export interface PermissionRequestInfo {
+  toolName: string;
+  input: unknown;
+}
+
 interface ChatStore {
   messages: Record<string, ChatMessage[]>;
   streamingText: Record<string, string>;
   planApproval: Record<string, boolean>;
+  permissionRequest: Record<string, PermissionRequestInfo | null>;
   subscriptions: Record<string, UnlistenFn>;
 
   subscribe: (workspaceId: string) => Promise<void>;
@@ -28,12 +34,14 @@ interface ChatStore {
   getPlanContent: (workspaceId: string) => string;
   loadMessages: (workspaceId: string) => Promise<void>;
   removeTrailingSystemMessages: (workspaceId: string) => void;
+  clearPermissionRequest: (workspaceId: string) => void;
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
   messages: {},
   streamingText: {},
   planApproval: {},
+  permissionRequest: {},
   subscriptions: {},
 
   subscribe: async (workspaceId: string) => {
@@ -81,6 +89,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         [workspaceId]: [...(state.messages[workspaceId] ?? []), msg],
       },
       planApproval: { ...state.planApproval, [workspaceId]: false },
+      permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
     }));
     persistMessage(workspaceId, msg);
   },
@@ -90,6 +99,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       messages: { ...state.messages, [workspaceId]: [] },
       streamingText: { ...state.streamingText, [workspaceId]: "" },
       planApproval: { ...state.planApproval, [workspaceId]: false },
+      permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
     }));
     clearChatMessagesCmd(workspaceId).catch(console.error);
   },
@@ -145,6 +155,12 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         messages: { ...state.messages, [workspaceId]: msgs.slice(0, i) },
       };
     });
+  },
+
+  clearPermissionRequest: (workspaceId: string) => {
+    set((state) => ({
+      permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
+    }));
   },
 }));
 
@@ -277,13 +293,24 @@ function handleStreamEvent(
       break;
     }
 
+    case "permissionRequest": {
+      set((state) => ({
+        permissionRequest: {
+          ...state.permissionRequest,
+          [workspaceId]: { toolName: event.toolName, input: event.input },
+        },
+      }));
+      break;
+    }
+
     case "result": {
       // Finalize any remaining streaming text as the final assistant message
       finalizeStreamingText(workspaceId, set, get);
 
-      // Clear plan approval state when agent finishes
+      // Clear plan approval and permission request state when agent finishes
       set((state) => ({
         planApproval: { ...state.planApproval, [workspaceId]: false },
+        permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
       }));
 
       // If error, add a user-friendly error message

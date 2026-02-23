@@ -4,6 +4,7 @@ import { useChatStore } from "../../stores/chatStore";
 import { useCheckpointStore } from "../../stores/checkpointStore";
 import { useTodoStore } from "../../stores/todoStore";
 import type { ChatMessage, Checkpoint } from "../../lib/tauri";
+import { respondToPermission } from "../../lib/tauri";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
 
@@ -35,6 +36,9 @@ export function ChatPanel({ contextId, contextType }: Props) {
   const isPlanApproval = useChatStore(
     (s) => s.planApproval[contextId] ?? false,
   );
+  const permissionRequest = useChatStore(
+    (s) => s.permissionRequest[contextId] ?? null,
+  );
 
   // Subscribe to events when context changes
   useEffect(() => {
@@ -60,6 +64,13 @@ export function ChatPanel({ contextId, contextType }: Props) {
       }
     };
   }, [contextId, contextType]);
+
+  // Clear stale permission request when agent stops (e.g. process crash without result event)
+  useEffect(() => {
+    if (agentStatus !== "Running" && permissionRequest) {
+      useChatStore.getState().clearPermissionRequest(contextId);
+    }
+  }, [agentStatus, contextId, permissionRequest]);
 
   const handleSend = useCallback(
     async (message: string, model?: string) => {
@@ -120,6 +131,15 @@ export function ChatPanel({ contextId, contextType }: Props) {
     }
   }, [contextId]);
 
+  const handleRespondToPermission = useCallback(async (approved: boolean) => {
+    try {
+      await respondToPermission(contextId, approved);
+      useChatStore.getState().clearPermissionRequest(contextId);
+    } catch (e) {
+      console.error("Failed to respond to permission:", e);
+    }
+  }, [contextId]);
+
   const handleRevert = useCallback(
     async (checkpointId: string) => {
       try {
@@ -155,6 +175,8 @@ export function ChatPanel({ contextId, contextType }: Props) {
         isPlanApproval={isPlanApproval}
         onApprovePlan={handleApprovePlan}
         onCopyPlan={handleCopyPlan}
+        permissionRequest={permissionRequest}
+        onRespondToPermission={handleRespondToPermission}
       />
     </div>
   );

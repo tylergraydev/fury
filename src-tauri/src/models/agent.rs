@@ -132,6 +132,10 @@ pub enum FrontendStreamEvent {
         result: Option<String>,
         session_id: Option<String>,
     },
+    PermissionRequest {
+        tool_name: String,
+        input: serde_json::Value,
+    },
 }
 
 /// Agent status change event emitted to frontend.

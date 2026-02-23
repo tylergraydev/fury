@@ -1215,7 +1215,7 @@ function ExperimentalTab() {
     );
   }
 
-  const toggle = async (key: "spotlightTesting" | "agentTeams" | "persistentProcesses") => {
+  const toggle = async (key: "spotlightTesting" | "agentTeams" | "persistentProcesses" | "safeMode") => {
     setSaving(true);
     try {
       await saveSettings({
@@ -1230,92 +1230,45 @@ function ExperimentalTab() {
     }
   };
 
+  const TOGGLES: { key: "spotlightTesting" | "agentTeams" | "persistentProcesses" | "safeMode"; label: string; description: string }[] = [
+    { key: "spotlightTesting", label: "Spotlight Testing", description: "Watch workspace worktree for file changes and sync them to the repo root in real-time. Enables running tests against the agent's changes without switching branches." },
+    { key: "agentTeams", label: "Agent Teams", description: "Make agents aware of sibling workspaces in the same repo. Sets CONDUCTOR_AGENT_TEAMS and CONDUCTOR_TEAM_WORKSPACES environment variables so agents can coordinate." },
+    { key: "persistentProcesses", label: "Performance Mode", description: "Keep Claude processes alive between turns to eliminate startup latency. Uses more memory per workspace. When disabled (Low RAM mode), a new process is spawned for each turn." },
+    { key: "safeMode", label: "Safe Mode", description: "Require approval before the agent executes tool calls like file writes and bash commands. When disabled, all tool calls are auto-approved." },
+  ];
+
   return (
     <div className="p-4 space-y-4">
       <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>
         These features are experimental and may change or be removed.
       </div>
 
-      {/* Spotlight Testing */}
-      <div
-        className="rounded p-3"
-        style={{
-          backgroundColor: "var(--bg-surface)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-primary)" }}>
-          <input
-            type="checkbox"
-            checked={appSettings.experimental.spotlightTesting}
-            onChange={() => toggle("spotlightTesting")}
-            disabled={saving}
-          />
-          Spotlight Testing
-        </label>
+      {TOGGLES.map(({ key, label, description }) => (
         <div
-          className="mt-1 text-[10px]"
-          style={{ color: "var(--text-muted)" }}
+          key={key}
+          className="rounded p-3"
+          style={{
+            backgroundColor: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+          }}
         >
-          Watch workspace worktree for file changes and sync them to the repo
-          root in real-time. Enables running tests against the agent's changes
-          without switching branches.
+          <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-primary)" }}>
+            <input
+              type="checkbox"
+              checked={appSettings.experimental[key]}
+              onChange={() => toggle(key)}
+              disabled={saving}
+            />
+            {label}
+          </label>
+          <div
+            className="mt-1 text-[10px]"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {description}
+          </div>
         </div>
-      </div>
-
-      {/* Agent Teams */}
-      <div
-        className="rounded p-3"
-        style={{
-          backgroundColor: "var(--bg-surface)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-primary)" }}>
-          <input
-            type="checkbox"
-            checked={appSettings.experimental.agentTeams}
-            onChange={() => toggle("agentTeams")}
-            disabled={saving}
-          />
-          Agent Teams
-        </label>
-        <div
-          className="mt-1 text-[10px]"
-          style={{ color: "var(--text-muted)" }}
-        >
-          Make agents aware of sibling workspaces in the same repo. Sets
-          CONDUCTOR_AGENT_TEAMS and CONDUCTOR_TEAM_WORKSPACES environment
-          variables so agents can coordinate.
-        </div>
-      </div>
-
-      {/* Performance Mode */}
-      <div
-        className="rounded p-3"
-        style={{
-          backgroundColor: "var(--bg-surface)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-primary)" }}>
-          <input
-            type="checkbox"
-            checked={appSettings.experimental.persistentProcesses}
-            onChange={() => toggle("persistentProcesses")}
-            disabled={saving}
-          />
-          Performance Mode
-        </label>
-        <div
-          className="mt-1 text-[10px]"
-          style={{ color: "var(--text-muted)" }}
-        >
-          Keep Claude processes alive between turns to eliminate startup
-          latency. Uses more memory per workspace. When disabled (Low RAM
-          mode), a new process is spawned for each turn.
-        </div>
-      </div>
+      ))}
     </div>
   );
 }

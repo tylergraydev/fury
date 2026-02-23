@@ -73,6 +73,8 @@ pub struct ExperimentalSettings {
     pub agent_teams: bool,
     #[serde(default)]
     pub persistent_processes: bool,
+    #[serde(default)]
+    pub safe_mode: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

@@ -180,12 +180,13 @@ pub async fn send_message(
         vec![]
     };
 
-    // Get system prompt additions and persistent mode setting in a single lock
-    let (system_prompt, persistent_mode) = {
+    // Get system prompt additions, persistent mode, and safe mode settings in a single lock
+    let (system_prompt, persistent_mode, safe_mode) = {
         let settings = state.settings.lock().unwrap();
         (
             settings.system_prompt_additions.clone(),
             settings.experimental.persistent_processes,
+            settings.experimental.safe_mode,
         )
     };
 
@@ -221,6 +222,7 @@ pub async fn send_message(
                 linked_dirs,
                 system_prompt.as_deref(),
                 request.model.as_deref(),
+                safe_mode,
                 app.clone(),
                 Arc::clone(&state.agents),
                 Arc::clone(&state.persistent_agents),
@@ -313,7 +315,7 @@ pub async fn send_message(
         }
     } else {
         // Low RAM Mode: spawn a new process per turn
-        let child = match claude_process::spawn_and_stream(
+        let (child, stdin) = match claude_process::spawn_and_stream(
             context_id,
             &request.message,
             session_id.as_deref(),
@@ -322,17 +324,25 @@ pub async fn send_message(
             linked_dirs,
             system_prompt.as_deref(),
             request.model.as_deref(),
+            safe_mode,
             app.clone(),
             Arc::clone(&state.agents),
         )
         .await
         {
-            Ok(child) => child,
+            Ok(result) => result,
             Err(e) => {
                 reset_agent_on_error(&state.agents, &app, context_id);
                 return Err(e);
             }
         };
+
+        // Store stdin for safe mode permission responses
+        state
+            .agent_stdins
+            .lock()
+            .unwrap()
+            .insert(context_id, stdin);
 
         // Store PID in agent info for stop_agent
         if let Some(pid) = child.id() {
@@ -351,6 +361,7 @@ pub async fn send_message(
         // Background task: wait for process exit
         let agents_ref = Arc::clone(&state.agents);
         let processes_ref = Arc::clone(&state.agent_processes);
+        let stdins_ref = Arc::clone(&state.agent_stdins);
         let app_clone = app.clone();
         tokio::spawn(async move {
             let mut child = {
@@ -364,6 +375,12 @@ pub async fn send_message(
             } else {
                 None
             };
+
+            // Clean up stdin handle
+            stdins_ref
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .remove(&context_id);
 
             let new_status = match exit_status {
                 Some(ref status) if status.success() => AgentStatus::Idle,
@@ -394,6 +411,46 @@ pub async fn send_message(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn respond_to_permission(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    approved: bool,
+) -> Result<(), AppError> {
+    let id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let response = if approved { "yes" } else { "no" };
+
+    // Try agent_stdins first (non-persistent mode), then persistent_agents
+    let mut stdin_opt = state.agent_stdins.lock().unwrap().remove(&id);
+    let from_persistent = if stdin_opt.is_none() {
+        stdin_opt = state.persistent_agents.lock().unwrap().remove(&id);
+        true
+    } else {
+        false
+    };
+
+    if let Some(mut stdin) = stdin_opt {
+        let write_result = claude_process::write_message(&mut stdin, response).await;
+
+        // Always put stdin back, even on error — losing the handle is unrecoverable
+        if from_persistent {
+            state.persistent_agents.lock().unwrap().insert(id, stdin);
+        } else {
+            state.agent_stdins.lock().unwrap().insert(id, stdin);
+        }
+
+        write_result?;
+        Ok(())
+    } else {
+        Err(AppError::AgentError(
+            "No stdin handle found for this agent".to_string(),
+        ))
+    }
 }
 
 #[tauri::command]
@@ -432,8 +489,9 @@ pub fn stop_agent(
         }
     }
 
-    // Clean up persistent state
+    // Clean up persistent state and stdin handles
     state.persistent_agents.lock().unwrap().remove(&id);
+    state.agent_stdins.lock().unwrap().remove(&id);
 
     // Set status to Idle and clear PID
     {
@@ -488,6 +546,7 @@ pub fn clear_session(
 
     // Kill any persistent process for this workspace (new session = new process)
     state.persistent_agents.lock().unwrap().remove(&id);
+    state.agent_stdins.lock().unwrap().remove(&id);
     {
         let mut processes = state.agent_processes.lock().unwrap();
         if let Some(child) = processes.remove(&id) {
