@@ -3,6 +3,7 @@ pub mod chat;
 pub mod checkpoint;
 pub mod copilot;
 pub mod git;
+pub mod linear;
 pub mod mcp;
 pub mod merge;
 pub mod pr;

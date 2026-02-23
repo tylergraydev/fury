@@ -42,6 +42,9 @@ pub enum AppError {
     #[error("Copilot error: {0}")]
     CopilotError(String),
 
+    #[error("Linear API error: {0}")]
+    LinearError(String),
+
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
 }

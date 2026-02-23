@@ -2,6 +2,7 @@ pub mod agent;
 pub mod chat;
 pub mod checkpoint;
 pub mod diff;
+pub mod linear;
 pub mod mcp;
 pub mod merge;
 pub mod pr;

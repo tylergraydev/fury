@@ -3,6 +3,7 @@ mod migrations;
 use crate::error::AppError;
 use crate::models::chat::{ChatMessage, ContentBlock, MessageRole};
 use crate::models::checkpoint::Checkpoint;
+use crate::models::linear::WorkspaceIssue;
 use crate::models::repository::{RepoSettings, Repository, RunScriptMode};
 use crate::models::settings::AppSettings;
 use crate::models::todo::TodoItem;
@@ -646,5 +647,58 @@ impl Database {
             rusqlite::params![workspace_id.to_string()],
         )?;
         Ok(())
+    }
+
+    // Workspace issue links
+
+    pub fn link_workspace_issue(
+        &self,
+        workspace_id: &Uuid,
+        issue_id: &str,
+        identifier: &str,
+        title: &str,
+        url: &str,
+    ) -> Result<(), AppError> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO workspace_issues (workspace_id, issue_id, identifier, title, url) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![workspace_id.to_string(), issue_id, identifier, title, url],
+        )?;
+        Ok(())
+    }
+
+    pub fn unlink_workspace_issue(
+        &self,
+        workspace_id: &Uuid,
+        issue_id: &str,
+    ) -> Result<(), AppError> {
+        self.conn.execute(
+            "DELETE FROM workspace_issues WHERE workspace_id = ?1 AND issue_id = ?2",
+            rusqlite::params![workspace_id.to_string(), issue_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_workspace_issues(
+        &self,
+        workspace_id: &Uuid,
+    ) -> Result<Vec<WorkspaceIssue>, AppError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT workspace_id, issue_id, identifier, title, url, linked_at
+             FROM workspace_issues WHERE workspace_id = ?1 ORDER BY linked_at DESC",
+        )?;
+        let issues = stmt
+            .query_map(rusqlite::params![workspace_id.to_string()], |row| {
+                Ok(WorkspaceIssue {
+                    workspace_id: row.get(0)?,
+                    issue_id: row.get(1)?,
+                    identifier: row.get(2)?,
+                    title: row.get(3)?,
+                    url: row.get(4)?,
+                    linked_at: row.get(5)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(issues)
     }
 }

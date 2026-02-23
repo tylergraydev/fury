@@ -172,9 +172,10 @@ interface Props {
   planEnabled: boolean;
   onPlanEnabledChange: (enabled: boolean) => void;
   onLinkWorkspaces?: () => void;
+  onLinkIssue?: () => void;
 }
 
-export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan, permissionRequest, onRespondToPermission, thinkingEnabled, onThinkingEnabledChange, planEnabled, onPlanEnabledChange, onLinkWorkspaces }: Props) {
+export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan, permissionRequest, onRespondToPermission, thinkingEnabled, onThinkingEnabledChange, planEnabled, onPlanEnabledChange, onLinkWorkspaces, onLinkIssue }: Props) {
   const workspaceId = contextType === "workspace" ? contextId : undefined;
   const sessionStats = useChatStore((s) => s.sessionStats[contextId]);
   const [text, setText] = useState("");
@@ -525,6 +526,15 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
       if (e.key === "Escape") {
         e.preventDefault();
         setShowAtMenu(false);
+        return;
+      }
+    }
+
+    // Cmd+I to link issue
+    if (e.key === "i" && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
+      if (onLinkIssue) {
+        e.preventDefault();
+        onLinkIssue();
         return;
       }
     }
@@ -964,8 +974,9 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
                       <kbd className="text-xs" style={{ color: "var(--text-muted)" }}>⌘U</kbd>
                     </button>
                     <button
-                      disabled
-                      className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors opacity-40"
+                      onClick={() => { setShowPlusMenu(false); onLinkIssue?.(); }}
+                      disabled={!onLinkIssue}
+                      className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors ${!onLinkIssue ? "opacity-40" : "hover:bg-[var(--bg-hover)]"}`}
                       style={{ color: "var(--text-primary)" }}
                     >
                       <CircleDot className="h-4 w-4" style={{ color: "var(--text-secondary)" }} />

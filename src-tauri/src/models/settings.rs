@@ -11,6 +11,8 @@ pub struct AppSettings {
     pub experimental: ExperimentalSettings,
     #[serde(default)]
     pub copilot: CopilotSettings,
+    #[serde(default)]
+    pub linear: LinearSettings,
 }
 
 impl Default for AppSettings {
@@ -22,6 +24,7 @@ impl Default for AppSettings {
             analytics_enabled: false,
             experimental: ExperimentalSettings::default(),
             copilot: CopilotSettings::default(),
+            linear: LinearSettings::default(),
         }
     }
 }
@@ -81,4 +84,10 @@ pub struct ExperimentalSettings {
 #[serde(rename_all = "camelCase")]
 pub struct CopilotSettings {
     pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LinearSettings {
+    pub api_key: Option<String>,
 }

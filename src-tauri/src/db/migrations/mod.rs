@@ -112,5 +112,22 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
     let _ =
         conn.execute_batch("ALTER TABLE workspaces ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;");
 
+    // Workspace-issue links table (idempotent)
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS workspace_issues (
+            workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+            issue_id TEXT NOT NULL,
+            identifier TEXT NOT NULL,
+            title TEXT NOT NULL,
+            url TEXT NOT NULL,
+            linked_at TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (workspace_id, issue_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_workspace_issues_workspace ON workspace_issues(workspace_id);
+        ",
+    )
+    .map_err(|e| AppError::DbError(e.to_string()))?;
+
     Ok(())
 }
