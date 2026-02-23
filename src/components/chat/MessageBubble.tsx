@@ -486,10 +486,10 @@ export function MessageBubble({ message, onRetry }: Props) {
               <span>{a.name}</span>
             </div>
           ))}
-          {/* Render remaining text */}
-          {remainingText && (
+          {/* Render remaining text (or display label for slash commands) */}
+          {(message.displayText ?? remainingText) && (
             <div className="whitespace-pre-wrap break-words">
-              {remainingText}
+              {message.displayText ?? remainingText}
             </div>
           )}
         </div>

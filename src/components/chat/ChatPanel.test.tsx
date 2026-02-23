@@ -130,7 +130,7 @@ describe("ChatPanel", () => {
     const user = userEvent.setup();
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     await user.click(screen.getByTestId("send-btn"));
-    expect(addUserMessageSpy).toHaveBeenCalledWith("ws-1", "test message");
+    expect(addUserMessageSpy).toHaveBeenCalledWith("ws-1", "test message", undefined);
     expect(sendMessageSpy).toHaveBeenCalledWith("ws-1", "test message", "workspace", undefined, undefined, undefined);
   });
 

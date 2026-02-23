@@ -137,6 +137,7 @@ export interface ChatMessage {
   role: MessageRole;
   content: ContentBlock[];
   timestamp: number;
+  displayText?: string;
 }
 
 // Persisted chat message (matches backend ChatMessage with ISO timestamp)

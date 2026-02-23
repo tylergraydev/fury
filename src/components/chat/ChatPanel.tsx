@@ -77,10 +77,10 @@ export function ChatPanel({ contextId, contextType }: Props) {
   }, [agentStatus, contextId, permissionRequest]);
 
   const handleSend = useCallback(
-    async (message: string, model?: string) => {
+    async (message: string, model?: string, displayText?: string) => {
       const disableThinking = thinkingEnabled ? undefined : true;
       const disablePlanMode = planEnabled ? undefined : true;
-      useChatStore.getState().addUserMessage(contextId, message);
+      useChatStore.getState().addUserMessage(contextId, message, displayText);
       try {
         await useAgentStore
           .getState()

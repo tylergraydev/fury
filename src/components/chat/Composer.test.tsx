@@ -69,7 +69,7 @@ describe("Composer", () => {
     render(<Composer {...defaultProps} onSend={onSend} />);
     await user.type(screen.getByRole("textbox"), "test message");
     await user.click(screen.getByText("Send").closest("button")!);
-    expect(onSend).toHaveBeenCalledWith("test message", undefined);
+    expect(onSend).toHaveBeenCalledWith("test message", undefined, undefined);
   });
 
   it("calls onSend on Enter key", async () => {
@@ -77,7 +77,7 @@ describe("Composer", () => {
     const user = userEvent.setup();
     render(<Composer {...defaultProps} onSend={onSend} />);
     await user.type(screen.getByRole("textbox"), "hello{Enter}");
-    expect(onSend).toHaveBeenCalledWith("hello", undefined);
+    expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
   });
 
   it("does not send on Shift+Enter", async () => {
@@ -664,7 +664,7 @@ describe("Composer", () => {
     await user.type(textarea, "Check @todos now");
     await user.click(screen.getByText("Send").closest("button")!);
     // In repo context, workspaceId is undefined, so @todos is NOT expanded
-    expect(onSend).toHaveBeenCalledWith("Check @todos now", undefined);
+    expect(onSend).toHaveBeenCalledWith("Check @todos now", undefined, undefined);
   });
 
   // --- Slash command on multiline: / must be at start of current line ---
