@@ -1,9 +1,19 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentType {
+    #[default]
+    ClaudeCode,
+    CodexCli,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
+    #[serde(default)]
+    pub agent_type: AgentType,
     pub theme: Theme,
     pub provider: ProviderConfig,
     pub system_prompt_additions: Option<String>,
@@ -18,6 +28,7 @@ pub struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            agent_type: AgentType::default(),
             theme: Theme::Blend,
             provider: ProviderConfig::default(),
             system_prompt_additions: None,

@@ -91,6 +91,7 @@ vi.mock("lucide-react", () => ({
 }));
 
 const fullSettings = {
+  agentType: "claude_code" as const,
   theme: "blend" as const,
   provider: {
     providerType: "Anthropic" as const,

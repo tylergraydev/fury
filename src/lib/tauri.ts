@@ -904,6 +904,9 @@ export interface CursorMigrationResult {
   rulesFound: boolean;
 }
 
+// Agent type
+export type AgentType = "claude_code" | "codex_cli";
+
 // App settings types
 export type ProviderType =
   | "Anthropic"
@@ -935,6 +938,7 @@ export interface LinearSettings {
 }
 
 export interface AppSettings {
+  agentType: AgentType;
   theme: "blend" | "midnight" | "github";
   provider: ProviderConfig;
   systemPromptAdditions: string | null;

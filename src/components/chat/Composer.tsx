@@ -7,6 +7,7 @@ import { readFileBase64 } from "../../lib/tauri";
 import { formatTokens, formatCost } from "../../lib/format";
 import type { PermissionRequestInfo } from "../../stores/chatStore";
 import { useChatStore } from "../../stores/chatStore";
+import { useSettingsStore } from "../../stores/settingsStore";
 import { useTodoStore } from "../../stores/todoStore";
 import { useSlashCommandStore } from "../../stores/slashCommandStore";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
@@ -104,11 +105,19 @@ function ActionBarButton({ onClick, icon: Icon, label, color, bgColor, showShort
 }
 
 
-const MODEL_OPTIONS = [
+const CLAUDE_MODEL_OPTIONS = [
   { value: "", label: "Default", displayName: "Opus 4.6" },
   { value: "sonnet", label: "Sonnet", displayName: "Sonnet" },
   { value: "opus", label: "Opus", displayName: "Opus 4.6" },
   { value: "haiku", label: "Haiku", displayName: "Haiku" },
+] as const;
+
+const CODEX_MODEL_OPTIONS = [
+  { value: "", label: "Default", displayName: "codex" },
+  { value: "gpt-5.1-codex", label: "GPT-5.1 Codex", displayName: "GPT-5.1 Codex" },
+  { value: "o3", label: "o3", displayName: "o3" },
+  { value: "o4-mini", label: "o4-mini", displayName: "o4-mini" },
+  { value: "gpt-4.1", label: "GPT-4.1", displayName: "GPT-4.1" },
 ] as const;
 
 const EMPTY_COMMANDS: SlashCommand[] = [];
@@ -178,6 +187,9 @@ interface Props {
 export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan, permissionRequest, onRespondToPermission, thinkingEnabled, onThinkingEnabledChange, planEnabled, onPlanEnabledChange, onLinkWorkspaces, onLinkIssue }: Props) {
   const workspaceId = contextType === "workspace" ? contextId : undefined;
   const sessionStats = useChatStore((s) => s.sessionStats[contextId]);
+  const agentType = useSettingsStore((s) => s.appSettings?.agentType ?? "claude_code");
+  const isCodex = agentType === "codex_cli";
+  const MODEL_OPTIONS = isCodex ? CODEX_MODEL_OPTIONS : CLAUDE_MODEL_OPTIONS;
   const [text, setText] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -212,6 +224,11 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
   const isRunning = agentStatus === "Running";
   const isStopping = agentStatus === "Stopping";
   const canSend = (text.trim().length > 0 || droppedFiles.length > 0) && !isRunning && !isStopping;
+
+  // Reset model selection when agent type changes
+  useEffect(() => {
+    setSelectedModel("");
+  }, [agentType]);
 
   // Load slash commands when context changes
   useEffect(() => {
@@ -898,7 +915,8 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
                 )}
               </div>
 
-              {/* Thinking toggle */}
+              {/* Thinking toggle (Claude only) */}
+              {!isCodex && (
               <button
                 onClick={() => onThinkingEnabledChange(!thinkingEnabled)}
                 disabled={isRunning || isStopping}
@@ -909,8 +927,10 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
                 <Brain className="h-3.5 w-3.5" />
                 {thinkingEnabled && <span>Thinking</span>}
               </button>
+              )}
 
-              {/* Plan toggle */}
+              {/* Plan toggle (Claude only) */}
+              {!isCodex && (
               <button
                 onClick={() => onPlanEnabledChange(!planEnabled)}
                 disabled={isRunning || isStopping}
@@ -921,6 +941,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
                 <BookOpen className="h-3.5 w-3.5" />
                 {planEnabled && <span>Plan</span>}
               </button>
+              )}
 
               {/* Stop button (shown inline when running) */}
               {(isRunning || isStopping) && (

@@ -17,6 +17,7 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useUIStore } from "../../stores/uiStore";
 import { getThemeNames, type ThemeName } from "../../lib/themes";
 import type {
+  AgentType,
   AppSettings,
   ProviderType,
   McpScope,
@@ -309,7 +310,42 @@ function ProviderTab() {
         </div>
       )}
 
-      {/* Provider selector */}
+      {/* Agent type selector */}
+      <div>
+        <label
+          className="mb-1 block text-xs font-medium"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          Agent
+        </label>
+        <select
+          value={localSettings.agentType ?? "claude_code"}
+          onChange={(e) =>
+            setLocalSettings((s) =>
+              s
+                ? { ...s, agentType: e.target.value as AgentType }
+                : /* v8 ignore next -- @preserve */ s,
+            )
+          }
+          className="w-full rounded px-2 py-1.5 text-xs"
+          style={{
+            backgroundColor: "var(--bg-surface)",
+            color: "var(--text-primary)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <option value="claude_code">Claude Code</option>
+          <option value="codex_cli">Codex CLI</option>
+        </select>
+        <div className="mt-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
+          {localSettings.agentType === "codex_cli"
+            ? "Uses OpenAI Codex CLI. Requires 'codex' in PATH and OPENAI_API_KEY."
+            : "Uses Claude Code CLI. Requires 'claude' in PATH."}
+        </div>
+      </div>
+
+      {/* Provider selector (Claude Code only) */}
+      {localSettings.agentType !== "codex_cli" && (
       <div>
         <label
           className="mb-1 block text-xs font-medium"
@@ -346,9 +382,57 @@ function ProviderTab() {
           ))}
         </select>
       </div>
+      )}
 
-      {/* Provider-specific env vars */}
-      {hints.length > 0 && (
+      {/* Codex API key */}
+      {localSettings.agentType === "codex_cli" && (
+        <div>
+          <label
+            className="mb-1 block text-xs font-medium"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            Configuration
+          </label>
+          <div className="mb-2">
+            <label
+              className="mb-0.5 block text-[10px] font-mono"
+              style={{ color: "var(--text-muted)" }}
+            >
+              OPENAI_API_KEY
+            </label>
+            <div className="flex gap-1">
+              <input
+                type={showKeys["OPENAI_API_KEY"] ? "text" : "password"}
+                value={localSettings.provider.envVars["OPENAI_API_KEY"] ?? ""}
+                onChange={(e) => setEnvVar("OPENAI_API_KEY", e.target.value)}
+                placeholder="Enter OPENAI_API_KEY"
+                className="flex-1 rounded px-2 py-1 font-mono text-xs"
+                style={{
+                  backgroundColor: "var(--bg-surface)",
+                  color: "var(--text-primary)",
+                  border: "1px solid var(--border)",
+                }}
+              />
+              <button
+                onClick={() =>
+                  setShowKeys((s) => ({ ...s, OPENAI_API_KEY: !s["OPENAI_API_KEY"] }))
+                }
+                className="rounded px-2 py-1 text-[10px]"
+                style={{
+                  backgroundColor: "var(--bg-surface)",
+                  color: "var(--text-muted)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                {showKeys["OPENAI_API_KEY"] ? "Hide" : "Show"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Provider-specific env vars (Claude Code only) */}
+      {localSettings.agentType !== "codex_cli" && hints.length > 0 && (
         <div>
           <label
             className="mb-1 block text-xs font-medium"
@@ -1246,13 +1330,16 @@ function ExperimentalTab() {
         These features are experimental and may change or be removed.
       </div>
 
-      {TOGGLES.map(({ key, label, description }) => (
+      {TOGGLES.map(({ key, label, description }) => {
+        const isDisabledForCodex = key === "persistentProcesses" && appSettings.agentType === "codex_cli";
+        return (
         <div
           key={key}
           className="rounded p-3"
           style={{
             backgroundColor: "var(--bg-surface)",
             border: "1px solid var(--border)",
+            opacity: isDisabledForCodex ? 0.5 : 1,
           }}
         >
           <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-primary)" }}>
@@ -1260,9 +1347,14 @@ function ExperimentalTab() {
               type="checkbox"
               checked={appSettings.experimental[key]}
               onChange={() => toggle(key)}
-              disabled={saving}
+              disabled={saving || isDisabledForCodex}
             />
             {label}
+            {isDisabledForCodex && (
+              <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                (Not available with Codex CLI)
+              </span>
+            )}
           </label>
           <div
             className="mt-1 text-[10px]"
@@ -1271,7 +1363,8 @@ function ExperimentalTab() {
             {description}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

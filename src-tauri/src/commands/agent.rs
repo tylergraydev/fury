@@ -3,7 +3,9 @@ use std::sync::{Arc, Mutex};
 
 use crate::error::AppError;
 use crate::models::agent::{AgentInfo, AgentStatus, AgentStatusEvent, SendMessageRequest};
+use crate::models::settings::AgentType;
 use crate::services::claude_process;
+use crate::services::codex_process;
 use crate::state::app_state::PersistentAgentHandle;
 use crate::state::AppState;
 use tauri::{Emitter, State};
@@ -59,7 +61,13 @@ pub async fn send_message(
         }
     }
 
-    // Resolve working directory and env vars based on context type
+    // Read agent type from settings
+    let agent_type = {
+        let settings = state.settings.lock().unwrap();
+        settings.agent_type.clone()
+    };
+
+    // Resolve working directory and env vars based on context type and agent type
     let (working_dir, env_vars) = if let Some(workspace_id) = request.workspace_id {
         // Workspace mode: use worktree path
         let (workspace, repo) = {
@@ -76,9 +84,12 @@ pub async fn send_message(
             (ws, repo)
         };
         let settings = state.settings.lock().unwrap().clone();
-        let mut env = claude_process::build_env_vars(&workspace, &repo, &settings);
+        let mut env = match agent_type {
+            AgentType::ClaudeCode => claude_process::build_env_vars(&workspace, &repo, &settings),
+            AgentType::CodexCli => codex_process::build_env_vars(&workspace, &repo, &settings),
+        };
 
-        // Agent teams: add sibling workspace names
+        // Agent teams: add sibling workspace names (Claude-specific but harmless for Codex)
         if settings.experimental.agent_teams {
             let workspaces = state.workspaces.lock().unwrap();
             let siblings: Vec<String> = workspaces
@@ -106,7 +117,10 @@ pub async fn send_message(
                 .clone()
         };
         let settings = state.settings.lock().unwrap().clone();
-        let env = claude_process::build_repo_env_vars(&repo, &settings);
+        let env = match agent_type {
+            AgentType::ClaudeCode => claude_process::build_repo_env_vars(&repo, &settings),
+            AgentType::CodexCli => codex_process::build_repo_env_vars(&repo, &settings),
+        };
         (repo.path.clone(), env)
     };
 
@@ -194,6 +208,8 @@ pub async fn send_message(
     let disable_thinking = request.disable_thinking.unwrap_or(false);
     let disable_plan_mode = request.disable_plan_mode.unwrap_or(false);
 
+    match agent_type {
+    AgentType::ClaudeCode => {
     if persistent_mode {
         // Performance Mode: reuse a long-running process or spawn one
         // Single remove avoids TOCTOU race between contains_key + remove
@@ -436,6 +452,101 @@ pub async fn send_message(
             );
         });
     }
+    } // end AgentType::ClaudeCode
+
+    AgentType::CodexCli => {
+        // Codex: one-shot mode only via `codex exec --json`
+        let (child, stdin) = match codex_process::spawn_and_stream(
+            context_id,
+            &request.message,
+            &working_dir,
+            env_vars,
+            request.model.as_deref(),
+            safe_mode,
+            app.clone(),
+            Arc::clone(&state.agents),
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(e) => {
+                reset_agent_on_error(&state.agents, &app, context_id);
+                return Err(e);
+            }
+        };
+
+        // Store stdin handle
+        state
+            .agent_stdins
+            .lock()
+            .unwrap()
+            .insert(context_id, stdin);
+
+        // Store PID in agent info for stop_agent
+        if let Some(pid) = child.id() {
+            let mut agents = state.agents.lock().unwrap();
+            if let Some(agent) = agents.get_mut(&context_id) {
+                agent.pid = Some(pid);
+            }
+        }
+
+        // Store child process handle
+        {
+            let mut processes = state.agent_processes.lock().unwrap();
+            processes.insert(context_id, child);
+        }
+
+        // Background task: wait for process exit
+        let agents_ref = Arc::clone(&state.agents);
+        let processes_ref = Arc::clone(&state.agent_processes);
+        let stdins_ref = Arc::clone(&state.agent_stdins);
+        let app_clone = app.clone();
+        tokio::spawn(async move {
+            let mut child = {
+                let mut processes =
+                    processes_ref.lock().unwrap_or_else(|e| e.into_inner());
+                processes.remove(&context_id)
+            };
+
+            let exit_status = if let Some(ref mut c) = child {
+                c.wait().await.ok()
+            } else {
+                None
+            };
+
+            stdins_ref
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .remove(&context_id);
+
+            let new_status = match exit_status {
+                Some(ref status) if status.success() => AgentStatus::Idle,
+                Some(ref status) => AgentStatus::Error(format!(
+                    "Process exited with code: {:?}",
+                    status.code()
+                )),
+                None => AgentStatus::Idle,
+            };
+
+            {
+                let mut agents =
+                    agents_ref.lock().unwrap_or_else(|e| e.into_inner());
+                if let Some(agent) = agents.get_mut(&context_id) {
+                    agent.status = new_status.clone();
+                    agent.pid = None;
+                }
+            }
+
+            let _ = app_clone.emit(
+                &format!("agent-status:{}", context_id),
+                &AgentStatusEvent {
+                    workspace_id: context_id,
+                    status: new_status,
+                },
+            );
+        });
+    }
+    } // end match agent_type
 
     Ok(())
 }
