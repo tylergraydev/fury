@@ -20,6 +20,7 @@ const mockImportCursorrules = vi.fn().mockResolvedValue({
   written: true,
   claudeMdPath: "/repo/CLAUDE.md",
 });
+const mockCheckForUpdate = vi.fn();
 
 vi.mock("../../lib/tauri", () => ({
   loadSettings: vi.fn().mockResolvedValue({
@@ -48,19 +49,11 @@ vi.mock("../../lib/tauri", () => ({
   listWorkspaces: vi.fn().mockResolvedValue([]),
   listMcpServers: vi.fn().mockResolvedValue([]),
   checkCursorConfig: vi.fn().mockResolvedValue(false),
+  checkForUpdate: (...args: unknown[]) => mockCheckForUpdate(...args),
 }));
 
 vi.mock("../../lib/keybindings", () => ({
   isMac: false,
-}));
-
-// Mock the dynamic import for @tauri-apps/plugin-updater
-// vi.hoisted ensures the variable is available when vi.mock's factory runs (hoisted above const)
-const { mockUpdaterCheck } = vi.hoisted(() => ({
-  mockUpdaterCheck: vi.fn(),
-}));
-vi.mock("@tauri-apps/plugin-updater", () => ({
-  check: (...args: unknown[]) => mockUpdaterCheck(...args),
 }));
 
 // Mock the dynamic import for @tauri-apps/plugin-shell
@@ -140,7 +133,7 @@ beforeEach(() => {
     written: true,
     claudeMdPath: "/repo/CLAUDE.md",
   });
-  mockUpdaterCheck.mockResolvedValue(null);
+  mockCheckForUpdate.mockResolvedValue(null);
 });
 
 describe("AppSettingsPanel", () => {
@@ -1904,7 +1897,7 @@ describe("UpdatesTab", () => {
 
   it("shows Checking... while checking for updates", async () => {
     let resolverFn: () => void;
-    mockUpdaterCheck.mockImplementation(
+    mockCheckForUpdate.mockImplementation(
       () =>
         new Promise((resolve) => {
           resolverFn = () => resolve(null);
@@ -1924,7 +1917,7 @@ describe("UpdatesTab", () => {
   });
 
   it("shows latest version message when no update available", async () => {
-    mockUpdaterCheck.mockResolvedValue(null);
+    mockCheckForUpdate.mockResolvedValue(null);
 
     goToUpdatesTab();
     await act(async () => {
@@ -1939,7 +1932,7 @@ describe("UpdatesTab", () => {
 
   it("shows update available and installs", async () => {
     const downloadAndInstall = vi.fn().mockResolvedValue(undefined);
-    mockUpdaterCheck.mockResolvedValue({
+    mockCheckForUpdate.mockResolvedValue({
       version: "1.0.0",
       downloadAndInstall,
     });
@@ -1957,7 +1950,7 @@ describe("UpdatesTab", () => {
   });
 
   it("shows error when update check fails", async () => {
-    mockUpdaterCheck.mockRejectedValue(new Error("Network error"));
+    mockCheckForUpdate.mockRejectedValue(new Error("Network error"));
 
     goToUpdatesTab();
     await act(async () => {
