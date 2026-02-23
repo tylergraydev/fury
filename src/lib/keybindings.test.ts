@@ -45,6 +45,7 @@ describe("SHORTCUTS", () => {
     expect(actions).toContain("toggle-palette");
     expect(actions).toContain("escape");
     expect(actions).toContain("focus-terminal");
+    expect(actions).toContain("search-workspaces");
   });
 
   it("has unique actions", () => {
@@ -287,6 +288,15 @@ describe("useKeyboardShortcuts", () => {
     expect(handler).toHaveBeenCalledWith("escape");
 
     SHORTCUTS.pop();
+  });
+
+  it("calls handler for Cmd+Shift+F (search-workspaces)", () => {
+    const handler = vi.fn();
+    renderHook(() => useKeyboardShortcuts(handler));
+
+    const modKey = isMac ? "metaKey" : "ctrlKey";
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "f", [modKey]: true, shiftKey: true }));
+    expect(handler).toHaveBeenCalledWith("search-workspaces");
   });
 
   it("matches shift+mod shortcut when shift is required", () => {

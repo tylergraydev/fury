@@ -9,7 +9,7 @@ import { FileViewerPanel } from "./components/file-viewer/FileViewerPanel";
 import { AppSettingsPanel } from "./components/settings/AppSettingsPanel";
 import { MergeView, MergeViewWrapper } from "./components/merge/MergeView";
 import { HistoryView } from "./components/history/HistoryView";
-import { CommandPalette } from "./components/CommandPalette";
+import { CommandPalette, type PaletteMode } from "./components/CommandPalette";
 import { LandingPage } from "./components/landing/LandingPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DiffPanel } from "./components/diff/DiffPanel";
@@ -82,6 +82,7 @@ function App() {
   const activeViewTabId = useUIStore((s) => s.activeViewTabId);
   const theme = useUIStore((s) => s.theme);
   const [showPalette, setShowPalette] = useState(false);
+  const [paletteMode, setPaletteMode] = useState<PaletteMode>("default");
 
   // Apply theme on mount and when it changes
   useEffect(() => {
@@ -169,6 +170,11 @@ function App() {
       case "new-workspace":
         setShowPalette(true);
         break;
+      case "search-workspaces":
+        useWorkspaceStore.getState().loadArchivedWorkspaces();
+        setPaletteMode("workspace-search");
+        setShowPalette(true);
+        break;
       case "save-file": {
         useFileViewerStore.getState().saveActiveFile();
         break;
@@ -185,6 +191,11 @@ function App() {
         setShowPalette(false);
         break;
     }
+  }, []);
+
+  const handlePaletteOpenChange = useCallback((open: boolean) => {
+    setShowPalette(open);
+    if (!open) setPaletteMode("default");
   }, []);
 
   useKeyboardShortcuts(handleAction);
@@ -209,8 +220,9 @@ function App() {
         {showPalette && (
           <CommandPalette
             open={showPalette}
-            onOpenChange={setShowPalette}
+            onOpenChange={handlePaletteOpenChange}
             onAction={handleAction}
+            mode={paletteMode}
           />
         )}
       </div>
@@ -278,8 +290,9 @@ function App() {
 
       <CommandPalette
         open={showPalette}
-        onOpenChange={setShowPalette}
+        onOpenChange={handlePaletteOpenChange}
         onAction={handleAction}
+        mode={paletteMode}
       />
     </div>
   );
