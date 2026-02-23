@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 use crate::error::AppError;
 use crate::models::agent::{AgentInfo, AgentStatus, AgentStatusEvent, SendMessageRequest};
 use crate::services::claude_process;
+use crate::state::app_state::PersistentAgentHandle;
 use crate::state::AppState;
 use tauri::{Emitter, State};
 use uuid::Uuid;
@@ -190,29 +191,47 @@ pub async fn send_message(
         )
     };
 
+    let disable_thinking = request.disable_thinking.unwrap_or(false);
+    let disable_plan_mode = request.disable_plan_mode.unwrap_or(false);
+
     if persistent_mode {
         // Performance Mode: reuse a long-running process or spawn one
         // Single remove avoids TOCTOU race between contains_key + remove
-        let existing_stdin = state
+        let existing_handle = state
             .persistent_agents
             .lock()
             .unwrap()
             .remove(&context_id);
 
-        if let Some(mut stdin) = existing_stdin {
+        // Check if we can reuse the existing process (toggle settings must match)
+        let reuse_handle = existing_handle.filter(|h| {
+            h.disable_thinking == disable_thinking && h.disable_plan_mode == disable_plan_mode
+        });
+
+        if let Some(mut handle) = reuse_handle {
             // Reuse existing persistent process
-            if let Err(e) = claude_process::write_message(&mut stdin, &request.message).await {
+            if let Err(e) = claude_process::write_message(&mut handle.stdin, &request.message).await {
                 reset_agent_on_error(&state.agents, &app, context_id);
                 return Err(e);
             }
 
-            // Put stdin back for next turn
+            // Put handle back for next turn
             state
                 .persistent_agents
                 .lock()
                 .unwrap()
-                .insert(context_id, stdin);
+                .insert(context_id, handle);
         } else {
+            // Kill any stale persistent process whose toggle settings changed
+            {
+                let mut processes = state.agent_processes.lock().unwrap();
+                if let Some(child) = processes.remove(&context_id) {
+                    if let Some(pid) = child.id() {
+                        let _ = crate::platform::kill_process_group(pid);
+                    }
+                }
+            }
+
             // Spawn new persistent process
             let (child, mut stdin) = match claude_process::spawn_persistent(
                 context_id,
@@ -223,6 +242,8 @@ pub async fn send_message(
                 system_prompt.as_deref(),
                 request.model.as_deref(),
                 safe_mode,
+                disable_thinking,
+                disable_plan_mode,
                 app.clone(),
                 Arc::clone(&state.agents),
                 Arc::clone(&state.persistent_agents),
@@ -255,7 +276,11 @@ pub async fn send_message(
                 .persistent_agents
                 .lock()
                 .unwrap()
-                .insert(context_id, stdin);
+                .insert(context_id, PersistentAgentHandle {
+                    stdin,
+                    disable_thinking,
+                    disable_plan_mode,
+                });
             state
                 .agent_processes
                 .lock()
@@ -325,6 +350,8 @@ pub async fn send_message(
             system_prompt.as_deref(),
             request.model.as_deref(),
             safe_mode,
+            disable_thinking,
+            disable_plan_mode,
             app.clone(),
             Arc::clone(&state.agents),
         )
@@ -425,32 +452,28 @@ pub async fn respond_to_permission(
 
     let response = if approved { "yes" } else { "no" };
 
-    // Try agent_stdins first (non-persistent mode), then persistent_agents
-    let mut stdin_opt = state.agent_stdins.lock().unwrap().remove(&id);
-    let from_persistent = if stdin_opt.is_none() {
-        stdin_opt = state.persistent_agents.lock().unwrap().remove(&id);
-        true
-    } else {
-        false
-    };
-
-    if let Some(mut stdin) = stdin_opt {
+    // Try agent_stdins first (non-persistent mode)
+    let regular_stdin = state.agent_stdins.lock().unwrap().remove(&id);
+    if let Some(mut stdin) = regular_stdin {
         let write_result = claude_process::write_message(&mut stdin, response).await;
-
         // Always put stdin back, even on error — losing the handle is unrecoverable
-        if from_persistent {
-            state.persistent_agents.lock().unwrap().insert(id, stdin);
-        } else {
-            state.agent_stdins.lock().unwrap().insert(id, stdin);
-        }
-
+        state.agent_stdins.lock().unwrap().insert(id, stdin);
         write_result?;
-        Ok(())
-    } else {
-        Err(AppError::AgentError(
-            "No stdin handle found for this agent".to_string(),
-        ))
+        return Ok(());
     }
+
+    // Try persistent_agents
+    let persistent_handle = state.persistent_agents.lock().unwrap().remove(&id);
+    if let Some(mut handle) = persistent_handle {
+        let write_result = claude_process::write_message(&mut handle.stdin, response).await;
+        state.persistent_agents.lock().unwrap().insert(id, handle);
+        write_result?;
+        return Ok(());
+    }
+
+    Err(AppError::AgentError(
+        "No stdin handle found for this agent".to_string(),
+    ))
 }
 
 #[tauri::command]

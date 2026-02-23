@@ -31,6 +31,10 @@ const defaultProps = {
   agentStatus: "Idle" as const,
   onSend: vi.fn(),
   onStop: vi.fn(),
+  thinkingEnabled: true,
+  onThinkingEnabledChange: vi.fn(),
+  planEnabled: true,
+  onPlanEnabledChange: vi.fn(),
 };
 
 describe("Composer", () => {
@@ -574,6 +578,47 @@ describe("Composer", () => {
     const textarea = screen.getByRole("textbox");
     await user.type(textarea, "hello world");
     expect(screen.queryByText("@todos")).not.toBeInTheDocument();
+  });
+
+  // --- Thinking & Plan mode toggles ---
+  describe("thinking and plan mode toggles", () => {
+    it("renders Thinking and Plan toggle buttons", () => {
+      render(<Composer {...defaultProps} />);
+      expect(screen.getByTitle("Thinking enabled (click to disable)")).toBeInTheDocument();
+      expect(screen.getByTitle("Plan mode enabled (click to disable)")).toBeInTheDocument();
+    });
+
+    it("calls onThinkingEnabledChange when thinking toggle is clicked", async () => {
+      const onThinkingEnabledChange = vi.fn();
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} onThinkingEnabledChange={onThinkingEnabledChange} />);
+      await user.click(screen.getByTitle("Thinking enabled (click to disable)"));
+      expect(onThinkingEnabledChange).toHaveBeenCalledWith(false);
+    });
+
+    it("shows disabled state when thinkingEnabled=false", () => {
+      render(<Composer {...defaultProps} thinkingEnabled={false} />);
+      expect(screen.getByTitle("Thinking disabled (click to enable)")).toBeInTheDocument();
+    });
+
+    it("calls onPlanEnabledChange when plan toggle is clicked", async () => {
+      const onPlanEnabledChange = vi.fn();
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} onPlanEnabledChange={onPlanEnabledChange} />);
+      await user.click(screen.getByTitle("Plan mode enabled (click to disable)"));
+      expect(onPlanEnabledChange).toHaveBeenCalledWith(false);
+    });
+
+    it("shows disabled state when planEnabled=false", () => {
+      render(<Composer {...defaultProps} planEnabled={false} />);
+      expect(screen.getByTitle("Plan mode disabled (click to enable)")).toBeInTheDocument();
+    });
+
+    it("toggles are disabled when agent is running", () => {
+      render(<Composer {...defaultProps} agentStatus="Running" />);
+      expect(screen.getByTitle("Thinking enabled (click to disable)")).toBeDisabled();
+      expect(screen.getByTitle("Plan mode enabled (click to disable)")).toBeDisabled();
+    });
   });
 
   // --- Stopping state disables stop button ---

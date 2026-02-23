@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useCheckpointStore } from "../../stores/checkpointStore";
@@ -40,6 +40,10 @@ export function ChatPanel({ contextId, contextType }: Props) {
     (s) => s.permissionRequest[contextId] ?? null,
   );
 
+  // Toggle state for thinking and plan mode — lifted here so handleRetry can use it
+  const [thinkingEnabled, setThinkingEnabled] = useState(true);
+  const [planEnabled, setPlanEnabled] = useState(true);
+
   // Subscribe to events when context changes
   useEffect(() => {
     const agent = useAgentStore.getState();
@@ -74,16 +78,18 @@ export function ChatPanel({ contextId, contextType }: Props) {
 
   const handleSend = useCallback(
     async (message: string, model?: string) => {
+      const disableThinking = thinkingEnabled ? undefined : true;
+      const disablePlanMode = planEnabled ? undefined : true;
       useChatStore.getState().addUserMessage(contextId, message);
       try {
         await useAgentStore
           .getState()
-          .sendMessage(contextId, message, contextType, model);
+          .sendMessage(contextId, message, contextType, model, disableThinking, disablePlanMode);
       } catch (e) {
         console.error("Failed to send message:", e);
       }
     },
-    [contextId, contextType],
+    [contextId, contextType, thinkingEnabled, planEnabled],
   );
 
   const handleStop = useCallback(async () => {
@@ -108,14 +114,16 @@ export function ChatPanel({ contextId, contextType }: Props) {
     // Remove trailing system (error) messages before retrying
     useChatStore.getState().removeTrailingSystemMessages(contextId);
     useChatStore.getState().addUserMessage(contextId, text);
+    const disableThinking = thinkingEnabled ? undefined : true;
+    const disablePlanMode = planEnabled ? undefined : true;
     try {
       await useAgentStore
         .getState()
-        .sendMessage(contextId, text, contextType);
+        .sendMessage(contextId, text, contextType, undefined, disableThinking, disablePlanMode);
     } catch (e) {
       console.error("Failed to retry message:", e);
     }
-  }, [contextId, contextType, agentStatus]);
+  }, [contextId, contextType, agentStatus, thinkingEnabled, planEnabled]);
 
   const handleApprovePlan = useCallback(async () => {
     await handleSend("yes");
@@ -177,6 +185,10 @@ export function ChatPanel({ contextId, contextType }: Props) {
         onCopyPlan={handleCopyPlan}
         permissionRequest={permissionRequest}
         onRespondToPermission={handleRespondToPermission}
+        thinkingEnabled={thinkingEnabled}
+        onThinkingEnabledChange={setThinkingEnabled}
+        planEnabled={planEnabled}
+        onPlanEnabledChange={setPlanEnabled}
       />
     </div>
   );

@@ -131,7 +131,7 @@ describe("ChatPanel", () => {
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     await user.click(screen.getByTestId("send-btn"));
     expect(addUserMessageSpy).toHaveBeenCalledWith("ws-1", "test message");
-    expect(sendMessageSpy).toHaveBeenCalledWith("ws-1", "test message", "workspace", undefined);
+    expect(sendMessageSpy).toHaveBeenCalledWith("ws-1", "test message", "workspace", undefined, undefined, undefined);
   });
 
   it("handleSend catches send errors", async () => {
@@ -212,7 +212,7 @@ describe("ChatPanel", () => {
     await user.click(screen.getByTestId("retry-btn"));
     expect(removeTrailingSpy).toHaveBeenCalledWith("ws-1");
     expect(addUserMessageSpy).toHaveBeenCalledWith("ws-1", "Hello");
-    expect(sendMessageSpy).toHaveBeenCalledWith("ws-1", "Hello", "workspace");
+    expect(sendMessageSpy).toHaveBeenCalledWith("ws-1", "Hello", "workspace", undefined, undefined, undefined);
   });
 
   it("handleRetry does nothing when agent is Running", async () => {
@@ -423,7 +423,7 @@ describe("ChatPanel", () => {
     const user = userEvent.setup();
     render(<ChatPanel contextId="repo-1" contextType="repo" />);
     await user.click(screen.getByTestId("send-btn"));
-    expect(sendMessageSpy).toHaveBeenCalledWith("repo-1", "test message", "repo", undefined);
+    expect(sendMessageSpy).toHaveBeenCalledWith("repo-1", "test message", "repo", undefined, undefined, undefined);
   });
 
   // --- handleRetry with repo context ---
@@ -448,6 +448,6 @@ describe("ChatPanel", () => {
     const user = userEvent.setup();
     render(<ChatPanel contextId="repo-1" contextType="repo" />);
     await user.click(screen.getByTestId("retry-btn"));
-    expect(sendMessageSpy).toHaveBeenCalledWith("repo-1", "Fix it", "repo");
+    expect(sendMessageSpy).toHaveBeenCalledWith("repo-1", "Fix it", "repo", undefined, undefined, undefined);
   });
 });

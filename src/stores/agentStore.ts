@@ -21,6 +21,8 @@ interface AgentStore {
     message: string,
     contextType?: "workspace" | "repo",
     model?: string,
+    disableThinking?: boolean,
+    disablePlanMode?: boolean,
   ) => Promise<void>;
   stopAgent: (workspaceId: string) => Promise<void>;
   fetchStatus: (workspaceId: string) => Promise<void>;
@@ -75,12 +77,14 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     message: string,
     contextType: "workspace" | "repo" = "workspace",
     model?: string,
+    disableThinking?: boolean,
+    disablePlanMode?: boolean,
   ) => {
     try {
       const request =
         contextType === "workspace"
-          ? { workspaceId: contextId, message, model: model || undefined }
-          : { repoId: contextId, message, model: model || undefined };
+          ? { workspaceId: contextId, message, model: model || undefined, disableThinking, disablePlanMode }
+          : { repoId: contextId, message, model: model || undefined, disableThinking, disablePlanMode };
       await sendMessageCmd(request);
     } catch (e) {
       console.error(`[agentStore] Failed to send message:`, e);

@@ -128,9 +128,13 @@ interface Props {
   onCopyPlan?: () => void;
   permissionRequest?: PermissionRequestInfo | null;
   onRespondToPermission?: (approved: boolean) => void;
+  thinkingEnabled: boolean;
+  onThinkingEnabledChange: (enabled: boolean) => void;
+  planEnabled: boolean;
+  onPlanEnabledChange: (enabled: boolean) => void;
 }
 
-export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan, permissionRequest, onRespondToPermission }: Props) {
+export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan, permissionRequest, onRespondToPermission, thinkingEnabled, onThinkingEnabledChange, planEnabled, onPlanEnabledChange }: Props) {
   const workspaceId = contextType === "workspace" ? contextId : undefined;
   const [text, setText] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
@@ -511,6 +515,36 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
           style={{ backgroundColor: statusColor }}
         />
         <span style={{ color: "var(--text-muted)" }}>{statusLabel}</span>
+
+        {/* Thinking toggle */}
+        <button
+          onClick={() => onThinkingEnabledChange(!thinkingEnabled)}
+          disabled={isRunning || isStopping}
+          className="rounded px-2 py-0.5 text-[11px] cursor-pointer transition-colors"
+          style={{
+            backgroundColor: thinkingEnabled ? "rgba(137, 180, 250, 0.15)" : "var(--bg-surface)",
+            color: thinkingEnabled ? "var(--accent)" : "var(--text-muted)",
+            border: thinkingEnabled ? "1px solid rgba(137, 180, 250, 0.3)" : "1px solid var(--border)",
+          }}
+          title={thinkingEnabled ? "Thinking enabled (click to disable)" : "Thinking disabled (click to enable)"}
+        >
+          Thinking
+        </button>
+
+        {/* Plan mode toggle */}
+        <button
+          onClick={() => onPlanEnabledChange(!planEnabled)}
+          disabled={isRunning || isStopping}
+          className="rounded px-2 py-0.5 text-[11px] cursor-pointer transition-colors"
+          style={{
+            backgroundColor: planEnabled ? "rgba(137, 180, 250, 0.15)" : "var(--bg-surface)",
+            color: planEnabled ? "var(--accent)" : "var(--text-muted)",
+            border: planEnabled ? "1px solid rgba(137, 180, 250, 0.3)" : "1px solid var(--border)",
+          }}
+          title={planEnabled ? "Plan mode enabled (click to disable)" : "Plan mode disabled (click to enable)"}
+        >
+          Plan
+        </button>
 
         {/* Model selector */}
         <div className="relative ml-auto">

@@ -94,6 +94,8 @@ describe("agentStore - sendMessage", () => {
     expect(sendMessageCmd).toHaveBeenCalledWith({
       workspaceId: "ws-1",
       message: "hello",
+      disableThinking: undefined,
+      disablePlanMode: undefined,
     });
   });
 
@@ -103,6 +105,20 @@ describe("agentStore - sendMessage", () => {
     expect(sendMessageCmd).toHaveBeenCalledWith({
       repoId: "repo-1",
       message: "hello",
+      disableThinking: undefined,
+      disablePlanMode: undefined,
+    });
+  });
+
+  it("sends with disableThinking and disablePlanMode flags", async () => {
+    vi.mocked(sendMessageCmd).mockResolvedValue(undefined);
+    await useAgentStore.getState().sendMessage("ws-1", "hello", "workspace", "opus", true, true);
+    expect(sendMessageCmd).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      message: "hello",
+      model: "opus",
+      disableThinking: true,
+      disablePlanMode: true,
     });
   });
 
