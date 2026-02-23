@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Send, Square, ChevronDown } from "lucide-react";
+import { Send, Square, ChevronDown, Copy, ArrowRightFromLine, Check } from "lucide-react";
 import type { AgentStatus, SlashCommand } from "../../lib/tauri";
 import { useTodoStore } from "../../stores/todoStore";
 import { useSlashCommandStore } from "../../stores/slashCommandStore";
@@ -28,9 +28,12 @@ interface Props {
   agentStatus: AgentStatus;
   onSend: (message: string, model?: string) => void;
   onStop: () => void;
+  isPlanApproval?: boolean;
+  onApprovePlan?: () => void;
+  onCopyPlan?: () => void;
 }
 
-export function Composer({ contextId, contextType, agentStatus, onSend, onStop }: Props) {
+export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan }: Props) {
   const workspaceId = contextType === "workspace" ? contextId : undefined;
   const [text, setText] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
@@ -215,6 +218,13 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop }
       }
     }
 
+    // Cmd+Shift+Enter to approve plan
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && e.shiftKey && isPlanApproval && onApprovePlan) {
+      e.preventDefault();
+      onApprovePlan();
+      return;
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -335,6 +345,66 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop }
         )}
       </div>
 
+      {/* Plan approval bar */}
+      {isPlanApproval && (
+        <div
+          className="mb-2 flex items-center gap-2 rounded-lg px-3 py-2"
+          style={{
+            backgroundColor: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <span className="flex-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+            Approve the plan (⌘⇧↵) or tell the AI what to do differently
+          </span>
+          {onCopyPlan && (
+            <button
+              onClick={onCopyPlan}
+              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors hover:opacity-80"
+              style={{
+                color: "var(--text-secondary)",
+              }}
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Copy
+            </button>
+          )}
+          <button
+            disabled
+            title="Hand off to a new workspace (coming soon)"
+            className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs opacity-40"
+            style={{
+              color: "var(--text-secondary)",
+            }}
+          >
+            <ArrowRightFromLine className="h-3.5 w-3.5" />
+            Hand off
+          </button>
+          {onApprovePlan && (
+            <button
+              onClick={onApprovePlan}
+              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-90"
+              style={{
+                backgroundColor: "var(--text-primary)",
+                color: "var(--bg-primary)",
+              }}
+            >
+              <Check className="h-3.5 w-3.5" />
+              Approve
+              <kbd
+                className="ml-1 rounded px-1 py-0.5 text-[9px] font-normal"
+                style={{
+                  backgroundColor: "rgba(0,0,0,0.2)",
+                  color: "inherit",
+                }}
+              >
+                ⌘⇧↵
+              </kbd>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Input area with autocomplete */}
       <div className="relative">
         {/* Slash command autocomplete dropdown */}
@@ -416,10 +486,12 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop }
         )}
 
         <div
-          className="flex items-end gap-2.5 rounded-xl px-4 py-3"
+          className="flex items-center gap-2.5 rounded-xl px-4 py-3"
           style={{
             backgroundColor: "var(--bg-surface)",
-            border: "1px solid var(--border)",
+            border: isPlanApproval
+              ? "1px dashed var(--text-muted)"
+              : "1px solid var(--border)",
           }}
         >
           <textarea
@@ -430,7 +502,9 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop }
             placeholder={
               isRunning
                 ? "Waiting for response..."
-                : "Ask to make changes, @mention files, run /commands"
+                : isPlanApproval
+                  ? "Enter your plan adjustments here..."
+                  : "Ask to make changes, @mention files, run /commands"
             }
             disabled={isRunning || isStopping}
             rows={1}
@@ -446,7 +520,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop }
             className="flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-colors"
             style={{
               backgroundColor: canSend ? "var(--accent)" : "var(--bg-hover)",
-              color: canSend ? "#ffffff" : "var(--text-muted)",
+              color: canSend ? "var(--bg-primary)" : "var(--text-muted)",
             }}
           >
             <Send className="h-3.5 w-3.5" />

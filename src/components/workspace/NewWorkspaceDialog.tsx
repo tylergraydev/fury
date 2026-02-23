@@ -22,7 +22,6 @@ function generateName(text: string): string {
 
 export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
   const { createWs } = useWorkspaceStore();
-  const { sendMessage } = useAgentStore();
 
   const [taskDescription, setTaskDescription] = useState("");
   const [worktreeName, setWorktreeName] = useState("");
@@ -63,11 +62,8 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
         baseBranch: baseBranch.trim(),
         autoCommit,
       });
-      // Send task description as first message
       if (taskDescription.trim()) {
-        sendMessage(ws.id, taskDescription.trim()).catch(() => {
-          // Non-blocking — workspace was created, message send is best-effort
-        });
+        useAgentStore.getState().sendMessage(ws.id, taskDescription.trim()).catch(console.error);
       }
       onClose();
     } catch (e) {

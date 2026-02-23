@@ -32,6 +32,9 @@ export function ChatPanel({ contextId, contextType }: Props) {
   const revertedTurnIndex = useCheckpointStore(
     (s) => s.revertedTurnIndex[contextId] ?? null,
   );
+  const isPlanApproval = useChatStore(
+    (s) => s.planApproval[contextId] ?? false,
+  );
 
   // Subscribe to events when context changes
   useEffect(() => {
@@ -103,6 +106,20 @@ export function ChatPanel({ contextId, contextType }: Props) {
     }
   }, [contextId, contextType, agentStatus]);
 
+  const handleApprovePlan = useCallback(async () => {
+    await handleSend("yes");
+  }, [handleSend]);
+
+  const handleCopyPlan = useCallback(async () => {
+    const plan = useChatStore.getState().getPlanContent(contextId);
+    if (!plan) return;
+    try {
+      await navigator.clipboard.writeText(plan);
+    } catch (e) {
+      console.error("[ChatPanel] Failed to copy plan to clipboard:", e);
+    }
+  }, [contextId]);
+
   const handleRevert = useCallback(
     async (checkpointId: string) => {
       try {
@@ -135,6 +152,9 @@ export function ChatPanel({ contextId, contextType }: Props) {
         agentStatus={agentStatus}
         onSend={handleSend}
         onStop={handleStop}
+        isPlanApproval={isPlanApproval}
+        onApprovePlan={handleApprovePlan}
+        onCopyPlan={handleCopyPlan}
       />
     </div>
   );

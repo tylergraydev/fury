@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react";
-import { DiffEditor } from "@monaco-editor/react";
-import { MONACO_THEME, configureMonacoTheme } from "../../lib/monacoTheme";
+import { useEffect } from "react";
+import { ExternalLink } from "lucide-react";
 import { useDiffStore } from "../../stores/diffStore";
 import { useAgentStore } from "../../stores/agentStore";
+import { usePrStore } from "../../stores/prStore";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useChatStore } from "../../stores/chatStore";
+import { useUIStore } from "../../stores/uiStore";
 import type { FileStatus } from "../../lib/tauri";
 import type { SidebarContext } from "../../App";
 
@@ -27,6 +30,173 @@ function statusColor(status: FileStatus): string {
   return "var(--text-muted)";
 }
 
+function isCheckSuccess(conclusion: string | null): boolean {
+  return conclusion === "SUCCESS" || conclusion === "success";
+}
+
+function isCheckFailure(conclusion: string | null): boolean {
+  return conclusion === "FAILURE" || conclusion === "failure";
+}
+
+function PrStatusBar({ workspaceId }: { workspaceId: string }) {
+  const prInfo = usePrStore((s) => s.prInfo[workspaceId] ?? null);
+  const prLoading = usePrStore((s) => s.loading[workspaceId] ?? false);
+  const prError = usePrStore((s) => s.error[workspaceId] ?? null);
+
+  useEffect(() => {
+    const store = usePrStore.getState();
+    store.subscribe(workspaceId).catch((e) => {
+      console.error("[PrStatusBar] Failed to subscribe to PR events:", e);
+    });
+    store.loadPrInfo(workspaceId);
+    return () => usePrStore.getState().unsubscribe(workspaceId);
+  }, [workspaceId]);
+
+  const hasPr = prInfo?.prNumber != null;
+  const checks = prInfo?.checks ?? [];
+  const hasPendingChecks = checks.some(
+    (c) => c.conclusion === null && c.status !== "COMPLETED",
+  );
+  const hasFailingChecks = checks.some((c) => isCheckFailure(c.conclusion));
+  const allChecksPassed =
+    checks.length > 0 && checks.every((c) => isCheckSuccess(c.conclusion));
+
+  const handleCreatePr = async () => {
+    const workspace = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId);
+    const title = workspace?.branch ?? "PR";
+    try {
+      await usePrStore.getState().createPr({
+        workspaceId,
+        title,
+        body: "",
+      });
+      useUIStore.getState().setRightSidebarTab("checks");
+    } catch (e) {
+      console.error("[ChangesPanel] Failed to create PR:", e);
+    }
+  };
+
+  const handleFix = async () => {
+    const status = useAgentStore.getState().agents[workspaceId]?.status;
+    if (status === "Running" || status === "Stopping") return;
+    try {
+      const message = await usePrStore.getState().getFixMessage(workspaceId);
+      if (message === "No failing checks found.") return;
+      useChatStore.getState().addUserMessage(workspaceId, message);
+      await useAgentStore
+        .getState()
+        .sendMessage(workspaceId, message, "workspace");
+    } catch (e) {
+      console.error("[ChangesPanel] Failed to generate fix:", e);
+    }
+  };
+
+  const handleMerge = async () => {
+    try {
+      await usePrStore.getState().mergePr(workspaceId, "squash");
+    } catch (e) {
+      console.error("[ChangesPanel] Failed to merge PR:", e);
+    }
+  };
+
+  // Auto-switch to checks tab when checks are pending
+  useEffect(() => {
+    if (hasPr && hasPendingChecks) {
+      usePrStore.getState().startPolling(workspaceId);
+    }
+  }, [hasPr, hasPendingChecks, workspaceId]);
+
+  const prLink = hasPr && prInfo?.prUrl ? (
+    <a
+      href={prInfo.prUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-1 text-xs font-medium no-underline hover:underline"
+      style={{ color: "var(--accent)" }}
+    >
+      PR #{prInfo.prNumber}
+      <ExternalLink className="h-3 w-3" />
+    </a>
+  ) : hasPr ? (
+    <span className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>
+      PR #{prInfo?.prNumber}
+    </span>
+  ) : null;
+
+  // Right-side action button
+  let rightAction: React.ReactNode = null;
+
+  if (!hasPr) {
+    rightAction = (
+      <button
+        onClick={handleCreatePr}
+        disabled={prLoading}
+        className="rounded px-2.5 py-1 text-xs font-medium disabled:opacity-50"
+        style={{
+          backgroundColor: "var(--accent)",
+          color: "var(--bg-primary)",
+        }}
+      >
+        {prLoading ? "Creating..." : "Create PR"}
+      </button>
+    );
+  } else if (hasPendingChecks) {
+    rightAction = (
+      <span
+        className="animate-pulse text-xs"
+        style={{ color: "var(--text-muted)" }}
+      >
+        Checking...
+      </span>
+    );
+  } else if (hasFailingChecks) {
+    rightAction = (
+      <button
+        onClick={handleFix}
+        className="rounded px-2.5 py-1 text-xs font-medium"
+        style={{
+          backgroundColor: "color-mix(in srgb, var(--error) 15%, transparent)",
+          color: "var(--error)",
+        }}
+      >
+        Fix Errors
+      </button>
+    );
+  } else if (allChecksPassed) {
+    rightAction = (
+      <button
+        onClick={handleMerge}
+        disabled={prLoading}
+        className="rounded px-2.5 py-1 text-xs font-medium disabled:opacity-50"
+        style={{
+          backgroundColor: "var(--success)",
+          color: "var(--bg-primary)",
+        }}
+      >
+        {prLoading ? "Merging..." : "Merge"}
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ borderBottom: "1px solid var(--border)" }}>
+      <div className="flex items-center justify-between px-3 py-2">
+        <div>{prLink}</div>
+        <div>{rightAction}</div>
+      </div>
+      {prError && (
+        <div
+          className="truncate px-3 pb-2 text-xs"
+          style={{ color: "var(--error)" }}
+          title={prError}
+        >
+          {prError}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ChangesPanel({ context }: Props) {
   const contextId = context.id;
   const diffResult = useDiffStore(
@@ -35,18 +205,11 @@ export function ChangesPanel({ context }: Props) {
   const selectedFile = useDiffStore(
     (s) => s.selectedFile[contextId] ?? null,
   );
-  const fileDiffKey = selectedFile
-    ? `${contextId}:${selectedFile}`
-    : null;
-  const fileDiff = useDiffStore((s) =>
-    fileDiffKey ? (s.fileDiffs[fileDiffKey] ?? null) : null,
-  );
   const loading = useDiffStore((s) => s.loading);
   const error = useDiffStore((s) => s.error);
   const agentStatus = useAgentStore(
     (s) => s.agents[contextId]?.status ?? "Idle",
   );
-  const [showDiffModal, setShowDiffModal] = useState(false);
 
   useEffect(() => {
     const store = useDiffStore.getState();
@@ -77,7 +240,7 @@ export function ChangesPanel({ context }: Props) {
     } else {
       store.selectRepoFile(contextId, filePath);
     }
-    setShowDiffModal(true);
+    useUIStore.getState().openViewTab("diff", true);
   };
 
   const handleRefresh = () => {
@@ -110,144 +273,99 @@ export function ChangesPanel({ context }: Props) {
 
   if (!diffResult || diffResult.files.length === 0) {
     return (
-      <div
-        className="flex h-full items-center justify-center text-xs"
-        style={{ color: "var(--text-muted)" }}
-      >
-        No changes
+      <div className="flex h-full flex-col">
+        {context.type === "workspace" && (
+          <PrStatusBar workspaceId={contextId} />
+        )}
+        <div
+          className="flex flex-1 items-center justify-center text-xs"
+          style={{ color: "var(--text-muted)" }}
+        >
+          No changes
+        </div>
       </div>
     );
   }
 
   return (
-    <>
-      <div className="flex h-full flex-col">
-        {/* Summary */}
-        <div
-          className="flex items-center gap-2 px-3 py-1.5 text-[10px]"
+    <div className="flex h-full flex-col">
+      {/* PR workflow bar (workspace only) */}
+      {context.type === "workspace" && (
+        <PrStatusBar workspaceId={contextId} />
+      )}
+
+      {/* Summary */}
+      <div
+        className="flex items-center gap-2 px-3 py-2 text-xs"
+        style={{
+          borderBottom: "1px solid var(--border)",
+          color: "var(--text-muted)",
+        }}
+      >
+        <span>
+          {diffResult.files.length} file
+          {diffResult.files.length !== 1 ? "s" : ""}
+        </span>
+        <span style={{ color: "var(--success)" }}>
+          +{diffResult.totalAdditions}
+        </span>
+        <span style={{ color: "var(--error)" }}>
+          -{diffResult.totalDeletions}
+        </span>
+        <button
+          onClick={handleRefresh}
+          className="ml-auto rounded px-1.5 py-0.5 text-xs hover:opacity-80"
           style={{
-            borderBottom: "1px solid var(--border)",
+            backgroundColor: "var(--bg-surface)",
             color: "var(--text-muted)",
           }}
         >
-          <span>
-            {diffResult.files.length} file
-            {diffResult.files.length !== 1 ? "s" : ""}
-          </span>
-          <span style={{ color: "var(--success)" }}>
-            +{diffResult.totalAdditions}
-          </span>
-          <span style={{ color: "var(--error)" }}>
-            -{diffResult.totalDeletions}
-          </span>
-          <button
-            onClick={handleRefresh}
-            className="ml-auto rounded px-1.5 py-0.5 text-[10px] hover:opacity-80"
-            style={{
-              backgroundColor: "var(--bg-surface)",
-              color: "var(--text-muted)",
-            }}
-          >
-            Refresh
-          </button>
-        </div>
-
-        {/* File list */}
-        <div className="flex-1 overflow-y-auto">
-          {diffResult.files.map((file) => (
-            <button
-              key={file.path}
-              onClick={() => handleFileClick(file.path)}
-              className="flex w-full items-center gap-1.5 px-3 py-1 text-left text-xs hover:bg-[var(--bg-hover)]"
-              style={{
-                backgroundColor:
-                  selectedFile === file.path
-                    ? "var(--bg-surface)"
-                    : "transparent",
-                color: "var(--text-primary)",
-              }}
-            >
-              <span
-                className="flex-shrink-0 font-mono text-[10px] font-bold"
-                style={{ color: statusColor(file.status) }}
-              >
-                {statusLabel(file.status)}
-              </span>
-              <span className="truncate">
-                {file.path.split("/").pop()}
-              </span>
-              <span
-                className="ml-auto flex-shrink-0 text-[10px]"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {file.additions > 0 && (
-                  <span style={{ color: "var(--success)" }}>
-                    +{file.additions}
-                  </span>
-                )}
-                {file.deletions > 0 && (
-                  <span style={{ color: "var(--error)" }} className="ml-1">
-                    -{file.deletions}
-                  </span>
-                )}
-              </span>
-            </button>
-          ))}
-        </div>
+          Refresh
+        </button>
       </div>
 
-      {/* Diff modal overlay */}
-      {showDiffModal && fileDiff && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
-          onClick={() => setShowDiffModal(false)}
-        >
-          <div
-            className="flex h-[80vh] w-[85vw] flex-col overflow-hidden rounded-lg"
+      {/* File list */}
+      <div className="flex-1 overflow-y-auto">
+        {diffResult.files.map((file) => (
+          <button
+            key={file.path}
+            onClick={() => handleFileClick(file.path)}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-[var(--bg-hover)]"
             style={{
-              backgroundColor: "var(--bg-primary)",
-              border: "1px solid var(--border)",
+              backgroundColor:
+                selectedFile === file.path
+                  ? "var(--bg-surface)"
+                  : "transparent",
+              color: "var(--text-primary)",
             }}
-            onClick={(e) => e.stopPropagation()}
           >
-            <div
-              className="flex items-center justify-between px-4 py-2 text-xs"
-              style={{ borderBottom: "1px solid var(--border)" }}
+            <span
+              className="flex-shrink-0 font-mono text-xs font-bold"
+              style={{ color: statusColor(file.status) }}
             >
-              <span style={{ color: "var(--text-primary)" }}>
-                {selectedFile}
-              </span>
-              <button
-                onClick={() => setShowDiffModal(false)}
-                className="rounded px-2 py-0.5 hover:opacity-80"
-                style={{
-                  backgroundColor: "var(--bg-surface)",
-                  color: "var(--text-muted)",
-                }}
-              >
-                Close
-              </button>
-            </div>
-            <div className="flex-1">
-              <DiffEditor
-                original={fileDiff.original}
-                modified={fileDiff.modified}
-                language={fileDiff.language}
-                theme={MONACO_THEME}
-                beforeMount={configureMonacoTheme}
-                options={{
-                  readOnly: true,
-                  renderSideBySide: true,
-                  scrollBeyondLastLine: false,
-                  minimap: { enabled: false },
-                  fontSize: 12,
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+              {statusLabel(file.status)}
+            </span>
+            <span className="truncate">
+              {file.path.split("/").pop()}
+            </span>
+            <span
+              className="ml-auto flex-shrink-0 text-xs"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {file.additions > 0 && (
+                <span style={{ color: "var(--success)" }}>
+                  +{file.additions}
+                </span>
+              )}
+              {file.deletions > 0 && (
+                <span style={{ color: "var(--error)" }} className="ml-1">
+                  -{file.deletions}
+                </span>
+              )}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

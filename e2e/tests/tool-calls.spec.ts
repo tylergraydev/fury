@@ -17,7 +17,7 @@ test.describe("Tool Calls", () => {
     await appPage.getByText("2 tool calls").first().click();
   });
 
-  test("expand tool call shows input and result sections", async ({
+  test("expand tool call shows file path and result content", async ({
     appPage,
   }) => {
     // The pre-seeded assistant message has a Read tool call with summary "routes/index.ts"
@@ -27,9 +27,8 @@ test.describe("Tool Calls", () => {
     // Click to expand
     await readTool.click();
 
-    // Should show Input and Result headings
-    await expect(appPage.getByText("Input").first()).toBeVisible();
-    await expect(appPage.getByText("Result").first()).toBeVisible();
+    // Read tool has specialized rendering: shows "File:" heading and result content
+    await expect(appPage.getByText("File:").first()).toBeVisible();
 
     // Result content from mock data
     await expect(appPage.getByText("express", { exact: false }).first()).toBeVisible();
@@ -39,13 +38,13 @@ test.describe("Tool Calls", () => {
     const readTool = appPage.locator("button", { hasText: "Read" }).first();
     // Expand
     await readTool.click();
-    await expect(appPage.getByText("Input").first()).toBeVisible();
+    await expect(appPage.getByText("File:").first()).toBeVisible();
 
     // Collapse
     await readTool.click();
-    // Input/Result should no longer be visible (the detail panel is removed from DOM)
+    // Detail panel should no longer be visible (removed from DOM)
     await expect(
-      appPage.locator(".ml-5", { hasText: "Input" }),
+      appPage.locator(".ml-5", { hasText: "File:" }),
     ).not.toBeVisible();
   });
 
@@ -71,9 +70,9 @@ test.describe("Tool Calls", () => {
 
     // Expand Read
     await readTool.click();
-    // Read's detail should be visible
+    // Read's detail should be visible (Read uses specialized "File:" rendering)
     const readDetail = appPage.locator(".ml-5").first();
-    await expect(readDetail.getByText("Input")).toBeVisible();
+    await expect(readDetail.getByText("File:")).toBeVisible();
 
     // Expand Write too
     await writeTool.click();
@@ -123,16 +122,16 @@ test.describe("Tool Calls", () => {
     // The new completed turn is collapsed — expand it
     await appPage.locator("button", { hasText: /\d+ tool call/ }).last().click();
 
-    // Glob and Bash tool badges should appear
+    // Glob (labeled "Find files") and Bash (labeled "Run") tool badges should appear
     await expect(
-      appPage.locator("button", { hasText: "Glob" }).first(),
+      appPage.locator("button", { hasText: "Find files" }).first(),
     ).toBeVisible();
     await expect(
-      appPage.locator("button", { hasText: "Bash" }).first(),
+      appPage.locator("button", { hasText: "wc -l" }).first(),
     ).toBeVisible();
 
-    // Expand Bash to verify summary
-    const bashTool = appPage.locator("button", { hasText: "Bash" }).first();
+    // Expand Bash to verify result content
+    const bashTool = appPage.locator("button", { hasText: "wc -l" }).first();
     await bashTool.click();
     await expect(appPage.getByText("42 total")).toBeVisible();
   });

@@ -1,20 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
-vi.mock("@monaco-editor/react", () => ({
-  DiffEditor: ({ original, modified }: any) => (
-    <div data-testid="diff-editor">{original} | {modified}</div>
-  ),
-}));
-
-vi.mock("../../lib/monacoTheme", () => ({
-  MONACO_THEME: "custom-dark",
-  configureMonacoTheme: vi.fn(),
-}));
-
 import { ChangesPanel } from "./ChangesPanel";
 import { useDiffStore } from "../../stores/diffStore";
 import { useAgentStore } from "../../stores/agentStore";
+import { useUIStore } from "../../stores/uiStore";
+
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn().mockResolvedValue(() => {}),
+}));
 
 vi.mock("../../lib/tauri", () => ({
   getDiff: vi.fn().mockResolvedValue({ files: [], totalAdditions: 0, totalDeletions: 0 }),
@@ -22,6 +16,12 @@ vi.mock("../../lib/tauri", () => ({
   getRepoDiff: vi.fn().mockResolvedValue({ files: [], totalAdditions: 0, totalDeletions: 0 }),
   getRepoFileDiff: vi.fn().mockResolvedValue(null),
   listen: vi.fn().mockResolvedValue(() => {}),
+  getPrInfo: vi.fn().mockResolvedValue(null),
+  getPrChecks: vi.fn().mockResolvedValue([]),
+  pushChanges: vi.fn().mockResolvedValue(undefined),
+  fixFailingChecks: vi.fn().mockResolvedValue("No failing checks found."),
+  mergePr: vi.fn().mockResolvedValue({ merged: true }),
+  createPr: vi.fn().mockResolvedValue({ prNumber: 1, prUrl: "", title: "", state: "OPEN", checks: [], mergeable: null }),
 }));
 
 const mockLoadDiff = vi.fn();
@@ -304,7 +304,9 @@ describe("ChangesPanel", () => {
     expect(screen.getByText("Network error")).toBeInTheDocument();
   });
 
-  it("shows diff modal when file is clicked and fileDiff exists", () => {
+  it("opens diff view tab when file is clicked", () => {
+    const mockOpenViewTab = vi.fn();
+    useUIStore.setState({ openViewTab: mockOpenViewTab });
     useDiffStore.setState({
       diffResults: {
         "ws-1": {
@@ -315,109 +317,11 @@ describe("ChangesPanel", () => {
           totalDeletions: 0,
         },
       },
-      selectedFile: { "ws-1": "src/app.ts" },
-      fileDiffs: {
-        "ws-1:src/app.ts": {
-          path: "src/app.ts",
-          original: "old code",
-          modified: "new code",
-          language: "typescript",
-        },
-      },
     });
     render(<ChangesPanel context={wsContext} />);
-    // Click the file to open the diff modal
     fireEvent.click(screen.getByText("app.ts"));
-    // The diff modal should show
-    expect(screen.getByTestId("diff-editor")).toBeInTheDocument();
-    expect(screen.getByText("src/app.ts")).toBeInTheDocument();
-    expect(screen.getByText("Close")).toBeInTheDocument();
-  });
-
-  it("closes diff modal when Close button is clicked", () => {
-    useDiffStore.setState({
-      diffResults: {
-        "ws-1": {
-          files: [
-            { path: "src/app.ts", status: "Modified", additions: 1, deletions: 0 },
-          ],
-          totalAdditions: 1,
-          totalDeletions: 0,
-        },
-      },
-      selectedFile: { "ws-1": "src/app.ts" },
-      fileDiffs: {
-        "ws-1:src/app.ts": {
-          path: "src/app.ts",
-          original: "old",
-          modified: "new",
-          language: "typescript",
-        },
-      },
-    });
-    render(<ChangesPanel context={wsContext} />);
-    fireEvent.click(screen.getByText("app.ts")); // Open modal
-    expect(screen.getByTestId("diff-editor")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Close")); // Close modal
-    expect(screen.queryByTestId("diff-editor")).not.toBeInTheDocument();
-  });
-
-  it("closes diff modal when clicking overlay backdrop", () => {
-    useDiffStore.setState({
-      diffResults: {
-        "ws-1": {
-          files: [
-            { path: "src/app.ts", status: "Modified", additions: 1, deletions: 0 },
-          ],
-          totalAdditions: 1,
-          totalDeletions: 0,
-        },
-      },
-      selectedFile: { "ws-1": "src/app.ts" },
-      fileDiffs: {
-        "ws-1:src/app.ts": {
-          path: "src/app.ts",
-          original: "old",
-          modified: "new",
-          language: "typescript",
-        },
-      },
-    });
-    render(<ChangesPanel context={wsContext} />);
-    fireEvent.click(screen.getByText("app.ts")); // Open modal
-    // Click the overlay backdrop (the outer fixed div)
-    const overlay = screen.getByTestId("diff-editor").closest(".fixed");
-    if (overlay) fireEvent.click(overlay);
-    expect(screen.queryByTestId("diff-editor")).not.toBeInTheDocument();
-  });
-
-  it("does not close modal when clicking inside the modal content", () => {
-    useDiffStore.setState({
-      diffResults: {
-        "ws-1": {
-          files: [
-            { path: "src/app.ts", status: "Modified", additions: 1, deletions: 0 },
-          ],
-          totalAdditions: 1,
-          totalDeletions: 0,
-        },
-      },
-      selectedFile: { "ws-1": "src/app.ts" },
-      fileDiffs: {
-        "ws-1:src/app.ts": {
-          path: "src/app.ts",
-          original: "old",
-          modified: "new",
-          language: "typescript",
-        },
-      },
-    });
-    render(<ChangesPanel context={wsContext} />);
-    fireEvent.click(screen.getByText("app.ts")); // Open modal
-    // Click inside the modal content (e.g., on the diff editor)
-    fireEvent.click(screen.getByTestId("diff-editor"));
-    // Modal should still be open
-    expect(screen.getByTestId("diff-editor")).toBeInTheDocument();
+    expect(mockSelectFile).toHaveBeenCalledWith("ws-1", "src/app.ts");
+    expect(mockOpenViewTab).toHaveBeenCalledWith("diff", true);
   });
 
   it("shows file-level addition and deletion counts", () => {
