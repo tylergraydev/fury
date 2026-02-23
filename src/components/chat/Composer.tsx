@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Send, Square, ChevronDown, Copy, ArrowRightFromLine, Check, ShieldCheck, ShieldX } from "lucide-react";
+import { Send, Square, ChevronDown, Copy, ArrowRightFromLine, Check, ShieldCheck, ShieldX, X, FileText as FileIcon } from "lucide-react";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { AgentStatus, SlashCommand } from "../../lib/tauri";
+import { readFileBase64 } from "../../lib/tauri";
 import type { PermissionRequestInfo } from "../../stores/chatStore";
 import { useTodoStore } from "../../stores/todoStore";
 import { useSlashCommandStore } from "../../stores/slashCommandStore";
@@ -22,6 +24,50 @@ function ActionBar({ icon, description, bgStyle, secondaryActions, primaryAction
       {primaryAction}
     </div>
   );
+}
+
+const IMAGE_EXTENSIONS = new Set([
+  "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "tiff", "tif", "avif",
+]);
+
+interface DroppedFile {
+  id: string;
+  path: string;
+  name: string;
+  isImage: boolean;
+  dataUrl?: string; // undefined = loading, "error" = failed, string = loaded
+}
+
+let fileIdCounter = 0;
+
+function isImageFile(path: string): boolean {
+  const ext = path.split(".").pop()?.toLowerCase() ?? "";
+  return IMAGE_EXTENSIONS.has(ext);
+}
+
+function FileChipIcon({ file }: { file: DroppedFile }) {
+  if (file.isImage && file.dataUrl && file.dataUrl !== "error") {
+    return (
+      <img
+        src={file.dataUrl}
+        alt={file.name}
+        className="h-5 w-5 rounded object-cover"
+      />
+    );
+  }
+  if (file.isImage && !file.dataUrl) {
+    // Still loading
+    return (
+      <div
+        className="flex h-5 w-5 items-center justify-center rounded"
+        style={{ backgroundColor: "var(--bg-surface)" }}
+      >
+        <div className="h-3 w-3 animate-pulse rounded-sm" style={{ backgroundColor: "var(--text-muted)" }} />
+      </div>
+    );
+  }
+  // Non-image or failed image load
+  return <FileIcon className="h-3 w-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />;
 }
 
 function ActionBarButton({ onClick, icon: Icon, label, color, bgColor, showShortcut, disabled, title, className }: {
@@ -53,6 +99,7 @@ function ActionBarButton({ onClick, icon: Icon, label, color, bgColor, showShort
     </button>
   );
 }
+
 
 const MODEL_OPTIONS = [
   { value: "", label: "Default" },
@@ -99,10 +146,14 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
   const [atFilter, setAtFilter] = useState("");
   const [selectedAtIndex, setSelectedAtIndex] = useState(0);
 
+  // File drop state
+  const [droppedFiles, setDroppedFiles] = useState<DroppedFile[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
+
   const isRunning = agentStatus === "Running";
   const isStopping = agentStatus === "Stopping";
   const isError = typeof agentStatus === "object" && "Error" in agentStatus;
-  const canSend = text.trim().length > 0 && !isRunning && !isStopping;
+  const canSend = (text.trim().length > 0 || droppedFiles.length > 0) && !isRunning && !isStopping;
 
   // Load slash commands when context changes
   useEffect(() => {
@@ -117,6 +168,79 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
       else store.loadRepoFiles(contextId);
     }
   }, [contextId, contextType]);
+
+  // Listen for Tauri drag-drop events
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | undefined;
+
+    try {
+      getCurrentWebview()
+        .onDragDropEvent((event) => {
+          if (cancelled) return;
+          if (event.payload.type === "over") {
+            setIsDragOver(true);
+          } else if (event.payload.type === "leave") {
+            setIsDragOver(false);
+          } else if (event.payload.type === "drop") {
+            setIsDragOver(false);
+            const paths = event.payload.paths;
+            // Build files and load base64 for images
+            const newFiles: DroppedFile[] = paths.map((p) => ({
+              id: String(++fileIdCounter),
+              path: p,
+              name: p.split(/[/\\]/).pop() ?? p,
+              isImage: isImageFile(p),
+            }));
+            setDroppedFiles((prev) => [...prev, ...newFiles]);
+            // Async: load data URLs for image files
+            for (const f of newFiles) {
+              if (f.isImage) {
+                readFileBase64(f.path)
+                  .then((dataUrl) => {
+                    if (cancelled) return;
+                    setDroppedFiles((prev) =>
+                      prev.map((df) =>
+                        df.id === f.id ? { ...df, dataUrl } : df,
+                      ),
+                    );
+                  })
+                  .catch((err) => {
+                    console.warn(`Failed to load image preview for ${f.name}:`, err);
+                    if (cancelled) return;
+                    setDroppedFiles((prev) =>
+                      prev.map((df) =>
+                        df.id === f.id ? { ...df, dataUrl: "error" } : df,
+                      ),
+                    );
+                  });
+              }
+            }
+          }
+        })
+        .then((fn) => {
+          if (cancelled) {
+            fn();
+          } else {
+            unlisten = fn;
+          }
+        })
+        .catch((err) => {
+          console.warn("Failed to register drag-drop event listener:", err);
+        });
+    } catch {
+      // getCurrentWebview() throws synchronously outside Tauri (e.g. browser/test)
+    }
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
+
+  const removeDroppedFile = useCallback((index: number) => {
+    setDroppedFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
 
   const fileCommands = useSlashCommandStore((s) =>
     s.commands[contextId] ?? EMPTY_COMMANDS,
@@ -159,15 +283,27 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
       message = message.replace(/@todos/g, todosText);
     }
 
+    // Prepend dropped file paths
+    if (droppedFiles.length > 0) {
+      const fileParts = droppedFiles.map((f) =>
+        f.isImage
+          ? `[Attached image: ${f.path}]`
+          : `[Attached file: ${f.path}]`,
+      );
+      const fileBlock = fileParts.join("\n");
+      message = message ? `${fileBlock}\n\n${message}` : fileBlock;
+    }
+
     onSend(message, selectedModel || undefined);
     setText("");
+    setDroppedFiles([]);
     setShowSlashMenu(false);
     setShowAtMenu(false);
     /* v8 ignore next 3 -- @preserve */
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-  }, [canSend, text, onSend, workspaceId, selectedModel]);
+  }, [canSend, text, droppedFiles, onSend, workspaceId, selectedModel]);
 
   const selectSlashCommand = useCallback(
     (cmd: SlashCommand) => {
@@ -335,20 +471,36 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     el.style.height = Math.min(el.scrollHeight, 200) + "px";
   };
 
-  const statusColor =
-    isRunning || isStopping
-      ? "var(--warning)"
-      : isError
-        ? "var(--error)"
-        : "var(--success)";
+  let statusColor: string;
+  let statusLabel: string;
+  if (isRunning || isStopping) {
+    statusColor = "var(--warning)";
+    statusLabel = isRunning ? "Running" : "Stopping";
+  } else if (isError) {
+    statusColor = "var(--error)";
+    statusLabel = "Error";
+  } else {
+    statusColor = "var(--success)";
+    statusLabel = "Idle";
+  }
 
-  const statusLabel = isRunning
-    ? "Running"
-    : isStopping
-      ? "Stopping"
-      : isError
-        ? "Error"
-        : "Idle";
+  let placeholderText: string;
+  if (isRunning) {
+    placeholderText = "Waiting for response...";
+  } else if (isPlanApproval) {
+    placeholderText = "Enter your plan adjustments here...";
+  } else {
+    placeholderText = "Ask to make changes, @mention files, run /commands";
+  }
+
+  let inputBorderStyle: string;
+  if (isDragOver) {
+    inputBorderStyle = "2px dashed var(--accent)";
+  } else if (isPlanApproval) {
+    inputBorderStyle = "1px dashed var(--text-muted)";
+  } else {
+    inputBorderStyle = "1px solid var(--border)";
+  }
 
   return (
     <div className="p-4" style={{ borderTop: "1px solid var(--border)" }}>
@@ -517,46 +669,79 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
         )}
 
         <div
-          className="flex items-center gap-2.5 rounded-xl px-4 py-3"
+          className="relative rounded-xl"
           style={{
             backgroundColor: "var(--bg-surface)",
-            border: isPlanApproval
-              ? "1px dashed var(--text-muted)"
-              : "1px solid var(--border)",
+            border: inputBorderStyle,
           }}
         >
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={handleInput}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              isRunning
-                ? "Waiting for response..."
-                : isPlanApproval
-                  ? "Enter your plan adjustments here..."
-                  : "Ask to make changes, @mention files, run /commands"
-            }
-            disabled={isRunning || isStopping}
-            rows={1}
-            className="flex-1 resize-none bg-transparent text-sm outline-none"
-            style={{
-              color: "var(--text-primary)",
-              maxHeight: "200px",
-            }}
-          />
-          <button
-            onClick={handleSend}
-            disabled={!canSend}
-            className="flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-colors"
-            style={{
-              backgroundColor: canSend ? "var(--accent)" : "var(--bg-hover)",
-              color: canSend ? "var(--bg-primary)" : "var(--text-muted)",
-            }}
-          >
-            <Send className="h-3.5 w-3.5" />
-            Send
-          </button>
+          {/* Drop zone overlay */}
+          {isDragOver && (
+            <div
+              className="absolute inset-0 z-20 flex items-center justify-center rounded-xl"
+              style={{ backgroundColor: "rgba(var(--accent-rgb, 137, 180, 250), 0.1)" }}
+            >
+              <span className="text-sm font-medium" style={{ color: "var(--accent)" }}>
+                Drop files here
+              </span>
+            </div>
+          )}
+
+          {/* Attached file chips */}
+          {droppedFiles.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 px-4 pt-3 pb-1">
+              {droppedFiles.map((file, i) => (
+                <div
+                  key={`${file.path}-${i}`}
+                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px]"
+                  style={{
+                    backgroundColor: "var(--bg-hover)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  <FileChipIcon file={file} />
+                  <span className="max-w-[150px] truncate">{file.name}</span>
+                  <button
+                    onClick={() => removeDroppedFile(i)}
+                    className="ml-0.5 rounded-sm p-0.5 transition-colors hover:bg-white/10"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center gap-2.5 px-4 py-3">
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={handleInput}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholderText}
+              disabled={isRunning || isStopping}
+              rows={1}
+              className="flex-1 resize-none bg-transparent text-sm outline-none"
+              style={{
+                color: "var(--text-primary)",
+                maxHeight: "200px",
+              }}
+            />
+            <button
+              onClick={handleSend}
+              disabled={!canSend}
+              className="flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-colors"
+              style={{
+                backgroundColor: canSend ? "var(--accent)" : "var(--bg-hover)",
+                color: canSend ? "var(--bg-primary)" : "var(--text-muted)",
+              }}
+            >
+              <Send className="h-3.5 w-3.5" />
+              Send
+            </button>
+          </div>
         </div>
 
         {/* Shortcut hint */}

@@ -55,7 +55,10 @@ vi.mock("../../lib/keybindings", () => ({
 }));
 
 // Mock the dynamic import for @tauri-apps/plugin-updater
-const mockUpdaterCheck = vi.fn();
+// vi.hoisted ensures the variable is available when vi.mock's factory runs (hoisted above const)
+const { mockUpdaterCheck } = vi.hoisted(() => ({
+  mockUpdaterCheck: vi.fn(),
+}));
 vi.mock("@tauri-apps/plugin-updater", () => ({
   check: (...args: unknown[]) => mockUpdaterCheck(...args),
 }));

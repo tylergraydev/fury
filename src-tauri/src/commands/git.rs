@@ -5,6 +5,7 @@ use crate::error::AppError;
 use crate::models::diff::{DiffResult, FileDiffContent};
 use crate::services::diff as diff_svc;
 use crate::state::AppState;
+use base64::Engine;
 use tauri::State;
 use uuid::Uuid;
 
@@ -685,4 +686,46 @@ pub fn load_type_definitions(
     }
 
     Ok(result)
+}
+
+/// Read an arbitrary file and return its contents as a base64 data URL.
+/// Used for displaying dropped image previews in the chat UI.
+#[tauri::command]
+pub fn read_file_base64(file_path: String) -> Result<String, AppError> {
+    let path = PathBuf::from(&file_path);
+
+    const MAX_FILE_SIZE: u64 = 50 * 1024 * 1024; // 50 MB
+    let metadata = std::fs::metadata(&path)
+        .map_err(|e| AppError::GitError(format!("failed to read file {}: {}", file_path, e)))?;
+    if metadata.len() > MAX_FILE_SIZE {
+        return Err(AppError::GitError(format!(
+            "file too large for preview ({} bytes, max {})",
+            metadata.len(),
+            MAX_FILE_SIZE
+        )));
+    }
+
+    let bytes = std::fs::read(&path)
+        .map_err(|e| AppError::GitError(format!("failed to read file {}: {}", file_path, e)))?;
+
+    let mime = match path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
+        .as_deref()
+    {
+        Some("png") => "image/png",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("webp") => "image/webp",
+        Some("svg") => "image/svg+xml",
+        Some("bmp") => "image/bmp",
+        Some("ico") => "image/x-icon",
+        Some("tiff" | "tif") => "image/tiff",
+        Some("avif") => "image/avif",
+        _ => "application/octet-stream",
+    };
+
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    Ok(format!("data:{};base64,{}", mime, b64))
 }
