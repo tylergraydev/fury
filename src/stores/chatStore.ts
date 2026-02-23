@@ -89,6 +89,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     set((state) => ({
       messages: { ...state.messages, [workspaceId]: [] },
       streamingText: { ...state.streamingText, [workspaceId]: "" },
+      planApproval: { ...state.planApproval, [workspaceId]: false },
     }));
     clearChatMessagesCmd(workspaceId).catch(console.error);
   },

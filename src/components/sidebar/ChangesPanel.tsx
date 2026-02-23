@@ -41,19 +41,18 @@ function isCheckFailure(conclusion: string | null): boolean {
 function PrStatusBar({ workspaceId }: { workspaceId: string }) {
   const prInfo = usePrStore((s) => s.prInfo[workspaceId] ?? null);
   const prLoading = usePrStore((s) => s.loading[workspaceId] ?? false);
-  const workspace = useWorkspaceStore((s) =>
-    s.workspaces.find((w) => w.id === workspaceId),
-  );
+  const prError = usePrStore((s) => s.error[workspaceId] ?? null);
 
   useEffect(() => {
     const store = usePrStore.getState();
-    store.subscribe(workspaceId);
+    store.subscribe(workspaceId).catch((e) => {
+      console.error("[PrStatusBar] Failed to subscribe to PR events:", e);
+    });
     store.loadPrInfo(workspaceId);
     return () => usePrStore.getState().unsubscribe(workspaceId);
   }, [workspaceId]);
 
   const hasPr = prInfo?.prNumber != null;
-  const isMerged = prInfo?.state === "MERGED";
   const checks = prInfo?.checks ?? [];
   const hasPendingChecks = checks.some(
     (c) => c.conclusion === null && c.status !== "COMPLETED",
@@ -63,6 +62,7 @@ function PrStatusBar({ workspaceId }: { workspaceId: string }) {
     checks.length > 0 && checks.every((c) => isCheckSuccess(c.conclusion));
 
   const handleCreatePr = async () => {
+    const workspace = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId);
     const title = workspace?.branch ?? "PR";
     try {
       await usePrStore.getState().createPr({
@@ -77,11 +77,13 @@ function PrStatusBar({ workspaceId }: { workspaceId: string }) {
   };
 
   const handleFix = async () => {
+    const status = useAgentStore.getState().agents[workspaceId]?.status;
+    if (status === "Running" || status === "Stopping") return;
     try {
       const message = await usePrStore.getState().getFixMessage(workspaceId);
       if (message === "No failing checks found.") return;
       useChatStore.getState().addUserMessage(workspaceId, message);
-      useAgentStore
+      await useAgentStore
         .getState()
         .sendMessage(workspaceId, message, "workspace");
     } catch (e) {
@@ -138,9 +140,6 @@ function PrStatusBar({ workspaceId }: { workspaceId: string }) {
         {prLoading ? "Creating..." : "Create PR"}
       </button>
     );
-  } else if (isMerged) {
-    // No right button when merged
-    rightAction = null;
   } else if (hasPendingChecks) {
     rightAction = (
       <span
@@ -180,12 +179,20 @@ function PrStatusBar({ workspaceId }: { workspaceId: string }) {
   }
 
   return (
-    <div
-      className="flex items-center justify-between px-3 py-2"
-      style={{ borderBottom: "1px solid var(--border)" }}
-    >
-      <div>{prLink}</div>
-      <div>{rightAction}</div>
+    <div style={{ borderBottom: "1px solid var(--border)" }}>
+      <div className="flex items-center justify-between px-3 py-2">
+        <div>{prLink}</div>
+        <div>{rightAction}</div>
+      </div>
+      {prError && (
+        <div
+          className="truncate px-3 pb-2 text-xs"
+          style={{ color: "var(--error)" }}
+          title={prError}
+        >
+          {prError}
+        </div>
+      )}
     </div>
   );
 }

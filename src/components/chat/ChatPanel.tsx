@@ -110,9 +110,14 @@ export function ChatPanel({ contextId, contextType }: Props) {
     await handleSend("yes");
   }, [handleSend]);
 
-  const handleCopyPlan = useCallback(() => {
+  const handleCopyPlan = useCallback(async () => {
     const plan = useChatStore.getState().getPlanContent(contextId);
-    if (plan) navigator.clipboard.writeText(plan);
+    if (!plan) return;
+    try {
+      await navigator.clipboard.writeText(plan);
+    } catch (e) {
+      console.error("[ChatPanel] Failed to copy plan to clipboard:", e);
+    }
   }, [contextId]);
 
   const handleRevert = useCallback(

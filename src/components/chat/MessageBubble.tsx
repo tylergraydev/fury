@@ -84,6 +84,11 @@ function groupContentBlocks(blocks: ContentBlock[]): RenderGroup[] {
 
 function normalizeToolName(name: string): string {
   const lower = name.toLowerCase();
+  // Check compound names before their substrings
+  if (lower.includes("todowrite") || lower.includes("todo_write")) return "TodoWrite";
+  if (lower.includes("todoread") || lower.includes("todo_read")) return "TodoRead";
+  if (lower.includes("webfetch")) return "WebFetch";
+  if (lower.includes("websearch")) return "WebSearch";
   if (lower.includes("read")) return "Read";
   if (lower.includes("edit")) return "Edit";
   if (lower.includes("write")) return "Write";
@@ -92,80 +97,42 @@ function normalizeToolName(name: string): string {
   if (lower.includes("glob") || lower.includes("find_file")) return "Glob";
   if (lower.includes("task")) return "Task";
   if (lower.includes("notebook")) return "Notebook";
-  if (lower.includes("webfetch")) return "WebFetch";
-  if (lower.includes("websearch")) return "WebSearch";
   if (lower.includes("web")) return "Web";
-  if (lower.includes("todowrite") || lower.includes("todo_write")) return "TodoWrite";
-  if (lower.includes("todoread") || lower.includes("todo_read")) return "TodoRead";
   if (lower.includes("think") || lower.includes("plan")) return "Think";
   if (lower.includes("diff")) return "Diff";
   return name;
 }
 
-const TOOL_COLORS: Record<string, string> = {
-  Read: "#60a5fa",     // blue
-  Edit: "#f59e0b",     // amber
-  Write: "#34d399",    // emerald
-  Bash: "#a78bfa",     // purple
-  Grep: "#fb923c",     // orange
-  Glob: "#fb923c",     // orange
-  Task: "#ec4899",     // pink
-  Notebook: "#8b5cf6", // violet
-  WebFetch: "#22d3ee", // cyan
-  WebSearch: "#22d3ee", // cyan
-  Web: "#22d3ee",      // cyan
-  TodoWrite: "#facc15", // yellow
-  TodoRead: "#facc15",  // yellow
-  Think: "#6b7280",    // gray
-  Diff: "#3b82f6",     // blue
-};
-
-const TOOL_ICON_MAP: Record<string, ReactNode> = {
-  Read: <FileText className="h-3.5 w-3.5" />,
-  Edit: <Pencil className="h-3.5 w-3.5" />,
-  Write: <FilePlus2 className="h-3.5 w-3.5" />,
-  Bash: <SquareTerminal className="h-3.5 w-3.5" />,
-  Grep: <FileSearch className="h-3.5 w-3.5" />,
-  Glob: <FolderSearch className="h-3.5 w-3.5" />,
-  Task: <Bot className="h-3.5 w-3.5" />,
-  Notebook: <NotebookPen className="h-3.5 w-3.5" />,
-  WebFetch: <Globe className="h-3.5 w-3.5" />,
-  WebSearch: <Radar className="h-3.5 w-3.5" />,
-  Web: <Globe className="h-3.5 w-3.5" />,
-  TodoWrite: <ListPlus className="h-3.5 w-3.5" />,
-  TodoRead: <ListChecks className="h-3.5 w-3.5" />,
-  Think: <Brain className="h-3.5 w-3.5" />,
-  Diff: <GitCompare className="h-3.5 w-3.5" />,
-};
-
-function getToolIcon(normalized: string): ReactNode {
-  return TOOL_ICON_MAP[normalized] ?? <Wrench className="h-3.5 w-3.5" />;
+interface ToolConfig {
+  icon: ReactNode;
+  color: string;
+  label: string;
 }
 
-function getToolColor(normalized: string): string {
-  return TOOL_COLORS[normalized] ?? "var(--text-muted)";
-}
+const ICON = "h-3.5 w-3.5";
 
-const TOOL_LABELS: Record<string, string> = {
-  Read: "Read",
-  Edit: "Edit",
-  Write: "Write",
-  Bash: "Run",
-  Grep: "Search",
-  Glob: "Find",
-  Task: "Agent",
-  Notebook: "Notebook",
-  WebFetch: "Fetch",
-  WebSearch: "Search web",
-  Web: "Web",
-  TodoWrite: "Update todos",
-  TodoRead: "Read todos",
-  Think: "Thinking",
-  Diff: "Diff",
+const TOOL_CONFIG: Record<string, ToolConfig> = {
+  Read:      { icon: <FileText className={ICON} />,       color: "#60a5fa", label: "Read" },
+  Edit:      { icon: <Pencil className={ICON} />,         color: "#f59e0b", label: "Edit" },
+  Write:     { icon: <FilePlus2 className={ICON} />,      color: "#34d399", label: "Write" },
+  Bash:      { icon: <SquareTerminal className={ICON} />, color: "#a78bfa", label: "Run" },
+  Grep:      { icon: <FileSearch className={ICON} />,     color: "#fb923c", label: "Search" },
+  Glob:      { icon: <FolderSearch className={ICON} />,   color: "#fb923c", label: "Find" },
+  Task:      { icon: <Bot className={ICON} />,            color: "#ec4899", label: "Agent" },
+  Notebook:  { icon: <NotebookPen className={ICON} />,    color: "#8b5cf6", label: "Notebook" },
+  WebFetch:  { icon: <Globe className={ICON} />,          color: "#22d3ee", label: "Fetch" },
+  WebSearch: { icon: <Radar className={ICON} />,          color: "#22d3ee", label: "Search web" },
+  Web:       { icon: <Globe className={ICON} />,          color: "#22d3ee", label: "Web" },
+  TodoWrite: { icon: <ListPlus className={ICON} />,       color: "#facc15", label: "Update todos" },
+  TodoRead:  { icon: <ListChecks className={ICON} />,     color: "#facc15", label: "Read todos" },
+  Think:     { icon: <Brain className={ICON} />,          color: "#6b7280", label: "Thinking" },
+  Diff:      { icon: <GitCompare className={ICON} />,     color: "#3b82f6", label: "Diff" },
 };
 
-function getToolLabel(normalized: string): string {
-  return TOOL_LABELS[normalized] ?? normalized;
+const DEFAULT_CONFIG: ToolConfig = { icon: <Wrench className={ICON} />, color: "var(--text-muted)", label: "" };
+
+function getToolConfig(normalized: string): ToolConfig {
+  return TOOL_CONFIG[normalized] ?? { ...DEFAULT_CONFIG, label: normalized };
 }
 
 function shortenPath(filepath: string): string {
@@ -188,7 +155,7 @@ interface ToolSummaryParts {
 function getToolSummary(name: string, input: unknown, result: { content: string } | null): ToolSummaryParts {
   const normalized = normalizeToolName(name);
   const inp = input as Record<string, unknown> | null;
-  const label = getToolLabel(normalized);
+  const label = getToolConfig(normalized).label;
   const empty: ToolSummaryParts = { label, detail: "", badges: [] };
 
   if (!inp || typeof inp !== "object") return empty;
@@ -519,8 +486,7 @@ function ToolRow({ pair }: { pair: ToolPair }) {
   const [detailOpen, setDetailOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const normalized = normalizeToolName(pair.use.name);
-  const icon = getToolIcon(normalized);
-  const color = getToolColor(normalized);
+  const { icon, color } = getToolConfig(normalized);
   const summary = getToolSummary(pair.use.name, pair.use.input, pair.result);
 
   return (

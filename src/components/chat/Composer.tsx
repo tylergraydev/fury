@@ -219,7 +219,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     }
 
     // Cmd+Shift+Enter to approve plan
-    if (e.key === "Enter" && e.metaKey && e.shiftKey && isPlanApproval && onApprovePlan) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && e.shiftKey && isPlanApproval && onApprovePlan) {
       e.preventDefault();
       onApprovePlan();
       return;
@@ -370,7 +370,9 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
             </button>
           )}
           <button
-            className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors hover:opacity-80"
+            disabled
+            title="Hand off to a new workspace (coming soon)"
+            className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs opacity-40"
             style={{
               color: "var(--text-secondary)",
             }}
