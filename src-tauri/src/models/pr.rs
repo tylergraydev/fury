@@ -53,3 +53,24 @@ pub struct MergeResult {
     pub message: String,
     pub merge_method: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrComment {
+    pub id: u64,
+    pub author: String,
+    pub body: String,
+    pub created_at: String,
+    pub path: Option<String>,
+    pub line: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrReview {
+    pub id: u64,
+    pub author: String,
+    pub state: String,
+    pub body: String,
+    pub submitted_at: String,
+}

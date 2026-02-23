@@ -5,7 +5,10 @@ import { useTodoStore } from "../../stores/todoStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { ExternalLink } from "lucide-react";
-import type { PrCheck } from "../../lib/tauri";
+import type { PrCheck, PrReview, PrComment } from "../../lib/tauri";
+
+const EMPTY_REVIEWS: PrReview[] = [];
+const EMPTY_COMMENTS: PrComment[] = [];
 
 interface Props {
   workspaceId: string;
@@ -70,6 +73,92 @@ function CheckRow({ check }: { check: PrCheck }) {
   return (
     <div className="group/check flex items-center gap-2 px-2 py-1 text-xs">
       {content}
+    </div>
+  );
+}
+
+function reviewStateColor(state: string): string {
+  switch (state) {
+    case "APPROVED":
+      return "var(--success)";
+    case "CHANGES_REQUESTED":
+      return "var(--error)";
+    default:
+      return "var(--text-muted)";
+  }
+}
+
+function reviewStateLabel(state: string): string {
+  switch (state) {
+    case "APPROVED":
+      return "approved";
+    case "CHANGES_REQUESTED":
+      return "changes requested";
+    default:
+      return "commented";
+  }
+}
+
+function ReviewRow({ review }: { review: PrReview }) {
+  const color = reviewStateColor(review.state);
+
+  return (
+    <div className="flex flex-col gap-0.5 px-2 py-1 text-xs">
+      <div className="flex items-center gap-2">
+        <span
+          className="h-2 w-2 flex-shrink-0 rounded-full"
+          style={{ backgroundColor: color }}
+        />
+        <span className="truncate font-medium" style={{ color: "var(--text-primary)" }}>
+          @{review.author}
+        </span>
+        <span
+          className="ml-auto flex-shrink-0"
+          style={{ color }}
+        >
+          {reviewStateLabel(review.state)}
+        </span>
+      </div>
+      {review.body && (
+        <p
+          className="truncate pl-4 text-[10px]"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {review.body}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ReviewCommentRow({ comment }: { comment: PrComment }) {
+  const location = comment.path
+    ? comment.line
+      ? `${comment.path}:${comment.line}`
+      : comment.path
+    : null;
+
+  return (
+    <div className="flex flex-col gap-0.5 px-2 py-1 text-xs">
+      <div className="flex items-center gap-2">
+        <span className="font-medium" style={{ color: "var(--text-primary)" }}>
+          @{comment.author}
+        </span>
+        {location && (
+          <span
+            className="truncate text-[10px]"
+            style={{ color: "var(--accent)" }}
+          >
+            {location}
+          </span>
+        )}
+      </div>
+      <p
+        className="truncate pl-0 text-[10px]"
+        style={{ color: "var(--text-muted)" }}
+      >
+        {comment.body}
+      </p>
     </div>
   );
 }
@@ -170,6 +259,8 @@ function CreatePRInline({
 
 export function ChecksPanel({ workspaceId }: Props) {
   const prInfo = usePrStore((s) => s.prInfo[workspaceId] ?? null);
+  const reviews = usePrStore((s) => s.reviews[workspaceId] ?? EMPTY_REVIEWS);
+  const reviewComments = usePrStore((s) => s.reviewComments[workspaceId] ?? EMPTY_COMMENTS);
   const loading = usePrStore((s) => s.loading[workspaceId] ?? false);
   const error = usePrStore((s) => s.error[workspaceId] ?? null);
 
@@ -200,6 +291,7 @@ export function ChecksPanel({ workspaceId }: Props) {
   );
   const todosAllCompleted = todoTotal > 0 && todoCompleted === todoTotal;
   const hasPendingTodos = todoTotal > 0 && !todosAllCompleted;
+  const hasReviewFeedback = reviews.length > 0 || reviewComments.length > 0;
 
   useEffect(() => {
     useTodoStore.getState().loadTodos(workspaceId);
@@ -219,6 +311,15 @@ export function ChecksPanel({ workspaceId }: Props) {
     } catch (e) {
       console.error("[ChecksPanel] Failed to generate fix:", e);
     }
+  };
+
+  const handleSendReviews = () => {
+    const message = usePrStore.getState().getReviewFixMessage(workspaceId);
+    if (message === "No review feedback found.") return;
+    useChatStore.getState().addUserMessage(workspaceId, message);
+    useAgentStore
+      .getState()
+      .sendMessage(workspaceId, message, "workspace");
   };
 
   // No PR yet - show creation form
@@ -390,6 +491,30 @@ export function ChecksPanel({ workspaceId }: Props) {
         )}
       </div>
 
+      {/* Reviews */}
+      {hasReviewFeedback && (
+        <div className="px-3 py-1">
+          <div
+            className="mb-1 text-[10px]"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Reviews ({reviews.length + reviewComments.length})
+          </div>
+
+          <div
+            className="space-y-0.5 rounded p-1"
+            style={{ backgroundColor: "var(--bg-primary)" }}
+          >
+            {reviews.map((review) => (
+              <ReviewRow key={review.id} review={review} />
+            ))}
+            {reviewComments.map((comment) => (
+              <ReviewCommentRow key={comment.id} comment={comment} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="mt-auto flex flex-wrap items-center gap-1.5 px-3 py-2">
         <button
@@ -414,6 +539,19 @@ export function ChecksPanel({ workspaceId }: Props) {
             }}
           >
             Fix with Claude
+          </button>
+        )}
+
+        {hasReviewFeedback && (
+          <button
+            onClick={handleSendReviews}
+            className="rounded px-2 py-0.5 text-[10px]"
+            style={{
+              backgroundColor: "var(--accent)",
+              color: "var(--bg-primary)",
+            }}
+          >
+            Send to agent
           </button>
         )}
 

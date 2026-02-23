@@ -103,6 +103,8 @@ pub fn run() {
             commands::pr::push_changes,
             commands::pr::fix_failing_checks,
             commands::pr::merge_pr,
+            commands::pr::get_pr_reviews,
+            commands::pr::get_pr_review_comments,
             // Todo commands
             commands::todo::add_todo,
             commands::todo::update_todo,
