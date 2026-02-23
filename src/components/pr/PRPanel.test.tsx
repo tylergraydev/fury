@@ -83,7 +83,7 @@ beforeEach(() => {
   });
   useWorkspaceStore.setState({
     workspaces: [
-      { id: "ws-1", repoId: "r1", name: "Test WS", branch: "feature-1", status: "Active", portBase: 3000, autoCommit: false, createdAt: "2024-01-01", archivedAt: null },
+      { id: "ws-1", repoId: "r1", name: "Test WS", branch: "feature-1", status: "Active", portBase: 3000, autoCommit: false, pinned: false, createdAt: "2024-01-01", archivedAt: null },
     ],
     activeWorkspaceId: "ws-1",
   });
@@ -240,7 +240,7 @@ describe("PRPanel", () => {
   it("defaults title to empty string when workspace has no branch", async () => {
     useWorkspaceStore.setState({
       workspaces: [
-        { id: "ws-1", repoId: "r1", name: "Test WS", branch: undefined as any, status: "Active", portBase: 3000, autoCommit: false, createdAt: "2024-01-01", archivedAt: null },
+        { id: "ws-1", repoId: "r1", name: "Test WS", branch: undefined as any, status: "Active", portBase: 3000, autoCommit: false, pinned: false, createdAt: "2024-01-01", archivedAt: null },
       ],
     });
     render(<PRPanel workspaceId="ws-1" />);
@@ -931,7 +931,7 @@ describe("PRPanel", () => {
     // Set workspace branch to empty so title starts as empty string
     useWorkspaceStore.setState({
       workspaces: [
-        { id: "ws-1", repoId: "r1", name: "Test WS", branch: "", status: "Active", portBase: 3000, autoCommit: false, createdAt: "2024-01-01", archivedAt: null },
+        { id: "ws-1", repoId: "r1", name: "Test WS", branch: "", status: "Active", portBase: 3000, autoCommit: false, pinned: false, createdAt: "2024-01-01", archivedAt: null },
       ],
     });
     render(<PRPanel workspaceId="ws-1" />);

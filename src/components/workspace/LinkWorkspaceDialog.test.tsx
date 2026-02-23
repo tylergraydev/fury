@@ -20,9 +20,9 @@ vi.mock("../../lib/tauri", () => ({
 beforeEach(() => {
   useWorkspaceStore.setState({
     workspaces: [
-      { id: "ws-1", repoId: "r1", name: "Workspace 1", branch: "main", status: "Active", portBase: 3000, autoCommit: false, createdAt: "2024-01-01", archivedAt: null },
-      { id: "ws-2", repoId: "r2", name: "Workspace 2", branch: "dev", status: "Active", portBase: 3001, autoCommit: false, createdAt: "2024-01-01", archivedAt: null },
-      { id: "ws-3", repoId: "r2", name: "Workspace 3", branch: "feature", status: "Active", portBase: 3002, autoCommit: false, createdAt: "2024-01-01", archivedAt: null },
+      { id: "ws-1", repoId: "r1", name: "Workspace 1", branch: "main", status: "Active", portBase: 3000, autoCommit: false, pinned: false, createdAt: "2024-01-01", archivedAt: null },
+      { id: "ws-2", repoId: "r2", name: "Workspace 2", branch: "dev", status: "Active", portBase: 3001, autoCommit: false, pinned: false, createdAt: "2024-01-01", archivedAt: null },
+      { id: "ws-3", repoId: "r2", name: "Workspace 3", branch: "feature", status: "Active", portBase: 3002, autoCommit: false, pinned: false, createdAt: "2024-01-01", archivedAt: null },
     ],
   });
   useRepositoryStore.setState({
@@ -330,7 +330,7 @@ describe("LinkWorkspaceDialog", () => {
   it("shows 'No workspaces from other repos available to link' when no other repos", async () => {
     useWorkspaceStore.setState({
       workspaces: [
-        { id: "ws-1", repoId: "r1", name: "Workspace 1", branch: "main", status: "Active", portBase: 3000, autoCommit: false, createdAt: "2024-01-01", archivedAt: null },
+        { id: "ws-1", repoId: "r1", name: "Workspace 1", branch: "main", status: "Active", portBase: 3000, autoCommit: false, pinned: false, createdAt: "2024-01-01", archivedAt: null },
       ],
     });
     mockGetLinkedWorkspaces.mockResolvedValue([]);
