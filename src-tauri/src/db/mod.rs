@@ -561,7 +561,8 @@ impl Database {
         let metadata_json = msg
             .metadata
             .as_ref()
-            .map(|m| serde_json::to_string(m).unwrap_or_default());
+            .map(|m| serde_json::to_string(m))
+            .transpose()?;
         let role_str = match msg.role {
             MessageRole::User => "user",
             MessageRole::Assistant => "assistant",
@@ -594,7 +595,16 @@ impl Database {
                 let timestamp_str: String = row.get(4)?;
                 let display_text: Option<String> = row.get(5)?;
                 let metadata_json: Option<String> = row.get(6)?;
-                let metadata = metadata_json.and_then(|j| serde_json::from_str(&j).ok());
+                let metadata = match metadata_json {
+                    Some(j) => match serde_json::from_str(&j) {
+                        Ok(m) => Some(m),
+                        Err(e) => {
+                            eprintln!("[db] Failed to deserialize chat message metadata: {e}");
+                            None
+                        }
+                    },
+                    None => None,
+                };
                 Ok(ChatMessage {
                     id: row.get::<_, String>(0)?.parse::<Uuid>().unwrap_or_default(),
                     workspace_id: row.get::<_, String>(1)?.parse::<Uuid>().unwrap_or_default(),

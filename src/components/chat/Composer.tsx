@@ -4,6 +4,7 @@ import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { AgentStatus, SlashCommand } from "../../lib/tauri";
 import { readFileBase64 } from "../../lib/tauri";
+import { formatTokens, formatCost } from "../../lib/format";
 import type { PermissionRequestInfo } from "../../stores/chatStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useTodoStore } from "../../stores/todoStore";
@@ -126,23 +127,11 @@ function ContextUsageIndicator({ stats }: { stats: { totalInputTokens: number; t
   const isWarning = pct >= 75;
   const isCritical = pct >= 90;
 
-  const formatTokens = (n: number): string => {
-    if (n < 1000) return String(n);
-    if (n < 1_000_000) return `${(n / 1000).toFixed(0)}k`;
-    return `${(n / 1_000_000).toFixed(1)}M`;
-  };
+  const costStr = formatCost(stats.totalCostUsd);
 
-  const costStr = stats.totalCostUsd < 0.01
-    ? `$${stats.totalCostUsd.toFixed(4)}`
-    : stats.totalCostUsd < 1
-      ? `$${stats.totalCostUsd.toFixed(3)}`
-      : `$${stats.totalCostUsd.toFixed(2)}`;
-
-  const color = isCritical
-    ? "var(--error)"
-    : isWarning
-      ? "var(--accent-orange)"
-      : "var(--text-muted)";
+  let color = "var(--text-muted)";
+  if (isCritical) color = "var(--error)";
+  else if (isWarning) color = "var(--accent-orange)";
 
   return (
     <div

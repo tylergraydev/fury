@@ -155,11 +155,28 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       const persisted = await listChatMessages(workspaceId);
       const messages = persisted.map(fromPersisted);
       if (messages.length > 0) {
+        // Restore session stats from the last message with metadata
+        let restoredStats: SessionStats | undefined;
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const meta = messages[i].metadata;
+          if (meta) {
+            restoredStats = {
+              totalCostUsd: meta.totalCostUsd ?? 0,
+              totalInputTokens: meta.inputTokens ?? 0,
+              totalOutputTokens: meta.outputTokens ?? 0,
+              numTurns: meta.numTurns ?? 0,
+            };
+            break;
+          }
+        }
         set((state) => ({
           messages: {
             ...state.messages,
             [workspaceId]: messages,
           },
+          ...(restoredStats ? {
+            sessionStats: { ...state.sessionStats, [workspaceId]: restoredStats },
+          } : {}),
         }));
       }
     } catch (e) {
@@ -340,7 +357,56 @@ function handleStreamEvent(
         permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
       }));
 
-      // If error, add a user-friendly error message
+      // Build metadata from the result event
+      const metadata: ResponseMetadata = {
+        durationMs: event.durationMs,
+        durationApiMs: event.durationApiMs,
+        totalCostUsd: event.totalCostUsd,
+        numTurns: event.numTurns,
+        inputTokens: event.inputTokens,
+        outputTokens: event.outputTokens,
+        cacheReadTokens: event.cacheReadTokens,
+        cacheCreationTokens: event.cacheCreationTokens,
+      };
+      const hasMetadata = Object.values(metadata).some((v) => v != null);
+
+      // Attach metadata to last assistant message and persist (before error message changes lastMsg)
+      const messages = get().messages[workspaceId] ?? [];
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg && lastMsg.role === "assistant") {
+        const updated = hasMetadata ? { ...lastMsg, metadata } : lastMsg;
+        if (hasMetadata) {
+          set((state) => ({
+            messages: {
+              ...state.messages,
+              [workspaceId]: [...(state.messages[workspaceId] ?? []).slice(0, -1), updated],
+            },
+          }));
+        }
+        persistMessage(workspaceId, updated);
+      }
+
+      // Update session stats with cumulative totals from the CLI result event.
+      // These are session-level snapshots reported by Claude Code, not locally accumulated.
+      // Preserve previous values when fields are absent to avoid resetting on partial data.
+      if (hasMetadata) {
+        set((state) => {
+          const prev = state.sessionStats[workspaceId];
+          return {
+            sessionStats: {
+              ...state.sessionStats,
+              [workspaceId]: {
+                totalCostUsd: event.totalCostUsd ?? prev?.totalCostUsd ?? 0,
+                totalInputTokens: event.inputTokens ?? prev?.totalInputTokens ?? 0,
+                totalOutputTokens: event.outputTokens ?? prev?.totalOutputTokens ?? 0,
+                numTurns: event.numTurns ?? prev?.numTurns ?? 0,
+              },
+            },
+          };
+        });
+      }
+
+      // If error, add a user-friendly error message (after metadata is already attached)
       if (event.isError && event.result) {
         const friendly = formatErrorMessage(event.result);
         const msg: ChatMessage = {
@@ -356,50 +422,6 @@ function handleStreamEvent(
           },
         }));
         persistMessage(workspaceId, msg);
-      }
-
-      // Build metadata from the result event and attach to the last assistant message
-      const metadata: ResponseMetadata = {
-        ...(event.durationMs != null ? { durationMs: event.durationMs } : {}),
-        ...(event.durationApiMs != null ? { durationApiMs: event.durationApiMs } : {}),
-        ...(event.totalCostUsd != null ? { totalCostUsd: event.totalCostUsd } : {}),
-        ...(event.numTurns != null ? { numTurns: event.numTurns } : {}),
-        ...(event.inputTokens != null ? { inputTokens: event.inputTokens } : {}),
-        ...(event.outputTokens != null ? { outputTokens: event.outputTokens } : {}),
-        ...(event.cacheReadTokens != null ? { cacheReadTokens: event.cacheReadTokens } : {}),
-        ...(event.cacheCreationTokens != null ? { cacheCreationTokens: event.cacheCreationTokens } : {}),
-      };
-      const hasMetadata = Object.keys(metadata).length > 0;
-
-      // Update session-level stats from the result event
-      if (hasMetadata) {
-        set((state) => ({
-          sessionStats: {
-            ...state.sessionStats,
-            [workspaceId]: {
-              totalCostUsd: event.totalCostUsd ?? 0,
-              totalInputTokens: event.inputTokens ?? 0,
-              totalOutputTokens: event.outputTokens ?? 0,
-              numTurns: event.numTurns ?? 0,
-            },
-          },
-        }));
-      }
-
-      // Persist the final state of the last assistant message (with metadata if available)
-      const messages = get().messages[workspaceId] ?? [];
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg && lastMsg.role === "assistant") {
-        const updated = hasMetadata ? { ...lastMsg, metadata } : lastMsg;
-        if (hasMetadata) {
-          set((state) => ({
-            messages: {
-              ...state.messages,
-              [workspaceId]: [...(state.messages[workspaceId] ?? []).slice(0, -1), updated],
-            },
-          }));
-        }
-        persistMessage(workspaceId, updated);
       }
       break;
     }
