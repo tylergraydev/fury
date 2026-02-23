@@ -57,6 +57,11 @@ pub fn create_workspace(
         request.base_branch.as_deref(),
     )?;
 
+    // Create .context directory for inter-agent collaboration
+    let context_dir = worktree_path.join(".context");
+    let _ = std::fs::create_dir_all(&context_dir);
+    let _ = std::fs::write(context_dir.join(".gitignore"), "*\n!.gitignore\n");
+
     // Apply sparse checkout if needed
     if let Some(ref dirs) = request.sparse_dirs {
         if !dirs.is_empty() {
@@ -415,6 +420,11 @@ pub fn restore_workspace(
             ws.worktree_path.display()
         )));
     }
+
+    // Ensure .context directory exists for inter-agent collaboration
+    let context_dir = ws.worktree_path.join(".context");
+    let _ = std::fs::create_dir_all(&context_dir);
+    let _ = std::fs::write(context_dir.join(".gitignore"), "*\n!.gitignore\n");
 
     // Update status
     ws.status = WorkspaceStatus::Active;
