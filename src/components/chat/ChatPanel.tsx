@@ -131,21 +131,12 @@ export function ChatPanel({ contextId, contextType }: Props) {
     }
   }, [contextId]);
 
-  const handleApprovePermission = useCallback(async () => {
+  const handleRespondToPermission = useCallback(async (approved: boolean) => {
     try {
-      await respondToPermission(contextId, true);
+      await respondToPermission(contextId, approved);
       useChatStore.getState().clearPermissionRequest(contextId);
     } catch (e) {
-      console.error("Failed to approve permission:", e);
-    }
-  }, [contextId]);
-
-  const handleDenyPermission = useCallback(async () => {
-    try {
-      await respondToPermission(contextId, false);
-      useChatStore.getState().clearPermissionRequest(contextId);
-    } catch (e) {
-      console.error("Failed to deny permission:", e);
+      console.error("Failed to respond to permission:", e);
     }
   }, [contextId]);
 
@@ -185,8 +176,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
         onApprovePlan={handleApprovePlan}
         onCopyPlan={handleCopyPlan}
         permissionRequest={permissionRequest}
-        onApprovePermission={handleApprovePermission}
-        onDenyPermission={handleDenyPermission}
+        onRespondToPermission={handleRespondToPermission}
       />
     </div>
   );

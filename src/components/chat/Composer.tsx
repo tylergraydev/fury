@@ -7,6 +7,53 @@ import { useSlashCommandStore } from "../../stores/slashCommandStore";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
 import { BUILTIN_COMMANDS, type BuiltinCommand } from "../../lib/builtinCommands";
 
+function ActionBar({ icon, description, bgStyle, secondaryActions, primaryAction }: {
+  icon?: React.ReactNode;
+  description: React.ReactNode;
+  bgStyle: React.CSSProperties;
+  secondaryActions?: React.ReactNode;
+  primaryAction?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-2 flex items-center gap-2 rounded-lg px-3 py-2" style={bgStyle}>
+      {icon}
+      <span className="flex-1 text-xs" style={{ color: "var(--text-secondary)" }}>{description}</span>
+      {secondaryActions}
+      {primaryAction}
+    </div>
+  );
+}
+
+function ActionBarButton({ onClick, icon: Icon, label, color, bgColor, showShortcut, disabled, title, className }: {
+  onClick?: () => void;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  color: string;
+  bgColor?: string;
+  showShortcut?: boolean;
+  disabled?: boolean;
+  title?: string;
+  className?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors hover:opacity-80 ${bgColor ? "font-medium" : ""} ${className ?? ""}`}
+      style={{ color, ...(bgColor ? { backgroundColor: bgColor } : {}) }}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+      {showShortcut && (
+        <kbd className="ml-1 rounded px-1 py-0.5 text-[9px] font-normal" style={{ backgroundColor: "rgba(0,0,0,0.2)", color: "inherit" }}>
+          ⌘⇧↵
+        </kbd>
+      )}
+    </button>
+  );
+}
+
 const MODEL_OPTIONS = [
   { value: "", label: "Default" },
   { value: "sonnet", label: "Sonnet" },
@@ -33,11 +80,10 @@ interface Props {
   onApprovePlan?: () => void;
   onCopyPlan?: () => void;
   permissionRequest?: PermissionRequestInfo | null;
-  onApprovePermission?: () => void;
-  onDenyPermission?: () => void;
+  onRespondToPermission?: (approved: boolean) => void;
 }
 
-export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan, permissionRequest, onApprovePermission, onDenyPermission }: Props) {
+export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan, permissionRequest, onRespondToPermission }: Props) {
   const workspaceId = contextType === "workspace" ? contextId : undefined;
   const [text, setText] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
@@ -224,9 +270,9 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
 
     // Cmd+Shift+Enter to approve plan or permission
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
-      if (permissionRequest && onApprovePermission) {
+      if (permissionRequest && onRespondToPermission) {
         e.preventDefault();
-        onApprovePermission();
+        onRespondToPermission(true);
         return;
       }
       if (isPlanApproval && onApprovePlan) {
@@ -358,112 +404,36 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
 
       {/* Plan approval bar */}
       {isPlanApproval && (
-        <div
-          className="mb-2 flex items-center gap-2 rounded-lg px-3 py-2"
-          style={{
-            backgroundColor: "var(--bg-surface)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          <span className="flex-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-            Approve the plan (⌘⇧↵) or tell the AI what to do differently
-          </span>
-          {onCopyPlan && (
-            <button
-              onClick={onCopyPlan}
-              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors hover:opacity-80"
-              style={{
-                color: "var(--text-secondary)",
-              }}
-            >
-              <Copy className="h-3.5 w-3.5" />
-              Copy
-            </button>
+        <ActionBar
+          description="Approve the plan (⌘⇧↵) or tell the AI what to do differently"
+          bgStyle={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border)" }}
+          secondaryActions={
+            <>
+              {onCopyPlan && (
+                <ActionBarButton onClick={onCopyPlan} icon={Copy} label="Copy" color="var(--text-secondary)" />
+              )}
+              <ActionBarButton disabled title="Hand off to a new workspace (coming soon)" icon={ArrowRightFromLine} label="Hand off" color="var(--text-secondary)" className="opacity-40" />
+            </>
+          }
+          primaryAction={onApprovePlan && (
+            <ActionBarButton onClick={onApprovePlan} icon={Check} label="Approve" color="var(--bg-primary)" bgColor="var(--text-primary)" showShortcut />
           )}
-          <button
-            disabled
-            title="Hand off to a new workspace (coming soon)"
-            className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs opacity-40"
-            style={{
-              color: "var(--text-secondary)",
-            }}
-          >
-            <ArrowRightFromLine className="h-3.5 w-3.5" />
-            Hand off
-          </button>
-          {onApprovePlan && (
-            <button
-              onClick={onApprovePlan}
-              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-90"
-              style={{
-                backgroundColor: "var(--text-primary)",
-                color: "var(--bg-primary)",
-              }}
-            >
-              <Check className="h-3.5 w-3.5" />
-              Approve
-              <kbd
-                className="ml-1 rounded px-1 py-0.5 text-[9px] font-normal"
-                style={{
-                  backgroundColor: "rgba(0,0,0,0.2)",
-                  color: "inherit",
-                }}
-              >
-                ⌘⇧↵
-              </kbd>
-            </button>
-          )}
-        </div>
+        />
       )}
 
       {/* Permission approval bar */}
       {permissionRequest && (
-        <div
-          className="mb-2 flex items-center gap-2 rounded-lg px-3 py-2"
-          style={{
-            backgroundColor: "rgba(250, 179, 64, 0.08)",
-            border: "1px solid rgba(250, 179, 64, 0.3)",
-          }}
-        >
-          <ShieldCheck className="h-4 w-4 flex-shrink-0" style={{ color: "var(--warning)" }} />
-          <span className="flex-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-            Allow <strong style={{ color: "var(--text-primary)" }}>{permissionRequest.toolName}</strong>?
-          </span>
-          {onDenyPermission && (
-            <button
-              onClick={onDenyPermission}
-              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors hover:opacity-80"
-              style={{
-                color: "var(--error)",
-              }}
-            >
-              <ShieldX className="h-3.5 w-3.5" />
-              Deny
-            </button>
+        <ActionBar
+          icon={<ShieldCheck className="h-4 w-4 flex-shrink-0" style={{ color: "var(--warning)" }} />}
+          description={<>Allow <strong style={{ color: "var(--text-primary)" }}>{permissionRequest.toolName}</strong>?</>}
+          bgStyle={{ backgroundColor: "rgba(250, 179, 64, 0.08)", border: "1px solid rgba(250, 179, 64, 0.3)" }}
+          secondaryActions={onRespondToPermission && (
+            <ActionBarButton onClick={() => onRespondToPermission(false)} icon={ShieldX} label="Deny" color="var(--error)" />
           )}
-          {onApprovePermission && (
-            <button
-              onClick={onApprovePermission}
-              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-90"
-              style={{
-                backgroundColor: "var(--success)",
-                color: "var(--bg-primary)",
-              }}
-            >
-              <ShieldCheck className="h-3.5 w-3.5" />
-              Allow
-              <kbd
-                className="ml-1 rounded px-1 py-0.5 text-[9px] font-normal"
-                style={{
-                  backgroundColor: "rgba(0,0,0,0.2)",
-                  color: "inherit",
-                }}
-              >
-                ⌘⇧↵
-              </kbd>
-            </button>
+          primaryAction={onRespondToPermission && (
+            <ActionBarButton onClick={() => onRespondToPermission(true)} icon={ShieldCheck} label="Allow" color="var(--bg-primary)" bgColor="var(--success)" showShortcut />
           )}
-        </div>
+        />
       )}
 
       {/* Input area with autocomplete */}
