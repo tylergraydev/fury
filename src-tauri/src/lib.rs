@@ -42,6 +42,7 @@ pub fn run() {
             commands::workspace::restore_workspace,
             commands::workspace::update_workspace_notes,
             commands::workspace::rename_workspace,
+            commands::workspace::set_workspace_pinned,
             // Agent commands
             commands::agent::send_message,
             commands::agent::stop_agent,
