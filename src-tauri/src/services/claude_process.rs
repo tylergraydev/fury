@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use tauri::{AppHandle, Emitter};
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::{Child, Command};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::process::{Child, ChildStdin, Command};
 use uuid::Uuid;
 
 use crate::error::AppError;
@@ -229,6 +229,194 @@ pub async fn spawn_and_stream(
     });
 
     Ok(child)
+}
+
+/// Write a message to a persistent Claude process's stdin.
+pub async fn write_message(stdin: &mut ChildStdin, message: &str) -> Result<(), AppError> {
+    stdin
+        .write_all(format!("{}\n", message).as_bytes())
+        .await
+        .map_err(|e| AppError::AgentError(format!("Failed to write to Claude stdin: {}", e)))?;
+    stdin
+        .flush()
+        .await
+        .map_err(|e| AppError::AgentError(format!("Failed to flush Claude stdin: {}", e)))?;
+    Ok(())
+}
+
+/// Spawn a persistent Claude Code CLI process (Performance Mode).
+///
+/// Unlike `spawn_and_stream`, this spawns without `-p` so the process stays
+/// alive between turns. Messages are written to stdin via `write_message`.
+/// Returns `(Child, ChildStdin)` — the caller keeps the ChildStdin for future writes.
+pub async fn spawn_persistent(
+    workspace_id: Uuid,
+    session_id: Option<&str>,
+    worktree_path: &Path,
+    env_vars: HashMap<String, String>,
+    linked_dirs: Vec<PathBuf>,
+    system_prompt_additions: Option<&str>,
+    model: Option<&str>,
+    app_handle: AppHandle,
+    agents: Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
+    persistent_agents: Arc<Mutex<HashMap<Uuid, ChildStdin>>>,
+) -> Result<(Child, ChildStdin), AppError> {
+    let claude_bin = find_claude_binary()?;
+
+    let mut args = vec![
+        "--output-format".to_string(),
+        "stream-json".to_string(),
+        "--verbose".to_string(),
+        "--dangerously-skip-permissions".to_string(),
+    ];
+
+    if let Some(sid) = session_id {
+        args.push("--resume".to_string());
+        args.push(sid.to_string());
+    }
+
+    for dir in &linked_dirs {
+        args.push("--add-dir".to_string());
+        args.push(dir.to_string_lossy().to_string());
+    }
+
+    if let Some(prompt) = system_prompt_additions {
+        if !prompt.is_empty() {
+            args.push("--append-system-prompt".to_string());
+            args.push(prompt.to_string());
+        }
+    }
+
+    if let Some(m) = model {
+        const ALLOWED_MODELS: &[&str] = &["sonnet", "opus", "haiku"];
+        if ALLOWED_MODELS.contains(&m) {
+            args.push("--model".to_string());
+            args.push(m.to_string());
+        }
+    }
+
+    let mut cmd = Command::new(&claude_bin);
+    cmd.args(&args)
+        .current_dir(worktree_path)
+        .envs(&env_vars)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        unsafe {
+            cmd.pre_exec(|| {
+                libc::setpgid(0, 0);
+                Ok(())
+            });
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x00000200);
+    }
+
+    let mut child = cmd.spawn().map_err(|e| {
+        AppError::AgentError(format!("Failed to spawn persistent Claude Code: {}", e))
+    })?;
+
+    let stdin = child.stdin.take().ok_or_else(|| {
+        AppError::AgentError("Failed to capture Claude Code stdin".to_string())
+    })?;
+
+    let stdout = child.stdout.take().ok_or_else(|| {
+        AppError::AgentError("Failed to capture Claude Code stdout".to_string())
+    })?;
+
+    let stderr = child.stderr.take().ok_or_else(|| {
+        AppError::AgentError("Failed to capture Claude Code stderr".to_string())
+    })?;
+
+    // Spawn persistent stdout reader — stays alive between turns
+    let app_handle_stdout = app_handle.clone();
+    let ws_id = workspace_id;
+    let agents_stdout = Arc::clone(&agents);
+    tokio::spawn(async move {
+        let reader = BufReader::new(stdout);
+        let mut lines = reader.lines();
+        let event_name = format!("agent-stream:{}", ws_id);
+        let mut session_id_captured = false;
+
+        while let Ok(Some(line)) = lines.next_line().await {
+            if line.trim().is_empty() {
+                continue;
+            }
+
+            if let Some(frontend_event) = parse_stream_line(&line) {
+                // Capture session_id from the first event that contains one
+                if !session_id_captured {
+                    let sid = match &frontend_event {
+                        FrontendStreamEvent::System { session_id, .. } => session_id.clone(),
+                        FrontendStreamEvent::Result { session_id, .. } => session_id.clone(),
+                        _ => None,
+                    };
+                    if let Some(sid) = sid {
+                        if let Ok(mut agents_lock) = agents_stdout.lock() {
+                            if let Some(agent) = agents_lock.get_mut(&ws_id) {
+                                agent.session_id = Some(sid);
+                            }
+                        }
+                        session_id_captured = true;
+                    }
+                }
+
+                // In persistent mode, a result event means the turn is done (set Idle)
+                if matches!(&frontend_event, FrontendStreamEvent::Result { .. }) {
+                    if let Ok(mut agents_lock) = agents_stdout.lock() {
+                        if let Some(agent) = agents_lock.get_mut(&ws_id) {
+                            agent.status = crate::models::agent::AgentStatus::Idle;
+                        }
+                    }
+                    let _ = app_handle_stdout.emit(
+                        &format!("agent-status:{}", ws_id),
+                        &crate::models::agent::AgentStatusEvent {
+                            workspace_id: ws_id,
+                            status: crate::models::agent::AgentStatus::Idle,
+                        },
+                    );
+                }
+
+                let _ = app_handle_stdout.emit(&event_name, &frontend_event);
+            }
+        }
+
+        // EOF — process exited unexpectedly, clean up
+        if let Ok(mut pa) = persistent_agents.lock() {
+            pa.remove(&ws_id);
+        }
+        if let Ok(mut agents_lock) = agents_stdout.lock() {
+            if let Some(agent) = agents_lock.get_mut(&ws_id) {
+                agent.status = crate::models::agent::AgentStatus::Idle;
+            }
+        }
+        let _ = app_handle_stdout.emit(
+            &format!("agent-status:{}", ws_id),
+            &crate::models::agent::AgentStatusEvent {
+                workspace_id: ws_id,
+                status: crate::models::agent::AgentStatus::Idle,
+            },
+        );
+    });
+
+    // Spawn task to read stderr
+    tokio::spawn(async move {
+        let reader = BufReader::new(stderr);
+        let mut lines = reader.lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            eprintln!("[claude-persistent-stderr:{}] {}", ws_id, line);
+        }
+    });
+
+    Ok((child, stdin))
 }
 
 /// Parse a single NDJSON line from Claude Code's stream output

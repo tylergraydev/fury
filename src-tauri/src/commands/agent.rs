@@ -163,66 +163,174 @@ pub async fn send_message(
         settings.system_prompt_additions.clone()
     };
 
-    // Spawn Claude Code process
-    let child = claude_process::spawn_and_stream(
-        context_id,
-        &request.message,
-        session_id.as_deref(),
-        &working_dir,
-        env_vars,
-        linked_dirs,
-        system_prompt.as_deref(),
-        request.model.as_deref(),
-        app.clone(),
-        Arc::clone(&state.agents),
-    )
-    .await?;
+    // Check if Performance Mode (persistent processes) is enabled
+    let persistent_mode = {
+        let settings = state.settings.lock().unwrap();
+        settings.experimental.persistent_processes
+    };
 
-    // Store child process handle
-    {
-        let mut processes = state.agent_processes.lock().unwrap();
-        processes.insert(context_id, child);
-    }
-
-    // Clone Arc-wrapped references for the background task
-    let agents_ref = Arc::clone(&state.agents);
-    let processes_ref = Arc::clone(&state.agent_processes);
-    let app_clone = app.clone();
-    tokio::spawn(async move {
-        let mut child = {
-            let mut processes = processes_ref.lock().unwrap();
-            processes.remove(&context_id)
+    if persistent_mode {
+        // Performance Mode: reuse a long-running process or spawn one
+        let has_persistent = {
+            state.persistent_agents.lock().unwrap().contains_key(&context_id)
         };
 
-        let exit_status = if let Some(ref mut c) = child {
-            c.wait().await.ok()
+        if has_persistent {
+            // Reuse existing persistent process — take stdin, write, put back
+            let mut stdin = {
+                state.persistent_agents.lock().unwrap().remove(&context_id)
+            }
+            .ok_or_else(|| {
+                AppError::AgentError("Persistent process disappeared".to_string())
+            })?;
+
+            claude_process::write_message(&mut stdin, &request.message).await?;
+
+            // Put stdin back for next turn
+            state
+                .persistent_agents
+                .lock()
+                .unwrap()
+                .insert(context_id, stdin);
         } else {
-            None
-        };
+            // Spawn new persistent process
+            let (child, mut stdin) = claude_process::spawn_persistent(
+                context_id,
+                session_id.as_deref(),
+                &working_dir,
+                env_vars,
+                linked_dirs,
+                system_prompt.as_deref(),
+                request.model.as_deref(),
+                app.clone(),
+                Arc::clone(&state.agents),
+                Arc::clone(&state.persistent_agents),
+            )
+            .await?;
 
-        let new_status = match exit_status {
-            Some(ref status) if status.success() => AgentStatus::Idle,
-            Some(ref status) => {
-                AgentStatus::Error(format!("Process exited with code: {:?}", status.code()))
-            }
-            None => AgentStatus::Idle,
-        };
+            // Write the first message
+            claude_process::write_message(&mut stdin, &request.message).await?;
 
+            // Store handles
+            state
+                .persistent_agents
+                .lock()
+                .unwrap()
+                .insert(context_id, stdin);
+            state
+                .agent_processes
+                .lock()
+                .unwrap()
+                .insert(context_id, child);
+
+            // Background task: watch for unexpected process exit
+            let agents_ref = Arc::clone(&state.agents);
+            let processes_ref = Arc::clone(&state.agent_processes);
+            let persistent_ref = Arc::clone(&state.persistent_agents);
+            let app_clone = app.clone();
+            tokio::spawn(async move {
+                let mut child = {
+                    let mut processes = processes_ref.lock().unwrap();
+                    processes.remove(&context_id)
+                };
+
+                let exit_status = if let Some(ref mut c) = child {
+                    c.wait().await.ok()
+                } else {
+                    None
+                };
+
+                // Process exited — clean up persistent state
+                persistent_ref.lock().unwrap().remove(&context_id);
+
+                let new_status = match exit_status {
+                    Some(ref status) if status.success() => AgentStatus::Idle,
+                    Some(ref status) => AgentStatus::Error(format!(
+                        "Persistent process exited with code: {:?}",
+                        status.code()
+                    )),
+                    None => AgentStatus::Idle,
+                };
+
+                {
+                    let mut agents = agents_ref.lock().unwrap();
+                    if let Some(agent) = agents.get_mut(&context_id) {
+                        agent.status = new_status.clone();
+                    }
+                }
+
+                let _ = app_clone.emit(
+                    &format!("agent-status:{}", context_id),
+                    &AgentStatusEvent {
+                        workspace_id: context_id,
+                        status: new_status,
+                    },
+                );
+            });
+        }
+    } else {
+        // Low RAM Mode: spawn a new process per turn
+        let child = claude_process::spawn_and_stream(
+            context_id,
+            &request.message,
+            session_id.as_deref(),
+            &working_dir,
+            env_vars,
+            linked_dirs,
+            system_prompt.as_deref(),
+            request.model.as_deref(),
+            app.clone(),
+            Arc::clone(&state.agents),
+        )
+        .await?;
+
+        // Store child process handle
         {
-            let mut agents = agents_ref.lock().unwrap();
-            if let Some(agent) = agents.get_mut(&context_id) {
-                agent.status = new_status.clone();
-            }
+            let mut processes = state.agent_processes.lock().unwrap();
+            processes.insert(context_id, child);
         }
 
-        let _ = app_clone.emit(
-            &format!("agent-status:{}", context_id),
-            &AgentStatusEvent {
-                workspace_id: context_id,
-                status: new_status,
-            },
-        );
-    });
+        // Background task: wait for process exit
+        let agents_ref = Arc::clone(&state.agents);
+        let processes_ref = Arc::clone(&state.agent_processes);
+        let app_clone = app.clone();
+        tokio::spawn(async move {
+            let mut child = {
+                let mut processes = processes_ref.lock().unwrap();
+                processes.remove(&context_id)
+            };
+
+            let exit_status = if let Some(ref mut c) = child {
+                c.wait().await.ok()
+            } else {
+                None
+            };
+
+            let new_status = match exit_status {
+                Some(ref status) if status.success() => AgentStatus::Idle,
+                Some(ref status) => AgentStatus::Error(format!(
+                    "Process exited with code: {:?}",
+                    status.code()
+                )),
+                None => AgentStatus::Idle,
+            };
+
+            {
+                let mut agents = agents_ref.lock().unwrap();
+                if let Some(agent) = agents.get_mut(&context_id) {
+                    agent.status = new_status.clone();
+                }
+            }
+
+            let _ = app_clone.emit(
+                &format!("agent-status:{}", context_id),
+                &AgentStatusEvent {
+                    workspace_id: context_id,
+                    status: new_status,
+                },
+            );
+        });
+    }
 
     Ok(())
 }
@@ -245,12 +353,17 @@ pub fn stop_agent(
         }
     }
 
-    // Kill the process
-    let mut processes = state.agent_processes.lock().unwrap();
-    if let Some(child) = processes.remove(&id) {
-        if let Some(pid) = child.id() {
-            let _ = crate::platform::kill_process_group(pid);
+    // Kill the process and clean up persistent state
+    {
+        let mut processes = state.agent_processes.lock().unwrap();
+        if let Some(child) = processes.remove(&id) {
+            if let Some(pid) = child.id() {
+                let _ = crate::platform::kill_process_group(pid);
+            }
         }
+    }
+    {
+        state.persistent_agents.lock().unwrap().remove(&id);
     }
 
     // Set status to Idle
@@ -300,6 +413,18 @@ pub fn clear_session(
     let mut agents = state.agents.lock().unwrap();
     if let Some(agent) = agents.get_mut(&id) {
         agent.session_id = None;
+    }
+    drop(agents);
+
+    // Kill any persistent process for this workspace (new session = new process)
+    state.persistent_agents.lock().unwrap().remove(&id);
+    {
+        let mut processes = state.agent_processes.lock().unwrap();
+        if let Some(child) = processes.remove(&id) {
+            if let Some(pid) = child.id() {
+                let _ = crate::platform::kill_process_group(pid);
+            }
+        }
     }
 
     Ok(())

@@ -27,7 +27,7 @@ vi.mock("../../lib/tauri", () => ({
     provider: { providerType: "Anthropic", envVars: {} },
     systemPromptAdditions: null,
     analyticsEnabled: false,
-    experimental: { spotlightTesting: false, agentTeams: false },
+    experimental: { spotlightTesting: false, agentTeams: false, persistentProcesses: false },
     copilot: { enabled: false },
   }),
   getAppSettings: vi.fn().mockResolvedValue({
@@ -35,7 +35,7 @@ vi.mock("../../lib/tauri", () => ({
     provider: { providerType: "Anthropic", envVars: {} },
     systemPromptAdditions: null,
     analyticsEnabled: false,
-    experimental: { spotlightTesting: false, agentTeams: false },
+    experimental: { spotlightTesting: false, agentTeams: false, persistentProcesses: false },
     copilot: { enabled: false },
   }),
   updateAppSettings: vi.fn().mockResolvedValue(undefined),
@@ -99,7 +99,7 @@ const fullSettings = {
   },
   systemPromptAdditions: null,
   analyticsEnabled: false,
-  experimental: { spotlightTesting: false, agentTeams: false },
+  experimental: { spotlightTesting: false, agentTeams: false, persistentProcesses: false },
   copilot: { enabled: false },
 };
 

@@ -654,6 +654,7 @@ export interface ProviderConfig {
 export interface ExperimentalSettings {
   spotlightTesting: boolean;
   agentTeams: boolean;
+  persistentProcesses: boolean;
 }
 
 export interface CopilotSettings {

@@ -71,6 +71,8 @@ pub enum ProviderType {
 pub struct ExperimentalSettings {
     pub spotlight_testing: bool,
     pub agent_teams: bool,
+    #[serde(default)]
+    pub persistent_processes: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

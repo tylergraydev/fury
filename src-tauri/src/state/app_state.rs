@@ -9,7 +9,7 @@ use crate::services::spotlight::SpotlightHandle;
 use crate::services::terminal::TerminalSession;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tokio::process::Child;
+use tokio::process::{Child, ChildStdin};
 use uuid::Uuid;
 
 pub struct AppState {
@@ -28,6 +28,8 @@ pub struct AppState {
     pub terminal_sessions: Arc<Mutex<HashMap<Uuid, TerminalSession>>>,
     /// Spotlight file watchers — keyed by workspace ID
     pub spotlight_watchers: Arc<Mutex<HashMap<Uuid, SpotlightHandle>>>,
+    /// Persistent agent stdin handles — for Performance Mode (kept alive between turns)
+    pub persistent_agents: Arc<Mutex<HashMap<Uuid, ChildStdin>>>,
     /// Copilot Language Server — global singleton (handle + child process)
     pub copilot: Arc<Mutex<Option<(CopilotLspHandle, Child)>>>,
 }
@@ -42,6 +44,7 @@ impl AppState {
             db: Mutex::new(None),
             agents: Arc::new(Mutex::new(HashMap::new())),
             agent_processes: Arc::new(Mutex::new(HashMap::new())),
+            persistent_agents: Arc::new(Mutex::new(HashMap::new())),
             script_processes: Arc::new(Mutex::new(HashMap::new())),
             terminal_sessions: Arc::new(Mutex::new(HashMap::new())),
             spotlight_watchers: Arc::new(Mutex::new(HashMap::new())),
