@@ -4,7 +4,7 @@ use std::process::Command;
 use crate::error::AppError;
 use crate::models::pr::{
     IssueDetail, IssueListItem, MergeResult, PrCheck, PrComment, PrDetail, PrInfo, PrListItem,
-    PrReview,
+    PrReview, RunLogsResult, WorkflowJob, WorkflowRun, WorkflowStep,
 };
 
 pub fn find_gh_binary() -> Result<std::path::PathBuf, AppError> {
@@ -576,4 +576,204 @@ pub fn get_issue_detail(repo_path: &Path, number: u32) -> Result<IssueDetail, Ap
             })
             .unwrap_or_default(),
     })
+}
+
+pub fn get_workflow_runs(worktree_path: &Path, branch: &str) -> Result<Vec<WorkflowRun>, AppError> {
+    let gh = find_gh_binary()?;
+    let output = Command::new(&gh)
+        .args([
+            "run",
+            "list",
+            "--branch",
+            branch,
+            "--json",
+            "databaseId,status,conclusion,name,workflowName,event,createdAt",
+            "--limit",
+            "20",
+        ])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::PrError(format!("Failed to run gh run list: {}", e)))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.contains("no runs") || stderr.contains("could not find") {
+            return Ok(Vec::new());
+        }
+        return Err(AppError::PrError(format!("gh run list failed: {}", stderr)));
+    }
+
+    let raw: Vec<serde_json::Value> = serde_json::from_slice(&output.stdout)
+        .map_err(|e| AppError::PrError(format!("Failed to parse workflow runs: {}", e)))?;
+
+    Ok(raw
+        .iter()
+        .map(|run| WorkflowRun {
+            id: run.get("databaseId").and_then(|v| v.as_u64()).unwrap_or(0),
+            name: run
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            workflow_name: run
+                .get("workflowName")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            status: run
+                .get("status")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            conclusion: run
+                .get("conclusion")
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            event: run
+                .get("event")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            created_at: run
+                .get("createdAt")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+        })
+        .collect())
+}
+
+pub fn get_run_jobs(worktree_path: &Path, run_id: u64) -> Result<Vec<WorkflowJob>, AppError> {
+    let gh = find_gh_binary()?;
+    let output = Command::new(&gh)
+        .args(["run", "view", &run_id.to_string(), "--json", "jobs"])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::PrError(format!("Failed to run gh run view: {}", e)))?;
+
+    if !output.status.success() {
+        return Err(AppError::PrError(format!(
+            "gh run view failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+
+    let raw: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| AppError::PrError(format!("Failed to parse run jobs: {}", e)))?;
+
+    let jobs = raw
+        .get("jobs")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    Ok(jobs
+        .iter()
+        .map(|job| WorkflowJob {
+            id: job.get("databaseId").and_then(|v| v.as_u64()).unwrap_or(0),
+            name: job
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            status: job
+                .get("status")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            conclusion: job
+                .get("conclusion")
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            steps: job
+                .get("steps")
+                .and_then(|v| v.as_array())
+                .map(|steps| {
+                    steps
+                        .iter()
+                        .map(|step| WorkflowStep {
+                            name: step
+                                .get("name")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string(),
+                            status: step
+                                .get("status")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string(),
+                            conclusion: step
+                                .get("conclusion")
+                                .and_then(|v| v.as_str())
+                                .map(String::from),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+        })
+        .collect())
+}
+
+pub fn get_run_logs(
+    worktree_path: &Path,
+    run_id: u64,
+    failed_only: bool,
+) -> Result<RunLogsResult, AppError> {
+    let gh = find_gh_binary()?;
+    let log_flag = if failed_only { "--log-failed" } else { "--log" };
+    let output = Command::new(&gh)
+        .args(["run", "view", &run_id.to_string(), log_flag])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::PrError(format!("Failed to run gh run view --log: {}", e)))?;
+
+    if !output.status.success() {
+        return Err(AppError::PrError(format!(
+            "gh run view --log failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+
+    let full = String::from_utf8_lossy(&output.stdout);
+    const MAX_BYTES: usize = 100_000;
+    let truncated = full.len() > MAX_BYTES;
+    let logs = if truncated {
+        let mut end = MAX_BYTES;
+        while end < full.len() && !full.is_char_boundary(end) {
+            end += 1;
+        }
+        full[..end].to_string()
+    } else {
+        full.into_owned()
+    };
+
+    Ok(RunLogsResult { logs, truncated })
+}
+
+pub fn rerun_workflow(
+    worktree_path: &Path,
+    run_id: u64,
+    failed_only: bool,
+) -> Result<(), AppError> {
+    let gh = find_gh_binary()?;
+    let run_id_str = run_id.to_string();
+    let mut args = vec!["run", "rerun", &run_id_str];
+    if failed_only {
+        args.push("--failed");
+    }
+
+    let output = Command::new(&gh)
+        .args(&args)
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::PrError(format!("Failed to run gh run rerun: {}", e)))?;
+
+    if !output.status.success() {
+        return Err(AppError::PrError(format!(
+            "gh run rerun failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+
+    Ok(())
 }

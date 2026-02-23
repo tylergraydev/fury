@@ -118,3 +118,40 @@ pub struct IssueDetail {
     pub state: String,
     pub labels: Vec<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowRun {
+    pub id: u64,
+    pub name: String,
+    pub workflow_name: String,
+    pub status: String,
+    pub conclusion: Option<String>,
+    pub event: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowJob {
+    pub id: u64,
+    pub name: String,
+    pub status: String,
+    pub conclusion: Option<String>,
+    pub steps: Vec<WorkflowStep>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowStep {
+    pub name: String,
+    pub status: String,
+    pub conclusion: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunLogsResult {
+    pub logs: String,
+    pub truncated: bool,
+}

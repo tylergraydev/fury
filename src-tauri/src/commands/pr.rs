@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::models::pr::{
     CreatePrRequest, IssueDetail, IssueListItem, MergeResult, PrCheck, PrComment, PrDetail, PrInfo,
-    PrListItem, PrReview,
+    PrListItem, PrReview, RunLogsResult, WorkflowJob, WorkflowRun,
 };
 use crate::services::gh as gh_svc;
 use crate::state::AppState;
@@ -307,4 +307,89 @@ pub fn get_issue_details(
     };
 
     gh_svc::get_issue_detail(&repo_path, issue_number)
+}
+
+#[tauri::command]
+pub fn get_workflow_runs(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<Vec<WorkflowRun>, AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let (worktree_path, branch) = {
+        let workspaces = state.workspaces.lock().unwrap();
+        let ws = workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        (ws.worktree_path.clone(), ws.branch.clone())
+    };
+
+    gh_svc::get_workflow_runs(&worktree_path, &branch)
+}
+
+#[tauri::command]
+pub fn get_run_jobs(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    run_id: u64,
+) -> Result<Vec<WorkflowJob>, AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let worktree_path = {
+        let workspaces = state.workspaces.lock().unwrap();
+        let ws = workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        ws.worktree_path.clone()
+    };
+
+    gh_svc::get_run_jobs(&worktree_path, run_id)
+}
+
+#[tauri::command]
+pub fn get_run_logs(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    run_id: u64,
+    failed_only: bool,
+) -> Result<RunLogsResult, AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let worktree_path = {
+        let workspaces = state.workspaces.lock().unwrap();
+        let ws = workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        ws.worktree_path.clone()
+    };
+
+    gh_svc::get_run_logs(&worktree_path, run_id, failed_only)
+}
+
+#[tauri::command]
+pub fn rerun_workflow(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    run_id: u64,
+    failed_only: bool,
+) -> Result<(), AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let worktree_path = {
+        let workspaces = state.workspaces.lock().unwrap();
+        let ws = workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        ws.worktree_path.clone()
+    };
+
+    gh_svc::rerun_workflow(&worktree_path, run_id, failed_only)
 }

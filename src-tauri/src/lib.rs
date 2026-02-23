@@ -109,6 +109,10 @@ pub fn run() {
             commands::pr::list_repo_issues,
             commands::pr::get_pr_details,
             commands::pr::get_issue_details,
+            commands::pr::get_workflow_runs,
+            commands::pr::get_run_jobs,
+            commands::pr::get_run_logs,
+            commands::pr::rerun_workflow,
             // Todo commands
             commands::todo::add_todo,
             commands::todo::update_todo,
