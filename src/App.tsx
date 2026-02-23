@@ -12,6 +12,7 @@ import { HistoryView } from "./components/history/HistoryView";
 import { CommandPalette } from "./components/CommandPalette";
 import { LandingPage } from "./components/landing/LandingPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { DiffPanel } from "./components/diff/DiffPanel";
 import { useWorkspaceStore } from "./stores/workspaceStore";
 import { useRepositoryStore } from "./stores/repositoryStore";
 import { useUIStore } from "./stores/uiStore";
@@ -63,6 +64,11 @@ function MainPanel() {
       {viewType === "history" && (
         <div className="flex-1 overflow-hidden">
           <HistoryView />
+        </div>
+      )}
+      {viewType === "diff" && (
+        <div className="flex-1 overflow-hidden">
+          <DiffPanel contextId={contextId} />
         </div>
       )}
     </div>
@@ -230,14 +236,14 @@ function App() {
   return (
     <div className="h-screen">
       <PanelGroup direction="horizontal" key={showRightSidebar ? "with-right" : "without-right"}>
-        <Panel defaultSize={15} minSize={12} maxSize={30}>
+        <Panel defaultSize={20} minSize={12} maxSize={30}>
           <ErrorBoundary label="Sidebar">
             <Sidebar />
           </ErrorBoundary>
         </Panel>
         <PanelResizeHandle className="resize-handle-h" />
 
-        <Panel defaultSize={showRightSidebar ? 60 : 85} minSize={30}>
+        <Panel defaultSize={showRightSidebar ? 55 : 80} minSize={30}>
           <div className="flex h-full flex-col">
             <TopBar activeWs={activeWs} activeRepo={activeRepo} />
             <FileTabBar />

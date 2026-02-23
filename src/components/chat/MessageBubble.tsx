@@ -2,17 +2,22 @@ import { useState, type ReactNode } from "react";
 import {
   FileText,
   Pencil,
-  FileOutput,
-  Terminal,
-  Search,
+  FilePlus2,
+  SquareTerminal,
+  FileSearch,
   FolderSearch,
-  Zap,
-  BookOpen,
+  Bot,
+  NotebookPen,
   Globe,
+  Radar,
   ChevronRight,
   ChevronDown,
-  Circle,
+  Wrench,
   RotateCw,
+  Brain,
+  ListPlus,
+  ListChecks,
+  GitCompare,
 } from "lucide-react";
 import type { ChatMessage, ContentBlock } from "../../lib/tauri";
 
@@ -87,24 +92,80 @@ function normalizeToolName(name: string): string {
   if (lower.includes("glob") || lower.includes("find_file")) return "Glob";
   if (lower.includes("task")) return "Task";
   if (lower.includes("notebook")) return "Notebook";
+  if (lower.includes("webfetch")) return "WebFetch";
+  if (lower.includes("websearch")) return "WebSearch";
   if (lower.includes("web")) return "Web";
+  if (lower.includes("todowrite") || lower.includes("todo_write")) return "TodoWrite";
+  if (lower.includes("todoread") || lower.includes("todo_read")) return "TodoRead";
+  if (lower.includes("think") || lower.includes("plan")) return "Think";
+  if (lower.includes("diff")) return "Diff";
   return name;
 }
 
+const TOOL_COLORS: Record<string, string> = {
+  Read: "#60a5fa",     // blue
+  Edit: "#f59e0b",     // amber
+  Write: "#34d399",    // emerald
+  Bash: "#a78bfa",     // purple
+  Grep: "#fb923c",     // orange
+  Glob: "#fb923c",     // orange
+  Task: "#ec4899",     // pink
+  Notebook: "#8b5cf6", // violet
+  WebFetch: "#22d3ee", // cyan
+  WebSearch: "#22d3ee", // cyan
+  Web: "#22d3ee",      // cyan
+  TodoWrite: "#facc15", // yellow
+  TodoRead: "#facc15",  // yellow
+  Think: "#6b7280",    // gray
+  Diff: "#3b82f6",     // blue
+};
+
 const TOOL_ICON_MAP: Record<string, ReactNode> = {
-  Read: <FileText className="h-3 w-3" />,
-  Edit: <Pencil className="h-3 w-3" />,
-  Write: <FileOutput className="h-3 w-3" />,
-  Bash: <Terminal className="h-3 w-3" />,
-  Grep: <Search className="h-3 w-3" />,
-  Glob: <FolderSearch className="h-3 w-3" />,
-  Task: <Zap className="h-3 w-3" />,
-  Notebook: <BookOpen className="h-3 w-3" />,
-  Web: <Globe className="h-3 w-3" />,
+  Read: <FileText className="h-3.5 w-3.5" />,
+  Edit: <Pencil className="h-3.5 w-3.5" />,
+  Write: <FilePlus2 className="h-3.5 w-3.5" />,
+  Bash: <SquareTerminal className="h-3.5 w-3.5" />,
+  Grep: <FileSearch className="h-3.5 w-3.5" />,
+  Glob: <FolderSearch className="h-3.5 w-3.5" />,
+  Task: <Bot className="h-3.5 w-3.5" />,
+  Notebook: <NotebookPen className="h-3.5 w-3.5" />,
+  WebFetch: <Globe className="h-3.5 w-3.5" />,
+  WebSearch: <Radar className="h-3.5 w-3.5" />,
+  Web: <Globe className="h-3.5 w-3.5" />,
+  TodoWrite: <ListPlus className="h-3.5 w-3.5" />,
+  TodoRead: <ListChecks className="h-3.5 w-3.5" />,
+  Think: <Brain className="h-3.5 w-3.5" />,
+  Diff: <GitCompare className="h-3.5 w-3.5" />,
 };
 
 function getToolIcon(normalized: string): ReactNode {
-  return TOOL_ICON_MAP[normalized] ?? <Circle className="h-3 w-3" />;
+  return TOOL_ICON_MAP[normalized] ?? <Wrench className="h-3.5 w-3.5" />;
+}
+
+function getToolColor(normalized: string): string {
+  return TOOL_COLORS[normalized] ?? "var(--text-muted)";
+}
+
+const TOOL_LABELS: Record<string, string> = {
+  Read: "Read",
+  Edit: "Edit",
+  Write: "Write",
+  Bash: "Run",
+  Grep: "Search",
+  Glob: "Find",
+  Task: "Agent",
+  Notebook: "Notebook",
+  WebFetch: "Fetch",
+  WebSearch: "Search web",
+  Web: "Web",
+  TodoWrite: "Update todos",
+  TodoRead: "Read todos",
+  Think: "Thinking",
+  Diff: "Diff",
+};
+
+function getToolLabel(normalized: string): string {
+  return TOOL_LABELS[normalized] ?? normalized;
 }
 
 function shortenPath(filepath: string): string {
@@ -113,48 +174,237 @@ function shortenPath(filepath: string): string {
   return parts.slice(-2).join("/");
 }
 
-function getToolSummary(name: string, input: unknown): string {
+function countLines(text: string): number {
+  if (!text) return 0;
+  return text.split("\n").length;
+}
+
+interface ToolSummaryParts {
+  label: string;
+  detail: string;
+  badges: Array<{ text: string; color?: string }>;
+}
+
+function getToolSummary(name: string, input: unknown, result: { content: string } | null): ToolSummaryParts {
   const normalized = normalizeToolName(name);
   const inp = input as Record<string, unknown> | null;
-  if (!inp || typeof inp !== "object") return "";
+  const label = getToolLabel(normalized);
+  const empty: ToolSummaryParts = { label, detail: "", badges: [] };
+
+  if (!inp || typeof inp !== "object") return empty;
 
   switch (normalized) {
     case "Read": {
       const fp = (inp.file_path ?? inp.path ?? "") as string;
-      return fp ? shortenPath(fp) : "";
+      const lineCount = result ? countLines(result.content) : null;
+      const lineInfo = lineCount !== null ? `${lineCount} lines` : "";
+      return {
+        label: lineInfo ? `Read ${lineInfo}` : label,
+        detail: "",
+        badges: fp ? [{ text: shortenPath(fp) }] : [],
+      };
     }
     case "Edit": {
       const fp = (inp.file_path ?? inp.path ?? "") as string;
-      return fp ? shortenPath(fp) : "";
+      const oldStr = (inp.old_string ?? "") as string;
+      const newStr = (inp.new_string ?? "") as string;
+      const oldLines = oldStr ? countLines(oldStr) : 0;
+      const newLines = newStr ? countLines(newStr) : 0;
+      const badges: Array<{ text: string; color?: string }> = [];
+      if (fp) badges.push({ text: shortenPath(fp) });
+      if (oldStr || newStr) {
+        if (newLines > 0) badges.push({ text: `+${newLines}`, color: "var(--success)" });
+        if (oldLines > 0) badges.push({ text: `-${oldLines}`, color: "var(--error)" });
+      }
+      return { label, detail: "", badges };
     }
     case "Write": {
       const fp = (inp.file_path ?? inp.path ?? "") as string;
-      return fp ? shortenPath(fp) : "";
+      const content = (inp.content ?? "") as string;
+      const lines = content ? countLines(content) : 0;
+      const badges: Array<{ text: string; color?: string }> = [];
+      if (fp) badges.push({ text: shortenPath(fp) });
+      if (lines > 0) badges.push({ text: `${lines} lines`, color: "var(--success)" });
+      return { label, detail: "", badges };
     }
     case "Bash": {
       const cmd = (inp.command ?? inp.cmd ?? "") as string;
-      return cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd;
+      const desc = (inp.description ?? "") as string;
+      const display = desc || cmd;
+      return {
+        label,
+        detail: display.length > 80 ? display.slice(0, 77) + "..." : display,
+        badges: [],
+      };
     }
     case "Grep": {
       const pat = (inp.pattern ?? inp.query ?? "") as string;
-      return pat ? `"${pat}"` : "";
+      const path = (inp.path ?? "") as string;
+      const badges: Array<{ text: string; color?: string }> = [];
+      if (pat) badges.push({ text: pat });
+      if (path) badges.push({ text: shortenPath(path) });
+      // Try to extract match count from result
+      if (result) {
+        const lines = result.content.trim().split("\n").filter(Boolean);
+        if (lines.length > 0) {
+          badges.push({ text: `${lines.length} matches`, color: "var(--success)" });
+        }
+      }
+      return { label: "Search", detail: "", badges };
     }
     case "Glob": {
       const pat = (inp.pattern ?? "") as string;
-      return pat || "";
+      return {
+        label: "Find files",
+        detail: "",
+        badges: pat ? [{ text: pat }] : [],
+      };
     }
     case "Task": {
-      const desc = (inp.description ?? inp.prompt ?? "") as string;
-      return desc.length > 50 ? desc.slice(0, 47) + "..." : desc;
+      const desc = (inp.description ?? "") as string;
+      const subagent = (inp.subagent_type ?? "") as string;
+      const detail = desc.length > 60 ? desc.slice(0, 57) + "..." : desc;
+      return {
+        label: subagent ? `Agent (${subagent})` : "Agent",
+        detail,
+        badges: [],
+      };
+    }
+    case "WebSearch": {
+      const query = (inp.query ?? "") as string;
+      return {
+        label: "Search web",
+        detail: "",
+        badges: query ? [{ text: query }] : [],
+      };
+    }
+    case "WebFetch": {
+      const url = (inp.url ?? "") as string;
+      let host = "";
+      try { host = new URL(url).hostname; } catch { host = url; }
+      return {
+        label: "Fetch",
+        detail: "",
+        badges: host ? [{ text: host }] : [],
+      };
     }
     default: {
       const firstVal = Object.values(inp)[0];
       if (typeof firstVal === "string") {
-        return firstVal.length > 50 ? firstVal.slice(0, 47) + "..." : firstVal;
+        const detail = firstVal.length > 60 ? firstVal.slice(0, 57) + "..." : firstVal;
+        return { label, detail, badges: [] };
       }
-      return "";
+      return empty;
     }
   }
+}
+
+// --- Dropdown content formatting ---
+
+function formatToolDetail(normalized: string, input: unknown, result: { content: string } | null): ReactNode {
+  const inp = input as Record<string, unknown> | null;
+
+  switch (normalized) {
+    case "Edit": {
+      if (!inp) break;
+      const fp = (inp.file_path ?? inp.path ?? "") as string;
+      const oldStr = (inp.old_string ?? "") as string;
+      const newStr = (inp.new_string ?? "") as string;
+      return (
+        <div className="space-y-2">
+          {fp && (
+            <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+              <span className="font-medium">File:</span> {fp}
+            </div>
+          )}
+          {oldStr && (
+            <div>
+              <div className="mb-0.5 text-[10px] font-medium" style={{ color: "var(--error)" }}>Removed</div>
+              <pre className="overflow-x-auto rounded px-2 py-1 font-mono text-[11px]" style={{ color: "var(--error)", backgroundColor: "rgba(248, 113, 113, 0.08)" }}>
+                {oldStr}
+              </pre>
+            </div>
+          )}
+          {newStr && (
+            <div>
+              <div className="mb-0.5 text-[10px] font-medium" style={{ color: "var(--success)" }}>Added</div>
+              <pre className="overflow-x-auto rounded px-2 py-1 font-mono text-[11px]" style={{ color: "var(--success)", backgroundColor: "rgba(74, 222, 128, 0.08)" }}>
+                {newStr}
+              </pre>
+            </div>
+          )}
+        </div>
+      );
+    }
+    case "Bash": {
+      if (!inp) break;
+      const cmd = (inp.command ?? inp.cmd ?? "") as string;
+      return (
+        <div className="space-y-2">
+          {cmd && (
+            <div>
+              <div className="mb-0.5 text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>Command</div>
+              <pre className="overflow-x-auto rounded px-2 py-1 font-mono text-[11px]" style={{ color: "var(--accent-purple)", backgroundColor: "rgba(168, 85, 247, 0.08)" }}>
+                $ {cmd}
+              </pre>
+            </div>
+          )}
+          {result && (
+            <div>
+              <div className="mb-0.5 text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>Output</div>
+              <pre className="max-h-40 overflow-auto rounded px-2 py-1 font-mono text-[11px]" style={{ color: "var(--text-secondary)", backgroundColor: "var(--bg-surface)" }}>
+                {result.content}
+              </pre>
+            </div>
+          )}
+        </div>
+      );
+    }
+    case "Read": {
+      if (!inp) break;
+      const fp = (inp.file_path ?? inp.path ?? "") as string;
+      const offset = inp.offset as number | undefined;
+      const limit = inp.limit as number | undefined;
+      return (
+        <div className="space-y-2">
+          {fp && (
+            <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+              <span className="font-medium">File:</span> {fp}
+              {offset != null && <span className="ml-2">offset: {offset}</span>}
+              {limit != null && <span className="ml-2">limit: {limit}</span>}
+            </div>
+          )}
+          {result && (
+            <div>
+              <pre className="max-h-40 overflow-auto rounded px-2 py-1 font-mono text-[11px]" style={{ color: "var(--text-secondary)", backgroundColor: "var(--bg-surface)" }}>
+                {result.content}
+              </pre>
+            </div>
+          )}
+        </div>
+      );
+    }
+  }
+
+  // Fallback: generic Input/Result display
+  return (
+    <div className="space-y-2">
+      <div>
+        <div className="mb-0.5 text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>Input</div>
+        <pre className="overflow-x-auto font-mono text-[11px]" style={{ color: "var(--text-secondary)" }}>
+          {typeof input === "string" ? input : JSON.stringify(input, null, 2)}
+        </pre>
+      </div>
+      {result && (
+        <div>
+          <div className="mb-0.5 text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>Result</div>
+          <pre className="max-h-40 overflow-auto font-mono text-[11px]" style={{ color: "var(--text-secondary)" }}>
+            {result.content}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // --- Components ---
@@ -174,7 +424,7 @@ export function MessageBubble({ message, onRetry }: Props) {
     return (
       <div className="mb-4 flex justify-end">
         <div
-          className="max-w-[80%] rounded-lg px-4 py-3 text-sm"
+          className="max-w-[80%] rounded-lg px-4 py-3 text-[15px]"
           style={{
             backgroundColor: "var(--accent)",
             color: "#1e1e2e",
@@ -207,7 +457,7 @@ export function MessageBubble({ message, onRetry }: Props) {
     return (
       <div className="mb-4">
         <div
-          className="inline-flex max-w-[80%] items-center gap-2 rounded-lg px-4 py-3 text-sm"
+          className="inline-flex max-w-[80%] items-center gap-2 rounded-lg px-4 py-3 text-[15px]"
           style={{
             backgroundColor: "rgba(243, 139, 168, 0.1)",
             color: "var(--text-primary)",
@@ -239,7 +489,7 @@ export function MessageBubble({ message, onRetry }: Props) {
 
   // Assistant messages: plain output, no bubble, no avatar
   return (
-    <div className="mb-3 text-sm" style={{ color: "var(--text-primary)" }}>
+    <div className="mb-3 text-[15px]" style={{ color: "var(--text-primary)" }}>
       {groups.map((group, i) =>
         group.kind === "text" ? (
           group.blocks.map((block, j) => (
@@ -257,7 +507,7 @@ export function MessageBubble({ message, onRetry }: Props) {
 
 function ToolCallList({ pairs }: { pairs: ToolPair[] }) {
   return (
-    <div className="my-1">
+    <div className="my-1.5 space-y-0.5">
       {pairs.map((pair) => (
         <ToolRow key={pair.use.id} pair={pair} />
       ))}
@@ -270,7 +520,8 @@ function ToolRow({ pair }: { pair: ToolPair }) {
   const [isHovered, setIsHovered] = useState(false);
   const normalized = normalizeToolName(pair.use.name);
   const icon = getToolIcon(normalized);
-  const summary = getToolSummary(pair.use.name, pair.use.input);
+  const color = getToolColor(normalized);
+  const summary = getToolSummary(pair.use.name, pair.use.input, pair.result);
 
   return (
     <div>
@@ -278,8 +529,10 @@ function ToolRow({ pair }: { pair: ToolPair }) {
         onClick={() => setDetailOpen(!detailOpen)}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className="flex w-full items-center gap-2 py-0.5 text-left text-xs"
-        style={{ color: "var(--text-secondary)" }}
+        className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs transition-colors"
+        style={{
+          backgroundColor: isHovered ? "var(--bg-hover)" : "transparent",
+        }}
       >
         {(detailOpen || isHovered) ? (
           <ChevronDown className="h-3 w-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
@@ -287,55 +540,41 @@ function ToolRow({ pair }: { pair: ToolPair }) {
           <ChevronRight className="h-3 w-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
         )}
         <span
-          className="inline-flex flex-shrink-0 items-center gap-1 text-xs"
-          style={{ color: "var(--accent)" }}
+          className="inline-flex flex-shrink-0 items-center gap-1.5 text-xs font-medium"
+          style={{ color }}
         >
-          <span>{icon}</span>
-          <span>{normalized}</span>
+          {icon}
+          <span>{summary.label}</span>
         </span>
-        <span
-          className="truncate text-xs"
-          style={{ color: "var(--text-muted)" }}
-        >
-          {summary}
-        </span>
+        {summary.badges.map((badge, i) => (
+          <span
+            key={i}
+            className="flex-shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px]"
+            style={{
+              backgroundColor: "var(--bg-surface)",
+              color: badge.color ?? "var(--text-secondary)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            {badge.text}
+          </span>
+        ))}
+        {summary.detail && (
+          <span
+            className="truncate text-xs"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {summary.detail}
+          </span>
+        )}
       </button>
 
       {detailOpen && (
         <div
-          className="mb-1 ml-5 mt-0.5 rounded border px-3 py-2"
+          className="mb-1 ml-5 mt-0.5 rounded-md border px-3 py-2"
           style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-primary)" }}
         >
-          <div
-            className="mb-1 text-[10px] font-medium"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Input
-          </div>
-          <pre
-            className="overflow-x-auto font-mono text-[11px]"
-            style={{ color: "var(--text-muted)" }}
-          >
-            {typeof pair.use.input === "string"
-              ? pair.use.input
-              : JSON.stringify(pair.use.input, null, 2)}
-          </pre>
-          {pair.result && (
-            <>
-              <div
-                className="mb-1 mt-2 text-[10px] font-medium"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Result
-              </div>
-              <pre
-                className="max-h-40 overflow-auto font-mono text-[11px]"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {pair.result.content}
-              </pre>
-            </>
-          )}
+          {formatToolDetail(normalized, pair.use.input, pair.result)}
         </div>
       )}
     </div>

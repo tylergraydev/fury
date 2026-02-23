@@ -16,6 +16,7 @@ import {
 interface ChatStore {
   messages: Record<string, ChatMessage[]>;
   streamingText: Record<string, string>;
+  planApproval: Record<string, boolean>;
   subscriptions: Record<string, UnlistenFn>;
 
   subscribe: (workspaceId: string) => Promise<void>;
@@ -24,6 +25,7 @@ interface ChatStore {
   clearMessages: (workspaceId: string) => void;
   getMessages: (workspaceId: string) => ChatMessage[];
   getStreamingText: (workspaceId: string) => string;
+  getPlanContent: (workspaceId: string) => string;
   loadMessages: (workspaceId: string) => Promise<void>;
   removeTrailingSystemMessages: (workspaceId: string) => void;
 }
@@ -31,6 +33,7 @@ interface ChatStore {
 export const useChatStore = create<ChatStore>((set, get) => ({
   messages: {},
   streamingText: {},
+  planApproval: {},
   subscriptions: {},
 
   subscribe: async (workspaceId: string) => {
@@ -77,6 +80,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         ...state.messages,
         [workspaceId]: [...(state.messages[workspaceId] ?? []), msg],
       },
+      planApproval: { ...state.planApproval, [workspaceId]: false },
     }));
     persistMessage(workspaceId, msg);
   },
@@ -95,6 +99,22 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   getStreamingText: (workspaceId: string) => {
     return get().streamingText[workspaceId] ?? "";
+  },
+
+  getPlanContent: (workspaceId: string) => {
+    const msgs = get().messages[workspaceId] ?? [];
+    // Walk backwards to find text content from the last assistant messages
+    const textParts: string[] = [];
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const msg = msgs[i];
+      if (msg.role !== "assistant") break;
+      for (const block of msg.content) {
+        if (block.type === "text" && block.text.trim()) {
+          textParts.unshift(block.text);
+        }
+      }
+    }
+    return textParts.join("\n\n");
   },
 
   loadMessages: async (workspaceId: string) => {
@@ -236,6 +256,13 @@ function handleStreamEvent(
         input: event.input,
       };
       appendContentBlock(workspaceId, block, set, get);
+
+      // Detect plan approval requests
+      if (event.name.toLowerCase().includes("exitplanmode")) {
+        set((state) => ({
+          planApproval: { ...state.planApproval, [workspaceId]: true },
+        }));
+      }
       break;
     }
 
@@ -252,6 +279,11 @@ function handleStreamEvent(
     case "result": {
       // Finalize any remaining streaming text as the final assistant message
       finalizeStreamingText(workspaceId, set, get);
+
+      // Clear plan approval state when agent finishes
+      set((state) => ({
+        planApproval: { ...state.planApproval, [workspaceId]: false },
+      }));
 
       // If error, add a user-friendly error message
       if (event.isError && event.result) {

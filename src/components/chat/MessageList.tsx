@@ -275,13 +275,13 @@ export function MessageList({
           }
         }
 
-        return <div key={turnId}>{elements}</div>;
+        return <div key={turnId} className="mb-6">{elements}</div>;
       })}
 
       {/* Show streaming text as in-progress assistant message */}
       {streamingText && (
         <div
-          className="mb-3 text-sm whitespace-pre-wrap break-words"
+          className="mb-3 text-[15px] whitespace-pre-wrap break-words"
           style={{ color: "var(--text-primary)" }}
         >
           {streamingText}
