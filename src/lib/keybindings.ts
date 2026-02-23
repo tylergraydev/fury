@@ -19,6 +19,7 @@ export type ShortcutAction =
   | "view-merge"
   | "view-history"
   | "save-file"
+  | "search-workspaces"
   | "escape";
 
 interface ShortcutDef {
@@ -39,6 +40,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { key: "1", mod: true, action: "right-sidebar-files", label: "Files" },
   { key: "2", mod: true, action: "right-sidebar-changes", label: "Changes" },
   { key: "3", mod: true, action: "right-sidebar-checks", label: "Checks" },
+  { key: "f", mod: true, shift: true, action: "search-workspaces", label: "Search Workspaces" },
   { key: "Escape", mod: false, action: "escape", label: "Close" },
 ];
 

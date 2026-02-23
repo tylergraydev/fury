@@ -12,8 +12,8 @@ vi.mock("cmdk", () => ({
   CommandEmpty: ({ children }: any) => <div>{children}</div>,
   CommandGroup: ({ children, heading }: any) => <div data-testid={`group-${heading}`}>{children}</div>,
   CommandInput: (props: any) => <input {...props} data-testid="command-input" />,
-  CommandItem: ({ children, onSelect, ...props }: any) => (
-    <div onClick={onSelect} role="option" {...props}>{children}</div>
+  CommandItem: ({ children, onSelect, keywords, ...props }: any) => (
+    <div onClick={onSelect} role="option" data-keywords={keywords?.join(",")} {...props}>{children}</div>
   ),
   CommandList: ({ children }: any) => <div>{children}</div>,
   CommandSeparator: () => <hr />,
@@ -363,6 +363,77 @@ describe("CommandPalette", () => {
       const item = screen.getByText(label).closest("[role='option']");
       expect(item?.querySelector("kbd")).toBeNull();
     }
+  });
+
+  // --- Workspace search mode ---
+  describe("workspace-search mode", () => {
+    beforeEach(() => {
+      useWorkspaceStore.setState({
+        workspaces: [
+          { id: "ws-1", name: "Frontend App", repoId: "r1", branch: "main", status: "Active" },
+          { id: "ws-2", name: "Backend API", repoId: "r2", branch: "feature/auth", status: "Active" },
+        ] as any,
+        archivedWorkspaces: [
+          { id: "ws-3", name: "Old Project", repoId: "r1", branch: "legacy", status: "Archived" },
+        ] as any,
+        activeWorkspaceId: "ws-1",
+      });
+      useRepositoryStore.setState({
+        repositories: [
+          { id: "r1", name: "my-repo" },
+          { id: "r2", name: "api-repo" },
+        ] as any,
+      });
+    });
+
+    it("hides non-workspace groups in workspace-search mode", () => {
+      render(
+        <CommandPalette open={true} onOpenChange={vi.fn()} onAction={vi.fn()} mode="workspace-search" />,
+      );
+      expect(screen.queryByTestId("group-Sidebar")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("group-Views")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("group-Actions")).not.toBeInTheDocument();
+      expect(screen.getByTestId("group-Workspaces")).toBeInTheDocument();
+    });
+
+    it("shows all workspaces including the active one", () => {
+      render(
+        <CommandPalette open={true} onOpenChange={vi.fn()} onAction={vi.fn()} mode="workspace-search" />,
+      );
+      expect(screen.getByText("Frontend App")).toBeInTheDocument();
+      expect(screen.getByText("Backend API")).toBeInTheDocument();
+    });
+
+    it("marks the active workspace with an active indicator", () => {
+      render(
+        <CommandPalette open={true} onOpenChange={vi.fn()} onAction={vi.fn()} mode="workspace-search" />,
+      );
+      const activeItem = screen.getByText("Frontend App").closest("[role='option']");
+      expect(activeItem).toHaveAttribute("data-active", "true");
+    });
+
+    it("shows archived workspaces with Archived badge", () => {
+      render(
+        <CommandPalette open={true} onOpenChange={vi.fn()} onAction={vi.fn()} mode="workspace-search" />,
+      );
+      expect(screen.getByText("Old Project")).toBeInTheDocument();
+      expect(screen.getByText("Archived")).toBeInTheDocument();
+    });
+
+    it("uses search workspaces placeholder", () => {
+      render(
+        <CommandPalette open={true} onOpenChange={vi.fn()} onAction={vi.fn()} mode="workspace-search" />,
+      );
+      expect(screen.getByTestId("command-input")).toHaveAttribute("placeholder", "Search workspaces...");
+    });
+
+    it("includes repo name and branch as keywords for search", () => {
+      render(
+        <CommandPalette open={true} onOpenChange={vi.fn()} onAction={vi.fn()} mode="workspace-search" />,
+      );
+      const backendItem = screen.getByText("Backend API").closest("[role='option']");
+      expect(backendItem).toHaveAttribute("data-keywords", "api-repo,feature/auth");
+    });
   });
 
   it("shortcutFor returns undefined when SHORTCUTS has no matching action", async () => {
