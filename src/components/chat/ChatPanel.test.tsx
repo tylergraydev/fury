@@ -28,6 +28,21 @@ vi.mock("./MessageList", () => ({
       </div>
     );
   },
+  segmentTurns: (messages: any[]) => {
+    const turns = messages
+      .filter((m: any) => m.role === "user")
+      .map((m: any) => ({ userMessage: m, responses: [] }));
+    return { orphans: [], turns };
+  },
+}));
+
+vi.mock("./ChatTOC", () => ({
+  ChatTOC: (props: any) => (
+    <div data-testid="chat-toc">
+      <span data-testid="toc-turn-count">{props.turns.length}</span>
+      <button data-testid="toc-close" onClick={props.onClose}>Close</button>
+    </div>
+  ),
 }));
 
 vi.mock("./Composer", () => ({
@@ -449,5 +464,61 @@ describe("ChatPanel", () => {
     render(<ChatPanel contextId="repo-1" contextType="repo" />);
     await user.click(screen.getByTestId("retry-btn"));
     expect(sendMessageSpy).toHaveBeenCalledWith("repo-1", "Fix it", "repo", undefined, undefined, undefined);
+  });
+
+  // --- TOC toggle tests ---
+
+  it("does not show TOC toggle button with fewer than 3 turns", () => {
+    useChatStore.setState({
+      messages: {
+        "ws-1": [
+          { id: "m1", role: "user", content: [{ type: "text", text: "Hello" }], timestamp: 1 },
+          { id: "m2", role: "assistant", content: [{ type: "text", text: "Hi" }], timestamp: 2 },
+          { id: "m3", role: "user", content: [{ type: "text", text: "How are you" }], timestamp: 3 },
+          { id: "m4", role: "assistant", content: [{ type: "text", text: "Good" }], timestamp: 4 },
+        ],
+      },
+    });
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+    expect(screen.queryByTitle("Table of Contents")).not.toBeInTheDocument();
+  });
+
+  it("shows TOC toggle button when 3+ turns exist", () => {
+    useChatStore.setState({
+      messages: {
+        "ws-1": [
+          { id: "m1", role: "user", content: [{ type: "text", text: "Hello" }], timestamp: 1 },
+          { id: "m2", role: "assistant", content: [{ type: "text", text: "Hi" }], timestamp: 2 },
+          { id: "m3", role: "user", content: [{ type: "text", text: "How" }], timestamp: 3 },
+          { id: "m4", role: "assistant", content: [{ type: "text", text: "Good" }], timestamp: 4 },
+          { id: "m5", role: "user", content: [{ type: "text", text: "Thanks" }], timestamp: 5 },
+          { id: "m6", role: "assistant", content: [{ type: "text", text: "Welcome" }], timestamp: 6 },
+        ],
+      },
+    });
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+    expect(screen.getByTitle("Table of Contents")).toBeInTheDocument();
+  });
+
+  it("toggles ChatTOC visibility on button click", async () => {
+    useChatStore.setState({
+      messages: {
+        "ws-1": [
+          { id: "m1", role: "user", content: [{ type: "text", text: "A" }], timestamp: 1 },
+          { id: "m2", role: "user", content: [{ type: "text", text: "B" }], timestamp: 2 },
+          { id: "m3", role: "user", content: [{ type: "text", text: "C" }], timestamp: 3 },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    // TOC should not be visible initially
+    expect(screen.queryByTestId("chat-toc")).not.toBeInTheDocument();
+
+    // Click toggle to show
+    await user.click(screen.getByTitle("Table of Contents"));
+    expect(screen.getByTestId("chat-toc")).toBeInTheDocument();
+    expect(screen.getByTestId("toc-turn-count")).toHaveTextContent("3");
   });
 });

@@ -194,4 +194,24 @@ describe("MessageList", () => {
     );
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
   });
+
+  it("adds data-turn-index attributes to turn wrappers", () => {
+    const msgs = [
+      makeMsg({ id: "m1", role: "user", content: txt("first") }),
+      makeMsg({ id: "m2", role: "assistant", content: txt("reply") }),
+      makeMsg({ id: "m3", role: "user", content: txt("second") }),
+      makeMsg({ id: "m4", role: "assistant", content: txt("reply2") }),
+    ];
+    const { container } = render(
+      <MessageList messages={msgs} streamingText="" agentStatus="Idle" />,
+    );
+    const turn0 = container.querySelector('[data-turn-index="0"]');
+    const turn1 = container.querySelector('[data-turn-index="1"]');
+    expect(turn0).toBeInTheDocument();
+    expect(turn1).toBeInTheDocument();
+    // Turn 0 should contain message m1
+    expect(turn0?.querySelector('[data-testid="msg-m1"]')).toBeInTheDocument();
+    // Turn 1 should contain message m3
+    expect(turn1?.querySelector('[data-testid="msg-m3"]')).toBeInTheDocument();
+  });
 });

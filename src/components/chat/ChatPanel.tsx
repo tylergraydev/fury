@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { List } from "lucide-react";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useCheckpointStore } from "../../stores/checkpointStore";
 import { useTodoStore } from "../../stores/todoStore";
 import type { ChatMessage, Checkpoint } from "../../lib/tauri";
 import { respondToPermission } from "../../lib/tauri";
-import { MessageList } from "./MessageList";
+import { MessageList, segmentTurns } from "./MessageList";
 import { Composer } from "./Composer";
+import { ChatTOC } from "./ChatTOC";
 import { LinkWorkspaceDialog } from "../workspace/LinkWorkspaceDialog";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 
@@ -45,6 +47,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
   // Toggle state for thinking and plan mode — lifted here so handleRetry can use it
   const [thinkingEnabled, setThinkingEnabled] = useState(true);
   const [planEnabled, setPlanEnabled] = useState(true);
+  const [showTOC, setShowTOC] = useState(false);
   const [showLinkWorkspaceDialog, setShowLinkWorkspaceDialog] = useState(false);
   const workspace = useWorkspaceStore(
     (s) => s.workspaces.find((w) => w.id === contextId) ?? null,
@@ -81,6 +84,23 @@ export function ChatPanel({ contextId, contextType }: Props) {
       useChatStore.getState().clearPermissionRequest(contextId);
     }
   }, [agentStatus, contextId, permissionRequest]);
+
+  const { turns } = useMemo(() => segmentTurns(messages), [messages]);
+  const showTOCButton = turns.length >= 3;
+
+  // Dismiss TOC on outside click
+  useEffect(() => {
+    if (!showTOC) return;
+    const handleClick = () => setShowTOC(false);
+    const id = setTimeout(
+      () => document.addEventListener("click", handleClick),
+      0,
+    );
+    return () => {
+      clearTimeout(id);
+      document.removeEventListener("click", handleClick);
+    };
+  }, [showTOC]);
 
   const handleSend = useCallback(
     async (message: string, model?: string, displayText?: string) => {
@@ -169,17 +189,40 @@ export function ChatPanel({ contextId, contextType }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      <MessageList
-        messages={messages}
-        streamingText={streamingText}
-        agentStatus={agentStatus}
-        checkpoints={contextType === "workspace" ? checkpoints : undefined}
-        revertedTurnIndex={revertedTurnIndex}
-        onRevertCheckpoint={
-          contextType === "workspace" ? handleRevert : undefined
-        }
-        onRetry={handleRetry}
-      />
+      <div className="relative flex flex-1 flex-col min-h-0">
+        <MessageList
+          messages={messages}
+          streamingText={streamingText}
+          agentStatus={agentStatus}
+          checkpoints={contextType === "workspace" ? checkpoints : undefined}
+          revertedTurnIndex={revertedTurnIndex}
+          onRevertCheckpoint={
+            contextType === "workspace" ? handleRevert : undefined
+          }
+          onRetry={handleRetry}
+        />
+        {showTOCButton && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowTOC((prev) => !prev);
+            }}
+            className="absolute right-3 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-hover)]"
+            style={{
+              color: showTOC ? "var(--accent)" : "var(--text-muted)",
+              backgroundColor: showTOC ? "var(--bg-surface)" : "transparent",
+            }}
+            title="Table of Contents"
+          >
+            <List className="h-4 w-4" />
+          </button>
+        )}
+        {showTOC && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <ChatTOC turns={turns} onClose={() => setShowTOC(false)} />
+          </div>
+        )}
+      </div>
       <Composer
         contextId={contextId}
         contextType={contextType}
