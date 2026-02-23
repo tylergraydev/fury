@@ -11,6 +11,8 @@ vi.mock("../lib/tauri", () => ({
   pushChanges: vi.fn(),
   fixFailingChecks: vi.fn(),
   mergePr: vi.fn(),
+  getPrReviews: vi.fn(),
+  getPrReviewComments: vi.fn(),
 }));
 
 import { usePrStore } from "./prStore";
@@ -22,6 +24,8 @@ import {
   pushChanges,
   fixFailingChecks,
   mergePr,
+  getPrReviews,
+  getPrReviewComments,
 } from "../lib/tauri";
 
 const makePrInfo = (overrides: Record<string, unknown> = {}) => ({
@@ -40,6 +44,8 @@ beforeEach(() => {
   usePrStore.setState(
     {
       prInfo: {},
+      reviews: {},
+      reviewComments: {},
       loading: {},
       error: {},
       subscriptions: {},
@@ -414,5 +420,107 @@ describe("prStore - getters", () => {
     expect(usePrStore.getState().getError("ws-1")).toBeNull();
     usePrStore.setState({ error: { "ws-1": "some error" } });
     expect(usePrStore.getState().getError("ws-1")).toBe("some error");
+  });
+
+  it("getReviews returns reviews for known workspace", () => {
+    const reviews = [{ id: 1, author: "alice", state: "APPROVED", body: "", submittedAt: "" }];
+    usePrStore.setState({ reviews: { "ws-1": reviews as any } });
+    expect(usePrStore.getState().getReviews("ws-1")).toEqual(reviews);
+  });
+
+  it("getReviews returns empty array for unknown workspace", () => {
+    expect(usePrStore.getState().getReviews("unknown")).toEqual([]);
+  });
+
+  it("getReviewComments returns comments for known workspace", () => {
+    const comments = [{ id: 1, author: "bob", body: "fix this", createdAt: "", path: "src/foo.ts", line: 42 }];
+    usePrStore.setState({ reviewComments: { "ws-1": comments as any } });
+    expect(usePrStore.getState().getReviewComments("ws-1")).toEqual(comments);
+  });
+
+  it("getReviewComments returns empty array for unknown workspace", () => {
+    expect(usePrStore.getState().getReviewComments("unknown")).toEqual([]);
+  });
+});
+
+describe("prStore - loadReviews", () => {
+  it("fetches and stores reviews and comments", async () => {
+    const reviews = [{ id: 1, author: "alice", state: "CHANGES_REQUESTED", body: "Please fix", submittedAt: "" }];
+    const comments = [{ id: 10, author: "alice", body: "This is wrong", createdAt: "", path: "src/foo.ts", line: 5 }];
+    vi.mocked(getPrReviews).mockResolvedValue(reviews as any);
+    vi.mocked(getPrReviewComments).mockResolvedValue(comments as any);
+
+    await usePrStore.getState().loadReviews("ws-1");
+
+    expect(usePrStore.getState().reviews["ws-1"]).toEqual(reviews);
+    expect(usePrStore.getState().reviewComments["ws-1"]).toEqual(comments);
+  });
+
+  it("handles errors gracefully", async () => {
+    vi.mocked(getPrReviews).mockRejectedValue(new Error("network error"));
+    vi.mocked(getPrReviewComments).mockRejectedValue(new Error("network error"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await usePrStore.getState().loadReviews("ws-1");
+
+    // Should not throw and state should remain empty
+    expect(usePrStore.getState().reviews["ws-1"]).toBeUndefined();
+  });
+});
+
+describe("prStore - getReviewFixMessage", () => {
+  it("returns no feedback message when empty", () => {
+    const msg = usePrStore.getState().getReviewFixMessage("ws-1");
+    expect(msg).toBe("No review feedback found.");
+  });
+
+  it("formats reviews into a message", () => {
+    usePrStore.setState({
+      reviews: {
+        "ws-1": [
+          { id: 1, author: "alice", state: "CHANGES_REQUESTED", body: "Please fix the types", submittedAt: "" },
+        ] as any,
+      },
+      reviewComments: { "ws-1": [] },
+    });
+
+    const msg = usePrStore.getState().getReviewFixMessage("ws-1");
+
+    expect(msg).toContain("@alice");
+    expect(msg).toContain("CHANGES_REQUESTED");
+    expect(msg).toContain("Please fix the types");
+  });
+
+  it("formats inline comments with file paths", () => {
+    usePrStore.setState({
+      reviews: { "ws-1": [] },
+      reviewComments: {
+        "ws-1": [
+          { id: 10, author: "bob", body: "This should be a const", createdAt: "", path: "src/foo.ts", line: 42 },
+        ] as any,
+      },
+    });
+
+    const msg = usePrStore.getState().getReviewFixMessage("ws-1");
+
+    expect(msg).toContain("@bob");
+    expect(msg).toContain("`src/foo.ts:42`");
+    expect(msg).toContain("This should be a const");
+  });
+
+  it("formats review with no body", () => {
+    usePrStore.setState({
+      reviews: {
+        "ws-1": [
+          { id: 1, author: "alice", state: "APPROVED", body: "", submittedAt: "" },
+        ] as any,
+      },
+      reviewComments: { "ws-1": [] },
+    });
+
+    const msg = usePrStore.getState().getReviewFixMessage("ws-1");
+
+    expect(msg).toContain("@alice");
+    expect(msg).toContain("APPROVED");
   });
 });

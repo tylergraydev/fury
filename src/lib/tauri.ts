@@ -585,6 +585,35 @@ export async function mergePr(
   return invoke<MergeResult>("merge_pr", { workspaceId, mergeMethod });
 }
 
+export interface PrComment {
+  id: number;
+  author: string;
+  body: string;
+  createdAt: string;
+  path: string | null;
+  line: number | null;
+}
+
+export interface PrReview {
+  id: number;
+  author: string;
+  state: string;
+  body: string;
+  submittedAt: string;
+}
+
+export async function getPrReviews(
+  workspaceId: string,
+): Promise<PrReview[]> {
+  return invoke<PrReview[]>("get_pr_reviews", { workspaceId });
+}
+
+export async function getPrReviewComments(
+  workspaceId: string,
+): Promise<PrComment[]> {
+  return invoke<PrComment[]>("get_pr_review_comments", { workspaceId });
+}
+
 // Todo types
 export interface TodoItem {
   id: string;

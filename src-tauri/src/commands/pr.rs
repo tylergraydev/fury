@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::models::pr::{CreatePrRequest, MergeResult, PrCheck, PrInfo};
+use crate::models::pr::{CreatePrRequest, MergeResult, PrCheck, PrComment, PrInfo, PrReview};
 use crate::services::gh as gh_svc;
 use crate::state::AppState;
 use tauri::{Emitter, State};
@@ -190,4 +190,44 @@ pub fn merge_pr(
     let _ = app.emit(&format!("pr-merged:{}", ws_id), &result);
 
     Ok(result)
+}
+
+#[tauri::command]
+pub fn get_pr_reviews(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<Vec<PrReview>, AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let worktree_path = {
+        let workspaces = state.workspaces.lock().unwrap();
+        let ws = workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        ws.worktree_path.clone()
+    };
+
+    gh_svc::get_pr_reviews(&worktree_path)
+}
+
+#[tauri::command]
+pub fn get_pr_review_comments(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<Vec<PrComment>, AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let worktree_path = {
+        let workspaces = state.workspaces.lock().unwrap();
+        let ws = workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        ws.worktree_path.clone()
+    };
+
+    gh_svc::get_pr_review_comments(&worktree_path)
 }

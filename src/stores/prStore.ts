@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   type PrInfo,
+  type PrReview,
+  type PrComment,
   type CreatePrRequest,
   type MergeResult,
   createPr as createPrCmd,
@@ -10,10 +12,14 @@ import {
   pushChanges as pushChangesCmd,
   fixFailingChecks as fixFailingChecksCmd,
   mergePr as mergePrCmd,
+  getPrReviews as getPrReviewsCmd,
+  getPrReviewComments as getPrReviewCommentsCmd,
 } from "../lib/tauri";
 
 interface PrStore {
   prInfo: Record<string, PrInfo | null>;
+  reviews: Record<string, PrReview[]>;
+  reviewComments: Record<string, PrComment[]>;
   loading: Record<string, boolean>;
   error: Record<string, string | null>;
   subscriptions: Record<string, UnlistenFn[]>;
@@ -22,20 +28,26 @@ interface PrStore {
   subscribe: (workspaceId: string) => Promise<void>;
   unsubscribe: (workspaceId: string) => void;
   loadPrInfo: (workspaceId: string) => Promise<void>;
+  loadReviews: (workspaceId: string) => Promise<void>;
   refreshChecks: (workspaceId: string) => Promise<void>;
   createPr: (request: CreatePrRequest) => Promise<PrInfo>;
   pushChanges: (workspaceId: string) => Promise<void>;
   getFixMessage: (workspaceId: string) => Promise<string>;
+  getReviewFixMessage: (workspaceId: string) => string;
   mergePr: (workspaceId: string, method?: string) => Promise<MergeResult>;
   startPolling: (workspaceId: string) => void;
   stopPolling: (workspaceId: string) => void;
   getPrInfo: (workspaceId: string) => PrInfo | null;
+  getReviews: (workspaceId: string) => PrReview[];
+  getReviewComments: (workspaceId: string) => PrComment[];
   isLoading: (workspaceId: string) => boolean;
   getError: (workspaceId: string) => string | null;
 }
 
 export const usePrStore = create<PrStore>((set, get) => ({
   prInfo: {},
+  reviews: {},
+  reviewComments: {},
   loading: {},
   error: {},
   subscriptions: {},
@@ -93,11 +105,30 @@ export const usePrStore = create<PrStore>((set, get) => ({
         prInfo: { ...state.prInfo, [workspaceId]: info },
         loading: { ...state.loading, [workspaceId]: false },
       }));
+      // Load reviews in the background if PR exists
+      if (info.prNumber != null) {
+        get().loadReviews(workspaceId);
+      }
     } catch (e) {
       set((state) => ({
         error: { ...state.error, [workspaceId]: String(e) },
         loading: { ...state.loading, [workspaceId]: false },
       }));
+    }
+  },
+
+  loadReviews: async (workspaceId: string) => {
+    try {
+      const [reviews, comments] = await Promise.all([
+        getPrReviewsCmd(workspaceId),
+        getPrReviewCommentsCmd(workspaceId),
+      ]);
+      set((state) => ({
+        reviews: { ...state.reviews, [workspaceId]: reviews },
+        reviewComments: { ...state.reviewComments, [workspaceId]: comments },
+      }));
+    } catch (e) {
+      console.error(`[prStore] Failed to load reviews for ${workspaceId}:`, e);
     }
   },
 
@@ -114,6 +145,9 @@ export const usePrStore = create<PrStore>((set, get) => ({
           },
         };
       });
+
+      // Also refresh reviews
+      get().loadReviews(workspaceId);
 
       // Stop polling if all checks are completed
       const allDone = checks.every(
@@ -177,6 +211,46 @@ export const usePrStore = create<PrStore>((set, get) => ({
     return fixFailingChecksCmd(workspaceId);
   },
 
+  getReviewFixMessage: (workspaceId: string) => {
+    const reviews = get().reviews[workspaceId] ?? [];
+    const comments = get().reviewComments[workspaceId] ?? [];
+
+    if (reviews.length === 0 && comments.length === 0) {
+      return "No review feedback found.";
+    }
+
+    let message =
+      "The following PR review feedback has been received. Please address these comments:\n\n";
+
+    if (reviews.length > 0) {
+      message += "## Reviews\n";
+      for (const r of reviews) {
+        if (r.body) {
+          message += `- **@${r.author}** (${r.state}): ${r.body}\n`;
+        } else {
+          message += `- **@${r.author}** (${r.state})\n`;
+        }
+      }
+      message += "\n";
+    }
+
+    if (comments.length > 0) {
+      message += "## Inline Comments\n";
+      for (const c of comments) {
+        const location = c.path
+          ? c.line
+            ? `\`${c.path}:${c.line}\``
+            : `\`${c.path}\``
+          : "general";
+        message += `- **@${c.author}** on ${location}: ${c.body}\n`;
+      }
+      message += "\n";
+    }
+
+    message += "Please review and address each piece of feedback.";
+    return message;
+  },
+
   mergePr: async (workspaceId: string, method?: string) => {
     set((state) => ({
       loading: { ...state.loading, [workspaceId]: true },
@@ -229,6 +303,14 @@ export const usePrStore = create<PrStore>((set, get) => ({
 
   isLoading: (workspaceId: string) => {
     return get().loading[workspaceId] ?? false;
+  },
+
+  getReviews: (workspaceId: string) => {
+    return get().reviews[workspaceId] ?? [];
+  },
+
+  getReviewComments: (workspaceId: string) => {
+    return get().reviewComments[workspaceId] ?? [];
   },
 
   getError: (workspaceId: string) => {

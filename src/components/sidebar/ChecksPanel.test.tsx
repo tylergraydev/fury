@@ -36,6 +36,8 @@ const mockFixFailingChecks = vi.fn().mockResolvedValue("Fix CI errors");
 const mockMergePr = vi.fn().mockResolvedValue({ success: true, message: "Merged", mergeMethod: "squash" });
 const mockListTodos = vi.fn().mockResolvedValue([]);
 const mockSendMessage = vi.fn().mockResolvedValue(undefined);
+const mockGetPrReviews = vi.fn().mockResolvedValue([]);
+const mockGetPrReviewComments = vi.fn().mockResolvedValue([]);
 
 vi.mock("../../lib/tauri", () => ({
   getPrInfo: (...args: unknown[]) => mockGetPrInfo(...args),
@@ -45,6 +47,8 @@ vi.mock("../../lib/tauri", () => ({
   fixFailingChecks: (...args: unknown[]) => mockFixFailingChecks(...args),
   mergePr: (...args: unknown[]) => mockMergePr(...args),
   listTodos: (...args: unknown[]) => mockListTodos(...args),
+  getPrReviews: (...args: unknown[]) => mockGetPrReviews(...args),
+  getPrReviewComments: (...args: unknown[]) => mockGetPrReviewComments(...args),
   listen: vi.fn().mockResolvedValue(() => {}),
   listChatMessages: vi.fn().mockResolvedValue([]),
   saveChatMessage: vi.fn().mockResolvedValue(undefined),
@@ -76,6 +80,8 @@ function setupOpenPr(overrides: Partial<PrInfo> = {}) {
 beforeEach(() => {
   usePrStore.setState({
     prInfo: {},
+    reviews: {},
+    reviewComments: {},
     loading: {},
     error: {},
     subscriptions: {},
@@ -902,5 +908,168 @@ describe("ChecksPanel", () => {
       expect(screen.getByText("Build")).toBeInTheDocument();
     });
     expect(startPollingSpy).not.toHaveBeenCalled();
+  });
+
+  // === Reviews ===
+
+  it("shows Reviews section when reviews exist", async () => {
+    setupOpenPr();
+    usePrStore.setState({
+      reviews: {
+        "ws-1": [
+          { id: 1, author: "alice", state: "APPROVED", body: "LGTM", submittedAt: "" },
+        ],
+      },
+    });
+    render(<ChecksPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("@alice")).toBeInTheDocument();
+      expect(screen.getByText("approved")).toBeInTheDocument();
+    });
+  });
+
+  it("shows CHANGES_REQUESTED review", async () => {
+    setupOpenPr();
+    usePrStore.setState({
+      reviews: {
+        "ws-1": [
+          { id: 2, author: "bob", state: "CHANGES_REQUESTED", body: "Needs work", submittedAt: "" },
+        ],
+      },
+    });
+    render(<ChecksPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("@bob")).toBeInTheDocument();
+      expect(screen.getByText("changes requested")).toBeInTheDocument();
+      expect(screen.getByText("Needs work")).toBeInTheDocument();
+    });
+  });
+
+  it("shows COMMENTED review", async () => {
+    setupOpenPr();
+    usePrStore.setState({
+      reviews: {
+        "ws-1": [
+          { id: 3, author: "carol", state: "COMMENTED", body: "", submittedAt: "" },
+        ],
+      },
+    });
+    render(<ChecksPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("@carol")).toBeInTheDocument();
+      expect(screen.getByText("commented")).toBeInTheDocument();
+    });
+  });
+
+  it("shows inline review comments with file path and line", async () => {
+    setupOpenPr();
+    usePrStore.setState({
+      reviewComments: {
+        "ws-1": [
+          { id: 10, author: "dave", body: "Fix this variable", createdAt: "", path: "src/foo.ts", line: 42 },
+        ],
+      },
+    });
+    render(<ChecksPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("@dave")).toBeInTheDocument();
+      expect(screen.getByText("src/foo.ts:42")).toBeInTheDocument();
+      expect(screen.getByText("Fix this variable")).toBeInTheDocument();
+    });
+  });
+
+  it("shows Reviews count header", async () => {
+    setupOpenPr();
+    usePrStore.setState({
+      reviews: {
+        "ws-1": [
+          { id: 1, author: "alice", state: "APPROVED", body: "", submittedAt: "" },
+        ],
+      },
+      reviewComments: {
+        "ws-1": [
+          { id: 10, author: "bob", body: "Fix", createdAt: "", path: "src/a.ts", line: 1 },
+        ],
+      },
+    });
+    render(<ChecksPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Reviews (2)")).toBeInTheDocument();
+    });
+  });
+
+  it("does not show Reviews section when no reviews", async () => {
+    setupOpenPr();
+    render(<ChecksPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("#42")).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Reviews/)).not.toBeInTheDocument();
+  });
+
+  it("shows Send to agent button when reviews exist", async () => {
+    setupOpenPr();
+    usePrStore.setState({
+      reviews: {
+        "ws-1": [
+          { id: 1, author: "alice", state: "CHANGES_REQUESTED", body: "Fix types", submittedAt: "" },
+        ],
+      },
+    });
+    render(<ChecksPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Send to agent")).toBeInTheDocument();
+    });
+  });
+
+  it("does not show Send to agent when no reviews", async () => {
+    setupOpenPr();
+    render(<ChecksPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("#42")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Send to agent")).not.toBeInTheDocument();
+  });
+
+  it("sends review feedback to agent on Send to agent click", async () => {
+    const reviewData = [
+      { id: 1, author: "alice", state: "CHANGES_REQUESTED", body: "Fix the types", submittedAt: "" },
+    ];
+    mockGetPrReviews.mockResolvedValue(reviewData);
+    mockGetPrReviewComments.mockResolvedValue([]);
+    setupOpenPr();
+    usePrStore.setState({
+      reviews: { "ws-1": reviewData },
+      reviewComments: { "ws-1": [] },
+    });
+    render(<ChecksPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Send to agent")).toBeInTheDocument();
+    });
+    const addUserMsgSpy = vi.spyOn(useChatStore.getState(), "addUserMessage");
+    const sendMsgSpy = vi.spyOn(useAgentStore.getState(), "sendMessage");
+    await act(async () => {
+      fireEvent.click(screen.getByText("Send to agent"));
+    });
+    await waitFor(() => {
+      expect(addUserMsgSpy).toHaveBeenCalledWith("ws-1", expect.stringContaining("@alice"));
+      expect(sendMsgSpy).toHaveBeenCalledWith("ws-1", expect.stringContaining("CHANGES_REQUESTED"), "workspace");
+    });
+  });
+
+  it("shows review comment without line number when line is null", async () => {
+    setupOpenPr();
+    usePrStore.setState({
+      reviewComments: {
+        "ws-1": [
+          { id: 11, author: "eve", body: "Check this file", createdAt: "", path: "src/bar.ts", line: null },
+        ],
+      },
+    });
+    render(<ChecksPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("@eve")).toBeInTheDocument();
+      expect(screen.getByText("src/bar.ts")).toBeInTheDocument();
+    });
   });
 });
