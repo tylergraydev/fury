@@ -174,6 +174,7 @@ pub async fn send_message(
         system_prompt.as_deref(),
         request.model.as_deref(),
         app.clone(),
+        Arc::clone(&state.agents),
     )
     .await?;
 

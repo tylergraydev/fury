@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -7,7 +8,7 @@ use tokio::process::{Child, Command};
 use uuid::Uuid;
 
 use crate::error::AppError;
-use crate::models::agent::FrontendStreamEvent;
+use crate::models::agent::{AgentInfo, FrontendStreamEvent};
 use crate::models::repository::Repository;
 use crate::models::settings::AppSettings;
 use crate::models::workspace::Workspace;
@@ -101,6 +102,7 @@ pub async fn spawn_and_stream(
     system_prompt_additions: Option<&str>,
     model: Option<&str>,
     app_handle: AppHandle,
+    agents: Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
 ) -> Result<Child, AppError> {
     let claude_bin = find_claude_binary()?;
 
@@ -186,6 +188,7 @@ pub async fn spawn_and_stream(
         let reader = BufReader::new(stdout);
         let mut lines = reader.lines();
         let event_name = format!("agent-stream:{}", ws_id);
+        let mut session_id_captured = false;
 
         while let Ok(Some(line)) = lines.next_line().await {
             if line.trim().is_empty() {
@@ -193,6 +196,23 @@ pub async fn spawn_and_stream(
             }
 
             if let Some(frontend_event) = parse_stream_line(&line) {
+                // Capture session_id from the first event that contains one
+                if !session_id_captured {
+                    let sid = match &frontend_event {
+                        FrontendStreamEvent::System { session_id, .. } => session_id.clone(),
+                        FrontendStreamEvent::Result { session_id, .. } => session_id.clone(),
+                        _ => None,
+                    };
+                    if let Some(sid) = sid {
+                        if let Ok(mut agents_lock) = agents.lock() {
+                            if let Some(agent) = agents_lock.get_mut(&ws_id) {
+                                agent.session_id = Some(sid);
+                            }
+                        }
+                        session_id_captured = true;
+                    }
+                }
+
                 let _ = app_handle_stdout.emit(&event_name, &frontend_event);
             }
         }
