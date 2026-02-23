@@ -78,7 +78,7 @@ describe("MessageBubble", () => {
         })}
       />,
     );
-    expect(screen.getByText("Read")).toBeInTheDocument();
+    expect(screen.getByText("Read 1 lines")).toBeInTheDocument();
     expect(screen.getByText("src/app.ts")).toBeInTheDocument();
   });
 
@@ -97,9 +97,9 @@ describe("MessageBubble", () => {
     );
 
     // Click the tool row to expand
-    await user.click(screen.getByText("Bash"));
-    expect(screen.getByText("Input")).toBeInTheDocument();
-    expect(screen.getByText("Result")).toBeInTheDocument();
+    await user.click(screen.getByText("Run"));
+    expect(screen.getByText("Command")).toBeInTheDocument();
+    expect(screen.getByText("Output")).toBeInTheDocument();
     expect(screen.getByText("total 42")).toBeInTheDocument();
   });
 
@@ -134,7 +134,7 @@ describe("MessageBubble", () => {
       />,
     );
     expect(screen.getByText("Let me check that file")).toBeInTheDocument();
-    expect(screen.getByText("Read")).toBeInTheDocument();
+    expect(screen.getByText("Read 1 lines")).toBeInTheDocument();
     expect(screen.getByText("Here is the content")).toBeInTheDocument();
   });
 
@@ -181,7 +181,7 @@ describe("MessageBubble", () => {
         })}
       />,
     );
-    expect(screen.getByText("Bash")).toBeInTheDocument();
+    expect(screen.getByText("Run")).toBeInTheDocument();
     expect(screen.getByText("echo hi")).toBeInTheDocument();
   });
 
@@ -196,7 +196,7 @@ describe("MessageBubble", () => {
         })}
       />,
     );
-    expect(screen.getByText("Grep")).toBeInTheDocument();
+    expect(screen.getByText("Search")).toBeInTheDocument();
   });
 
   it("normalizes grep-based tool name to Grep", () => {
@@ -210,7 +210,7 @@ describe("MessageBubble", () => {
         })}
       />,
     );
-    expect(screen.getByText("Grep")).toBeInTheDocument();
+    expect(screen.getByText("Search")).toBeInTheDocument();
   });
 
   it("normalizes find_file-based tool name to Glob", () => {
@@ -224,7 +224,7 @@ describe("MessageBubble", () => {
         })}
       />,
     );
-    expect(screen.getByText("Glob")).toBeInTheDocument();
+    expect(screen.getByText("Find files")).toBeInTheDocument();
   });
 
   it("normalizes glob-based tool name to Glob", () => {
@@ -238,7 +238,7 @@ describe("MessageBubble", () => {
         })}
       />,
     );
-    expect(screen.getByText("Glob")).toBeInTheDocument();
+    expect(screen.getByText("Find files")).toBeInTheDocument();
   });
 
   it("normalizes task-based tool name to Task", () => {
@@ -252,7 +252,7 @@ describe("MessageBubble", () => {
         })}
       />,
     );
-    expect(screen.getByText("Task")).toBeInTheDocument();
+    expect(screen.getByText("Agent")).toBeInTheDocument();
   });
 
   it("normalizes notebook-based tool name to Notebook", () => {
@@ -310,8 +310,8 @@ describe("MessageBubble", () => {
         })}
       />,
     );
-    // Grep summary wraps pattern in quotes
-    expect(screen.getByText('"TODO"')).toBeInTheDocument();
+    // Grep summary shows pattern in a badge
+    expect(screen.getByText("TODO")).toBeInTheDocument();
   });
 
   it("shows summary for Glob tool with pattern", () => {
@@ -343,7 +343,7 @@ describe("MessageBubble", () => {
   });
 
   it("truncates long Task description", () => {
-    const longDesc = "A".repeat(60);
+    const longDesc = "A".repeat(80);
     render(
       <MessageBubble
         message={makeMessage({
@@ -354,11 +354,11 @@ describe("MessageBubble", () => {
         })}
       />,
     );
-    expect(screen.getByText("A".repeat(47) + "...")).toBeInTheDocument();
+    expect(screen.getByText("A".repeat(57) + "...")).toBeInTheDocument();
   });
 
   it("truncates long Bash command", () => {
-    const longCmd = "B".repeat(70);
+    const longCmd = "B".repeat(100);
     render(
       <MessageBubble
         message={makeMessage({
@@ -369,7 +369,7 @@ describe("MessageBubble", () => {
         })}
       />,
     );
-    expect(screen.getByText("B".repeat(57) + "...")).toBeInTheDocument();
+    expect(screen.getByText("B".repeat(77) + "...")).toBeInTheDocument();
   });
 
   it("shows summary for Edit tool with path", () => {
@@ -415,7 +415,7 @@ describe("MessageBubble", () => {
   });
 
   it("truncates long fallback summary for unknown tool", () => {
-    const longVal = "Z".repeat(60);
+    const longVal = "Z".repeat(80);
     render(
       <MessageBubble
         message={makeMessage({
@@ -426,7 +426,7 @@ describe("MessageBubble", () => {
         })}
       />,
     );
-    expect(screen.getByText("Z".repeat(47) + "...")).toBeInTheDocument();
+    expect(screen.getByText("Z".repeat(57) + "...")).toBeInTheDocument();
   });
 
   it("returns empty summary for unknown tool with non-string first value", () => {
@@ -489,14 +489,14 @@ describe("MessageBubble", () => {
     );
 
     // Expand
-    await user.click(screen.getByText("Bash"));
-    expect(screen.getByText("Input")).toBeInTheDocument();
-    expect(screen.getByText("Result")).toBeInTheDocument();
+    await user.click(screen.getByText("Run"));
+    expect(screen.getByText("Command")).toBeInTheDocument();
+    expect(screen.getByText("Output")).toBeInTheDocument();
 
     // Collapse
-    await user.click(screen.getByText("Bash"));
-    expect(screen.queryByText("Input")).not.toBeInTheDocument();
-    expect(screen.queryByText("Result")).not.toBeInTheDocument();
+    await user.click(screen.getByText("Run"));
+    expect(screen.queryByText("Command")).not.toBeInTheDocument();
+    expect(screen.queryByText("Output")).not.toBeInTheDocument();
   });
 
   it("shows tool input as string when input is a string type", async () => {
@@ -523,13 +523,13 @@ describe("MessageBubble", () => {
         message={makeMessage({
           role: "assistant",
           content: [
-            { type: "toolUse", id: "t1", name: "Read", input: { file_path: "/a.ts" } },
+            { type: "toolUse", id: "t1", name: "custom_tool", input: { file_path: "/a.ts" } },
           ],
         })}
       />,
     );
 
-    await user.click(screen.getByText("Read"));
+    await user.click(screen.getByText("custom_tool"));
     expect(screen.getByText("Input")).toBeInTheDocument();
     // JSON.stringify with indent
     expect(screen.getByText(/"file_path"/)).toBeInTheDocument();
@@ -542,13 +542,13 @@ describe("MessageBubble", () => {
         message={makeMessage({
           role: "assistant",
           content: [
-            { type: "toolUse", id: "t1", name: "Read", input: { file_path: "/a.ts" } },
+            { type: "toolUse", id: "t1", name: "custom_tool", input: { file_path: "/a.ts" } },
           ],
         })}
       />,
     );
 
-    await user.click(screen.getByText("Read"));
+    await user.click(screen.getByText("custom_tool"));
     expect(screen.getByText("Input")).toBeInTheDocument();
     expect(screen.queryByText("Result")).not.toBeInTheDocument();
   });
@@ -706,7 +706,7 @@ describe("MessageBubble", () => {
         })}
       />,
     );
-    expect(screen.getByText('"console.log"')).toBeInTheDocument();
+    expect(screen.getByText("console.log")).toBeInTheDocument();
   });
 
   // --- Task with prompt alias ---
@@ -741,8 +741,8 @@ describe("MessageBubble", () => {
         })}
       />,
     );
-    // Both tool rows should be rendered with "Read" labels
-    const readLabels = screen.getAllByText("Read");
+    // Both tool rows should be rendered with "Read 1 lines" labels
+    const readLabels = screen.getAllByText("Read 1 lines");
     expect(readLabels).toHaveLength(2);
   });
 
@@ -805,7 +805,7 @@ describe("MessageBubble", () => {
         })}
       />,
     );
-    expect(screen.getByText("Grep")).toBeInTheDocument();
+    expect(screen.getByText("Search")).toBeInTheDocument();
   });
 
   it("shows empty summary when Glob input has no pattern", () => {
@@ -819,7 +819,7 @@ describe("MessageBubble", () => {
         })}
       />,
     );
-    expect(screen.getByText("Glob")).toBeInTheDocument();
+    expect(screen.getByText("Find files")).toBeInTheDocument();
   });
 
   // --- Branch coverage: orphan toolResult without matching toolUse ---
@@ -892,7 +892,7 @@ describe("MessageBubble", () => {
         })}
       />,
     );
-    expect(screen.getByText("Bash")).toBeInTheDocument();
+    expect(screen.getByText("Run")).toBeInTheDocument();
   });
 
   // --- Branch coverage: Task with neither description nor prompt ---
@@ -908,6 +908,6 @@ describe("MessageBubble", () => {
         })}
       />,
     );
-    expect(screen.getByText("Task")).toBeInTheDocument();
+    expect(screen.getByText("Agent")).toBeInTheDocument();
   });
 });

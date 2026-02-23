@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Sparkles, X, GitFork, MessageSquare, ChevronDown } from "lucide-react";
 import { listBranches } from "../../lib/tauri";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useAgentStore } from "../../stores/agentStore";
 
 interface Props {
   repoId: string;
@@ -54,13 +55,16 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
     setCreating(true);
     setError(null);
     try {
-      await createWs({
+      const ws = await createWs({
         repoId,
         workspaceName: worktreeName.trim(),
         branchName: worktreeName.trim(),
         baseBranch: baseBranch.trim(),
         autoCommit,
       });
+      if (taskDescription.trim()) {
+        useAgentStore.getState().sendMessage(ws.id, taskDescription.trim()).catch(console.error);
+      }
       onClose();
     } catch (e) {
       setError(String(e));

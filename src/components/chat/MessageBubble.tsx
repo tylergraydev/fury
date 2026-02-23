@@ -228,7 +228,7 @@ function getToolSummary(name: string, input: unknown, result: { content: string 
       };
     }
     case "Task": {
-      const desc = (inp.description ?? "") as string;
+      const desc = (inp.description ?? inp.prompt ?? "") as string;
       const subagent = (inp.subagent_type ?? "") as string;
       const detail = desc.length > 60 ? desc.slice(0, 57) + "..." : desc;
       return {
@@ -269,7 +269,7 @@ function getToolSummary(name: string, input: unknown, result: { content: string 
 // --- Dropdown content formatting ---
 
 function formatToolDetail(normalized: string, input: unknown, result: { content: string } | null): ReactNode {
-  const inp = input as Record<string, unknown> | null;
+  const inp = (typeof input === "object" && input !== null) ? input as Record<string, unknown> : null;
 
   switch (normalized) {
     case "Edit": {
