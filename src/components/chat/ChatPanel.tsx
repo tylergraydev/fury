@@ -65,6 +65,13 @@ export function ChatPanel({ contextId, contextType }: Props) {
     };
   }, [contextId, contextType]);
 
+  // Clear stale permission request when agent stops (e.g. process crash without result event)
+  useEffect(() => {
+    if (agentStatus !== "Running" && permissionRequest) {
+      useChatStore.getState().clearPermissionRequest(contextId);
+    }
+  }, [agentStatus, contextId, permissionRequest]);
+
   const handleSend = useCallback(
     async (message: string, model?: string) => {
       useChatStore.getState().addUserMessage(contextId, message);
@@ -126,8 +133,8 @@ export function ChatPanel({ contextId, contextType }: Props) {
 
   const handleApprovePermission = useCallback(async () => {
     try {
-      useChatStore.getState().clearPermissionRequest(contextId);
       await respondToPermission(contextId, true);
+      useChatStore.getState().clearPermissionRequest(contextId);
     } catch (e) {
       console.error("Failed to approve permission:", e);
     }
@@ -135,8 +142,8 @@ export function ChatPanel({ contextId, contextType }: Props) {
 
   const handleDenyPermission = useCallback(async () => {
     try {
-      useChatStore.getState().clearPermissionRequest(contextId);
       await respondToPermission(contextId, false);
+      useChatStore.getState().clearPermissionRequest(contextId);
     } catch (e) {
       console.error("Failed to deny permission:", e);
     }

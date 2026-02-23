@@ -423,7 +423,7 @@ pub async fn respond_to_permission(
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
-    let response = if approved { "yes\n" } else { "no\n" };
+    let response = if approved { "yes" } else { "no" };
 
     // Try agent_stdins first (non-persistent mode), then persistent_agents
     let mut stdin_opt = state.agent_stdins.lock().unwrap().remove(&id);
@@ -435,14 +435,16 @@ pub async fn respond_to_permission(
     };
 
     if let Some(mut stdin) = stdin_opt {
-        claude_process::write_message(&mut stdin, response).await?;
+        let write_result = claude_process::write_message(&mut stdin, response).await;
 
-        // Put stdin back
+        // Always put stdin back, even on error — losing the handle is unrecoverable
         if from_persistent {
             state.persistent_agents.lock().unwrap().insert(id, stdin);
         } else {
             state.agent_stdins.lock().unwrap().insert(id, stdin);
         }
+
+        write_result?;
         Ok(())
     } else {
         Err(AppError::AgentError(
