@@ -109,6 +109,10 @@ pub fn run() {
             commands::pr::list_repo_issues,
             commands::pr::get_pr_details,
             commands::pr::get_issue_details,
+            commands::pr::get_workflow_runs,
+            commands::pr::get_run_jobs,
+            commands::pr::get_run_logs,
+            commands::pr::rerun_workflow,
             // Linear commands
             commands::linear::search_linear_issues,
             commands::linear::link_issue_to_workspace,

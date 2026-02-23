@@ -4,6 +4,7 @@ import {
   type PrInfo,
   type PrReview,
   type PrComment,
+  type WorkflowRun,
   type CreatePrRequest,
   type MergeResult,
   createPr as createPrCmd,
@@ -14,12 +15,15 @@ import {
   mergePr as mergePrCmd,
   getPrReviews as getPrReviewsCmd,
   getPrReviewComments as getPrReviewCommentsCmd,
+  getWorkflowRuns as getWorkflowRunsCmd,
 } from "../lib/tauri";
 
 interface PrStore {
   prInfo: Record<string, PrInfo | null>;
   reviews: Record<string, PrReview[]>;
   reviewComments: Record<string, PrComment[]>;
+  workflowRuns: Record<string, WorkflowRun[]>;
+  workflowLoading: Record<string, boolean>;
   loading: Record<string, boolean>;
   error: Record<string, string | null>;
   subscriptions: Record<string, UnlistenFn[]>;
@@ -29,6 +33,7 @@ interface PrStore {
   unsubscribe: (workspaceId: string) => void;
   loadPrInfo: (workspaceId: string) => Promise<void>;
   loadReviews: (workspaceId: string) => Promise<void>;
+  loadWorkflowRuns: (workspaceId: string) => Promise<void>;
   refreshChecks: (workspaceId: string) => Promise<void>;
   createPr: (request: CreatePrRequest) => Promise<PrInfo>;
   pushChanges: (workspaceId: string) => Promise<void>;
@@ -48,6 +53,8 @@ export const usePrStore = create<PrStore>((set, get) => ({
   prInfo: {},
   reviews: {},
   reviewComments: {},
+  workflowRuns: {},
+  workflowLoading: {},
   loading: {},
   error: {},
   subscriptions: {},
@@ -132,6 +139,24 @@ export const usePrStore = create<PrStore>((set, get) => ({
     }
   },
 
+  loadWorkflowRuns: async (workspaceId: string) => {
+    set((state) => ({
+      workflowLoading: { ...state.workflowLoading, [workspaceId]: true },
+    }));
+    try {
+      const runs = await getWorkflowRunsCmd(workspaceId);
+      set((state) => ({
+        workflowRuns: { ...state.workflowRuns, [workspaceId]: runs },
+        workflowLoading: { ...state.workflowLoading, [workspaceId]: false },
+      }));
+    } catch (e) {
+      console.error(`[prStore] Failed to load workflow runs for ${workspaceId}:`, e);
+      set((state) => ({
+        workflowLoading: { ...state.workflowLoading, [workspaceId]: false },
+      }));
+    }
+  },
+
   refreshChecks: async (workspaceId: string) => {
     try {
       const checks = await getPrChecksCmd(workspaceId);
@@ -146,14 +171,19 @@ export const usePrStore = create<PrStore>((set, get) => ({
         };
       });
 
-      // Also refresh reviews
+      // Also refresh reviews and workflow runs
       get().loadReviews(workspaceId);
+      get().loadWorkflowRuns(workspaceId);
 
       // Stop polling if all checks are completed
       const allDone = checks.every(
         (c) => c.status === "COMPLETED" || c.conclusion !== null,
       );
-      if (allDone && checks.length > 0) {
+      const runs = get().workflowRuns[workspaceId] ?? [];
+      const allRunsDone = runs.every(
+        (r) => r.status === "completed",
+      );
+      if (allDone && checks.length > 0 && allRunsDone) {
         get().stopPolling(workspaceId);
       }
     } catch (e) {

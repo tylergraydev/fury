@@ -615,6 +615,70 @@ export async function getPrReviewComments(
   return invoke<PrComment[]>("get_pr_review_comments", { workspaceId });
 }
 
+// Workflow types
+export interface WorkflowRun {
+  id: number;
+  name: string;
+  workflowName: string;
+  status: string;
+  conclusion: string | null;
+  event: string;
+  createdAt: string;
+}
+
+export interface WorkflowJob {
+  id: number;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  steps: WorkflowStep[];
+}
+
+export interface WorkflowStep {
+  name: string;
+  status: string;
+  conclusion: string | null;
+}
+
+export interface RunLogsResult {
+  logs: string;
+  truncated: boolean;
+}
+
+// Workflow commands
+export async function getWorkflowRuns(
+  workspaceId: string,
+): Promise<WorkflowRun[]> {
+  return invoke<WorkflowRun[]>("get_workflow_runs", { workspaceId });
+}
+
+export async function getRunJobs(
+  workspaceId: string,
+  runId: number,
+): Promise<WorkflowJob[]> {
+  return invoke<WorkflowJob[]>("get_run_jobs", { workspaceId, runId });
+}
+
+export async function getRunLogs(
+  workspaceId: string,
+  runId: number,
+  failedOnly: boolean,
+): Promise<RunLogsResult> {
+  return invoke<RunLogsResult>("get_run_logs", {
+    workspaceId,
+    runId,
+    failedOnly,
+  });
+}
+
+export async function rerunWorkflow(
+  workspaceId: string,
+  runId: number,
+  failedOnly: boolean,
+): Promise<void> {
+  return invoke("rerun_workflow", { workspaceId, runId, failedOnly });
+}
+
 // PR/Issue list types
 export interface PrListItem {
   number: number;

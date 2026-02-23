@@ -10,6 +10,10 @@ import type { PrInfo } from "../../lib/tauri";
 
 vi.mock("lucide-react", () => ({
   ExternalLink: () => <span data-testid="link-icon" />,
+  ChevronRight: () => <span data-testid="chevron-right" />,
+  ChevronDown: () => <span data-testid="chevron-down" />,
+  X: () => <span data-testid="x-icon" />,
+  RotateCw: () => <span data-testid="rotate-icon" />,
 }));
 
 const mockGetPrInfo = vi.fn().mockResolvedValue({
@@ -38,6 +42,10 @@ const mockListTodos = vi.fn().mockResolvedValue([]);
 const mockSendMessage = vi.fn().mockResolvedValue(undefined);
 const mockGetPrReviews = vi.fn().mockResolvedValue([]);
 const mockGetPrReviewComments = vi.fn().mockResolvedValue([]);
+const mockGetWorkflowRuns = vi.fn().mockResolvedValue([]);
+const mockGetRunJobs = vi.fn().mockResolvedValue([]);
+const mockGetRunLogs = vi.fn().mockResolvedValue({ logs: "", truncated: false });
+const mockRerunWorkflow = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("../../lib/tauri", () => ({
   getPrInfo: (...args: unknown[]) => mockGetPrInfo(...args),
@@ -49,6 +57,10 @@ vi.mock("../../lib/tauri", () => ({
   listTodos: (...args: unknown[]) => mockListTodos(...args),
   getPrReviews: (...args: unknown[]) => mockGetPrReviews(...args),
   getPrReviewComments: (...args: unknown[]) => mockGetPrReviewComments(...args),
+  getWorkflowRuns: (...args: unknown[]) => mockGetWorkflowRuns(...args),
+  getRunJobs: (...args: unknown[]) => mockGetRunJobs(...args),
+  getRunLogs: (...args: unknown[]) => mockGetRunLogs(...args),
+  rerunWorkflow: (...args: unknown[]) => mockRerunWorkflow(...args),
   listen: vi.fn().mockResolvedValue(() => {}),
   listChatMessages: vi.fn().mockResolvedValue([]),
   saveChatMessage: vi.fn().mockResolvedValue(undefined),
@@ -82,6 +94,8 @@ beforeEach(() => {
     prInfo: {},
     reviews: {},
     reviewComments: {},
+    workflowRuns: {},
+    workflowLoading: {},
     loading: {},
     error: {},
     subscriptions: {},
@@ -551,11 +565,11 @@ describe("ChecksPanel", () => {
     setupOpenPr();
     render(<ChecksPanel workspaceId="ws-1" />);
     await waitFor(() => {
-      expect(screen.getByText("Refresh")).toBeInTheDocument();
+      expect(screen.getAllByText("Refresh").length).toBeGreaterThanOrEqual(1);
     });
     const refreshSpy = vi.spyOn(usePrStore.getState(), "refreshChecks");
     await act(async () => {
-      fireEvent.click(screen.getByText("Refresh"));
+      fireEvent.click(screen.getAllByText("Refresh")[0]);
     });
     expect(refreshSpy).toHaveBeenCalledWith("ws-1");
   });
