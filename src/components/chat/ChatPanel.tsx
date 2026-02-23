@@ -10,6 +10,7 @@ import { MessageList, segmentTurns } from "./MessageList";
 import { Composer } from "./Composer";
 import { ChatTOC } from "./ChatTOC";
 import { LinkWorkspaceDialog } from "../workspace/LinkWorkspaceDialog";
+import { IssuePicker } from "../workspace/IssuePicker";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 
 // Stable references for empty defaults — avoids infinite re-render with useSyncExternalStore
@@ -49,6 +50,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
   const [planEnabled, setPlanEnabled] = useState(true);
   const [showTOC, setShowTOC] = useState(false);
   const [showLinkWorkspaceDialog, setShowLinkWorkspaceDialog] = useState(false);
+  const [showIssuePicker, setShowIssuePicker] = useState(false);
   const workspace = useWorkspaceStore(
     (s) => s.workspaces.find((w) => w.id === contextId) ?? null,
   );
@@ -242,6 +244,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
         planEnabled={planEnabled}
         onPlanEnabledChange={setPlanEnabled}
         onLinkWorkspaces={contextType === "workspace" ? () => setShowLinkWorkspaceDialog(true) : undefined}
+        onLinkIssue={contextType === "workspace" ? () => setShowIssuePicker(true) : undefined}
       />
       {showLinkWorkspaceDialog && contextType === "workspace" && workspace && (
         <LinkWorkspaceDialog
@@ -249,6 +252,12 @@ export function ChatPanel({ contextId, contextType }: Props) {
           workspaceName={workspace.name}
           repoId={workspace.repoId}
           onClose={() => setShowLinkWorkspaceDialog(false)}
+        />
+      )}
+      {showIssuePicker && contextType === "workspace" && (
+        <IssuePicker
+          workspaceId={contextId}
+          onClose={() => setShowIssuePicker(false)}
         />
       )}
     </div>

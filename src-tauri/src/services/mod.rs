@@ -6,6 +6,7 @@ pub mod copilot_lsp;
 pub mod cursor_migration;
 pub mod diff;
 pub mod gh;
+pub mod linear;
 pub mod mcp;
 pub mod port_allocator;
 pub mod spotlight;

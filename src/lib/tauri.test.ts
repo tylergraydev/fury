@@ -808,6 +808,7 @@ describe("App settings commands", () => {
       analyticsEnabled: false,
       experimental: { spotlightTesting: true, agentTeams: false, persistentProcesses: false, safeMode: false },
       copilot: { enabled: true },
+      linear: { apiKey: null },
     };
     await updateAppSettings(settings);
     expect(invoke).toHaveBeenCalledWith("update_app_settings", { settings });
