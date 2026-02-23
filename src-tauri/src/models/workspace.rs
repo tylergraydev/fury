@@ -45,6 +45,7 @@ pub struct Workspace {
     pub sparse_dirs: Option<Vec<String>>,
     pub notes: String,
     pub auto_commit: bool,
+    pub pinned: bool,
     pub created_at: DateTime<Utc>,
     pub archived_at: Option<DateTime<Utc>>,
 }
@@ -70,6 +71,7 @@ pub struct WorkspaceInfo {
     pub status: WorkspaceStatus,
     pub port_base: u16,
     pub auto_commit: bool,
+    pub pinned: bool,
     pub created_at: DateTime<Utc>,
     pub archived_at: Option<DateTime<Utc>>,
 }
@@ -84,6 +86,7 @@ impl From<&Workspace> for WorkspaceInfo {
             status: ws.status.clone(),
             port_base: ws.port_base,
             auto_commit: ws.auto_commit,
+            pinned: ws.pinned,
             created_at: ws.created_at,
             archived_at: ws.archived_at,
         }

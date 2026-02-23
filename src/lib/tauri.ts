@@ -18,6 +18,7 @@ export interface WorkspaceInfo {
   status: WorkspaceStatus;
   portBase: number;
   autoCommit: boolean;
+  pinned: boolean;
   createdAt: string;
   archivedAt: string | null;
 }
@@ -852,6 +853,13 @@ export async function renameWorkspace(
   name: string,
 ): Promise<void> {
   return invoke("rename_workspace", { workspaceId, name });
+}
+
+export async function setWorkspacePinned(
+  workspaceId: string,
+  pinned: boolean,
+): Promise<void> {
+  return invoke("set_workspace_pinned", { workspaceId, pinned });
 }
 
 // Cursorrules conversion types

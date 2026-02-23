@@ -75,6 +75,7 @@ pub fn create_workspace(
         sparse_dirs: request.sparse_dirs,
         notes: String::new(),
         auto_commit: request.auto_commit.unwrap_or(true),
+        pinned: false,
         created_at: chrono::Utc::now(),
         archived_at: None,
     };
@@ -489,6 +490,35 @@ pub fn rename_workspace(
         let db = state.db.lock().unwrap();
         if let Some(db) = db.as_ref() {
             db.update_workspace_name(&id, &name)?;
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_workspace_pinned(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    pinned: bool,
+) -> Result<(), AppError> {
+    let id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    // Update in-memory
+    {
+        let mut workspaces = state.workspaces.lock().unwrap();
+        if let Some(ws) = workspaces.get_mut(&id) {
+            ws.pinned = pinned;
+        }
+    }
+
+    // Persist
+    {
+        let db = state.db.lock().unwrap();
+        if let Some(db) = db.as_ref() {
+            db.update_workspace_pinned(&id, pinned)?;
         }
     }
 

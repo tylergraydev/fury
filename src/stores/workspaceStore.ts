@@ -9,6 +9,7 @@ import {
   listArchivedWorkspaces,
   restoreWorkspace,
   renameWorkspace,
+  setWorkspacePinned,
 } from "../lib/tauri";
 
 interface WorkspaceStore {
@@ -28,6 +29,7 @@ interface WorkspaceStore {
   loadArchivedWorkspaces: () => Promise<void>;
   restoreWs: (id: string) => Promise<void>;
   renameWs: (id: string, name: string) => Promise<void>;
+  pinWs: (id: string, pinned: boolean) => Promise<void>;
 }
 
 export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
@@ -139,6 +141,20 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       set({
         workspaces: get().workspaces.map((w) =>
           w.id === id ? { ...w, name } : w,
+        ),
+      });
+    } catch (e) {
+      set({ error: String(e) });
+      throw e;
+    }
+  },
+
+  pinWs: async (id: string, pinned: boolean) => {
+    try {
+      await setWorkspacePinned(id, pinned);
+      set({
+        workspaces: get().workspaces.map((w) =>
+          w.id === id ? { ...w, pinned } : w,
         ),
       });
     } catch (e) {

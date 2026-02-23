@@ -8,6 +8,7 @@ import {
   Link2,
   FolderGit2,
   Archive,
+  Pin,
   RotateCcw,
   Clock,
 } from "lucide-react";
@@ -48,6 +49,7 @@ export function Sidebar() {
     restoreWs,
     renameWs,
     archiveWs,
+    pinWs,
   } = useWorkspaceStore();
   const [newWsRepoId, setNewWsRepoId] = useState<string | null>(null);
   const [settingsRepoId, setSettingsRepoId] = useState<string | null>(null);
@@ -147,9 +149,9 @@ export function Sidebar() {
           </div>
         ) : (
           repositories.map((repo) => {
-            const repoWorkspaces = workspaces.filter(
-              (ws) => ws.repoId === repo.id,
-            );
+            const repoWorkspaces = workspaces
+              .filter((ws) => ws.repoId === repo.id)
+              .sort((a, b) => (a.pinned === b.pinned ? 0 : a.pinned ? -1 : 1));
             const isCollapsed = collapsedRepos.has(repo.id);
 
             return (
@@ -197,6 +199,7 @@ export function Sidebar() {
                         branch={ws.branch}
                         createdAt={ws.createdAt}
                         wsStatus={ws.status}
+                        pinned={ws.pinned}
                         isActive={activeWorkspaceId === ws.id}
                         onClick={() => setActive(ws.id)}
                         onLink={() =>
@@ -207,6 +210,7 @@ export function Sidebar() {
                           })
                         }
                         onRename={(newName) => renameWs(ws.id, newName)}
+                        onTogglePin={() => pinWs(ws.id, !ws.pinned)}
                         onArchive={async () => {
                           try {
                             await archiveWs(ws.id);
@@ -386,10 +390,12 @@ function WorkspaceItem({
   branch,
   createdAt,
   wsStatus,
+  pinned,
   isActive,
   onClick,
   onLink,
   onRename,
+  onTogglePin,
   onArchive,
 }: {
   id: string;
@@ -397,10 +403,12 @@ function WorkspaceItem({
   branch: string;
   createdAt: string;
   wsStatus: string | { Error: string };
+  pinned: boolean;
   isActive: boolean;
   onClick: () => void;
   onLink: () => void;
   onRename: (newName: string) => void;
+  onTogglePin: () => void;
   onArchive: () => void;
 }) {
   const agentStatus = useAgentStore((s) => s.getStatus(id));
@@ -469,7 +477,24 @@ function WorkspaceItem({
             {name}
           </span>
         )}
-        <div className="ml-auto hidden flex-shrink-0 items-center gap-0.5 group-hover:flex">
+        {pinned && (
+          <Pin
+            className="ml-auto h-3 w-3 flex-shrink-0 group-hover:hidden"
+            style={{ color: "var(--accent)" }}
+          />
+        )}
+        <div className={`${pinned ? "" : "ml-auto "}hidden flex-shrink-0 items-center gap-0.5 group-hover:flex`}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onTogglePin();
+            }}
+            className="rounded p-1 hover:bg-[var(--bg-surface)]"
+            style={{ color: pinned ? "var(--accent)" : "var(--text-muted)" }}
+            title={pinned ? "Unpin workspace" : "Pin workspace"}
+          >
+            <Pin className="h-3.5 w-3.5" />
+          </button>
           <button
             onClick={(e) => {
               e.stopPropagation();

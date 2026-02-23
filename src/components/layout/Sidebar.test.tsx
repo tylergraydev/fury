@@ -15,6 +15,7 @@ vi.mock("lucide-react", () => ({
   Link2: () => <span data-testid="link-icon" />,
   FolderGit2: () => <span data-testid="folder-icon" />,
   Archive: () => <span data-testid="archive-icon" />,
+  Pin: () => <span data-testid="pin-icon" />,
   RotateCcw: () => <span data-testid="restore-icon" />,
   Clock: () => <span data-testid="clock-icon" />,
 }));
@@ -44,6 +45,7 @@ vi.mock("../../lib/tauri", () => ({
   archiveWorkspace: vi.fn().mockResolvedValue(undefined),
   restoreWorkspace: vi.fn().mockResolvedValue(undefined),
   renameWorkspace: vi.fn().mockResolvedValue(undefined),
+  setWorkspacePinned: vi.fn().mockResolvedValue(undefined),
   listen: vi.fn().mockResolvedValue(() => {}),
 }));
 
@@ -64,6 +66,7 @@ const makeWorkspace = (overrides: Record<string, unknown> = {}) => ({
   status: "Active" as const,
   portBase: 3000,
   autoCommit: false,
+  pinned: false,
   createdAt: new Date().toISOString(),
   archivedAt: null,
   ...overrides,

@@ -108,5 +108,9 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
     // Add metadata column to chat_messages (idempotent) — stores JSON for response stats
     let _ = conn.execute_batch("ALTER TABLE chat_messages ADD COLUMN metadata TEXT;");
 
+    // Add pinned column to workspaces (idempotent)
+    let _ =
+        conn.execute_batch("ALTER TABLE workspaces ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;");
+
     Ok(())
 }
