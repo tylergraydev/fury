@@ -59,6 +59,7 @@ pub struct CreateWorkspaceRequest {
     pub sparse_dirs: Option<Vec<String>>,
     pub base_branch: Option<String>,
     pub auto_commit: Option<bool>,
+    pub fetch_remote_branch: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

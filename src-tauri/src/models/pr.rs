@@ -74,3 +74,47 @@ pub struct PrReview {
     pub body: String,
     pub submitted_at: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrListItem {
+    pub number: u32,
+    pub title: String,
+    pub head_branch: String,
+    pub base_branch: String,
+    pub state: String,
+    pub author: String,
+    pub url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrDetail {
+    pub number: u32,
+    pub title: String,
+    pub head_branch: String,
+    pub base_branch: String,
+    pub body: String,
+    pub state: String,
+    pub url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IssueListItem {
+    pub number: u32,
+    pub title: String,
+    pub body: String,
+    pub state: String,
+    pub labels: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IssueDetail {
+    pub number: u32,
+    pub title: String,
+    pub body: String,
+    pub state: String,
+    pub labels: Vec<String>,
+}
