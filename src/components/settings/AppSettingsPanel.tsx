@@ -1215,7 +1215,7 @@ function ExperimentalTab() {
     );
   }
 
-  const toggle = async (key: "spotlightTesting" | "agentTeams" | "persistentProcesses") => {
+  const toggle = async (key: "spotlightTesting" | "agentTeams" | "persistentProcesses" | "safeMode") => {
     setSaving(true);
     try {
       await saveSettings({
@@ -1314,6 +1314,33 @@ function ExperimentalTab() {
           Keep Claude processes alive between turns to eliminate startup
           latency. Uses more memory per workspace. When disabled (Low RAM
           mode), a new process is spawned for each turn.
+        </div>
+      </div>
+
+      {/* Safe Mode */}
+      <div
+        className="rounded p-3"
+        style={{
+          backgroundColor: "var(--bg-surface)",
+          border: "1px solid var(--border)",
+        }}
+      >
+        <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-primary)" }}>
+          <input
+            type="checkbox"
+            checked={appSettings.experimental.safeMode}
+            onChange={() => toggle("safeMode")}
+            disabled={saving}
+          />
+          Safe Mode
+        </label>
+        <div
+          className="mt-1 text-[10px]"
+          style={{ color: "var(--text-muted)" }}
+        >
+          Require approval before the agent executes tool calls like file
+          writes and bash commands. When disabled, all tool calls are
+          auto-approved.
         </div>
       </div>
     </div>

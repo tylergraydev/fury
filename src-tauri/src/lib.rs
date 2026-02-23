@@ -47,6 +47,7 @@ pub fn run() {
             commands::agent::stop_agent,
             commands::agent::get_agent_status,
             commands::agent::clear_session,
+            commands::agent::respond_to_permission,
             // Chat commands
             commands::chat::save_chat_message,
             commands::chat::list_chat_messages,

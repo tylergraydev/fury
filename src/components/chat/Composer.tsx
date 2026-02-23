@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Send, Square, ChevronDown, Copy, ArrowRightFromLine, Check } from "lucide-react";
+import { Send, Square, ChevronDown, Copy, ArrowRightFromLine, Check, ShieldCheck, ShieldX } from "lucide-react";
 import type { AgentStatus, SlashCommand } from "../../lib/tauri";
+import type { PermissionRequestInfo } from "../../stores/chatStore";
 import { useTodoStore } from "../../stores/todoStore";
 import { useSlashCommandStore } from "../../stores/slashCommandStore";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
@@ -31,9 +32,12 @@ interface Props {
   isPlanApproval?: boolean;
   onApprovePlan?: () => void;
   onCopyPlan?: () => void;
+  permissionRequest?: PermissionRequestInfo | null;
+  onApprovePermission?: () => void;
+  onDenyPermission?: () => void;
 }
 
-export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan }: Props) {
+export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan, permissionRequest, onApprovePermission, onDenyPermission }: Props) {
   const workspaceId = contextType === "workspace" ? contextId : undefined;
   const [text, setText] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
@@ -218,11 +222,18 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
       }
     }
 
-    // Cmd+Shift+Enter to approve plan
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && e.shiftKey && isPlanApproval && onApprovePlan) {
-      e.preventDefault();
-      onApprovePlan();
-      return;
+    // Cmd+Shift+Enter to approve plan or permission
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
+      if (permissionRequest && onApprovePermission) {
+        e.preventDefault();
+        onApprovePermission();
+        return;
+      }
+      if (isPlanApproval && onApprovePlan) {
+        e.preventDefault();
+        onApprovePlan();
+        return;
+      }
     }
 
     if (e.key === "Enter" && !e.shiftKey) {
@@ -391,6 +402,56 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
             >
               <Check className="h-3.5 w-3.5" />
               Approve
+              <kbd
+                className="ml-1 rounded px-1 py-0.5 text-[9px] font-normal"
+                style={{
+                  backgroundColor: "rgba(0,0,0,0.2)",
+                  color: "inherit",
+                }}
+              >
+                ⌘⇧↵
+              </kbd>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Permission approval bar */}
+      {permissionRequest && (
+        <div
+          className="mb-2 flex items-center gap-2 rounded-lg px-3 py-2"
+          style={{
+            backgroundColor: "rgba(250, 179, 64, 0.08)",
+            border: "1px solid rgba(250, 179, 64, 0.3)",
+          }}
+        >
+          <ShieldCheck className="h-4 w-4 flex-shrink-0" style={{ color: "var(--warning)" }} />
+          <span className="flex-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+            Allow <strong style={{ color: "var(--text-primary)" }}>{permissionRequest.toolName}</strong>?
+          </span>
+          {onDenyPermission && (
+            <button
+              onClick={onDenyPermission}
+              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors hover:opacity-80"
+              style={{
+                color: "var(--error)",
+              }}
+            >
+              <ShieldX className="h-3.5 w-3.5" />
+              Deny
+            </button>
+          )}
+          {onApprovePermission && (
+            <button
+              onClick={onApprovePermission}
+              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-90"
+              style={{
+                backgroundColor: "var(--success)",
+                color: "var(--bg-primary)",
+              }}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Allow
               <kbd
                 className="ml-1 rounded px-1 py-0.5 text-[9px] font-normal"
                 style={{

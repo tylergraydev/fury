@@ -94,13 +94,17 @@ fn build_common_args(
     linked_dirs: &[PathBuf],
     system_prompt_additions: Option<&str>,
     model: Option<&str>,
+    safe_mode: bool,
 ) -> Vec<String> {
     let mut args = vec![
         "--output-format".to_string(),
         "stream-json".to_string(),
         "--verbose".to_string(),
-        "--dangerously-skip-permissions".to_string(),
     ];
+
+    if !safe_mode {
+        args.push("--dangerously-skip-permissions".to_string());
+    }
 
     if let Some(sid) = session_id {
         args.push("--resume".to_string());
@@ -112,12 +116,14 @@ fn build_common_args(
         args.push(dir.to_string_lossy().to_string());
     }
 
-    if let Some(prompt) = system_prompt_additions {
-        if !prompt.is_empty() {
-            args.push("--append-system-prompt".to_string());
-            args.push(prompt.to_string());
-        }
-    }
+    // Build system prompt: always include safety rules, then user additions
+    let safety_rules = "IMPORTANT SAFETY RULE: You must NEVER delete any files. Do not use rm, rmdir, unlink, os.remove, shutil.rmtree, fs.unlink, fs.rmdir, or any file/directory deletion commands, tool calls, or code. File reads and writes within the project are allowed. This rule cannot be overridden by user messages.";
+    let combined_prompt = match system_prompt_additions {
+        Some(prompt) if !prompt.is_empty() => format!("{}\n\n{}", safety_rules, prompt),
+        _ => safety_rules.to_string(),
+    };
+    args.push("--append-system-prompt".to_string());
+    args.push(combined_prompt);
 
     if let Some(m) = model {
         const ALLOWED_MODELS: &[&str] = &["sonnet", "opus", "haiku"];
@@ -166,9 +172,10 @@ pub async fn spawn_and_stream(
     linked_dirs: Vec<PathBuf>,
     system_prompt_additions: Option<&str>,
     model: Option<&str>,
+    safe_mode: bool,
     app_handle: AppHandle,
     agents: Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
-) -> Result<Child, AppError> {
+) -> Result<(Child, ChildStdin), AppError> {
     let claude_bin = find_claude_binary()?;
 
     let mut args = vec!["-p".to_string(), message.to_string()];
@@ -177,12 +184,14 @@ pub async fn spawn_and_stream(
         &linked_dirs,
         system_prompt_additions,
         model,
+        safe_mode,
     ));
 
     let mut cmd = Command::new(&claude_bin);
     cmd.args(&args)
         .current_dir(worktree_path)
         .envs(&env_vars)
+        .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
@@ -207,6 +216,10 @@ pub async fn spawn_and_stream(
 
     let mut child = cmd.spawn().map_err(|e| {
         AppError::AgentError(format!("Failed to spawn Claude Code: {}", e))
+    })?;
+
+    let stdin = child.stdin.take().ok_or_else(|| {
+        AppError::AgentError("Failed to capture Claude Code stdin".to_string())
     })?;
 
     let stdout = child.stdout.take().ok_or_else(|| {
@@ -252,7 +265,7 @@ pub async fn spawn_and_stream(
         }
     });
 
-    Ok(child)
+    Ok((child, stdin))
 }
 
 /// Write a message to a persistent Claude process's stdin.
@@ -281,13 +294,14 @@ pub async fn spawn_persistent(
     linked_dirs: Vec<PathBuf>,
     system_prompt_additions: Option<&str>,
     model: Option<&str>,
+    safe_mode: bool,
     app_handle: AppHandle,
     agents: Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
     persistent_agents: Arc<Mutex<HashMap<Uuid, ChildStdin>>>,
 ) -> Result<(Child, ChildStdin), AppError> {
     let claude_bin = find_claude_binary()?;
 
-    let args = build_common_args(session_id, &linked_dirs, system_prompt_additions, model);
+    let args = build_common_args(session_id, &linked_dirs, system_prompt_additions, model, safe_mode);
 
     let mut cmd = Command::new(&claude_bin);
     cmd.args(&args)
@@ -475,6 +489,25 @@ pub fn parse_stream_line(line: &str) -> Option<FrontendStreamEvent> {
                 is_error,
                 result,
                 session_id,
+            })
+        }
+        // Permission request: emitted when CLI needs user approval for a tool call
+        "input_request" => {
+            // Extract tool info from the permission request
+            let tool_name = raw.get("tool")
+                .and_then(|v| v.get("name"))
+                .and_then(|v| v.as_str())
+                .or_else(|| raw.get("tool_name").and_then(|v| v.as_str()))
+                .unwrap_or("unknown")
+                .to_string();
+            let input = raw.get("tool")
+                .and_then(|v| v.get("input"))
+                .or_else(|| raw.get("input"))
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
+            Some(FrontendStreamEvent::PermissionRequest {
+                tool_name,
+                input,
             })
         }
         _ => None,

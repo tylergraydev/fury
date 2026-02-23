@@ -123,7 +123,7 @@ export function DiffViewer({ workspaceId }: Props) {
             <button
               key={file.path}
               onClick={() => useDiffStore.getState().selectFile(workspaceId, file.path)}
-              className="flex w-full items-center gap-1.5 px-2 py-1 text-left text-xs transition-colors hover:opacity-80"
+              className="flex w-full items-center gap-1.5 px-2 py-1 text-left text-sm transition-colors hover:opacity-80"
               style={{
                 backgroundColor:
                   selectedFile === file.path

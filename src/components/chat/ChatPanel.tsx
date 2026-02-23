@@ -4,6 +4,7 @@ import { useChatStore } from "../../stores/chatStore";
 import { useCheckpointStore } from "../../stores/checkpointStore";
 import { useTodoStore } from "../../stores/todoStore";
 import type { ChatMessage, Checkpoint } from "../../lib/tauri";
+import { respondToPermission } from "../../lib/tauri";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
 
@@ -34,6 +35,9 @@ export function ChatPanel({ contextId, contextType }: Props) {
   );
   const isPlanApproval = useChatStore(
     (s) => s.planApproval[contextId] ?? false,
+  );
+  const permissionRequest = useChatStore(
+    (s) => s.permissionRequest[contextId] ?? null,
   );
 
   // Subscribe to events when context changes
@@ -120,6 +124,24 @@ export function ChatPanel({ contextId, contextType }: Props) {
     }
   }, [contextId]);
 
+  const handleApprovePermission = useCallback(async () => {
+    try {
+      useChatStore.getState().clearPermissionRequest(contextId);
+      await respondToPermission(contextId, true);
+    } catch (e) {
+      console.error("Failed to approve permission:", e);
+    }
+  }, [contextId]);
+
+  const handleDenyPermission = useCallback(async () => {
+    try {
+      useChatStore.getState().clearPermissionRequest(contextId);
+      await respondToPermission(contextId, false);
+    } catch (e) {
+      console.error("Failed to deny permission:", e);
+    }
+  }, [contextId]);
+
   const handleRevert = useCallback(
     async (checkpointId: string) => {
       try {
@@ -155,6 +177,9 @@ export function ChatPanel({ contextId, contextType }: Props) {
         isPlanApproval={isPlanApproval}
         onApprovePlan={handleApprovePlan}
         onCopyPlan={handleCopyPlan}
+        permissionRequest={permissionRequest}
+        onApprovePermission={handleApprovePermission}
+        onDenyPermission={handleDenyPermission}
       />
     </div>
   );

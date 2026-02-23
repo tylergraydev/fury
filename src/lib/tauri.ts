@@ -119,7 +119,8 @@ export type FrontendStreamEvent =
   | { type: "assistantText"; text: string }
   | { type: "toolUse"; id: string; name: string; input: unknown }
   | { type: "toolResult"; toolUseId: string; content: string }
-  | { type: "result"; isError: boolean; result: string | null; sessionId: string | null };
+  | { type: "result"; isError: boolean; result: string | null; sessionId: string | null }
+  | { type: "permissionRequest"; toolName: string; input: unknown };
 
 // Chat types
 export type MessageRole = "user" | "assistant" | "system";
@@ -201,6 +202,13 @@ export async function getAgentStatus(workspaceId: string): Promise<AgentInfo> {
 
 export async function clearSession(workspaceId: string): Promise<void> {
   return invoke("clear_session", { workspaceId });
+}
+
+export async function respondToPermission(
+  workspaceId: string,
+  approved: boolean,
+): Promise<void> {
+  return invoke("respond_to_permission", { workspaceId, approved });
 }
 
 // Checkpoint types
@@ -655,6 +663,7 @@ export interface ExperimentalSettings {
   spotlightTesting: boolean;
   agentTeams: boolean;
   persistentProcesses: boolean;
+  safeMode: boolean;
 }
 
 export interface CopilotSettings {
