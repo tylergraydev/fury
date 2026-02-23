@@ -35,8 +35,10 @@ function isCheckFailure(conclusion: string | null): boolean {
   return conclusion === "FAILURE" || conclusion === "failure";
 }
 
+// eslint-disable-next-line no-control-regex
+const ANSI_RE = /\x1b\[[0-9;]*[A-Za-z]/g;
 function stripAnsi(text: string): string {
-  return text.replace(/\x1b\[[0-9;]*m/g, "");
+  return text.replace(ANSI_RE, "");
 }
 
 function runStatusColor(run: WorkflowRun): string {
