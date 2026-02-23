@@ -1215,7 +1215,7 @@ function ExperimentalTab() {
     );
   }
 
-  const toggle = async (key: "spotlightTesting" | "agentTeams") => {
+  const toggle = async (key: "spotlightTesting" | "agentTeams" | "persistentProcesses") => {
     setSaving(true);
     try {
       await saveSettings({
@@ -1287,6 +1287,33 @@ function ExperimentalTab() {
           Make agents aware of sibling workspaces in the same repo. Sets
           CONDUCTOR_AGENT_TEAMS and CONDUCTOR_TEAM_WORKSPACES environment
           variables so agents can coordinate.
+        </div>
+      </div>
+
+      {/* Performance Mode */}
+      <div
+        className="rounded p-3"
+        style={{
+          backgroundColor: "var(--bg-surface)",
+          border: "1px solid var(--border)",
+        }}
+      >
+        <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-primary)" }}>
+          <input
+            type="checkbox"
+            checked={appSettings.experimental.persistentProcesses}
+            onChange={() => toggle("persistentProcesses")}
+            disabled={saving}
+          />
+          Performance Mode
+        </label>
+        <div
+          className="mt-1 text-[10px]"
+          style={{ color: "var(--text-muted)" }}
+        >
+          Keep Claude processes alive between turns to eliminate startup
+          latency. Uses more memory per workspace. When disabled (Low RAM
+          mode), a new process is spawned for each turn.
         </div>
       </div>
     </div>

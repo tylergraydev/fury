@@ -791,7 +791,7 @@ describe("App settings commands", () => {
       provider: { providerType: "Anthropic" as const, envVars: {} },
       systemPromptAdditions: null,
       analyticsEnabled: true,
-      experimental: { spotlightTesting: false, agentTeams: false },
+      experimental: { spotlightTesting: false, agentTeams: false, persistentProcesses: false },
       copilot: { enabled: false },
     };
     (invoke as any).mockResolvedValueOnce(settings);
@@ -806,7 +806,7 @@ describe("App settings commands", () => {
       provider: { providerType: "Anthropic" as const, envVars: { ANTHROPIC_API_KEY: "key" } },
       systemPromptAdditions: "Be helpful",
       analyticsEnabled: false,
-      experimental: { spotlightTesting: true, agentTeams: false },
+      experimental: { spotlightTesting: true, agentTeams: false, persistentProcesses: false },
       copilot: { enabled: true },
     };
     await updateAppSettings(settings);
