@@ -505,10 +505,27 @@ pub fn parse_stream_line(line: &str) -> Option<FrontendStreamEvent> {
                 || raw.get("subtype").and_then(|v| v.as_str()) == Some("error");
             let result = raw.get("result").and_then(|v| v.as_str()).map(String::from);
             let session_id = raw.get("session_id").and_then(|v| v.as_str()).map(String::from);
+            let duration_ms = raw.get("duration_ms").and_then(|v| v.as_u64());
+            let duration_api_ms = raw.get("duration_api_ms").and_then(|v| v.as_u64());
+            let total_cost_usd = raw.get("total_cost_usd").and_then(|v| v.as_f64());
+            let num_turns = raw.get("num_turns").and_then(|v| v.as_u64()).map(|v| v as u32);
+            let usage = raw.get("usage");
+            let input_tokens = usage.and_then(|u| u.get("input_tokens")).and_then(|v| v.as_u64());
+            let output_tokens = usage.and_then(|u| u.get("output_tokens")).and_then(|v| v.as_u64());
+            let cache_read_tokens = usage.and_then(|u| u.get("cache_read_input_tokens")).and_then(|v| v.as_u64());
+            let cache_creation_tokens = usage.and_then(|u| u.get("cache_creation_input_tokens")).and_then(|v| v.as_u64());
             Some(FrontendStreamEvent::Result {
                 is_error,
                 result,
                 session_id,
+                duration_ms,
+                duration_api_ms,
+                total_cost_usd,
+                num_turns,
+                input_tokens,
+                output_tokens,
+                cache_read_tokens,
+                cache_creation_tokens,
             })
         }
         // Permission request: emitted when CLI needs user approval for a tool call

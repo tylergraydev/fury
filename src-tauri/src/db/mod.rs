@@ -558,13 +558,18 @@ impl Database {
 
     pub fn insert_chat_message(&self, msg: &ChatMessage) -> Result<(), AppError> {
         let content_json = serde_json::to_string(&msg.content)?;
+        let metadata_json = msg
+            .metadata
+            .as_ref()
+            .map(|m| serde_json::to_string(m))
+            .transpose()?;
         let role_str = match msg.role {
             MessageRole::User => "user",
             MessageRole::Assistant => "assistant",
             MessageRole::System => "system",
         };
         self.conn.execute(
-            "INSERT OR REPLACE INTO chat_messages (id, workspace_id, role, content, timestamp, display_text) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT OR REPLACE INTO chat_messages (id, workspace_id, role, content, timestamp, display_text, metadata) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             rusqlite::params![
                 msg.id.to_string(),
                 msg.workspace_id.to_string(),
@@ -572,6 +577,7 @@ impl Database {
                 content_json,
                 msg.timestamp.to_rfc3339(),
                 msg.display_text,
+                metadata_json,
             ],
         )?;
         Ok(())
@@ -579,7 +585,7 @@ impl Database {
 
     pub fn list_chat_messages(&self, workspace_id: &Uuid) -> Result<Vec<ChatMessage>, AppError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, workspace_id, role, content, timestamp, display_text
+            "SELECT id, workspace_id, role, content, timestamp, display_text, metadata
              FROM chat_messages WHERE workspace_id = ?1 ORDER BY timestamp ASC, rowid ASC",
         )?;
         let messages = stmt
@@ -588,6 +594,17 @@ impl Database {
                 let content_json: String = row.get(3)?;
                 let timestamp_str: String = row.get(4)?;
                 let display_text: Option<String> = row.get(5)?;
+                let metadata_json: Option<String> = row.get(6)?;
+                let metadata = match metadata_json {
+                    Some(j) => match serde_json::from_str(&j) {
+                        Ok(m) => Some(m),
+                        Err(e) => {
+                            eprintln!("[db] Failed to deserialize chat message metadata: {e}");
+                            None
+                        }
+                    },
+                    None => None,
+                };
                 Ok(ChatMessage {
                     id: row.get::<_, String>(0)?.parse::<Uuid>().unwrap_or_default(),
                     workspace_id: row.get::<_, String>(1)?.parse::<Uuid>().unwrap_or_default(),
@@ -602,6 +619,7 @@ impl Database {
                         .parse::<DateTime<Utc>>()
                         .unwrap_or_else(|_| Utc::now()),
                     display_text,
+                    metadata,
                 })
             })?
             .filter_map(|r| r.ok())

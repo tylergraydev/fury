@@ -4,6 +4,7 @@ import type {
   ChatMessage,
   ContentBlock,
   FrontendStreamEvent,
+  ResponseMetadata,
   SlashCommand,
 } from "../lib/tauri";
 import {
@@ -20,12 +21,20 @@ export interface PermissionRequestInfo {
   input: unknown;
 }
 
+export interface SessionStats {
+  totalCostUsd: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  numTurns: number;
+}
+
 interface ChatStore {
   messages: Record<string, ChatMessage[]>;
   streamingText: Record<string, string>;
   planApproval: Record<string, boolean>;
   permissionRequest: Record<string, PermissionRequestInfo | null>;
   subscriptions: Record<string, UnlistenFn>;
+  sessionStats: Record<string, SessionStats>;
 
   subscribe: (workspaceId: string) => Promise<void>;
   unsubscribe: (workspaceId: string) => void;
@@ -34,6 +43,7 @@ interface ChatStore {
   getMessages: (workspaceId: string) => ChatMessage[];
   getStreamingText: (workspaceId: string) => string;
   getPlanContent: (workspaceId: string) => string;
+  getSessionStats: (workspaceId: string) => SessionStats | undefined;
   loadMessages: (workspaceId: string) => Promise<void>;
   removeTrailingSystemMessages: (workspaceId: string) => void;
   clearPermissionRequest: (workspaceId: string) => void;
@@ -45,6 +55,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   planApproval: {},
   permissionRequest: {},
   subscriptions: {},
+  sessionStats: {},
 
   subscribe: async (workspaceId: string) => {
     if (get().subscriptions[workspaceId]) return;
@@ -98,12 +109,16 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   clearMessages: (workspaceId: string) => {
-    set((state) => ({
-      messages: { ...state.messages, [workspaceId]: [] },
-      streamingText: { ...state.streamingText, [workspaceId]: "" },
-      planApproval: { ...state.planApproval, [workspaceId]: false },
-      permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
-    }));
+    set((state) => {
+      const { [workspaceId]: _, ...restStats } = state.sessionStats;
+      return {
+        messages: { ...state.messages, [workspaceId]: [] },
+        streamingText: { ...state.streamingText, [workspaceId]: "" },
+        planApproval: { ...state.planApproval, [workspaceId]: false },
+        permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
+        sessionStats: restStats,
+      };
+    });
     clearChatMessagesCmd(workspaceId).catch(console.error);
   },
 
@@ -113,6 +128,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   getStreamingText: (workspaceId: string) => {
     return get().streamingText[workspaceId] ?? "";
+  },
+
+  getSessionStats: (workspaceId: string) => {
+    return get().sessionStats[workspaceId];
   },
 
   getPlanContent: (workspaceId: string) => {
@@ -136,11 +155,28 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       const persisted = await listChatMessages(workspaceId);
       const messages = persisted.map(fromPersisted);
       if (messages.length > 0) {
+        // Restore session stats from the last message with metadata
+        let restoredStats: SessionStats | undefined;
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const meta = messages[i].metadata;
+          if (meta) {
+            restoredStats = {
+              totalCostUsd: meta.totalCostUsd ?? 0,
+              totalInputTokens: meta.inputTokens ?? 0,
+              totalOutputTokens: meta.outputTokens ?? 0,
+              numTurns: meta.numTurns ?? 0,
+            };
+            break;
+          }
+        }
         set((state) => ({
           messages: {
             ...state.messages,
             [workspaceId]: messages,
           },
+          ...(restoredStats ? {
+            sessionStats: { ...state.sessionStats, [workspaceId]: restoredStats },
+          } : {}),
         }));
       }
     } catch (e) {
@@ -321,7 +357,56 @@ function handleStreamEvent(
         permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
       }));
 
-      // If error, add a user-friendly error message
+      // Build metadata from the result event
+      const metadata: ResponseMetadata = {
+        durationMs: event.durationMs,
+        durationApiMs: event.durationApiMs,
+        totalCostUsd: event.totalCostUsd,
+        numTurns: event.numTurns,
+        inputTokens: event.inputTokens,
+        outputTokens: event.outputTokens,
+        cacheReadTokens: event.cacheReadTokens,
+        cacheCreationTokens: event.cacheCreationTokens,
+      };
+      const hasMetadata = Object.values(metadata).some((v) => v != null);
+
+      // Attach metadata to last assistant message and persist (before error message changes lastMsg)
+      const messages = get().messages[workspaceId] ?? [];
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg && lastMsg.role === "assistant") {
+        const updated = hasMetadata ? { ...lastMsg, metadata } : lastMsg;
+        if (hasMetadata) {
+          set((state) => ({
+            messages: {
+              ...state.messages,
+              [workspaceId]: [...(state.messages[workspaceId] ?? []).slice(0, -1), updated],
+            },
+          }));
+        }
+        persistMessage(workspaceId, updated);
+      }
+
+      // Update session stats with cumulative totals from the CLI result event.
+      // These are session-level snapshots reported by Claude Code, not locally accumulated.
+      // Preserve previous values when fields are absent to avoid resetting on partial data.
+      if (hasMetadata) {
+        set((state) => {
+          const prev = state.sessionStats[workspaceId];
+          return {
+            sessionStats: {
+              ...state.sessionStats,
+              [workspaceId]: {
+                totalCostUsd: event.totalCostUsd ?? prev?.totalCostUsd ?? 0,
+                totalInputTokens: event.inputTokens ?? prev?.totalInputTokens ?? 0,
+                totalOutputTokens: event.outputTokens ?? prev?.totalOutputTokens ?? 0,
+                numTurns: event.numTurns ?? prev?.numTurns ?? 0,
+              },
+            },
+          };
+        });
+      }
+
+      // If error, add a user-friendly error message (after metadata is already attached)
       if (event.isError && event.result) {
         const friendly = formatErrorMessage(event.result);
         const msg: ChatMessage = {
@@ -337,13 +422,6 @@ function handleStreamEvent(
           },
         }));
         persistMessage(workspaceId, msg);
-      }
-
-      // Persist the final state of the last assistant message
-      const messages = get().messages[workspaceId] ?? [];
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg && lastMsg.role === "assistant") {
-        persistMessage(workspaceId, lastMsg);
       }
       break;
     }

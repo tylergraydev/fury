@@ -4,7 +4,9 @@ import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { AgentStatus, SlashCommand } from "../../lib/tauri";
 import { readFileBase64 } from "../../lib/tauri";
+import { formatTokens, formatCost } from "../../lib/format";
 import type { PermissionRequestInfo } from "../../stores/chatStore";
+import { useChatStore } from "../../stores/chatStore";
 import { useTodoStore } from "../../stores/todoStore";
 import { useSlashCommandStore } from "../../stores/slashCommandStore";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
@@ -118,6 +120,42 @@ interface AtMenuItem {
   value: string;
 }
 
+const CONTEXT_WINDOW_TOKENS = 200_000;
+
+function ContextUsageIndicator({ stats }: { stats: { totalInputTokens: number; totalCostUsd: number } }) {
+  const pct = Math.min(100, (stats.totalInputTokens / CONTEXT_WINDOW_TOKENS) * 100);
+  const isWarning = pct >= 75;
+  const isCritical = pct >= 90;
+
+  const costStr = formatCost(stats.totalCostUsd);
+
+  let color = "var(--text-muted)";
+  if (isCritical) color = "var(--error)";
+  else if (isWarning) color = "var(--accent-orange)";
+
+  return (
+    <div
+      className="flex items-center gap-2 text-[11px] select-none"
+      style={{ color }}
+      title={`${formatTokens(stats.totalInputTokens)} / ${formatTokens(CONTEXT_WINDOW_TOKENS)} tokens used (${pct.toFixed(0)}%) · Cost: ${costStr}`}
+    >
+      <div
+        className="h-1 w-16 rounded-full overflow-hidden"
+        style={{ backgroundColor: "var(--bg-hover)" }}
+      >
+        <div
+          className="h-full rounded-full transition-all duration-300"
+          style={{
+            width: `${pct}%`,
+            backgroundColor: color,
+          }}
+        />
+      </div>
+      <span>{costStr}</span>
+    </div>
+  );
+}
+
 interface Props {
   contextId: string;
   contextType: "workspace" | "repo";
@@ -138,6 +176,7 @@ interface Props {
 
 export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan, permissionRequest, onRespondToPermission, thinkingEnabled, onThinkingEnabledChange, planEnabled, onPlanEnabledChange, onLinkWorkspaces }: Props) {
   const workspaceId = contextType === "workspace" ? contextId : undefined;
+  const sessionStats = useChatStore((s) => s.sessionStats[contextId]);
   const [text, setText] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -636,6 +675,27 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
         />
       )}
 
+      {/* Context near-full warning with compact button */}
+      {sessionStats && sessionStats.totalInputTokens > 0 && (sessionStats.totalInputTokens / CONTEXT_WINDOW_TOKENS) >= 0.9 && agentStatus === "Idle" && (
+        <ActionBar
+          icon={<Brain className="h-4 w-4 flex-shrink-0" style={{ color: "var(--error)" }} />}
+          description={<span>Context window is {Math.round((sessionStats.totalInputTokens / CONTEXT_WINDOW_TOKENS) * 100)}% full. Compact to free space.</span>}
+          bgStyle={{ backgroundColor: "color-mix(in srgb, var(--error) 10%, transparent)" }}
+          primaryAction={
+            <button
+              onClick={() => onSend("/compact")}
+              className="rounded-md px-3 py-1 text-xs font-medium transition-colors"
+              style={{
+                backgroundColor: "var(--error)",
+                color: "var(--bg-primary)",
+              }}
+            >
+              Compact
+            </button>
+          }
+        />
+      )}
+
       {/* Input area with autocomplete */}
       <div className="relative">
         {/* Slash command autocomplete dropdown */}
@@ -866,6 +926,11 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
                 </button>
               )}
             </div>
+
+            {/* Center: Context usage indicator */}
+            {sessionStats && sessionStats.totalInputTokens > 0 && (
+              <ContextUsageIndicator stats={sessionStats} />
+            )}
 
             {/* Right side: Plus button, Send button */}
             <div className="flex items-center gap-1.5">

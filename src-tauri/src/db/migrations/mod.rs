@@ -105,5 +105,8 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
     // Add display_text column to chat_messages (idempotent)
     let _ = conn.execute_batch("ALTER TABLE chat_messages ADD COLUMN display_text TEXT;");
 
+    // Add metadata column to chat_messages (idempotent) — stores JSON for response stats
+    let _ = conn.execute_batch("ALTER TABLE chat_messages ADD COLUMN metadata TEXT;");
+
     Ok(())
 }

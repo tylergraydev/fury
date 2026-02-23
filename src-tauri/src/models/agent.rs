@@ -135,6 +135,22 @@ pub enum FrontendStreamEvent {
         is_error: bool,
         result: Option<String>,
         session_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        duration_ms: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        duration_api_ms: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        total_cost_usd: Option<f64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        num_turns: Option<u32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        input_tokens: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        output_tokens: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_read_tokens: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_creation_tokens: Option<u64>,
     },
     PermissionRequest {
         tool_name: String,
