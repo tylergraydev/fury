@@ -61,6 +61,7 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
   const [loadingPrs, setLoadingPrs] = useState(false);
   const [selectedPr, setSelectedPr] = useState<PrListItem | null>(null);
   const [prSearch, setPrSearch] = useState("");
+  const [prError, setPrError] = useState<string | null>(null);
 
   // Issue mode state
   const [issues, setIssues] = useState<IssueListItem[]>([]);
@@ -69,6 +70,7 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
     null,
   );
   const [issueSearch, setIssueSearch] = useState("");
+  const [issueError, setIssueError] = useState<string | null>(null);
 
   useEffect(() => {
     setLoadingBranches(true);
@@ -84,28 +86,39 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
           setBaseBranch(defaultBranch);
         }
       })
-      .catch(() => setBranches([]))
+      .catch((e) => {
+        setBranches([]);
+        setError(String(e));
+      })
       .finally(() => setLoadingBranches(false));
   }, [repoId]);
 
   // Fetch PRs when switching to PR mode
   useEffect(() => {
-    if (mode === "pr" && prs.length === 0 && !loadingPrs) {
+    if (mode === "pr" && prs.length === 0 && !loadingPrs && !prError) {
       setLoadingPrs(true);
+      setPrError(null);
       listRepoPrs(repoId)
         .then(setPrs)
-        .catch(() => setPrs([]))
+        .catch((e) => {
+          setPrs([]);
+          setPrError(String(e));
+        })
         .finally(() => setLoadingPrs(false));
     }
   }, [mode, repoId]);
 
   // Fetch issues when switching to issue mode
   useEffect(() => {
-    if (mode === "issue" && issues.length === 0 && !loadingIssues) {
+    if (mode === "issue" && issues.length === 0 && !loadingIssues && !issueError) {
       setLoadingIssues(true);
+      setIssueError(null);
       listRepoIssues(repoId)
         .then(setIssues)
-        .catch(() => setIssues([]))
+        .catch((e) => {
+          setIssues([]);
+          setIssueError(String(e));
+        })
         .finally(() => setLoadingIssues(false));
     }
   }, [mode, repoId]);
@@ -313,6 +326,13 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
                 >
                   Loading pull requests...
                 </div>
+              ) : prError ? (
+                <div
+                  className="px-3 py-4 text-center text-xs"
+                  style={{ color: "var(--error)" }}
+                >
+                  Failed to load pull requests: {prError}
+                </div>
               ) : filteredPrs.length === 0 ? (
                 <div
                   className="px-3 py-4 text-center text-xs"
@@ -393,6 +413,13 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
                   style={{ color: "var(--text-muted)" }}
                 >
                   Loading issues...
+                </div>
+              ) : issueError ? (
+                <div
+                  className="px-3 py-4 text-center text-xs"
+                  style={{ color: "var(--error)" }}
+                >
+                  Failed to load issues: {issueError}
                 </div>
               ) : filteredIssues.length === 0 ? (
                 <div

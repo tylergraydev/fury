@@ -115,5 +115,6 @@ pub struct IssueDetail {
     pub number: u32,
     pub title: String,
     pub body: String,
+    pub state: String,
     pub labels: Vec<String>,
 }

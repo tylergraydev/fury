@@ -648,6 +648,7 @@ export interface IssueDetail {
   number: number;
   title: string;
   body: string;
+  state: string;
   labels: string[];
 }
 

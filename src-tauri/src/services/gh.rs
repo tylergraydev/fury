@@ -364,39 +364,42 @@ pub fn list_repo_prs(repo_path: &Path) -> Result<Vec<PrListItem>, AppError> {
 
     Ok(raw
         .iter()
-        .map(|pr| PrListItem {
-            number: pr.get("number").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-            title: pr
-                .get("title")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            head_branch: pr
-                .get("headRefName")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            base_branch: pr
-                .get("baseRefName")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            state: pr
-                .get("state")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            author: pr
-                .get("author")
-                .and_then(|v| v.get("login"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            url: pr
-                .get("url")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
+        .filter_map(|pr| {
+            let number = pr.get("number").and_then(|v| v.as_u64())? as u32;
+            Some(PrListItem {
+                number,
+                title: pr
+                    .get("title")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                head_branch: pr
+                    .get("headRefName")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                base_branch: pr
+                    .get("baseRefName")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                state: pr
+                    .get("state")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                author: pr
+                    .get("author")
+                    .and_then(|v| v.get("login"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                url: pr
+                    .get("url")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+            })
         })
         .collect())
 }
@@ -487,32 +490,37 @@ pub fn list_repo_issues(repo_path: &Path) -> Result<Vec<IssueListItem>, AppError
 
     Ok(raw
         .iter()
-        .map(|issue| IssueListItem {
-            number: issue.get("number").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-            title: issue
-                .get("title")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            body: issue
-                .get("body")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            state: issue
-                .get("state")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            labels: issue
-                .get("labels")
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|l| l.get("name").and_then(|n| n.as_str()).map(String::from))
-                        .collect()
-                })
-                .unwrap_or_default(),
+        .filter_map(|issue| {
+            let number = issue.get("number").and_then(|v| v.as_u64())? as u32;
+            Some(IssueListItem {
+                number,
+                title: issue
+                    .get("title")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                body: issue
+                    .get("body")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                state: issue
+                    .get("state")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                labels: issue
+                    .get("labels")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|l| {
+                                l.get("name").and_then(|n| n.as_str()).map(String::from)
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            })
         })
         .collect())
 }
@@ -525,7 +533,7 @@ pub fn get_issue_detail(repo_path: &Path, number: u32) -> Result<IssueDetail, Ap
             "view",
             &number.to_string(),
             "--json",
-            "number,title,body,labels",
+            "number,title,body,state,labels",
         ])
         .current_dir(repo_path)
         .output()
@@ -550,6 +558,11 @@ pub fn get_issue_detail(repo_path: &Path, number: u32) -> Result<IssueDetail, Ap
             .to_string(),
         body: raw
             .get("body")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        state: raw
+            .get("state")
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string(),

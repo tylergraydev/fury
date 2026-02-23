@@ -48,12 +48,29 @@ pub fn create_workspace(
             .join(&repo.name),
     };
 
-    // Fetch remote branch if requested (needed for PR branches that don't exist locally)
+    // Fetch remote branch if requested (needed for PR branches that don't exist locally).
+    // Uses <src>:<dst> refspec to create a local branch ref from the remote one,
+    // so create_worktree can find it via refs/heads/<branch>.
     if request.fetch_remote_branch.unwrap_or(false) {
-        let _ = std::process::Command::new("git")
-            .args(["fetch", "origin", &request.branch_name])
+        let refspec = format!("{}:{}", &request.branch_name, &request.branch_name);
+        let fetch_output = std::process::Command::new("git")
+            .args(["fetch", "origin", &refspec])
             .current_dir(&repo.path)
-            .output();
+            .output()
+            .map_err(|e| {
+                AppError::GitError(format!("Failed to fetch branch '{}': {}", request.branch_name, e))
+            })?;
+
+        if !fetch_output.status.success() {
+            let stderr = String::from_utf8_lossy(&fetch_output.stderr);
+            // Allow failure if branch already exists locally
+            if !stderr.contains("already exists") {
+                return Err(AppError::GitError(format!(
+                    "Failed to fetch branch '{}': {}",
+                    request.branch_name, stderr
+                )));
+            }
+        }
     }
 
     // Create git worktree
