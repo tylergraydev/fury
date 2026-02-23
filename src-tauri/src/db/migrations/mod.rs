@@ -102,5 +102,8 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
     )
     .map_err(|e| AppError::DbError(e.to_string()))?;
 
+    // Add display_text column to chat_messages (idempotent)
+    let _ = conn.execute_batch("ALTER TABLE chat_messages ADD COLUMN display_text TEXT;");
+
     Ok(())
 }

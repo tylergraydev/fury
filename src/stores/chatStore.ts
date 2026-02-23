@@ -4,6 +4,7 @@ import type {
   ChatMessage,
   ContentBlock,
   FrontendStreamEvent,
+  SlashCommand,
 } from "../lib/tauri";
 import {
   saveChatMessage,
@@ -12,6 +13,7 @@ import {
   toPersisted,
   fromPersisted,
 } from "../lib/tauri";
+import { useSlashCommandStore } from "./slashCommandStore";
 
 export interface PermissionRequestInfo {
   toolName: string;
@@ -233,8 +235,13 @@ function handleStreamEvent(
 ) {
   switch (event.type) {
     case "system": {
-      // System messages can optionally be shown
+      // Extract discovered skills from system-reminder content
       if (event.message) {
+        const skills = parseSkillsFromSystemMessage(event.message);
+        if (skills.length > 0) {
+          useSlashCommandStore.getState().addDiscoveredSkills(workspaceId, skills);
+        }
+
         const msg: ChatMessage = {
           id: crypto.randomUUID(),
           role: "system",
@@ -411,4 +418,41 @@ function appendContentBlock(
       },
     }));
   }
+}
+
+/**
+ * Parse skill names and descriptions from a Claude Code system-reminder message.
+ * The format is:
+ *   The following skills are available for use with the Skill tool:
+ *   - skill-name: Description text
+ *   - plugin:skill-name: Description text
+ */
+export function parseSkillsFromSystemMessage(message: string): SlashCommand[] {
+  const marker = "skills are available for use with the Skill tool:";
+  const idx = message.indexOf(marker);
+  if (idx === -1) return [];
+
+  const after = message.substring(idx + marker.length);
+  // Stop at the next </system-reminder> or end of string
+  const endIdx = after.indexOf("</system-reminder>");
+  const block = endIdx >= 0 ? after.substring(0, endIdx) : after;
+
+  const skills: SlashCommand[] = [];
+  for (const line of block.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("- ")) continue;
+    const rest = trimmed.substring(2);
+    const colonIdx = rest.indexOf(": ");
+    if (colonIdx === -1) continue;
+    const name = rest.substring(0, colonIdx).trim();
+    const description = rest.substring(colonIdx + 2).trim();
+    if (!name) continue;
+    skills.push({
+      name,
+      source: "plugin",
+      description,
+      content: `/${name}`,
+    });
+  }
+  return skills;
 }

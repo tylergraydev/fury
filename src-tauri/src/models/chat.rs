@@ -10,6 +10,8 @@ pub struct ChatMessage {
     pub role: MessageRole,
     pub content: Vec<ContentBlock>,
     pub timestamp: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_text: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

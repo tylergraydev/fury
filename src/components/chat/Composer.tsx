@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Send, Square, ChevronDown, Copy, ArrowRightFromLine, Check, ShieldCheck, ShieldX, X, FileText as FileIcon } from "lucide-react";
+import { Square, Copy, ArrowRightFromLine, Check, ShieldCheck, ShieldX, X, FileText as FileIcon, Sparkles, Brain, BookOpen, ArrowUp, Plus, Paperclip, CircleDot, Link2 } from "lucide-react";
+import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { AgentStatus, SlashCommand } from "../../lib/tauri";
 import { readFileBase64 } from "../../lib/tauri";
@@ -102,10 +103,10 @@ function ActionBarButton({ onClick, icon: Icon, label, color, bgColor, showShort
 
 
 const MODEL_OPTIONS = [
-  { value: "", label: "Default" },
-  { value: "sonnet", label: "Sonnet" },
-  { value: "opus", label: "Opus" },
-  { value: "haiku", label: "Haiku" },
+  { value: "", label: "Default", displayName: "Opus 4.6" },
+  { value: "sonnet", label: "Sonnet", displayName: "Sonnet" },
+  { value: "opus", label: "Opus", displayName: "Opus 4.6" },
+  { value: "haiku", label: "Haiku", displayName: "Haiku" },
 ] as const;
 
 const EMPTY_COMMANDS: SlashCommand[] = [];
@@ -132,9 +133,10 @@ interface Props {
   onThinkingEnabledChange: (enabled: boolean) => void;
   planEnabled: boolean;
   onPlanEnabledChange: (enabled: boolean) => void;
+  onLinkWorkspaces?: () => void;
 }
 
-export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan, permissionRequest, onRespondToPermission, thinkingEnabled, onThinkingEnabledChange, planEnabled, onPlanEnabledChange }: Props) {
+export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan, permissionRequest, onRespondToPermission, thinkingEnabled, onThinkingEnabledChange, planEnabled, onPlanEnabledChange, onLinkWorkspaces }: Props) {
   const workspaceId = contextType === "workspace" ? contextId : undefined;
   const [text, setText] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
@@ -154,12 +156,21 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
   const [droppedFiles, setDroppedFiles] = useState<DroppedFile[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
 
+  // Model popover state
+  const [showModelMenu, setShowModelMenu] = useState(false);
+  // Plus menu popover state
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const plusMenuRef = useRef<HTMLDivElement>(null);
+
   // Track pending slash command name for display in chat bubble
   const [pendingCommandName, setPendingCommandName] = useState<string | null>(null);
+  // Store expanded command content separately so the textarea shows only /{name}
+  const [pendingCommandContent, setPendingCommandContent] = useState<string | null>(null);
+
+  const currentModelDisplay = MODEL_OPTIONS.find(m => m.value === selectedModel)?.displayName ?? "Opus 4.6";
 
   const isRunning = agentStatus === "Running";
   const isStopping = agentStatus === "Stopping";
-  const isError = typeof agentStatus === "object" && "Error" in agentStatus;
   const canSend = (text.trim().length > 0 || droppedFiles.length > 0) && !isRunning && !isStopping;
 
   // Load slash commands when context changes
@@ -245,6 +256,58 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     };
   }, []);
 
+  // Close model menu on outside click
+  useEffect(() => {
+    if (!showModelMenu) return;
+    const handleClick = () => setShowModelMenu(false);
+    const id = setTimeout(() => document.addEventListener("click", handleClick), 0);
+    return () => {
+      clearTimeout(id);
+      document.removeEventListener("click", handleClick);
+    };
+  }, [showModelMenu]);
+
+  // Close plus menu on outside click
+  useEffect(() => {
+    if (!showPlusMenu) return;
+    const handleClick = () => setShowPlusMenu(false);
+    const id = setTimeout(() => document.addEventListener("click", handleClick), 0);
+    return () => {
+      clearTimeout(id);
+      document.removeEventListener("click", handleClick);
+    };
+  }, [showPlusMenu]);
+
+  const handleAddAttachment = useCallback(async () => {
+    setShowPlusMenu(false);
+    const selected = await openFileDialog({
+      multiple: true,
+      title: "Add attachment",
+    });
+    if (!selected) return;
+    const paths = Array.isArray(selected) ? selected : [selected];
+    const newFiles: DroppedFile[] = paths.map((p) => {
+      const name = p.split("/").pop() ?? p;
+      return { id: `file-${++fileIdCounter}`, path: p, name, isImage: isImageFile(p) };
+    });
+    setDroppedFiles((prev) => [...prev, ...newFiles]);
+    for (const f of newFiles) {
+      if (f.isImage) {
+        readFileBase64(f.path)
+          .then((dataUrl) => {
+            setDroppedFiles((prev) =>
+              prev.map((df) => (df.id === f.id ? { ...df, dataUrl } : df)),
+            );
+          })
+          .catch(() => {
+            setDroppedFiles((prev) =>
+              prev.map((df) => (df.id === f.id ? { ...df, dataUrl: "error" } : df)),
+            );
+          });
+      }
+    }
+  }, []);
+
   const removeDroppedFile = useCallback((index: number) => {
     setDroppedFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
@@ -252,10 +315,15 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
   const fileCommands = useSlashCommandStore((s) =>
     s.commands[contextId] ?? EMPTY_COMMANDS,
   );
-  const allCommands: SlashCommand[] = useMemo(
-    () => [...BUILTIN_COMMANDS, ...fileCommands],
-    [fileCommands],
+  const discoveredSkills = useSlashCommandStore((s) =>
+    s.discoveredSkills[contextId] ?? EMPTY_COMMANDS,
   );
+  const allCommands: SlashCommand[] = useMemo(() => {
+    // File-discovered commands take priority; add stream-discovered skills that aren't duplicates
+    const knownNames = new Set(fileCommands.map((c) => c.name));
+    const uniqueSkills = discoveredSkills.filter((s) => !knownNames.has(s.name));
+    return [...BUILTIN_COMMANDS, ...fileCommands, ...uniqueSkills];
+  }, [fileCommands, discoveredSkills]);
   const matchingCommands = useMemo(() => {
     if (!slashFilter) return allCommands;
     const lower = slashFilter.toLowerCase();
@@ -282,7 +350,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
 
   const handleSend = useCallback(() => {
     if (!canSend) return;
-    let message = text.trim();
+    let message = pendingCommandContent ?? text.trim();
 
     // Expand @todos mention
     if (workspaceId && message.includes("@todos")) {
@@ -307,11 +375,12 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     setShowSlashMenu(false);
     setShowAtMenu(false);
     setPendingCommandName(null);
+    setPendingCommandContent(null);
     /* v8 ignore next 3 -- @preserve */
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-  }, [canSend, text, droppedFiles, onSend, workspaceId, selectedModel, pendingCommandName]);
+  }, [canSend, text, droppedFiles, onSend, workspaceId, selectedModel, pendingCommandName, pendingCommandContent]);
 
   const selectSlashCommand = useCallback(
     (cmd: SlashCommand) => {
@@ -333,8 +402,9 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
         return;
       }
 
-      setText(textBeforeLine + cmd.content + textAfterCursor);
+      setText(textBeforeLine + `/${cmd.name}` + textAfterCursor);
       setPendingCommandName(`/${cmd.name}`);
+      setPendingCommandContent(cmd.content);
       setShowSlashMenu(false);
     },
     [text],
@@ -413,6 +483,27 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
       }
     }
 
+    // Option+T to toggle thinking
+    if (e.key === "t" && e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+      e.preventDefault();
+      onThinkingEnabledChange(!thinkingEnabled);
+      return;
+    }
+
+    // Option+P to change model
+    if (e.key === "p" && e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+      e.preventDefault();
+      setShowModelMenu((prev) => !prev);
+      return;
+    }
+
+    // Shift+Tab to toggle plan mode
+    if (e.key === "Tab" && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      onPlanEnabledChange(!planEnabled);
+      return;
+    }
+
     // Cmd+Shift+Enter to approve plan or permission
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
       if (permissionRequest && onRespondToPermission) {
@@ -436,7 +527,10 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setText(value);
-    if (pendingCommandName) setPendingCommandName(null);
+    if (pendingCommandName) {
+      setPendingCommandName(null);
+      setPendingCommandContent(null);
+    }
 
     const cursorPos = e.target.selectionStart;
     const textBeforeCursor = value.substring(0, cursorPos);
@@ -481,19 +575,6 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     el.style.height = Math.min(el.scrollHeight, 200) + "px";
   };
 
-  let statusColor: string;
-  let statusLabel: string;
-  if (isRunning || isStopping) {
-    statusColor = "var(--warning)";
-    statusLabel = isRunning ? "Running" : "Stopping";
-  } else if (isError) {
-    statusColor = "var(--error)";
-    statusLabel = "Error";
-  } else {
-    statusColor = "var(--success)";
-    statusLabel = "Idle";
-  }
-
   let placeholderText: string;
   if (isRunning) {
     placeholderText = "Waiting for response...";
@@ -506,94 +587,14 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
   let inputBorderStyle: string;
   if (isDragOver) {
     inputBorderStyle = "2px dashed var(--accent)";
-  } else if (isPlanApproval) {
-    inputBorderStyle = "1px dashed var(--text-muted)";
+  } else if (planEnabled) {
+    inputBorderStyle = "1px dashed var(--composer-border)";
   } else {
     inputBorderStyle = "1px solid var(--border)";
   }
 
   return (
     <div className="p-4" style={{ borderTop: "1px solid var(--border)" }}>
-      {/* Status bar */}
-      <div className="mb-2 flex items-center gap-2 text-[11px]">
-        <span
-          className={`h-1.5 w-1.5 rounded-full ${isRunning ? "animate-pulse" : ""}`}
-          style={{ backgroundColor: statusColor }}
-        />
-        <span style={{ color: "var(--text-muted)" }}>{statusLabel}</span>
-
-        {/* Thinking toggle */}
-        <button
-          onClick={() => onThinkingEnabledChange(!thinkingEnabled)}
-          disabled={isRunning || isStopping}
-          className="rounded px-2 py-0.5 text-[11px] cursor-pointer transition-colors"
-          style={{
-            backgroundColor: thinkingEnabled ? "rgba(137, 180, 250, 0.15)" : "var(--bg-surface)",
-            color: thinkingEnabled ? "var(--accent)" : "var(--text-muted)",
-            border: thinkingEnabled ? "1px solid rgba(137, 180, 250, 0.3)" : "1px solid var(--border)",
-          }}
-          title={thinkingEnabled ? "Thinking enabled (click to disable)" : "Thinking disabled (click to enable)"}
-        >
-          Thinking
-        </button>
-
-        {/* Plan mode toggle */}
-        <button
-          onClick={() => onPlanEnabledChange(!planEnabled)}
-          disabled={isRunning || isStopping}
-          className="rounded px-2 py-0.5 text-[11px] cursor-pointer transition-colors"
-          style={{
-            backgroundColor: planEnabled ? "rgba(137, 180, 250, 0.15)" : "var(--bg-surface)",
-            color: planEnabled ? "var(--accent)" : "var(--text-muted)",
-            border: planEnabled ? "1px solid rgba(137, 180, 250, 0.3)" : "1px solid var(--border)",
-          }}
-          title={planEnabled ? "Plan mode enabled (click to disable)" : "Plan mode disabled (click to enable)"}
-        >
-          Plan
-        </button>
-
-        {/* Model selector */}
-        <div className="relative ml-auto">
-          <select
-            value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
-            disabled={isRunning || isStopping}
-            className="appearance-none rounded py-0.5 pl-2 pr-5 text-[11px] cursor-pointer"
-            style={{
-              backgroundColor: "var(--bg-surface)",
-              color: selectedModel ? "var(--accent)" : "var(--text-muted)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            {MODEL_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            className="pointer-events-none absolute right-1 top-1/2 h-3 w-3 -translate-y-1/2"
-            style={{ color: "var(--text-muted)" }}
-          />
-        </div>
-
-        {(isRunning || isStopping) && (
-          <button
-            onClick={onStop}
-            disabled={isStopping}
-            className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px]"
-            style={{
-              backgroundColor: "rgba(243, 139, 168, 0.15)",
-              color: "var(--error)",
-              border: "1px solid rgba(243, 139, 168, 0.3)",
-            }}
-          >
-            <Square className="h-2.5 w-2.5" />
-            {isStopping ? "Stopping..." : "Stop"}
-          </button>
-        )}
-      </div>
-
       {/* Plan approval bar */}
       {isPlanApproval && (
         <ActionBar
@@ -754,7 +755,8 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
             </div>
           )}
 
-          <div className="flex items-center gap-2.5 px-4 py-3">
+          {/* Textarea */}
+          <div className="px-4 pt-3 pb-1">
             <textarea
               ref={textareaRef}
               value={text}
@@ -763,32 +765,169 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
               placeholder={placeholderText}
               disabled={isRunning || isStopping}
               rows={1}
-              className="flex-1 resize-none bg-transparent text-sm outline-none"
+              className="w-full resize-none bg-transparent text-sm outline-none"
               style={{
                 color: "var(--text-primary)",
+                minHeight: "80px",
                 maxHeight: "200px",
               }}
             />
-            <button
-              onClick={handleSend}
-              disabled={!canSend}
-              className="flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-colors"
-              style={{
-                backgroundColor: canSend ? "var(--accent)" : "var(--bg-hover)",
-                color: canSend ? "var(--bg-primary)" : "var(--text-muted)",
-              }}
-            >
-              <Send className="h-3.5 w-3.5" />
-              Send
-            </button>
           </div>
-        </div>
 
-        {/* Shortcut hint */}
-        <div className="mt-2 flex items-center">
-          <span className="ml-auto text-[11px]" style={{ color: "var(--text-muted)" }}>
-            Enter to send, Shift+Enter for new line
-          </span>
+          {/* Bottom toolbar */}
+          <div className="flex items-center justify-between px-3 pb-2 pt-1">
+            {/* Left side: Model, Thinking, Plan */}
+            <div className="flex items-center gap-1">
+              {/* Model indicator/selector */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowModelMenu((prev) => !prev)}
+                  disabled={isRunning || isStopping}
+                  className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors hover:opacity-80 cursor-pointer"
+                  style={{ color: "var(--text-primary)" }}
+                  title="Change model (⌥P)"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>{currentModelDisplay}</span>
+                </button>
+
+                {/* Model dropdown popover */}
+                {showModelMenu && (
+                  <div
+                    className="absolute bottom-full left-0 z-30 mb-1 rounded-lg shadow-lg py-1"
+                    style={{
+                      backgroundColor: "var(--bg-surface)",
+                      border: "1px solid var(--border)",
+                      minWidth: "120px",
+                    }}
+                  >
+                    {MODEL_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          setSelectedModel(opt.value);
+                          setShowModelMenu(false);
+                        }}
+                        className="flex w-full items-center px-3 py-1.5 text-left text-xs transition-colors"
+                        style={{
+                          backgroundColor: selectedModel === opt.value ? "var(--bg-hover)" : "transparent",
+                          color: selectedModel === opt.value ? "var(--text-primary)" : "var(--text-secondary)",
+                        }}
+                      >
+                        {opt.displayName}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Thinking toggle */}
+              <button
+                onClick={() => onThinkingEnabledChange(!thinkingEnabled)}
+                disabled={isRunning || isStopping}
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] cursor-pointer transition-colors hover:opacity-80"
+                style={{ color: thinkingEnabled ? "var(--accent-orange)" : "var(--text-primary)" }}
+                title={thinkingEnabled ? "Disable thinking (⌥T)" : "Enable thinking (⌥T)"}
+              >
+                <Brain className="h-3.5 w-3.5" />
+                {thinkingEnabled && <span>Thinking</span>}
+              </button>
+
+              {/* Plan toggle */}
+              <button
+                onClick={() => onPlanEnabledChange(!planEnabled)}
+                disabled={isRunning || isStopping}
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] cursor-pointer transition-colors hover:opacity-80"
+                style={{ color: planEnabled ? "var(--accent-orange)" : "var(--text-primary)" }}
+                title={planEnabled ? "Disable plan mode (⇧⇥)" : "Enable plan mode (⇧⇥)"}
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                {planEnabled && <span>Plan</span>}
+              </button>
+
+              {/* Stop button (shown inline when running) */}
+              {(isRunning || isStopping) && (
+                <button
+                  onClick={onStop}
+                  disabled={isStopping}
+                  className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] cursor-pointer transition-colors"
+                  style={{ color: "var(--error)" }}
+                  title="Stop the running agent"
+                >
+                  <Square className="h-3 w-3" />
+                  <span>{isStopping ? "Stopping..." : "Stop"}</span>
+                </button>
+              )}
+            </div>
+
+            {/* Right side: Plus button, Send button */}
+            <div className="flex items-center gap-1.5">
+              <div className="relative" ref={plusMenuRef}>
+                <button
+                  onClick={() => setShowPlusMenu((prev) => !prev)}
+                  disabled={isRunning || isStopping}
+                  className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:opacity-80 cursor-pointer"
+                  style={{ color: "var(--text-muted)" }}
+                  title="Add file or context"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+
+                {showPlusMenu && (
+                  <div
+                    className="absolute bottom-full right-0 z-30 mb-1 rounded-lg shadow-lg py-1"
+                    style={{
+                      backgroundColor: "var(--bg-surface)",
+                      border: "1px solid var(--border)",
+                      minWidth: "200px",
+                    }}
+                  >
+                    <button
+                      onClick={handleAddAttachment}
+                      className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--bg-hover)]"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      <Paperclip className="h-4 w-4" style={{ color: "var(--text-secondary)" }} />
+                      <span className="flex-1">Add attachment</span>
+                      <kbd className="text-xs" style={{ color: "var(--text-muted)" }}>⌘U</kbd>
+                    </button>
+                    <button
+                      disabled
+                      className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors opacity-40"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      <CircleDot className="h-4 w-4" style={{ color: "var(--text-secondary)" }} />
+                      <span className="flex-1">Link issue</span>
+                      <kbd className="text-xs" style={{ color: "var(--text-muted)" }}>⌘I</kbd>
+                    </button>
+                    {onLinkWorkspaces && (
+                      <button
+                        onClick={() => { setShowPlusMenu(false); onLinkWorkspaces(); }}
+                        className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--bg-hover)]"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        <Link2 className="h-4 w-4" style={{ color: "var(--text-secondary)" }} />
+                        <span>Link workspaces</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={handleSend}
+                disabled={!canSend}
+                className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
+                style={{
+                  backgroundColor: canSend ? "var(--composer-border)" : "var(--bg-hover)",
+                  color: canSend ? "var(--bg-primary)" : "var(--text-muted)",
+                }}
+                title="Send message"
+              >
+                <ArrowUp className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

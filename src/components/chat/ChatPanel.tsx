@@ -7,6 +7,8 @@ import type { ChatMessage, Checkpoint } from "../../lib/tauri";
 import { respondToPermission } from "../../lib/tauri";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
+import { LinkWorkspaceDialog } from "../workspace/LinkWorkspaceDialog";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
 
 // Stable references for empty defaults — avoids infinite re-render with useSyncExternalStore
 const EMPTY_MESSAGES: ChatMessage[] = [];
@@ -43,6 +45,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
   // Toggle state for thinking and plan mode — lifted here so handleRetry can use it
   const [thinkingEnabled, setThinkingEnabled] = useState(true);
   const [planEnabled, setPlanEnabled] = useState(true);
+  const [showLinkWorkspaceDialog, setShowLinkWorkspaceDialog] = useState(false);
 
   // Subscribe to events when context changes
   useEffect(() => {
@@ -189,7 +192,20 @@ export function ChatPanel({ contextId, contextType }: Props) {
         onThinkingEnabledChange={setThinkingEnabled}
         planEnabled={planEnabled}
         onPlanEnabledChange={setPlanEnabled}
+        onLinkWorkspaces={contextType === "workspace" ? () => setShowLinkWorkspaceDialog(true) : undefined}
       />
+      {showLinkWorkspaceDialog && contextType === "workspace" && (() => {
+        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === contextId);
+        if (!ws) return null;
+        return (
+          <LinkWorkspaceDialog
+            workspaceId={contextId}
+            workspaceName={ws.name}
+            repoId={ws.repoId}
+            onClose={() => setShowLinkWorkspaceDialog(false)}
+          />
+        );
+      })()}
     </div>
   );
 }
