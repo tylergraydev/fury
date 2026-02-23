@@ -12,6 +12,13 @@ use std::sync::{Arc, Mutex};
 use tokio::process::{Child, ChildStdin};
 use uuid::Uuid;
 
+/// Handle for a persistent Claude Code process, storing spawn-time configuration.
+pub struct PersistentAgentHandle {
+    pub stdin: ChildStdin,
+    pub disable_thinking: bool,
+    pub disable_plan_mode: bool,
+}
+
 pub struct AppState {
     pub repositories: Mutex<HashMap<Uuid, Repository>>,
     pub workspaces: Mutex<HashMap<Uuid, Workspace>>,
@@ -28,8 +35,8 @@ pub struct AppState {
     pub terminal_sessions: Arc<Mutex<HashMap<Uuid, TerminalSession>>>,
     /// Spotlight file watchers — keyed by workspace ID
     pub spotlight_watchers: Arc<Mutex<HashMap<Uuid, SpotlightHandle>>>,
-    /// Persistent agent stdin handles — for Performance Mode (kept alive between turns)
-    pub persistent_agents: Arc<Mutex<HashMap<Uuid, ChildStdin>>>,
+    /// Persistent agent handles — for Performance Mode (kept alive between turns)
+    pub persistent_agents: Arc<Mutex<HashMap<Uuid, PersistentAgentHandle>>>,
     /// Agent stdin handles — for Safe Mode permission responses (all spawn modes)
     pub agent_stdins: Arc<Mutex<HashMap<Uuid, ChildStdin>>>,
     /// Copilot Language Server — global singleton (handle + child process)

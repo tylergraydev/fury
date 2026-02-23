@@ -31,6 +31,10 @@ const defaultProps = {
   agentStatus: "Idle" as const,
   onSend: vi.fn(),
   onStop: vi.fn(),
+  thinkingEnabled: true,
+  onThinkingEnabledChange: vi.fn(),
+  planEnabled: true,
+  onPlanEnabledChange: vi.fn(),
 };
 
 describe("Composer", () => {
@@ -65,7 +69,7 @@ describe("Composer", () => {
     render(<Composer {...defaultProps} onSend={onSend} />);
     await user.type(screen.getByRole("textbox"), "test message");
     await user.click(screen.getByText("Send").closest("button")!);
-    expect(onSend).toHaveBeenCalledWith("test message", undefined, undefined, undefined);
+    expect(onSend).toHaveBeenCalledWith("test message", undefined);
   });
 
   it("calls onSend on Enter key", async () => {
@@ -73,7 +77,7 @@ describe("Composer", () => {
     const user = userEvent.setup();
     render(<Composer {...defaultProps} onSend={onSend} />);
     await user.type(screen.getByRole("textbox"), "hello{Enter}");
-    expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined, undefined);
+    expect(onSend).toHaveBeenCalledWith("hello", undefined);
   });
 
   it("does not send on Shift+Enter", async () => {
@@ -584,24 +588,30 @@ describe("Composer", () => {
       expect(screen.getByTitle("Plan mode enabled (click to disable)")).toBeInTheDocument();
     });
 
-    it("toggles thinking off and sends disableThinking=true", async () => {
-      const onSend = vi.fn();
+    it("calls onThinkingEnabledChange when thinking toggle is clicked", async () => {
+      const onThinkingEnabledChange = vi.fn();
       const user = userEvent.setup();
-      render(<Composer {...defaultProps} onSend={onSend} />);
+      render(<Composer {...defaultProps} onThinkingEnabledChange={onThinkingEnabledChange} />);
       await user.click(screen.getByTitle("Thinking enabled (click to disable)"));
-      expect(screen.getByTitle("Thinking disabled (click to enable)")).toBeInTheDocument();
-      await user.type(screen.getByRole("textbox"), "hello{Enter}");
-      expect(onSend).toHaveBeenCalledWith("hello", undefined, true, undefined);
+      expect(onThinkingEnabledChange).toHaveBeenCalledWith(false);
     });
 
-    it("toggles plan mode off and sends disablePlanMode=true", async () => {
-      const onSend = vi.fn();
+    it("shows disabled state when thinkingEnabled=false", () => {
+      render(<Composer {...defaultProps} thinkingEnabled={false} />);
+      expect(screen.getByTitle("Thinking disabled (click to enable)")).toBeInTheDocument();
+    });
+
+    it("calls onPlanEnabledChange when plan toggle is clicked", async () => {
+      const onPlanEnabledChange = vi.fn();
       const user = userEvent.setup();
-      render(<Composer {...defaultProps} onSend={onSend} />);
+      render(<Composer {...defaultProps} onPlanEnabledChange={onPlanEnabledChange} />);
       await user.click(screen.getByTitle("Plan mode enabled (click to disable)"));
+      expect(onPlanEnabledChange).toHaveBeenCalledWith(false);
+    });
+
+    it("shows disabled state when planEnabled=false", () => {
+      render(<Composer {...defaultProps} planEnabled={false} />);
       expect(screen.getByTitle("Plan mode disabled (click to enable)")).toBeInTheDocument();
-      await user.type(screen.getByRole("textbox"), "hello{Enter}");
-      expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined, true);
     });
 
     it("toggles are disabled when agent is running", () => {
@@ -654,7 +664,7 @@ describe("Composer", () => {
     await user.type(textarea, "Check @todos now");
     await user.click(screen.getByText("Send").closest("button")!);
     // In repo context, workspaceId is undefined, so @todos is NOT expanded
-    expect(onSend).toHaveBeenCalledWith("Check @todos now", undefined, undefined, undefined);
+    expect(onSend).toHaveBeenCalledWith("Check @todos now", undefined);
   });
 
   // --- Slash command on multiline: / must be at start of current line ---

@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::error::AppError;
 use crate::models::agent::{AgentInfo, AgentStatus, AgentStatusEvent, FrontendStreamEvent};
+use crate::state::app_state::PersistentAgentHandle;
 use crate::models::repository::Repository;
 use crate::models::settings::AppSettings;
 use crate::models::workspace::Workspace;
@@ -312,7 +313,7 @@ pub async fn spawn_persistent(
     disable_plan_mode: bool,
     app_handle: AppHandle,
     agents: Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
-    persistent_agents: Arc<Mutex<HashMap<Uuid, ChildStdin>>>,
+    persistent_agents: Arc<Mutex<HashMap<Uuid, PersistentAgentHandle>>>,
 ) -> Result<(Child, ChildStdin), AppError> {
     let claude_bin = find_claude_binary()?;
 

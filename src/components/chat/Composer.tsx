@@ -121,21 +121,23 @@ interface Props {
   contextId: string;
   contextType: "workspace" | "repo";
   agentStatus: AgentStatus;
-  onSend: (message: string, model?: string, disableThinking?: boolean, disablePlanMode?: boolean) => void;
+  onSend: (message: string, model?: string) => void;
   onStop: () => void;
   isPlanApproval?: boolean;
   onApprovePlan?: () => void;
   onCopyPlan?: () => void;
   permissionRequest?: PermissionRequestInfo | null;
   onRespondToPermission?: (approved: boolean) => void;
+  thinkingEnabled: boolean;
+  onThinkingEnabledChange: (enabled: boolean) => void;
+  planEnabled: boolean;
+  onPlanEnabledChange: (enabled: boolean) => void;
 }
 
-export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan, permissionRequest, onRespondToPermission }: Props) {
+export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan, permissionRequest, onRespondToPermission, thinkingEnabled, onThinkingEnabledChange, planEnabled, onPlanEnabledChange }: Props) {
   const workspaceId = contextType === "workspace" ? contextId : undefined;
   const [text, setText] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
-  const [thinkingEnabled, setThinkingEnabled] = useState(true);
-  const [planEnabled, setPlanEnabled] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Slash command autocomplete state
@@ -296,12 +298,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
       message = message ? `${fileBlock}\n\n${message}` : fileBlock;
     }
 
-    onSend(
-      message,
-      selectedModel || undefined,
-      thinkingEnabled ? undefined : true,
-      planEnabled ? undefined : true,
-    );
+    onSend(message, selectedModel || undefined);
     setText("");
     setDroppedFiles([]);
     setShowSlashMenu(false);
@@ -310,7 +307,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-  }, [canSend, text, droppedFiles, onSend, workspaceId, selectedModel, thinkingEnabled, planEnabled]);
+  }, [canSend, text, droppedFiles, onSend, workspaceId, selectedModel]);
 
   const selectSlashCommand = useCallback(
     (cmd: SlashCommand) => {
@@ -521,7 +518,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
 
         {/* Thinking toggle */}
         <button
-          onClick={() => setThinkingEnabled((prev) => !prev)}
+          onClick={() => onThinkingEnabledChange(!thinkingEnabled)}
           disabled={isRunning || isStopping}
           className="rounded px-2 py-0.5 text-[11px] cursor-pointer transition-colors"
           style={{
@@ -536,7 +533,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
 
         {/* Plan mode toggle */}
         <button
-          onClick={() => setPlanEnabled((prev) => !prev)}
+          onClick={() => onPlanEnabledChange(!planEnabled)}
           disabled={isRunning || isStopping}
           className="rounded px-2 py-0.5 text-[11px] cursor-pointer transition-colors"
           style={{
