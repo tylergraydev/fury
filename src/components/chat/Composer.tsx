@@ -31,26 +31,43 @@ const IMAGE_EXTENSIONS = new Set([
 ]);
 
 interface DroppedFile {
+  id: string;
   path: string;
   name: string;
   isImage: boolean;
-  dataUrl?: string;
+  dataUrl?: string; // undefined = loading, "error" = failed, string = loaded
 }
+
+let fileIdCounter = 0;
 
 function isImageFile(path: string): boolean {
   const ext = path.split(".").pop()?.toLowerCase() ?? "";
   return IMAGE_EXTENSIONS.has(ext);
 }
 
-function ImagePlaceholder() {
-  return (
-    <div
-      className="flex h-5 w-5 items-center justify-center rounded"
-      style={{ backgroundColor: "var(--bg-surface)" }}
-    >
-      <div className="h-3 w-3 animate-pulse rounded-sm" style={{ backgroundColor: "var(--text-muted)" }} />
-    </div>
-  );
+function FileChipIcon({ file }: { file: DroppedFile }) {
+  if (file.isImage && file.dataUrl && file.dataUrl !== "error") {
+    return (
+      <img
+        src={file.dataUrl}
+        alt={file.name}
+        className="h-5 w-5 rounded object-cover"
+      />
+    );
+  }
+  if (file.isImage && !file.dataUrl) {
+    // Still loading
+    return (
+      <div
+        className="flex h-5 w-5 items-center justify-center rounded"
+        style={{ backgroundColor: "var(--bg-surface)" }}
+      >
+        <div className="h-3 w-3 animate-pulse rounded-sm" style={{ backgroundColor: "var(--text-muted)" }} />
+      </div>
+    );
+  }
+  // Non-image or failed image load
+  return <FileIcon className="h-3 w-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />;
 }
 
 function ActionBarButton({ onClick, icon: Icon, label, color, bgColor, showShortcut, disabled, title, className }: {
@@ -170,8 +187,9 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
             const paths = event.payload.paths;
             // Build files and load base64 for images
             const newFiles: DroppedFile[] = paths.map((p) => ({
+              id: String(++fileIdCounter),
               path: p,
-              name: p.split("/").pop() ?? p,
+              name: p.split(/[/\\]/).pop() ?? p,
               isImage: isImageFile(p),
             }));
             setDroppedFiles((prev) => [...prev, ...newFiles]);
@@ -183,12 +201,18 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
                     if (cancelled) return;
                     setDroppedFiles((prev) =>
                       prev.map((df) =>
-                        df.path === f.path ? { ...df, dataUrl } : df,
+                        df.id === f.id ? { ...df, dataUrl } : df,
                       ),
                     );
                   })
-                  .catch(() => {
-                    // Image preview unavailable — chip still shows filename
+                  .catch((err) => {
+                    console.warn(`Failed to load image preview for ${f.name}:`, err);
+                    if (cancelled) return;
+                    setDroppedFiles((prev) =>
+                      prev.map((df) =>
+                        df.id === f.id ? { ...df, dataUrl: "error" } : df,
+                      ),
+                    );
                   });
               }
             }
@@ -201,11 +225,11 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
             unlisten = fn;
           }
         })
-        .catch(() => {
-          // Tauri API not available (e.g. test environment)
+        .catch((err) => {
+          console.warn("Failed to register drag-drop event listener:", err);
         });
     } catch {
-      // getCurrentWebview() not available outside Tauri
+      // getCurrentWebview() throws synchronously outside Tauri (e.g. browser/test)
     }
 
     return () => {
@@ -447,20 +471,36 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     el.style.height = Math.min(el.scrollHeight, 200) + "px";
   };
 
-  const statusColor =
-    isRunning || isStopping
-      ? "var(--warning)"
-      : isError
-        ? "var(--error)"
-        : "var(--success)";
+  let statusColor: string;
+  let statusLabel: string;
+  if (isRunning || isStopping) {
+    statusColor = "var(--warning)";
+    statusLabel = isRunning ? "Running" : "Stopping";
+  } else if (isError) {
+    statusColor = "var(--error)";
+    statusLabel = "Error";
+  } else {
+    statusColor = "var(--success)";
+    statusLabel = "Idle";
+  }
 
-  const statusLabel = isRunning
-    ? "Running"
-    : isStopping
-      ? "Stopping"
-      : isError
-        ? "Error"
-        : "Idle";
+  let placeholderText: string;
+  if (isRunning) {
+    placeholderText = "Waiting for response...";
+  } else if (isPlanApproval) {
+    placeholderText = "Enter your plan adjustments here...";
+  } else {
+    placeholderText = "Ask to make changes, @mention files, run /commands";
+  }
+
+  let inputBorderStyle: string;
+  if (isDragOver) {
+    inputBorderStyle = "2px dashed var(--accent)";
+  } else if (isPlanApproval) {
+    inputBorderStyle = "1px dashed var(--text-muted)";
+  } else {
+    inputBorderStyle = "1px solid var(--border)";
+  }
 
   return (
     <div className="p-4" style={{ borderTop: "1px solid var(--border)" }}>
@@ -632,11 +672,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
           className="relative rounded-xl"
           style={{
             backgroundColor: "var(--bg-surface)",
-            border: isDragOver
-              ? "2px dashed var(--accent)"
-              : isPlanApproval
-                ? "1px dashed var(--text-muted)"
-                : "1px solid var(--border)",
+            border: inputBorderStyle,
           }}
         >
           {/* Drop zone overlay */}
@@ -664,17 +700,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
                     color: "var(--text-secondary)",
                   }}
                 >
-                  {file.isImage && file.dataUrl ? (
-                    <img
-                      src={file.dataUrl}
-                      alt={file.name}
-                      className="h-5 w-5 rounded object-cover"
-                    />
-                  ) : file.isImage ? (
-                    <ImagePlaceholder />
-                  ) : (
-                    <FileIcon className="h-3 w-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
-                  )}
+                  <FileChipIcon file={file} />
                   <span className="max-w-[150px] truncate">{file.name}</span>
                   <button
                     onClick={() => removeDroppedFile(i)}
@@ -694,13 +720,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
               value={text}
               onChange={handleInput}
               onKeyDown={handleKeyDown}
-              placeholder={
-                isRunning
-                  ? "Waiting for response..."
-                  : isPlanApproval
-                    ? "Enter your plan adjustments here..."
-                    : "Ask to make changes, @mention files, run /commands"
-              }
+              placeholder={placeholderText}
               disabled={isRunning || isStopping}
               rows={1}
               className="flex-1 resize-none bg-transparent text-sm outline-none"

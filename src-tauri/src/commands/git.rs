@@ -693,12 +693,20 @@ pub fn load_type_definitions(
 #[tauri::command]
 pub fn read_file_base64(file_path: String) -> Result<String, AppError> {
     let path = PathBuf::from(&file_path);
-    if !path.exists() {
-        return Err(AppError::GitError(format!("file not found: {}", file_path)));
+
+    const MAX_FILE_SIZE: u64 = 50 * 1024 * 1024; // 50 MB
+    let metadata = std::fs::metadata(&path)
+        .map_err(|e| AppError::GitError(format!("failed to read file {}: {}", file_path, e)))?;
+    if metadata.len() > MAX_FILE_SIZE {
+        return Err(AppError::GitError(format!(
+            "file too large for preview ({} bytes, max {})",
+            metadata.len(),
+            MAX_FILE_SIZE
+        )));
     }
 
     let bytes = std::fs::read(&path)
-        .map_err(|e| AppError::GitError(format!("failed to read file: {}", e)))?;
+        .map_err(|e| AppError::GitError(format!("failed to read file {}: {}", file_path, e)))?;
 
     let mime = match path
         .extension()

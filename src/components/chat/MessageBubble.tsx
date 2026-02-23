@@ -31,19 +31,15 @@ interface ParsedAttachment {
   name: string;
 }
 
-const ATTACHMENT_RE = /\[Attached (image|file): ([^\]]+)\]/g;
-
 function parseAttachments(text: string): { attachments: ParsedAttachment[]; remainingText: string } {
+  const re = /\[Attached (image|file): ([^\]]+)\]/g;
   const attachments: ParsedAttachment[] = [];
-  let match;
-  while ((match = ATTACHMENT_RE.exec(text)) !== null) {
+  for (const match of text.matchAll(re)) {
     const kind = match[1] as "image" | "file";
     const path = match[2];
-    attachments.push({ type: kind, path, name: path.split("/").pop() ?? path });
+    attachments.push({ type: kind, path, name: path.split(/[/\\]/).pop() ?? path });
   }
-  // Reset regex state
-  ATTACHMENT_RE.lastIndex = 0;
-  const remainingText = text.replace(ATTACHMENT_RE, "").trim();
+  const remainingText = text.replace(re, "").trim();
   return { attachments, remainingText };
 }
 
@@ -57,7 +53,8 @@ function AttachmentImage({ path, name }: { path: string; name: string }) {
       .then((url) => {
         if (!cancelled) setDataUrl(url);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.warn(`Failed to load image attachment "${path}":`, err);
         if (!cancelled) setFailed(true);
       });
     return () => { cancelled = true; };
