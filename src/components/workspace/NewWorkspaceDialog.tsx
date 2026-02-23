@@ -1,6 +1,21 @@
 import { useEffect, useState } from "react";
-import { Sparkles, X, GitFork, MessageSquare, ChevronDown } from "lucide-react";
-import { listBranches } from "../../lib/tauri";
+import {
+  Sparkles,
+  X,
+  GitFork,
+  MessageSquare,
+  ChevronDown,
+  GitPullRequest,
+  CircleDot,
+  Search,
+} from "lucide-react";
+import {
+  listBranches,
+  listRepoPrs,
+  listRepoIssues,
+  type PrListItem,
+  type IssueListItem,
+} from "../../lib/tauri";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useAgentStore } from "../../stores/agentStore";
 
@@ -9,6 +24,8 @@ interface Props {
   repoName: string;
   onClose: () => void;
 }
+
+type WorkspaceMode = "branch" | "pr" | "issue";
 
 function generateName(text: string): string {
   return text
@@ -20,9 +37,16 @@ function generateName(text: string): string {
     .replace(/-$/, "");
 }
 
+const MODES: { key: WorkspaceMode; label: string }[] = [
+  { key: "branch", label: "New Branch" },
+  { key: "pr", label: "From PR" },
+  { key: "issue", label: "From Issue" },
+];
+
 export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
   const { createWs } = useWorkspaceStore();
 
+  const [mode, setMode] = useState<WorkspaceMode>("branch");
   const [taskDescription, setTaskDescription] = useState("");
   const [worktreeName, setWorktreeName] = useState("");
   const [baseBranch, setBaseBranch] = useState("");
@@ -31,6 +55,20 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
   const [autoCommit, setAutoCommit] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // PR mode state
+  const [prs, setPrs] = useState<PrListItem[]>([]);
+  const [loadingPrs, setLoadingPrs] = useState(false);
+  const [selectedPr, setSelectedPr] = useState<PrListItem | null>(null);
+  const [prSearch, setPrSearch] = useState("");
+
+  // Issue mode state
+  const [issues, setIssues] = useState<IssueListItem[]>([]);
+  const [loadingIssues, setLoadingIssues] = useState(false);
+  const [selectedIssue, setSelectedIssue] = useState<IssueListItem | null>(
+    null,
+  );
+  const [issueSearch, setIssueSearch] = useState("");
 
   useEffect(() => {
     setLoadingBranches(true);
@@ -50,20 +88,76 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
       .finally(() => setLoadingBranches(false));
   }, [repoId]);
 
+  // Fetch PRs when switching to PR mode
+  useEffect(() => {
+    if (mode === "pr" && prs.length === 0 && !loadingPrs) {
+      setLoadingPrs(true);
+      listRepoPrs(repoId)
+        .then(setPrs)
+        .catch(() => setPrs([]))
+        .finally(() => setLoadingPrs(false));
+    }
+  }, [mode, repoId]);
+
+  // Fetch issues when switching to issue mode
+  useEffect(() => {
+    if (mode === "issue" && issues.length === 0 && !loadingIssues) {
+      setLoadingIssues(true);
+      listRepoIssues(repoId)
+        .then(setIssues)
+        .catch(() => setIssues([]))
+        .finally(() => setLoadingIssues(false));
+    }
+  }, [mode, repoId]);
+
+  const handleSelectPr = (pr: PrListItem) => {
+    setSelectedPr(pr);
+    setWorktreeName(pr.headBranch);
+    setBaseBranch(pr.baseBranch);
+    setTaskDescription(`PR #${pr.number}: ${pr.title}`);
+  };
+
+  const handleSelectIssue = (issue: IssueListItem) => {
+    setSelectedIssue(issue);
+    const shortTitle = issue.title.slice(0, 40);
+    setWorktreeName(generateName(`issue-${issue.number}-${shortTitle}`));
+    setTaskDescription(
+      `Issue #${issue.number}: ${issue.title}${issue.body ? `\n\n${issue.body}` : ""}`,
+    );
+  };
+
   const handleCreate = async () => {
-    if (!worktreeName.trim() || !baseBranch.trim()) return;
+    if (mode === "pr") {
+      if (!selectedPr || !worktreeName.trim()) return;
+    } else {
+      if (!worktreeName.trim() || !baseBranch.trim()) return;
+    }
     setCreating(true);
     setError(null);
     try {
-      const ws = await createWs({
-        repoId,
-        workspaceName: worktreeName.trim(),
-        branchName: worktreeName.trim(),
-        baseBranch: baseBranch.trim(),
-        autoCommit,
-      });
+      const ws = await createWs(
+        mode === "pr"
+          ? {
+              repoId,
+              workspaceName: worktreeName.trim(),
+              branchName: selectedPr!.headBranch,
+              baseBranch: selectedPr!.baseBranch,
+              autoCommit,
+              fetchRemoteBranch: true,
+            }
+          : {
+              repoId,
+              workspaceName: worktreeName.trim(),
+              branchName: worktreeName.trim(),
+              baseBranch: baseBranch.trim(),
+              autoCommit,
+            },
+      );
       if (taskDescription.trim()) {
-        useAgentStore.getState().sendMessage(ws.id, taskDescription.trim()).catch(console.error);
+        useAgentStore
+          .getState()
+          .sendMessage(ws.id, taskDescription.trim())
+          .catch(console.error);
       }
       onClose();
     } catch (e) {
@@ -80,7 +174,24 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
     outline: "none",
   };
 
-  const canCreate = worktreeName.trim() && baseBranch.trim() && !creating;
+  const canCreate =
+    mode === "pr"
+      ? !!selectedPr && worktreeName.trim() && !creating
+      : worktreeName.trim() && baseBranch.trim() && !creating;
+
+  const filteredPrs = prs.filter(
+    (pr) =>
+      !prSearch ||
+      pr.title.toLowerCase().includes(prSearch.toLowerCase()) ||
+      String(pr.number).includes(prSearch),
+  );
+
+  const filteredIssues = issues.filter(
+    (issue) =>
+      !issueSearch ||
+      issue.title.toLowerCase().includes(issueSearch.toLowerCase()) ||
+      String(issue.number).includes(issueSearch),
+  );
 
   return (
     <div
@@ -148,6 +259,202 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
           </span>
         </div>
 
+        {/* Mode tabs */}
+        <div
+          className="mb-4 flex gap-1"
+          style={{ borderBottom: "1px solid var(--border)" }}
+        >
+          {MODES.map((m) => (
+            <button
+              key={m.key}
+              onClick={() => setMode(m.key)}
+              className="px-3 py-2 text-xs font-medium transition-colors"
+              style={{
+                color:
+                  mode === m.key ? "var(--accent)" : "var(--text-muted)",
+                borderBottom:
+                  mode === m.key
+                    ? "2px solid var(--accent)"
+                    : "2px solid transparent",
+                marginBottom: "-1px",
+              }}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        {/* PR selector */}
+        {mode === "pr" && (
+          <div className="mb-4">
+            <div className="relative mb-2">
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+                style={{ color: "var(--text-muted)" }}
+              />
+              <input
+                type="text"
+                value={prSearch}
+                onChange={(e) => setPrSearch(e.target.value)}
+                placeholder="Search pull requests..."
+                className="w-full rounded-lg py-2 pl-8 pr-3 text-xs"
+                style={inputStyle}
+                autoFocus
+              />
+            </div>
+            <div
+              className="max-h-40 overflow-y-auto rounded-lg"
+              style={{ border: "1px solid var(--border)" }}
+            >
+              {loadingPrs ? (
+                <div
+                  className="px-3 py-4 text-center text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Loading pull requests...
+                </div>
+              ) : filteredPrs.length === 0 ? (
+                <div
+                  className="px-3 py-4 text-center text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {prs.length === 0
+                    ? "No open pull requests"
+                    : "No matching pull requests"}
+                </div>
+              ) : (
+                filteredPrs.map((pr) => (
+                  <button
+                    key={pr.number}
+                    onClick={() => handleSelectPr(pr)}
+                    className="flex w-full items-start gap-2 px-3 py-2 text-left transition-colors"
+                    style={{
+                      backgroundColor:
+                        selectedPr?.number === pr.number
+                          ? "var(--bg-hover)"
+                          : "transparent",
+                      borderBottom: "1px solid var(--border)",
+                    }}
+                  >
+                    <GitPullRequest
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                      style={{ color: "var(--accent-green)" }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className="truncate text-xs"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        <span style={{ color: "var(--text-muted)" }}>
+                          #{pr.number}
+                        </span>{" "}
+                        {pr.title}
+                      </div>
+                      <div
+                        className="text-[11px]"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        {pr.headBranch} &larr; {pr.baseBranch}
+                        {pr.author && ` by ${pr.author}`}
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Issue selector */}
+        {mode === "issue" && (
+          <div className="mb-4">
+            <div className="relative mb-2">
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+                style={{ color: "var(--text-muted)" }}
+              />
+              <input
+                type="text"
+                value={issueSearch}
+                onChange={(e) => setIssueSearch(e.target.value)}
+                placeholder="Search issues..."
+                className="w-full rounded-lg py-2 pl-8 pr-3 text-xs"
+                style={inputStyle}
+                autoFocus
+              />
+            </div>
+            <div
+              className="max-h-40 overflow-y-auto rounded-lg"
+              style={{ border: "1px solid var(--border)" }}
+            >
+              {loadingIssues ? (
+                <div
+                  className="px-3 py-4 text-center text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Loading issues...
+                </div>
+              ) : filteredIssues.length === 0 ? (
+                <div
+                  className="px-3 py-4 text-center text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {issues.length === 0
+                    ? "No open issues"
+                    : "No matching issues"}
+                </div>
+              ) : (
+                filteredIssues.map((issue) => (
+                  <button
+                    key={issue.number}
+                    onClick={() => handleSelectIssue(issue)}
+                    className="flex w-full items-start gap-2 px-3 py-2 text-left transition-colors"
+                    style={{
+                      backgroundColor:
+                        selectedIssue?.number === issue.number
+                          ? "var(--bg-hover)"
+                          : "transparent",
+                      borderBottom: "1px solid var(--border)",
+                    }}
+                  >
+                    <CircleDot
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                      style={{ color: "var(--accent-green)" }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className="truncate text-xs"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        <span style={{ color: "var(--text-muted)" }}>
+                          #{issue.number}
+                        </span>{" "}
+                        {issue.title}
+                      </div>
+                      {issue.labels.length > 0 && (
+                        <div className="mt-0.5 flex gap-1">
+                          {issue.labels.slice(0, 3).map((label) => (
+                            <span
+                              key={label}
+                              className="rounded px-1.5 py-0.5 text-[10px]"
+                              style={{
+                                backgroundColor: "var(--bg-surface)",
+                                color: "var(--text-muted)",
+                              }}
+                            >
+                              {label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Task description */}
         <div className="mb-4">
           <label
@@ -164,14 +471,15 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
             rows={3}
             className="w-full resize-none rounded-lg px-3 py-2.5 text-xs"
             style={inputStyle}
-            autoFocus
+            autoFocus={mode === "branch"}
           />
           <p
             className="mt-1 text-[11px]"
             style={{ color: "var(--text-muted)" }}
           >
-            This helps the AI understand the context and will be used to name
-            your worktree
+            {mode === "pr" || mode === "issue"
+              ? "Auto-filled from selection. Edit to customize the initial message."
+              : "This helps the AI understand the context and will be used to name your worktree"}
           </p>
         </div>
 
@@ -190,29 +498,37 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
               onChange={(e) => setWorktreeName(e.target.value)}
               placeholder="feature-auth"
               className="flex-1 rounded-lg px-3 py-2 text-xs"
-              style={inputStyle}
-            />
-            <button
-              onClick={() => {
-                /* v8 ignore next -- @preserve */
-                if (taskDescription.trim()) {
-                  setWorktreeName(generateName(taskDescription));
-                }
-              }}
-              disabled={!taskDescription.trim()}
-              className="rounded-lg px-4 py-2 text-xs font-medium transition-colors"
               style={{
-                backgroundColor: taskDescription.trim()
-                  ? "var(--accent)"
-                  : "var(--bg-surface)",
-                color: taskDescription.trim()
-                  ? "#1e1e2e"
-                  : "var(--text-muted)",
-                border: "1px solid var(--border)",
+                ...inputStyle,
+                ...(mode === "pr"
+                  ? { opacity: 0.7, cursor: "default" }
+                  : {}),
               }}
-            >
-              Generate
-            </button>
+              readOnly={mode === "pr"}
+            />
+            {mode === "branch" && (
+              <button
+                onClick={() => {
+                  /* v8 ignore next -- @preserve */
+                  if (taskDescription.trim()) {
+                    setWorktreeName(generateName(taskDescription));
+                  }
+                }}
+                disabled={!taskDescription.trim()}
+                className="rounded-lg px-4 py-2 text-xs font-medium transition-colors"
+                style={{
+                  backgroundColor: taskDescription.trim()
+                    ? "var(--accent)"
+                    : "var(--bg-surface)",
+                  color: taskDescription.trim()
+                    ? "#1e1e2e"
+                    : "var(--text-muted)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                Generate
+              </button>
+            )}
           </div>
         </div>
 
@@ -225,35 +541,49 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
             Base Branch
           </label>
           <div className="relative">
-            <select
-              value={baseBranch}
-              onChange={(e) => setBaseBranch(e.target.value)}
-              className="w-full appearance-none rounded-lg px-3 py-2.5 text-xs"
-              style={inputStyle}
-              disabled={loadingBranches || branches.length === 0}
-            >
-              {loadingBranches ? (
-                <option>Loading...</option>
-              ) : branches.length === 0 ? (
-                <option>No branches found</option>
-              ) : (
-                branches.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))
-              )}
-            </select>
-            <ChevronDown
-              className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
-              style={{ color: "var(--text-muted)" }}
-            />
+            {mode === "pr" && selectedPr ? (
+              <input
+                type="text"
+                value={selectedPr.baseBranch}
+                readOnly
+                className="w-full rounded-lg px-3 py-2.5 text-xs"
+                style={{ ...inputStyle, opacity: 0.7, cursor: "default" }}
+              />
+            ) : (
+              <select
+                value={baseBranch}
+                onChange={(e) => setBaseBranch(e.target.value)}
+                className="w-full appearance-none rounded-lg px-3 py-2.5 text-xs"
+                style={inputStyle}
+                disabled={loadingBranches || branches.length === 0}
+              >
+                {loadingBranches ? (
+                  <option>Loading...</option>
+                ) : branches.length === 0 ? (
+                  <option>No branches found</option>
+                ) : (
+                  branches.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))
+                )}
+              </select>
+            )}
+            {mode !== "pr" && (
+              <ChevronDown
+                className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+                style={{ color: "var(--text-muted)" }}
+              />
+            )}
           </div>
           <p
             className="mt-1 text-[11px]"
             style={{ color: "var(--text-muted)" }}
           >
-            New worktree will be created from this branch
+            {mode === "pr"
+              ? "Set from the pull request's base branch"
+              : "New worktree will be created from this branch"}
           </p>
         </div>
 

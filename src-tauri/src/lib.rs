@@ -105,6 +105,10 @@ pub fn run() {
             commands::pr::merge_pr,
             commands::pr::get_pr_reviews,
             commands::pr::get_pr_review_comments,
+            commands::pr::list_repo_prs,
+            commands::pr::list_repo_issues,
+            commands::pr::get_pr_details,
+            commands::pr::get_issue_details,
             // Todo commands
             commands::todo::add_todo,
             commands::todo::update_todo,

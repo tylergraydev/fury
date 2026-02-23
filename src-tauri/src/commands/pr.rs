@@ -1,5 +1,8 @@
 use crate::error::AppError;
-use crate::models::pr::{CreatePrRequest, MergeResult, PrCheck, PrComment, PrInfo, PrReview};
+use crate::models::pr::{
+    CreatePrRequest, IssueDetail, IssueListItem, MergeResult, PrCheck, PrComment, PrDetail, PrInfo,
+    PrListItem, PrReview,
+};
 use crate::services::gh as gh_svc;
 use crate::state::AppState;
 use tauri::{Emitter, State};
@@ -230,4 +233,78 @@ pub fn get_pr_review_comments(
     };
 
     gh_svc::get_pr_review_comments(&worktree_path)
+}
+
+#[tauri::command]
+pub fn list_repo_prs(
+    state: State<'_, AppState>,
+    repo_id: String,
+) -> Result<Vec<PrListItem>, AppError> {
+    let id: Uuid = repo_id
+        .parse()
+        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+
+    let repo_path = {
+        let repos = state.repositories.lock().unwrap();
+        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+        repo.path.clone()
+    };
+
+    gh_svc::list_repo_prs(&repo_path)
+}
+
+#[tauri::command]
+pub fn list_repo_issues(
+    state: State<'_, AppState>,
+    repo_id: String,
+) -> Result<Vec<IssueListItem>, AppError> {
+    let id: Uuid = repo_id
+        .parse()
+        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+
+    let repo_path = {
+        let repos = state.repositories.lock().unwrap();
+        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+        repo.path.clone()
+    };
+
+    gh_svc::list_repo_issues(&repo_path)
+}
+
+#[tauri::command]
+pub fn get_pr_details(
+    state: State<'_, AppState>,
+    repo_id: String,
+    pr_number: u32,
+) -> Result<PrDetail, AppError> {
+    let id: Uuid = repo_id
+        .parse()
+        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+
+    let repo_path = {
+        let repos = state.repositories.lock().unwrap();
+        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+        repo.path.clone()
+    };
+
+    gh_svc::get_pr_detail(&repo_path, pr_number)
+}
+
+#[tauri::command]
+pub fn get_issue_details(
+    state: State<'_, AppState>,
+    repo_id: String,
+    issue_number: u32,
+) -> Result<IssueDetail, AppError> {
+    let id: Uuid = repo_id
+        .parse()
+        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+
+    let repo_path = {
+        let repos = state.repositories.lock().unwrap();
+        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+        repo.path.clone()
+    };
+
+    gh_svc::get_issue_detail(&repo_path, issue_number)
 }

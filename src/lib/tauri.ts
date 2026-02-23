@@ -36,6 +36,7 @@ export interface CreateWorkspaceRequest {
   sparseDirs?: string[];
   baseBranch?: string;
   autoCommit?: boolean;
+  fetchRemoteBranch?: boolean;
 }
 
 // Repository commands
@@ -612,6 +613,67 @@ export async function getPrReviewComments(
   workspaceId: string,
 ): Promise<PrComment[]> {
   return invoke<PrComment[]>("get_pr_review_comments", { workspaceId });
+}
+
+// PR/Issue list types
+export interface PrListItem {
+  number: number;
+  title: string;
+  headBranch: string;
+  baseBranch: string;
+  state: string;
+  author: string;
+  url: string;
+}
+
+export interface PrDetail {
+  number: number;
+  title: string;
+  headBranch: string;
+  baseBranch: string;
+  body: string;
+  state: string;
+  url: string;
+}
+
+export interface IssueListItem {
+  number: number;
+  title: string;
+  body: string;
+  state: string;
+  labels: string[];
+}
+
+export interface IssueDetail {
+  number: number;
+  title: string;
+  body: string;
+  labels: string[];
+}
+
+// PR/Issue list commands
+export async function listRepoPrs(repoId: string): Promise<PrListItem[]> {
+  return invoke<PrListItem[]>("list_repo_prs", { repoId });
+}
+
+export async function listRepoIssues(
+  repoId: string,
+): Promise<IssueListItem[]> {
+  return invoke<IssueListItem[]>("list_repo_issues", { repoId });
+}
+
+export async function getPrDetails(
+  repoId: string,
+  prNumber: number,
+): Promise<PrDetail> {
+  return invoke<PrDetail>("get_pr_details", { repoId, prNumber });
+}
+
+export async function getIssueDetails(
+  repoId: string,
+  issueNumber: number,
+): Promise<IssueDetail> {
+  return invoke<IssueDetail>("get_issue_details", { repoId, issueNumber });
 }
 
 // Todo types

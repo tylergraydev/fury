@@ -2,7 +2,10 @@ use std::path::Path;
 use std::process::Command;
 
 use crate::error::AppError;
-use crate::models::pr::{MergeResult, PrCheck, PrComment, PrInfo, PrReview};
+use crate::models::pr::{
+    IssueDetail, IssueListItem, MergeResult, PrCheck, PrComment, PrDetail, PrInfo, PrListItem,
+    PrReview,
+};
 
 pub fn find_gh_binary() -> Result<std::path::PathBuf, AppError> {
     which::which("gh").map_err(|_| {
@@ -332,4 +335,232 @@ pub fn get_pr_review_comments(worktree_path: &Path) -> Result<Vec<PrComment>, Ap
                 .map(|v| v as u32),
         })
         .collect())
+}
+
+pub fn list_repo_prs(repo_path: &Path) -> Result<Vec<PrListItem>, AppError> {
+    let gh = find_gh_binary()?;
+    let output = Command::new(&gh)
+        .args([
+            "pr",
+            "list",
+            "--json",
+            "number,title,headRefName,baseRefName,state,author,url",
+            "--limit",
+            "50",
+        ])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| AppError::PrError(format!("Failed to run gh pr list: {}", e)))?;
+
+    if !output.status.success() {
+        return Err(AppError::PrError(format!(
+            "gh pr list failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+
+    let raw: Vec<serde_json::Value> = serde_json::from_slice(&output.stdout)
+        .map_err(|e| AppError::PrError(format!("Failed to parse gh pr list output: {}", e)))?;
+
+    Ok(raw
+        .iter()
+        .map(|pr| PrListItem {
+            number: pr.get("number").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+            title: pr
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            head_branch: pr
+                .get("headRefName")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            base_branch: pr
+                .get("baseRefName")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            state: pr
+                .get("state")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            author: pr
+                .get("author")
+                .and_then(|v| v.get("login"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            url: pr
+                .get("url")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+        })
+        .collect())
+}
+
+pub fn get_pr_detail(repo_path: &Path, number: u32) -> Result<PrDetail, AppError> {
+    let gh = find_gh_binary()?;
+    let output = Command::new(&gh)
+        .args([
+            "pr",
+            "view",
+            &number.to_string(),
+            "--json",
+            "number,title,headRefName,baseRefName,body,state,url",
+        ])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| AppError::PrError(format!("Failed to run gh pr view: {}", e)))?;
+
+    if !output.status.success() {
+        return Err(AppError::PrError(format!(
+            "gh pr view failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+
+    let raw: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| AppError::PrError(format!("Failed to parse gh pr view output: {}", e)))?;
+
+    Ok(PrDetail {
+        number: raw.get("number").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+        title: raw
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        head_branch: raw
+            .get("headRefName")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        base_branch: raw
+            .get("baseRefName")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        body: raw
+            .get("body")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        state: raw
+            .get("state")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        url: raw
+            .get("url")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+    })
+}
+
+pub fn list_repo_issues(repo_path: &Path) -> Result<Vec<IssueListItem>, AppError> {
+    let gh = find_gh_binary()?;
+    let output = Command::new(&gh)
+        .args([
+            "issue",
+            "list",
+            "--json",
+            "number,title,body,labels,state",
+            "--limit",
+            "50",
+        ])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| AppError::PrError(format!("Failed to run gh issue list: {}", e)))?;
+
+    if !output.status.success() {
+        return Err(AppError::PrError(format!(
+            "gh issue list failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+
+    let raw: Vec<serde_json::Value> = serde_json::from_slice(&output.stdout)
+        .map_err(|e| AppError::PrError(format!("Failed to parse gh issue list output: {}", e)))?;
+
+    Ok(raw
+        .iter()
+        .map(|issue| IssueListItem {
+            number: issue.get("number").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+            title: issue
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            body: issue
+                .get("body")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            state: issue
+                .get("state")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            labels: issue
+                .get("labels")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|l| l.get("name").and_then(|n| n.as_str()).map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default(),
+        })
+        .collect())
+}
+
+pub fn get_issue_detail(repo_path: &Path, number: u32) -> Result<IssueDetail, AppError> {
+    let gh = find_gh_binary()?;
+    let output = Command::new(&gh)
+        .args([
+            "issue",
+            "view",
+            &number.to_string(),
+            "--json",
+            "number,title,body,labels",
+        ])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| AppError::PrError(format!("Failed to run gh issue view: {}", e)))?;
+
+    if !output.status.success() {
+        return Err(AppError::PrError(format!(
+            "gh issue view failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+
+    let raw: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| AppError::PrError(format!("Failed to parse gh issue view output: {}", e)))?;
+
+    Ok(IssueDetail {
+        number: raw.get("number").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+        title: raw
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        body: raw
+            .get("body")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        labels: raw
+            .get("labels")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|l| l.get("name").and_then(|n| n.as_str()).map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default(),
+    })
 }

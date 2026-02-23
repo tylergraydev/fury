@@ -48,6 +48,14 @@ pub fn create_workspace(
             .join(&repo.name),
     };
 
+    // Fetch remote branch if requested (needed for PR branches that don't exist locally)
+    if request.fetch_remote_branch.unwrap_or(false) {
+        let _ = std::process::Command::new("git")
+            .args(["fetch", "origin", &request.branch_name])
+            .current_dir(&repo.path)
+            .output();
+    }
+
     // Create git worktree
     let worktree_path = worktree::create_worktree(
         &repo.path,
