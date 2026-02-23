@@ -174,6 +174,12 @@ export function fromPersisted(msg: PersistedChatMessage): ChatMessage {
   };
 }
 
+// Updater
+export async function checkForUpdate() {
+  const { check } = await import("@tauri-apps/plugin-updater");
+  return check();
+}
+
 // Chat persistence commands
 export async function saveChatMessage(
   message: PersistedChatMessage,

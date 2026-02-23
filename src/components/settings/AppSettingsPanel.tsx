@@ -22,7 +22,7 @@ import type {
   CursorMigrationResult,
   CursorRulesImportResult,
 } from "../../lib/tauri";
-import { detectCursorrules, importCursorrules } from "../../lib/tauri";
+import { detectCursorrules, importCursorrules, checkForUpdate } from "../../lib/tauri";
 import { useCopilotStore } from "../../stores/copilotStore";
 import { isMac } from "../../lib/keybindings";
 
@@ -1281,8 +1281,7 @@ function UpdatesTab() {
     setChecking(true);
     setStatus(null);
     try {
-      const { check } = await import("@tauri-apps/plugin-updater");
-      const update = await check();
+      const update = await checkForUpdate();
       if (update) {
         setStatus(`Update available: v${update.version}`);
         await update.downloadAndInstall();
