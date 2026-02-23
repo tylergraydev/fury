@@ -434,6 +434,79 @@ describe("CommandPalette", () => {
       const backendItem = screen.getByText("Backend API").closest("[role='option']");
       expect(backendItem).toHaveAttribute("data-keywords", "api-repo,feature/auth");
     });
+
+    it("clicking an active workspace calls setActive and closes palette", () => {
+      const onOpenChange = vi.fn();
+      const setActiveSpy = vi.fn();
+      useWorkspaceStore.setState({
+        ...useWorkspaceStore.getState(),
+        setActive: setActiveSpy,
+      });
+      render(
+        <CommandPalette open={true} onOpenChange={onOpenChange} onAction={vi.fn()} mode="workspace-search" />,
+      );
+      screen.getByText("Frontend App").click();
+      expect(setActiveSpy).toHaveBeenCalledWith("ws-1");
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it("clicking an archived workspace calls restoreWs then setActive", async () => {
+      const onOpenChange = vi.fn();
+      const setActiveSpy = vi.fn();
+      const restoreWsSpy = vi.fn().mockResolvedValue(undefined);
+      useWorkspaceStore.setState({
+        ...useWorkspaceStore.getState(),
+        setActive: setActiveSpy,
+        restoreWs: restoreWsSpy,
+      });
+      render(
+        <CommandPalette open={true} onOpenChange={onOpenChange} onAction={vi.fn()} mode="workspace-search" />,
+      );
+      screen.getByText("Old Project").click();
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+      expect(restoreWsSpy).toHaveBeenCalledWith("ws-3");
+      // setActive is called after restore resolves
+      await vi.waitFor(() => {
+        expect(setActiveSpy).toHaveBeenCalledWith("ws-3");
+      });
+    });
+
+    it("does not mark non-active workspaces as active", () => {
+      render(
+        <CommandPalette open={true} onOpenChange={vi.fn()} onAction={vi.fn()} mode="workspace-search" />,
+      );
+      const inactiveItem = screen.getByText("Backend API").closest("[role='option']");
+      expect(inactiveItem).not.toHaveAttribute("data-active", "true");
+    });
+
+    it("shows Workspaces group even with a single workspace", () => {
+      useWorkspaceStore.setState({
+        workspaces: [
+          { id: "ws-1", name: "Only WS", repoId: "r1", branch: "main", status: "Active" },
+        ] as any,
+        archivedWorkspaces: [] as any,
+        activeWorkspaceId: "ws-1",
+      });
+      render(
+        <CommandPalette open={true} onOpenChange={vi.fn()} onAction={vi.fn()} mode="workspace-search" />,
+      );
+      expect(screen.getByTestId("group-Workspaces")).toBeInTheDocument();
+      expect(screen.getByText("Only WS")).toBeInTheDocument();
+    });
+
+    it("shows fallback repo name when repository is not found", () => {
+      useWorkspaceStore.setState({
+        workspaces: [
+          { id: "ws-99", name: "Orphan WS", repoId: "missing-repo", branch: "main", status: "Active" },
+        ] as any,
+        archivedWorkspaces: [] as any,
+        activeWorkspaceId: "ws-99",
+      });
+      render(
+        <CommandPalette open={true} onOpenChange={vi.fn()} onAction={vi.fn()} mode="workspace-search" />,
+      );
+      expect(screen.getByText(/Unknown repo \/ main/)).toBeInTheDocument();
+    });
   });
 
   it("shortcutFor returns undefined when SHORTCUTS has no matching action", async () => {

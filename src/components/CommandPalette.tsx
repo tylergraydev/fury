@@ -208,7 +208,7 @@ export function CommandPalette({
                             fontSize: 10,
                           }}
                         >
-                          {repo?.name} / {ws.branch}
+                          {repo?.name ?? "Unknown repo"} / {ws.branch}
                         </span>
                       </PaletteItem>
                     );
@@ -220,7 +220,10 @@ export function CommandPalette({
                       key={ws.id}
                       onSelect={() => {
                         onOpenChange(false);
-                        useWorkspaceStore.getState().setActive(ws.id);
+                        const store = useWorkspaceStore.getState();
+                        store.restoreWs(ws.id).then(() => {
+                          useWorkspaceStore.getState().setActive(ws.id);
+                        }).catch(console.error);
                       }}
                       keywords={[repo?.name, ws.branch].filter(Boolean) as string[]}
                     >
@@ -232,7 +235,7 @@ export function CommandPalette({
                           fontSize: 10,
                         }}
                       >
-                        {repo?.name} / {ws.branch}
+                        {repo?.name ?? "Unknown repo"} / {ws.branch}
                       </span>
                       <span
                         style={{

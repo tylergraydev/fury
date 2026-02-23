@@ -171,6 +171,7 @@ function App() {
         setShowPalette(true);
         break;
       case "search-workspaces":
+        useWorkspaceStore.getState().loadArchivedWorkspaces();
         setPaletteMode("workspace-search");
         setShowPalette(true);
         break;
