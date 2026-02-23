@@ -37,7 +37,7 @@ test.describe("Chat Flow", () => {
     const textarea = appPage.getByPlaceholder(
       "Ask to make changes, @mention files, run /commands",
     );
-    const sendButton = appPage.locator("button", { hasText: "Send" });
+    const sendButton = appPage.locator("button[title='Send message']");
 
     // Initially the send button should be styled as disabled
     await expect(textarea).toBeVisible();
@@ -84,7 +84,7 @@ test.describe("Chat Flow", () => {
 
     // Simulate agent becoming Running
     await emitAgentStatus(appPage, "ws-auth", "Running");
-    await expect(appPage.getByText("Running")).toBeVisible();
+    await expect(appPage.getByText("Stop")).toBeVisible();
 
     // Simulate streaming assistant text
     await emitStreamText(
@@ -114,7 +114,10 @@ test.describe("Chat Flow", () => {
       appPage.getByText("comprehensive tests for the auth middleware"),
     ).toBeVisible();
 
-    // Verify status returned to Idle
-    await expect(appPage.getByText("Idle")).toBeVisible();
+    // Verify status returned to Idle (stop button disappears, placeholder restored)
+    await expect(appPage.getByText("Stop")).not.toBeVisible();
+    await expect(
+      appPage.getByPlaceholder("Ask to make changes, @mention files, run /commands"),
+    ).toBeEnabled();
   });
 });

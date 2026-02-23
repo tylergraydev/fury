@@ -66,8 +66,8 @@ test.describe("Workspace Flow", () => {
   test("composer shows idle status and placeholder", async ({ appPage }) => {
     await appPage.getByText("add-auth").click();
 
-    // Status indicator should show "Idle"
-    await expect(appPage.getByText("Idle")).toBeVisible();
+    // Status dot should show idle state
+    await expect(appPage.locator("[title='Agent idle']")).toBeVisible();
 
     // Composer placeholder
     await expect(
