@@ -70,7 +70,7 @@ test.describe("Right Sidebar", () => {
     await expect(appPage.getByText("index.ts").first()).toBeVisible();
   });
 
-  test("clicking file in changes opens diff modal", async ({ appPage }) => {
+  test("clicking file in changes opens diff view tab", async ({ appPage }) => {
     // Switch to Changes tab
     const changesTab = appPage.locator("button", { hasText: "Changes" }).first();
     await changesTab.click();
@@ -81,18 +81,8 @@ test.describe("Right Sidebar", () => {
     const indexFile = appPage.locator("button", { hasText: /^M/ }).filter({ hasText: "index.ts" });
     await indexFile.click();
 
-    // Diff modal should appear with a fixed overlay
-    const modal = appPage.locator(".fixed.inset-0.z-50");
-    await expect(modal).toBeVisible({ timeout: 10000 });
-
-    // Modal should show the file path and a Close button
-    await expect(modal.getByText("src/routes/index.ts")).toBeVisible();
-    const closeBtn = modal.locator("button", { hasText: "Close" });
-    await expect(closeBtn).toBeVisible();
-
-    // Close the modal
-    await closeBtn.click();
-    await expect(modal).not.toBeVisible();
+    // Diff view tab should open — the DiffPanel header shows the selected file path
+    await expect(appPage.getByText("src/routes/index.ts").first()).toBeVisible({ timeout: 10000 });
   });
 
   test("bottom panel tabs switch between Setup, Run, and Terminal", async ({
