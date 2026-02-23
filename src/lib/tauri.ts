@@ -741,6 +741,65 @@ export async function getIssueDetails(
   return invoke<IssueDetail>("get_issue_details", { repoId, issueNumber });
 }
 
+// Linear types
+export interface LinearIssue {
+  id: string;
+  identifier: string;
+  title: string;
+  url: string;
+  stateName: string | null;
+  priority: number | null;
+  teamName: string | null;
+  description: string | null;
+}
+
+export interface LinkIssueRequest {
+  workspaceId: string;
+  issueId: string;
+  identifier: string;
+  title: string;
+  url: string;
+}
+
+export interface UnlinkIssueRequest {
+  workspaceId: string;
+  issueId: string;
+}
+
+export interface WorkspaceIssue {
+  issueId: string;
+  workspaceId: string;
+  identifier: string;
+  title: string;
+  url: string;
+  linkedAt: string;
+}
+
+// Linear commands
+export async function searchLinearIssues(
+  query: string,
+): Promise<LinearIssue[]> {
+  return invoke<LinearIssue[]>("search_linear_issues", { query });
+}
+
+export async function linkIssueToWorkspace(
+  request: LinkIssueRequest,
+): Promise<void> {
+  return invoke("link_issue_to_workspace", { request });
+}
+
+export async function unlinkIssueFromWorkspace(
+  request: UnlinkIssueRequest,
+): Promise<void> {
+  return invoke("unlink_issue_from_workspace", { request });
+}
+
+export async function getWorkspaceIssues(
+  workspaceId: string,
+): Promise<WorkspaceIssue[]> {
+  return invoke<WorkspaceIssue[]>("get_workspace_issues", { workspaceId });
+}
+
 // Todo types
 export interface TodoItem {
   id: string;
@@ -871,6 +930,10 @@ export interface CopilotSettings {
   enabled: boolean;
 }
 
+export interface LinearSettings {
+  apiKey: string | null;
+}
+
 export interface AppSettings {
   theme: "blend" | "midnight" | "github";
   provider: ProviderConfig;
@@ -878,6 +941,7 @@ export interface AppSettings {
   analyticsEnabled: boolean;
   experimental: ExperimentalSettings;
   copilot: CopilotSettings;
+  linear: LinearSettings;
 }
 
 // MCP commands

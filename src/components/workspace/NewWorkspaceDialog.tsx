@@ -13,8 +13,10 @@ import {
   listBranches,
   listRepoPrs,
   listRepoIssues,
+  searchLinearIssues,
   type PrListItem,
   type IssueListItem,
+  type LinearIssue,
 } from "../../lib/tauri";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -25,7 +27,7 @@ interface Props {
   onClose: () => void;
 }
 
-type WorkspaceMode = "branch" | "pr" | "issue";
+type WorkspaceMode = "branch" | "pr" | "issue" | "linear";
 
 function generateName(text: string): string {
   return text
@@ -41,6 +43,7 @@ const MODES: { key: WorkspaceMode; label: string }[] = [
   { key: "branch", label: "New Branch" },
   { key: "pr", label: "From PR" },
   { key: "issue", label: "From Issue" },
+  { key: "linear", label: "From Linear" },
 ];
 
 export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
@@ -71,6 +74,14 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
   );
   const [issueSearch, setIssueSearch] = useState("");
   const [issueError, setIssueError] = useState<string | null>(null);
+
+  // Linear mode state
+  const [linearIssues, setLinearIssues] = useState<LinearIssue[]>([]);
+  const [linearSearch, setLinearSearch] = useState("");
+  const [linearSearching, setLinearSearching] = useState(false);
+  const [selectedLinearIssue, setSelectedLinearIssue] =
+    useState<LinearIssue | null>(null);
+  const [linearError, setLinearError] = useState<string | null>(null);
 
   useEffect(() => {
     setLoadingBranches(true);
@@ -123,6 +134,26 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
     }
   }, [mode, repoId]);
 
+  // Debounced Linear search
+  useEffect(() => {
+    if (mode !== "linear" || !linearSearch.trim()) {
+      if (mode === "linear" && !linearSearch.trim()) {
+        setLinearIssues([]);
+        setLinearError(null);
+      }
+      return;
+    }
+    const timeout = setTimeout(() => {
+      setLinearSearching(true);
+      setLinearError(null);
+      searchLinearIssues(linearSearch)
+        .then(setLinearIssues)
+        .catch((e) => setLinearError(String(e)))
+        .finally(() => setLinearSearching(false));
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [mode, linearSearch]);
+
   const handleSelectPr = (pr: PrListItem) => {
     setSelectedPr(pr);
     setWorktreeName(pr.headBranch);
@@ -136,6 +167,15 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
     setWorktreeName(generateName(`issue-${issue.number}-${shortTitle}`));
     setTaskDescription(
       `Issue #${issue.number}: ${issue.title}${issue.body ? `\n\n${issue.body}` : ""}`,
+    );
+  };
+
+  const handleSelectLinearIssue = (issue: LinearIssue) => {
+    setSelectedLinearIssue(issue);
+    const shortTitle = issue.title.slice(0, 30);
+    setWorktreeName(generateName(`${issue.identifier}-${shortTitle}`));
+    setTaskDescription(
+      `${issue.identifier}: ${issue.title}${issue.description ? `\n\n${issue.description}` : ""}`,
     );
   };
 
@@ -187,10 +227,13 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
     outline: "none",
   };
 
-  const canCreate =
-    mode === "pr"
-      ? !!selectedPr && worktreeName.trim() && !creating
-      : worktreeName.trim() && baseBranch.trim() && !creating;
+  const canCreate = (() => {
+    if (creating) return false;
+    if (!worktreeName.trim()) return false;
+    if (mode === "pr") return !!selectedPr;
+    if (mode === "linear") return !!selectedLinearIssue && !!baseBranch.trim();
+    return !!baseBranch.trim();
+  })();
 
   const filteredPrs = prs.filter(
     (pr) =>
@@ -482,6 +525,104 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
           </div>
         )}
 
+        {/* Linear issue selector */}
+        {mode === "linear" && (
+          <div className="mb-4">
+            <div className="relative mb-2">
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+                style={{ color: "var(--text-muted)" }}
+              />
+              <input
+                type="text"
+                value={linearSearch}
+                onChange={(e) => setLinearSearch(e.target.value)}
+                placeholder="Search Linear issues..."
+                className="w-full rounded-lg py-2 pl-8 pr-3 text-xs"
+                style={inputStyle}
+                autoFocus
+              />
+            </div>
+            <div
+              className="max-h-40 overflow-y-auto rounded-lg"
+              style={{
+                border: linearSearch
+                  ? "1px solid var(--border)"
+                  : "none",
+              }}
+            >
+              {linearSearching ? (
+                <div
+                  className="px-3 py-4 text-center text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Searching...
+                </div>
+              ) : linearError ? (
+                <div
+                  className="px-3 py-4 text-center text-xs"
+                  style={{ color: "var(--error)" }}
+                >
+                  {linearError}
+                </div>
+              ) : !linearSearch.trim() ? (
+                <div
+                  className="px-3 py-4 text-center text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Type to search Linear issues
+                </div>
+              ) : linearIssues.length === 0 ? (
+                <div
+                  className="px-3 py-4 text-center text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  No matching issues
+                </div>
+              ) : (
+                linearIssues.map((issue) => (
+                  <button
+                    key={issue.id}
+                    onClick={() => handleSelectLinearIssue(issue)}
+                    className="flex w-full items-start gap-2 px-3 py-2 text-left transition-colors"
+                    style={{
+                      backgroundColor:
+                        selectedLinearIssue?.id === issue.id
+                          ? "var(--bg-hover)"
+                          : "transparent",
+                      borderBottom: "1px solid var(--border)",
+                    }}
+                  >
+                    <CircleDot
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                      style={{ color: "var(--accent)" }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className="truncate text-xs"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        <span style={{ color: "var(--text-muted)" }}>
+                          {issue.identifier}
+                        </span>{" "}
+                        {issue.title}
+                      </div>
+                      <div
+                        className="text-[11px]"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        {[issue.teamName, issue.stateName]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Task description */}
         <div className="mb-4">
           <label
@@ -504,7 +645,7 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
             className="mt-1 text-[11px]"
             style={{ color: "var(--text-muted)" }}
           >
-            {mode === "pr" || mode === "issue"
+            {mode === "pr" || mode === "issue" || mode === "linear"
               ? "Auto-filled from selection. Edit to customize the initial message."
               : "This helps the AI understand the context and will be used to name your worktree"}
           </p>

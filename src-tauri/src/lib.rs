@@ -113,6 +113,11 @@ pub fn run() {
             commands::pr::get_run_jobs,
             commands::pr::get_run_logs,
             commands::pr::rerun_workflow,
+            // Linear commands
+            commands::linear::search_linear_issues,
+            commands::linear::link_issue_to_workspace,
+            commands::linear::unlink_issue_from_workspace,
+            commands::linear::get_workspace_issues,
             // Todo commands
             commands::todo::add_todo,
             commands::todo::update_todo,
