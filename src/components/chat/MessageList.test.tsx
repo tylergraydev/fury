@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { MessageList } from "./MessageList";
+import { MessageList, segmentTurns } from "./MessageList";
 import type { ChatMessage, Checkpoint } from "../../lib/tauri";
 
 beforeEach(() => {
@@ -193,5 +193,71 @@ describe("MessageList", () => {
       <MessageList messages={msgs} streamingText="" agentStatus="Idle" />,
     );
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("adds data-turn-index attributes to turn wrappers", () => {
+    const msgs = [
+      makeMsg({ id: "m1", role: "user", content: txt("first") }),
+      makeMsg({ id: "m2", role: "assistant", content: txt("reply") }),
+      makeMsg({ id: "m3", role: "user", content: txt("second") }),
+      makeMsg({ id: "m4", role: "assistant", content: txt("reply2") }),
+    ];
+    const { container } = render(
+      <MessageList messages={msgs} streamingText="" agentStatus="Idle" />,
+    );
+    const turn0 = container.querySelector('[data-turn-index="0"]');
+    const turn1 = container.querySelector('[data-turn-index="1"]');
+    expect(turn0).toBeInTheDocument();
+    expect(turn1).toBeInTheDocument();
+    // Turn 0 should contain message m1
+    expect(turn0?.querySelector('[data-testid="msg-m1"]')).toBeInTheDocument();
+    // Turn 1 should contain message m3
+    expect(turn1?.querySelector('[data-testid="msg-m3"]')).toBeInTheDocument();
+  });
+});
+
+describe("segmentTurns", () => {
+  it("returns empty arrays for empty input", () => {
+    const result = segmentTurns([]);
+    expect(result.orphans).toEqual([]);
+    expect(result.turns).toEqual([]);
+  });
+
+  it("classifies leading non-user messages as orphans", () => {
+    const msgs = [
+      makeMsg({ id: "a1", role: "assistant" }),
+      makeMsg({ id: "s1", role: "system" }),
+      makeMsg({ id: "u1", role: "user" }),
+    ];
+    const result = segmentTurns(msgs);
+    expect(result.orphans).toHaveLength(2);
+    expect(result.orphans[0].id).toBe("a1");
+    expect(result.orphans[1].id).toBe("s1");
+    expect(result.turns).toHaveLength(1);
+    expect(result.turns[0].userMessage.id).toBe("u1");
+  });
+
+  it("groups consecutive non-user messages as responses in the current turn", () => {
+    const msgs = [
+      makeMsg({ id: "u1", role: "user" }),
+      makeMsg({ id: "a1", role: "assistant" }),
+      makeMsg({ id: "a2", role: "assistant" }),
+      makeMsg({ id: "u2", role: "user" }),
+    ];
+    const result = segmentTurns(msgs);
+    expect(result.turns).toHaveLength(2);
+    expect(result.turns[0].responses).toHaveLength(2);
+    expect(result.turns[0].responses[0].id).toBe("a1");
+    expect(result.turns[0].responses[1].id).toBe("a2");
+    expect(result.turns[1].responses).toHaveLength(0);
+  });
+
+  it("handles a single user message with no responses", () => {
+    const msgs = [makeMsg({ id: "u1", role: "user" })];
+    const result = segmentTurns(msgs);
+    expect(result.orphans).toEqual([]);
+    expect(result.turns).toHaveLength(1);
+    expect(result.turns[0].userMessage.id).toBe("u1");
+    expect(result.turns[0].responses).toEqual([]);
   });
 });

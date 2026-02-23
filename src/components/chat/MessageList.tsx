@@ -6,12 +6,12 @@ import { CheckpointIndicator } from "./CheckpointIndicator";
 
 // --- Turn segmentation ---
 
-interface Turn {
+export interface Turn {
   userMessage: ChatMessage;
   responses: ChatMessage[];
 }
 
-function segmentTurns(messages: ChatMessage[]): { orphans: ChatMessage[]; turns: Turn[] } {
+export function segmentTurns(messages: ChatMessage[]): { orphans: ChatMessage[]; turns: Turn[] } {
   const orphans: ChatMessage[] = [];
   const turns: Turn[] = [];
   let currentTurn: Turn | null = null;
@@ -275,7 +275,7 @@ export function MessageList({
           }
         }
 
-        return <div key={turnId} className="mb-6">{elements}</div>;
+        return <div key={turnId} className="mb-6" data-turn-index={turnIdx}>{elements}</div>;
       })}
 
       {/* Show streaming text as in-progress assistant message */}
