@@ -128,6 +128,20 @@ describe("chatStore - addUserMessage", () => {
     expect(saveChatMessage).toHaveBeenCalled();
   });
 
+  it("includes displayText when provided", () => {
+    useChatStore.getState().addUserMessage("ws-1", "expanded prompt", "/test");
+
+    const msgs = useChatStore.getState().messages["ws-1"];
+    expect(msgs[0].displayText).toBe("/test");
+  });
+
+  it("omits displayText when not provided", () => {
+    useChatStore.getState().addUserMessage("ws-1", "normal message");
+
+    const msgs = useChatStore.getState().messages["ws-1"];
+    expect(msgs[0]).not.toHaveProperty("displayText");
+  });
+
   it("appends to existing messages", () => {
     useChatStore.setState({
       messages: {

@@ -27,7 +27,7 @@ interface ChatStore {
 
   subscribe: (workspaceId: string) => Promise<void>;
   unsubscribe: (workspaceId: string) => void;
-  addUserMessage: (workspaceId: string, text: string) => void;
+  addUserMessage: (workspaceId: string, text: string, displayText?: string) => void;
   clearMessages: (workspaceId: string) => void;
   getMessages: (workspaceId: string) => ChatMessage[];
   getStreamingText: (workspaceId: string) => string;
@@ -76,12 +76,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }
   },
 
-  addUserMessage: (workspaceId: string, text: string) => {
+  addUserMessage: (workspaceId: string, text: string, displayText?: string) => {
     const msg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
       content: [{ type: "text", text }],
       timestamp: Date.now(),
+      ...(displayText ? { displayText } : {}),
     };
     set((state) => ({
       messages: {

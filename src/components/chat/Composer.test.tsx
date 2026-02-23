@@ -69,7 +69,7 @@ describe("Composer", () => {
     render(<Composer {...defaultProps} onSend={onSend} />);
     await user.type(screen.getByRole("textbox"), "test message");
     await user.click(screen.getByText("Send").closest("button")!);
-    expect(onSend).toHaveBeenCalledWith("test message", undefined);
+    expect(onSend).toHaveBeenCalledWith("test message", undefined, undefined);
   });
 
   it("calls onSend on Enter key", async () => {
@@ -77,7 +77,7 @@ describe("Composer", () => {
     const user = userEvent.setup();
     render(<Composer {...defaultProps} onSend={onSend} />);
     await user.type(screen.getByRole("textbox"), "hello{Enter}");
-    expect(onSend).toHaveBeenCalledWith("hello", undefined);
+    expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
   });
 
   it("does not send on Shift+Enter", async () => {
@@ -241,6 +241,29 @@ describe("Composer", () => {
       // "test" should be the only matching command; press Enter to select it
       await user.keyboard("{Enter}");
       expect(textarea).toHaveValue("test content");
+    });
+
+    it("passes command name as displayText when sending after command selection", async () => {
+      const onSend = vi.fn();
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} onSend={onSend} />);
+      const textarea = screen.getByRole("textbox");
+      await user.type(textarea, "/te");
+      await user.keyboard("{Enter}"); // selects /test command
+      await user.click(screen.getByText("Send").closest("button")!);
+      expect(onSend).toHaveBeenCalledWith("test content", undefined, "/test");
+    });
+
+    it("clears displayText when user edits text after selecting command", async () => {
+      const onSend = vi.fn();
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} onSend={onSend} />);
+      const textarea = screen.getByRole("textbox");
+      await user.type(textarea, "/te");
+      await user.keyboard("{Enter}"); // selects /test command
+      await user.type(textarea, " extra"); // edit clears pendingCommandName
+      await user.click(screen.getByText("Send").closest("button")!);
+      expect(onSend).toHaveBeenCalledWith("test content extra", undefined, undefined);
     });
 
     it("selects slash command with Tab key", async () => {
@@ -664,7 +687,7 @@ describe("Composer", () => {
     await user.type(textarea, "Check @todos now");
     await user.click(screen.getByText("Send").closest("button")!);
     // In repo context, workspaceId is undefined, so @todos is NOT expanded
-    expect(onSend).toHaveBeenCalledWith("Check @todos now", undefined);
+    expect(onSend).toHaveBeenCalledWith("Check @todos now", undefined, undefined);
   });
 
   // --- Slash command on multiline: / must be at start of current line ---

@@ -121,7 +121,7 @@ interface Props {
   contextId: string;
   contextType: "workspace" | "repo";
   agentStatus: AgentStatus;
-  onSend: (message: string, model?: string) => void;
+  onSend: (message: string, model?: string, displayText?: string) => void;
   onStop: () => void;
   isPlanApproval?: boolean;
   onApprovePlan?: () => void;
@@ -153,6 +153,9 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
   // File drop state
   const [droppedFiles, setDroppedFiles] = useState<DroppedFile[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // Track pending slash command name for display in chat bubble
+  const [pendingCommandName, setPendingCommandName] = useState<string | null>(null);
 
   const isRunning = agentStatus === "Running";
   const isStopping = agentStatus === "Stopping";
@@ -298,16 +301,17 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
       message = message ? `${fileBlock}\n\n${message}` : fileBlock;
     }
 
-    onSend(message, selectedModel || undefined);
+    onSend(message, selectedModel || undefined, pendingCommandName || undefined);
     setText("");
     setDroppedFiles([]);
     setShowSlashMenu(false);
     setShowAtMenu(false);
+    setPendingCommandName(null);
     /* v8 ignore next 3 -- @preserve */
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-  }, [canSend, text, droppedFiles, onSend, workspaceId, selectedModel]);
+  }, [canSend, text, droppedFiles, onSend, workspaceId, selectedModel, pendingCommandName]);
 
   const selectSlashCommand = useCallback(
     (cmd: SlashCommand) => {
@@ -330,6 +334,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
       }
 
       setText(textBeforeLine + cmd.content + textAfterCursor);
+      setPendingCommandName(`/${cmd.name}`);
       setShowSlashMenu(false);
     },
     [text],
@@ -431,6 +436,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setText(value);
+    if (pendingCommandName) setPendingCommandName(null);
 
     const cursorPos = e.target.selectionStart;
     const textBeforeCursor = value.substring(0, cursorPos);
