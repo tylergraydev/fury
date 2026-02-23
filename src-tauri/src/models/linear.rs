@@ -15,14 +15,6 @@ pub struct LinearIssue {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LinearTeam {
-    pub id: String,
-    pub name: String,
-    pub key: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LinkIssueRequest {
     pub workspace_id: String,
     pub issue_id: String,

@@ -548,7 +548,7 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
               style={{
                 border: linearSearch
                   ? "1px solid var(--border)"
-                  : "1px solid var(--border)",
+                  : "none",
               }}
             >
               {linearSearching ? (

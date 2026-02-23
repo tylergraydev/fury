@@ -65,11 +65,19 @@ export const useLinearStore = create<LinearStore>((set, get) => ({
 
   linkIssue: async (request: LinkIssueRequest) => {
     await linkIssueCmd(request);
-    await get().loadLinkedIssues(request.workspaceId);
+    try {
+      await get().loadLinkedIssues(request.workspaceId);
+    } catch (e) {
+      console.error("Issue linked but failed to refresh list:", e);
+    }
   },
 
   unlinkIssue: async (workspaceId: string, issueId: string) => {
     await unlinkIssueCmd({ workspaceId, issueId });
-    await get().loadLinkedIssues(workspaceId);
+    try {
+      await get().loadLinkedIssues(workspaceId);
+    } catch (e) {
+      console.error("Issue unlinked but failed to refresh list:", e);
+    }
   },
 }));

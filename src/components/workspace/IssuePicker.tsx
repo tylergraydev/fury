@@ -27,10 +27,14 @@ export function IssuePicker({ workspaceId, onClose }: Props) {
     (s) => s.linkedIssues[workspaceId] ?? [],
   );
   const [linkingId, setLinkingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     loadLinkedIssues(workspaceId);
-    return () => clearSearch();
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      clearSearch();
+    };
   }, [workspaceId, loadLinkedIssues, clearSearch]);
 
   const handleSearch = useCallback(
@@ -50,6 +54,7 @@ export function IssuePicker({ workspaceId, onClose }: Props) {
 
   const handleLink = async (issue: LinearIssue) => {
     setLinkingId(issue.id);
+    setActionError(null);
     try {
       await linkIssue({
         workspaceId,
@@ -59,17 +64,18 @@ export function IssuePicker({ workspaceId, onClose }: Props) {
         url: issue.url,
       });
     } catch (e) {
-      console.error("Failed to link issue:", e);
+      setActionError(`Failed to link ${issue.identifier}: ${String(e)}`);
     } finally {
       setLinkingId(null);
     }
   };
 
   const handleUnlink = async (issueId: string) => {
+    setActionError(null);
     try {
       await unlinkIssue(workspaceId, issueId);
     } catch (e) {
-      console.error("Failed to unlink issue:", e);
+      setActionError(`Failed to unlink issue: ${String(e)}`);
     }
   };
 
@@ -177,6 +183,15 @@ export function IssuePicker({ workspaceId, onClose }: Props) {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {actionError && (
+          <div
+            className="mb-3 rounded px-3 py-2 text-xs"
+            style={{ color: "var(--error)" }}
+          >
+            {actionError}
           </div>
         )}
 

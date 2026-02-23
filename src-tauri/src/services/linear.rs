@@ -28,7 +28,7 @@ pub fn search_issues(api_key: &str, query: &str) -> Result<Vec<LinearIssue>, App
 
     let response = client
         .post("https://api.linear.app/graphql")
-        .header("Authorization", api_key)
+        .header("Authorization", format!("Bearer {}", api_key))
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
@@ -63,7 +63,11 @@ pub fn search_issues(api_key: &str, query: &str) -> Result<Vec<LinearIssue>, App
         .and_then(|s| s.get("nodes"))
         .and_then(|n| n.as_array())
         .cloned()
-        .unwrap_or_default();
+        .ok_or_else(|| {
+            AppError::LinearError(
+                "Unexpected Linear API response: missing data.issueSearch.nodes".to_string(),
+            )
+        })?;
 
     Ok(nodes
         .iter()
@@ -121,7 +125,7 @@ pub fn get_issue(api_key: &str, issue_id: &str) -> Result<LinearIssue, AppError>
 
     let response = client
         .post("https://api.linear.app/graphql")
-        .header("Authorization", api_key)
+        .header("Authorization", format!("Bearer {}", api_key))
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
@@ -155,27 +159,28 @@ pub fn get_issue(api_key: &str, issue_id: &str) -> Result<LinearIssue, AppError>
         .and_then(|d| d.get("issue"))
         .ok_or_else(|| AppError::LinearError("Issue not found".to_string()))?;
 
+    let id = node
+        .get("id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::LinearError("Missing required field: id".to_string()))?;
+    let identifier = node
+        .get("identifier")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::LinearError("Missing required field: identifier".to_string()))?;
+    let title = node
+        .get("title")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::LinearError("Missing required field: title".to_string()))?;
+    let url = node
+        .get("url")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::LinearError("Missing required field: url".to_string()))?;
+
     Ok(LinearIssue {
-        id: node
-            .get("id")
-            .and_then(|v| v.as_str())
-            .unwrap_or_default()
-            .to_string(),
-        identifier: node
-            .get("identifier")
-            .and_then(|v| v.as_str())
-            .unwrap_or_default()
-            .to_string(),
-        title: node
-            .get("title")
-            .and_then(|v| v.as_str())
-            .unwrap_or_default()
-            .to_string(),
-        url: node
-            .get("url")
-            .and_then(|v| v.as_str())
-            .unwrap_or_default()
-            .to_string(),
+        id: id.to_string(),
+        identifier: identifier.to_string(),
+        title: title.to_string(),
+        url: url.to_string(),
         state_name: node
             .get("state")
             .and_then(|s| s.get("name"))
