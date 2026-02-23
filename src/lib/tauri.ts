@@ -121,7 +121,20 @@ export type FrontendStreamEvent =
   | { type: "assistantText"; text: string }
   | { type: "toolUse"; id: string; name: string; input: unknown }
   | { type: "toolResult"; toolUseId: string; content: string }
-  | { type: "result"; isError: boolean; result: string | null; sessionId: string | null }
+  | {
+      type: "result";
+      isError: boolean;
+      result: string | null;
+      sessionId: string | null;
+      durationMs?: number;
+      durationApiMs?: number;
+      totalCostUsd?: number;
+      numTurns?: number;
+      inputTokens?: number;
+      outputTokens?: number;
+      cacheReadTokens?: number;
+      cacheCreationTokens?: number;
+    }
   | { type: "permissionRequest"; toolName: string; input: unknown };
 
 // Chat types
@@ -132,12 +145,24 @@ export type ContentBlock =
   | { type: "toolUse"; id: string; name: string; input: unknown }
   | { type: "toolResult"; toolUseId: string; content: string };
 
+export interface ResponseMetadata {
+  durationMs?: number;
+  durationApiMs?: number;
+  totalCostUsd?: number;
+  numTurns?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
   content: ContentBlock[];
   timestamp: number;
   displayText?: string;
+  metadata?: ResponseMetadata;
 }
 
 // Persisted chat message (matches backend ChatMessage with ISO timestamp)
@@ -148,6 +173,7 @@ export interface PersistedChatMessage {
   content: ContentBlock[];
   timestamp: string; // ISO 8601
   displayText?: string;
+  metadata?: ResponseMetadata;
 }
 
 export function toPersisted(
@@ -161,6 +187,7 @@ export function toPersisted(
     content: msg.content,
     timestamp: new Date(msg.timestamp).toISOString(),
     ...(msg.displayText ? { displayText: msg.displayText } : {}),
+    ...(msg.metadata ? { metadata: msg.metadata } : {}),
   };
 }
 
@@ -171,6 +198,7 @@ export function fromPersisted(msg: PersistedChatMessage): ChatMessage {
     content: msg.content,
     timestamp: new Date(msg.timestamp).getTime(),
     ...(msg.displayText ? { displayText: msg.displayText } : {}),
+    ...(msg.metadata ? { metadata: msg.metadata } : {}),
   };
 }
 

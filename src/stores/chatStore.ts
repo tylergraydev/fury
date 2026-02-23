@@ -4,6 +4,7 @@ import type {
   ChatMessage,
   ContentBlock,
   FrontendStreamEvent,
+  ResponseMetadata,
   SlashCommand,
 } from "../lib/tauri";
 import {
@@ -20,12 +21,20 @@ export interface PermissionRequestInfo {
   input: unknown;
 }
 
+export interface SessionStats {
+  totalCostUsd: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  numTurns: number;
+}
+
 interface ChatStore {
   messages: Record<string, ChatMessage[]>;
   streamingText: Record<string, string>;
   planApproval: Record<string, boolean>;
   permissionRequest: Record<string, PermissionRequestInfo | null>;
   subscriptions: Record<string, UnlistenFn>;
+  sessionStats: Record<string, SessionStats>;
 
   subscribe: (workspaceId: string) => Promise<void>;
   unsubscribe: (workspaceId: string) => void;
@@ -34,6 +43,7 @@ interface ChatStore {
   getMessages: (workspaceId: string) => ChatMessage[];
   getStreamingText: (workspaceId: string) => string;
   getPlanContent: (workspaceId: string) => string;
+  getSessionStats: (workspaceId: string) => SessionStats | undefined;
   loadMessages: (workspaceId: string) => Promise<void>;
   removeTrailingSystemMessages: (workspaceId: string) => void;
   clearPermissionRequest: (workspaceId: string) => void;
@@ -45,6 +55,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   planApproval: {},
   permissionRequest: {},
   subscriptions: {},
+  sessionStats: {},
 
   subscribe: async (workspaceId: string) => {
     if (get().subscriptions[workspaceId]) return;
@@ -98,12 +109,16 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   clearMessages: (workspaceId: string) => {
-    set((state) => ({
-      messages: { ...state.messages, [workspaceId]: [] },
-      streamingText: { ...state.streamingText, [workspaceId]: "" },
-      planApproval: { ...state.planApproval, [workspaceId]: false },
-      permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
-    }));
+    set((state) => {
+      const { [workspaceId]: _, ...restStats } = state.sessionStats;
+      return {
+        messages: { ...state.messages, [workspaceId]: [] },
+        streamingText: { ...state.streamingText, [workspaceId]: "" },
+        planApproval: { ...state.planApproval, [workspaceId]: false },
+        permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
+        sessionStats: restStats,
+      };
+    });
     clearChatMessagesCmd(workspaceId).catch(console.error);
   },
 
@@ -113,6 +128,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   getStreamingText: (workspaceId: string) => {
     return get().streamingText[workspaceId] ?? "";
+  },
+
+  getSessionStats: (workspaceId: string) => {
+    return get().sessionStats[workspaceId];
   },
 
   getPlanContent: (workspaceId: string) => {
@@ -339,11 +358,48 @@ function handleStreamEvent(
         persistMessage(workspaceId, msg);
       }
 
-      // Persist the final state of the last assistant message
+      // Build metadata from the result event and attach to the last assistant message
+      const metadata: ResponseMetadata = {
+        ...(event.durationMs != null ? { durationMs: event.durationMs } : {}),
+        ...(event.durationApiMs != null ? { durationApiMs: event.durationApiMs } : {}),
+        ...(event.totalCostUsd != null ? { totalCostUsd: event.totalCostUsd } : {}),
+        ...(event.numTurns != null ? { numTurns: event.numTurns } : {}),
+        ...(event.inputTokens != null ? { inputTokens: event.inputTokens } : {}),
+        ...(event.outputTokens != null ? { outputTokens: event.outputTokens } : {}),
+        ...(event.cacheReadTokens != null ? { cacheReadTokens: event.cacheReadTokens } : {}),
+        ...(event.cacheCreationTokens != null ? { cacheCreationTokens: event.cacheCreationTokens } : {}),
+      };
+      const hasMetadata = Object.keys(metadata).length > 0;
+
+      // Update session-level stats from the result event
+      if (hasMetadata) {
+        set((state) => ({
+          sessionStats: {
+            ...state.sessionStats,
+            [workspaceId]: {
+              totalCostUsd: event.totalCostUsd ?? 0,
+              totalInputTokens: event.inputTokens ?? 0,
+              totalOutputTokens: event.outputTokens ?? 0,
+              numTurns: event.numTurns ?? 0,
+            },
+          },
+        }));
+      }
+
+      // Persist the final state of the last assistant message (with metadata if available)
       const messages = get().messages[workspaceId] ?? [];
       const lastMsg = messages[messages.length - 1];
       if (lastMsg && lastMsg.role === "assistant") {
-        persistMessage(workspaceId, lastMsg);
+        const updated = hasMetadata ? { ...lastMsg, metadata } : lastMsg;
+        if (hasMetadata) {
+          set((state) => ({
+            messages: {
+              ...state.messages,
+              [workspaceId]: [...(state.messages[workspaceId] ?? []).slice(0, -1), updated],
+            },
+          }));
+        }
+        persistMessage(workspaceId, updated);
       }
       break;
     }
