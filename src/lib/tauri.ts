@@ -106,6 +106,8 @@ export interface SendMessageRequest {
   repoId?: string;
   message: string;
   model?: string;
+  disableThinking?: boolean;
+  disablePlanMode?: boolean;
 }
 
 export interface AgentStatusEvent {

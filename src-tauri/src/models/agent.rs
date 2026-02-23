@@ -47,6 +47,10 @@ pub struct SendMessageRequest {
     pub message: String,
     /// Optional model override (e.g. "sonnet", "opus", "haiku", or a full model ID).
     pub model: Option<String>,
+    /// When true, disable extended thinking for this message.
+    pub disable_thinking: Option<bool>,
+    /// When true, disable plan mode for this message.
+    pub disable_plan_mode: Option<bool>,
 }
 
 /// A parsed event from Claude Code's NDJSON stream output.

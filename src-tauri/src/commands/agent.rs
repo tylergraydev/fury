@@ -190,6 +190,9 @@ pub async fn send_message(
         )
     };
 
+    let disable_thinking = request.disable_thinking.unwrap_or(false);
+    let disable_plan_mode = request.disable_plan_mode.unwrap_or(false);
+
     if persistent_mode {
         // Performance Mode: reuse a long-running process or spawn one
         // Single remove avoids TOCTOU race between contains_key + remove
@@ -223,6 +226,8 @@ pub async fn send_message(
                 system_prompt.as_deref(),
                 request.model.as_deref(),
                 safe_mode,
+                disable_thinking,
+                disable_plan_mode,
                 app.clone(),
                 Arc::clone(&state.agents),
                 Arc::clone(&state.persistent_agents),
@@ -325,6 +330,8 @@ pub async fn send_message(
             system_prompt.as_deref(),
             request.model.as_deref(),
             safe_mode,
+            disable_thinking,
+            disable_plan_mode,
             app.clone(),
             Arc::clone(&state.agents),
         )
