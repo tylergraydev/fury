@@ -1,0 +1,55 @@
+---
+title: PR Management
+description: Create, review, and merge pull requests
+---
+
+Fury provides a complete PR workflow without leaving the app. Push changes, create PRs, monitor checks, review comments, and merge — all from the workspace panel.
+
+## Pushing changes
+
+Push your workspace's branch to the remote with the **Push** button. This pushes all committed changes on the workspace branch.
+
+## Creating a PR
+
+Click **Create PR** to open a pull request for the current workspace branch. Provide:
+
+- **Title** — A short summary of the changes
+- **Body** — A detailed description (Markdown supported)
+- **Draft** — Optionally create as a draft PR
+
+The PR targets your repository's default branch.
+
+## Viewing PR info
+
+Once a PR exists, the workspace panel shows:
+
+- PR number and URL
+- Current state (open, closed, merged)
+- Mergeable status
+- Title and description
+
+## Monitoring checks
+
+Open the **Checks** panel (<Tooltip tip="Ctrl+3 on Windows/Linux">**Cmd+3**</Tooltip>) to see CI check results:
+
+- Check name and status (pending, success, failure)
+- Conclusion details
+- Link to check details on GitHub
+
+## Fixing failing checks
+
+Click **Fix Checks** to have the agent analyze failing CI checks and attempt to fix them automatically. The agent reads the check output and makes the necessary code changes.
+
+## Reviews and comments
+
+View PR reviews and review comments directly in Fury. See reviewer feedback, approval status, and inline code comments.
+
+## Merging
+
+Merge the PR when all checks pass and reviews are approved. Choose your merge method:
+
+| Method | Description |
+|--------|-------------|
+| **Merge** | Creates a merge commit |
+| **Squash** | Squashes all commits into one |
+| **Rebase** | Rebases commits onto the base branch |

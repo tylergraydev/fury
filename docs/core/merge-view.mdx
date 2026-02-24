@@ -1,0 +1,59 @@
+---
+title: Merge View
+description: Branch sync and conflict resolution
+---
+
+The merge view helps you keep your workspace branch in sync with the default branch and resolve conflicts when they occur.
+
+## Branch status
+
+Fury tracks how your workspace branch relates to the default branch:
+
+- **Ahead** — Number of commits on your branch not on the default branch
+- **Behind** — Number of commits on the default branch not on your branch
+
+## Syncing with upstream
+
+### Fetch
+
+Fetch the latest changes from the remote without modifying your worktree.
+
+### Pull with rebase
+
+Rebase your workspace commits on top of the latest default branch. This keeps a clean, linear history.
+
+### Pull with merge
+
+Merge the latest default branch into your workspace branch. Creates a merge commit.
+
+## Conflict resolution
+
+When a pull results in conflicts, Fury shows the conflicted files and provides a resolution interface.
+
+### Conflict types
+
+| Type | Description |
+|------|-------------|
+| **Both Modified** | Same file changed on both branches |
+| **Deleted by Us** | We deleted a file they modified |
+| **Deleted by Them** | They deleted a file we modified |
+| **Added by Both** | Both branches added a file at the same path |
+
+### Resolving conflicts
+
+For each conflicted file, you can view the three-way merge content:
+
+- **Base** — The common ancestor version
+- **Ours** — Your workspace branch version
+- **Theirs** — The default branch version
+- **Merged** — The resolved content
+
+Choose a resolution strategy for each file, then continue the merge.
+
+### Aborting
+
+If the conflicts are too complex, abort the merge to return to your previous state.
+
+## Cross-worktree comparison
+
+When two workspaces are [linked](/core/workspaces), you can compare their changes against each other. This shows a diff between the two workspace worktrees, useful for reviewing related features or comparing approaches.

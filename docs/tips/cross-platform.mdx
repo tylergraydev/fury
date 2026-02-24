@@ -1,0 +1,32 @@
+---
+title: Cross-Platform
+description: Platform-specific notes for macOS, Windows, and Linux
+---
+
+Fury runs on macOS, Windows, and Linux. Here are platform-specific details.
+
+## macOS
+
+- Supports both **Apple Silicon** (M1/M2/M3/M4) and **Intel** Macs
+- Download the `.dmg` installer from GitHub Releases
+- Keyboard shortcuts use **Cmd** as the modifier key
+- Title bar uses macOS-native overlay style
+
+## Windows
+
+- Download the `.msi` installer from GitHub Releases
+- Keyboard shortcuts use **Ctrl** instead of **Cmd**
+- Requires [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) for building from source (WebView2, Visual Studio Build Tools)
+
+## Linux
+
+- Available as `.AppImage` (portable) or `.deb` (Debian/Ubuntu)
+- Keyboard shortcuts use **Ctrl** instead of **Cmd**
+- Requires WebKitGTK for building from source
+
+## Shell detection
+
+Fury automatically detects your default shell:
+
+- **macOS/Linux** — Uses `$SHELL` or falls back to `/bin/zsh` (macOS) or `/bin/bash` (Linux)
+- **Windows** — Uses PowerShell or `cmd.exe`

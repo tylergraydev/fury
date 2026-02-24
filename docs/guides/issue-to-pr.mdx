@@ -1,0 +1,57 @@
+---
+title: From Issue to PR
+description: Complete lifecycle from picking up an issue to merging a PR
+---
+
+This guide covers the full workflow from starting with a GitHub or Linear issue to shipping a merged PR.
+
+## 1. Pick an issue
+
+You can start from either:
+
+- **GitHub issue** — Use [Create from Issue](/guides/create-from-issue) to create a workspace with the issue context
+- **Linear issue** — Press <Tooltip tip="Ctrl+I on Windows/Linux">**Cmd+I**</Tooltip> to search and link a Linear issue
+
+## 2. Create a workspace
+
+Create a workspace for the issue. If you used "Create from Issue," the workspace is already set up on a branch named after the issue.
+
+## 3. Implement
+
+Chat with the agent to implement the feature or fix. Reference the issue in your first message so the agent understands the requirements:
+
+```
+Implement the feature described in the linked issue.
+Make sure to add tests for the new functionality.
+```
+
+## 4. Review changes
+
+Check the **Changes** panel to review all modifications. Use the diff viewer to verify each file looks correct.
+
+## 5. Push and create a PR
+
+1. Push your changes
+2. Create a PR with a descriptive title and body
+3. Reference the issue number in the PR body (e.g., "Closes #42")
+
+## 6. Fix CI
+
+If checks fail, click **Fix Checks** to have the agent analyze and fix the issues. Push again and wait for checks to pass.
+
+## 7. Address review feedback
+
+If reviewers leave comments, view them in the PR panel. Send the feedback to the agent to address it:
+
+```
+The reviewer asked us to add input validation for the email field.
+Please add that and update the tests.
+```
+
+## 8. Merge
+
+Once checks pass and reviews are approved, merge the PR. Choose squash, merge, or rebase.
+
+## 9. Archive
+
+Archive the workspace to clean up the worktree and keep your workspace list tidy.

@@ -1,0 +1,45 @@
+---
+title: Django
+description: Set up Fury for a Django project
+---
+
+## Prerequisites
+
+- [Python 3](https://www.python.org/) installed
+- A Django project (or create one with `django-admin startproject myproject`)
+
+## 1. Add your repository
+
+Open Fury and add your Django project folder as a repository.
+
+## 2. Configure conductor.json
+
+Create a `conductor.json` in your project root:
+
+```json
+{
+  "scripts": {
+    "setup": "pip install -r requirements.txt && python manage.py migrate",
+    "run": "python manage.py runserver"
+  }
+}
+```
+
+<Tip>
+If you use a virtual environment, prefix commands with activation:
+`source venv/bin/activate && pip install -r requirements.txt && python manage.py migrate`
+</Tip>
+
+## 3. Create a workspace
+
+Press <Tooltip tip="Ctrl+N on Windows/Linux">**Cmd+N**</Tooltip> to create a new workspace. The setup script handles dependencies and migrations.
+
+## 4. Start building
+
+Try a prompt like:
+
+```
+Create a new Django app called "tasks" with a Task model
+(title, description, completed). Add views for listing
+and creating tasks with templates.
+```

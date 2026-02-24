@@ -1,0 +1,40 @@
+---
+title: FAQ
+description: Frequently asked questions about Fury
+---
+
+## Do I need a Claude API key?
+
+You need a Claude Code subscription (separate from the API). Install Claude Code with `npm install -g @anthropic-ai/claude-code` and log in with `claude /login`.
+
+## Can I use OpenAI instead of Claude?
+
+Yes. Fury supports [OpenAI Codex CLI](/tips/codex) as an alternative agent. Install it with `npm install -g @openai/codex`, set your `OPENAI_API_KEY`, and switch to Codex in Settings.
+
+## Is my code sent to the cloud?
+
+Fury runs entirely on your machine. Your code stays local in git worktrees. When you chat with Claude or Codex, the agent process runs locally and communicates with the AI provider's API. Fury itself does not send your code anywhere — the agent subprocess handles all API communication directly.
+
+## Which platforms are supported?
+
+macOS (Apple Silicon and Intel), Windows, and Linux. See [cross-platform notes](/tips/cross-platform) for platform-specific details.
+
+## How do workspaces relate to git branches?
+
+Each workspace creates a git worktree on a dedicated branch. The worktree is a full working copy of your repo on that branch, completely isolated from other workspaces. See [workspaces and branches](/tips/workspaces-and-branches) for details.
+
+## Can I use Fury with private repositories?
+
+Yes. Fury uses the GitHub CLI (`gh`) for all GitHub operations. As long as you're authenticated with `gh auth login` and have access to the repository, Fury will work with it.
+
+## What is conductor.json?
+
+A configuration file you can commit to your repo to share setup/run/archive scripts with your team. Anyone using Fury (or Conductor) will automatically pick up these scripts. See [conductor.json](/core/conductor-json).
+
+## Can I use Fury alongside my IDE?
+
+Yes. Fury manages workspaces and agent conversations, while you can open the same worktree directories in any IDE (VS Code, Cursor, etc.) for direct file editing. If you're coming from Cursor, see [Migrate from Cursor](/guides/migrate-from-cursor) for importing your configuration.
+
+## How do I report bugs?
+
+Open an issue on [GitHub](https://github.com/tylergraydev/fury/issues).

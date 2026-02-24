@@ -1,0 +1,37 @@
+---
+title: Migrate from Cursor
+description: Import MCP servers and rules from Cursor
+---
+
+Fury can detect and import your Cursor configuration, including MCP servers and cursor rules.
+
+## Auto-detection
+
+Fury automatically checks for Cursor configuration at `~/.cursor/mcp.json`. If found, you'll see an import option in Settings.
+
+## Importing MCP servers
+
+1. Go to **Settings**
+2. If Cursor configuration is detected, click **Import from Cursor**
+3. Fury imports your MCP server configurations into Claude Code
+
+The import result shows:
+
+- **MCP servers found** — How many servers were in your Cursor config
+- **MCP servers imported** — How many were successfully imported
+- **Rules found** — Whether `.cursorrules` was detected
+
+## Importing cursor rules
+
+If your repository has a `.cursorrules` file, Fury can convert it to a `CLAUDE.md` file that Claude Code uses for project-level instructions.
+
+1. Fury detects `.cursorrules` in your repository
+2. Import it to create or append to `CLAUDE.md`
+3. If `CLAUDE.md` already exists, you can choose to overwrite or skip
+
+## What gets imported
+
+| Source | Destination |
+|--------|-------------|
+| `~/.cursor/mcp.json` | Claude Code MCP configuration |
+| `.cursorrules` | `CLAUDE.md` in the repo root |

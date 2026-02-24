@@ -1,0 +1,40 @@
+---
+title: Rails
+description: Set up Fury for a Ruby on Rails project
+---
+
+## Prerequisites
+
+- [Ruby](https://www.ruby-lang.org/) and [Bundler](https://bundler.io/) installed
+- A Rails project (or create one with `rails new myapp`)
+
+## 1. Add your repository
+
+Open Fury and add your Rails project folder as a repository.
+
+## 2. Configure conductor.json
+
+Create a `conductor.json` in your project root:
+
+```json
+{
+  "scripts": {
+    "setup": "bundle install && rails db:setup",
+    "run": "rails server"
+  }
+}
+```
+
+## 3. Create a workspace
+
+Press <Tooltip tip="Ctrl+N on Windows/Linux">**Cmd+N**</Tooltip> to create a new workspace. Dependencies will be installed and the database set up automatically.
+
+## 4. Start building
+
+Try a prompt like:
+
+```
+Add a User model with email and name fields. Create a
+UsersController with index and show actions. Add the
+corresponding routes and views.
+```

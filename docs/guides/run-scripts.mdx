@@ -1,0 +1,53 @@
+---
+title: Using Run Scripts
+description: Configure scripts to automate workspace setup and dev servers
+---
+
+Scripts automate repetitive tasks like installing dependencies and starting dev servers. See [scripts](/core/scripts) for the full reference.
+
+## Setting up scripts
+
+### Option 1: Repository settings
+
+Go to **Settings** and configure scripts for your repository:
+
+- **Setup script** — Runs when the workspace opens (e.g., `npm install`)
+- **Run script** — Starts your dev server (e.g., `npm run dev`)
+- **Archive script** — Cleans up when archiving (e.g., `docker compose down`)
+
+### Option 2: conductor.json
+
+Create a `conductor.json` file in your repo root:
+
+```json
+{
+  "scripts": {
+    "setup": "npm install",
+    "run": "npm run dev"
+  }
+}
+```
+
+This is the recommended approach for team projects since everyone gets the same configuration.
+
+## Run script modes
+
+By default, the run script starts **after** setup finishes. To start both simultaneously:
+
+```json
+{
+  "scripts": {
+    "setup": "npm install",
+    "run": "npm run dev"
+  },
+  "runScriptMode": "concurrent"
+}
+```
+
+## Monitoring scripts
+
+Watch script output in the **Setup** and **Run** terminal panels at the bottom of the workspace.
+
+## Stopping scripts
+
+Click the stop button on any terminal panel to terminate the running script.

@@ -1,0 +1,69 @@
+---
+title: Scripts
+description: Setup, run, and archive scripts for workspace automation
+---
+
+Scripts automate common workspace operations like installing dependencies, starting dev servers, and cleaning up.
+
+## Script types
+
+| Script | When it runs | Example |
+|--------|-------------|---------|
+| **Setup** | When a workspace opens | `npm install` |
+| **Run** | After setup completes | `npm run dev` |
+| **Archive** | When archiving a workspace | `docker compose down` |
+
+## Configuring scripts
+
+### Per-repository settings
+
+Go to **Settings** for a repository to configure scripts. These are stored in Fury's local database.
+
+### Via conductor.json
+
+Commit a `conductor.json` file to your repo root to share scripts with your team:
+
+```json
+{
+  "scripts": {
+    "setup": "npm install",
+    "run": "npm run dev",
+    "archive": "docker compose down"
+  }
+}
+```
+
+See [conductor.json](/core/conductor-json) for full details.
+
+### Precedence
+
+Settings configured in Fury's UI take precedence over `conductor.json`. The JSON file provides defaults that are used when no local setting exists.
+
+## Run script modes
+
+| Mode | Behavior |
+|------|----------|
+| **Nonconcurrent** (default) | Run script starts after setup finishes |
+| **Concurrent** | Run script starts alongside setup |
+
+Configure the mode in repository settings or in `conductor.json`:
+
+```json
+{
+  "scripts": { "setup": "npm install", "run": "npm run dev" },
+  "runScriptMode": "concurrent"
+}
+```
+
+## Environment variables
+
+Scripts have access to these environment variables automatically:
+
+| Variable | Description |
+|----------|-------------|
+| `CONDUCTOR_WORKSPACE_NAME` | Name of the current workspace |
+| `CONDUCTOR_WORKSPACE_PATH` | Absolute path to the worktree |
+| `CONDUCTOR_ROOT_PATH` | Absolute path to the main repo |
+| `CONDUCTOR_DEFAULT_BRANCH` | Repository's default branch |
+
+You can also configure custom environment variables per-repository in Settings. See [environment variables](/tips/environment-variables).

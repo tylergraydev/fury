@@ -1,0 +1,40 @@
+---
+title: Phoenix
+description: Set up Fury for an Elixir Phoenix project
+---
+
+## Prerequisites
+
+- [Elixir](https://elixir-lang.org/) and [Erlang](https://www.erlang.org/) installed
+- A Phoenix project (or create one with `mix phx.new myapp`)
+
+## 1. Add your repository
+
+Open Fury and add your Phoenix project folder as a repository.
+
+## 2. Configure conductor.json
+
+Create a `conductor.json` in your project root:
+
+```json
+{
+  "scripts": {
+    "setup": "mix deps.get && mix ecto.setup",
+    "run": "mix phx.server"
+  }
+}
+```
+
+## 3. Create a workspace
+
+Press <Tooltip tip="Ctrl+N on Windows/Linux">**Cmd+N**</Tooltip> to create a new workspace. Dependencies are fetched and the database is set up automatically.
+
+## 4. Start building
+
+Try a prompt like:
+
+```
+Create a new LiveView for a real-time chat feature.
+Add a messages context with a Message schema (body, username).
+Wire it up with PubSub for live updates.
+```

@@ -1,0 +1,61 @@
+---
+title: Your First Workspace
+description: Get up and running with Fury in minutes
+---
+
+This guide walks you through adding a repository and creating your first workspace.
+
+## Step 1: Add a repository
+
+When you first open Fury, you'll see the landing screen. Click **Add Repository** and either:
+
+- **Select a local folder** — Choose an existing git repository on your machine
+- **Clone from URL** — Enter a GitHub URL to clone a new repo
+
+Fury detects the default branch and initializes the repository.
+
+## Step 2: Create a workspace
+
+Press <Tooltip tip="Ctrl+N on Windows/Linux">**Cmd+N**</Tooltip> or click the **+** button.
+
+1. **Name** your workspace (e.g., "add-login-page")
+2. **Branch name** is auto-generated from the name, or customize it
+3. Click **Create**
+
+Fury creates a git worktree on a new branch. If you have a [setup script](/core/scripts) configured, it runs automatically.
+
+## Step 3: Send your first message
+
+Type a message in the chat composer describing what you want to build:
+
+```
+Add a login page with email and password fields.
+Use the existing Button component for the submit button.
+```
+
+The agent reads your codebase, plans its approach, and starts making changes.
+
+## Step 4: Review changes
+
+Switch to the **Changes** panel (<Tooltip tip="Ctrl+2 on Windows/Linux">**Cmd+2**</Tooltip>) to see what the agent changed. Click any file to view the diff.
+
+## Step 5: Iterate
+
+If something isn't right, send a follow-up message. The agent remembers the full conversation and can refine its work.
+
+If you want to start over from an earlier point, use [checkpoints](/core/checkpoints) to revert.
+
+## Step 6: Ship it
+
+When you're happy with the changes:
+
+1. Click **Push** to push the branch
+2. Click **Create PR** to open a pull request
+3. Monitor checks in the **Checks** panel
+4. Merge when ready
+
+## Next steps
+
+- [Configure scripts](/core/scripts) to automate setup and dev servers
+- [Set up conductor.json](/core/conductor-json) to share config with your team
+- [Add MCP servers](/core/mcp) to give the agent more tools

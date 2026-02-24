@@ -1,0 +1,45 @@
+---
+title: Privacy
+description: How Fury handles your data
+---
+
+## What stays local
+
+Fury stores all data locally on your machine:
+
+- **Chat history** — Stored in a local SQLite database
+- **Workspace data** — Git worktrees on your filesystem
+- **Settings** — Local database and config files
+- **Checkpoints** — Git refs in your local repository
+
+Fury does not operate a cloud service and does not store your code on remote servers.
+
+## Third-party services
+
+When you use AI agents, your code and messages are sent to the AI provider's API:
+
+| Feature | Service | Data sent |
+|---------|---------|-----------|
+| Claude Code agent | Anthropic API | Code context, messages |
+| Codex CLI agent | OpenAI API | Code context, messages |
+| PR management | GitHub API (via `gh` CLI) | PR metadata, branch names |
+| GitHub Actions | GitHub API (via `gh` CLI) | Workflow run queries |
+| Linear integration | Linear API | Issue search queries |
+| GitHub Copilot | GitHub Copilot API | Editor context |
+
+These services are subject to their own privacy policies.
+
+## Analytics
+
+Analytics are **disabled by default** (`analyticsEnabled: false`). You can toggle this in Settings.
+
+## Data deletion
+
+To remove all Fury data from your machine:
+
+1. Delete the Fury application
+2. Remove the data directory:
+   - **macOS**: `~/Library/Application Support/com.fury.app/`
+   - **Windows**: `%APPDATA%/com.fury.app/`
+   - **Linux**: `~/.local/share/com.fury.app/`
+3. Remove any remaining worktree directories

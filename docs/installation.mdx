@@ -1,0 +1,89 @@
+---
+title: Installation
+description: Download and install Fury on macOS, Windows, or Linux
+---
+
+## Download
+
+Download the latest release from [GitHub Releases](https://github.com/tylergraydev/fury/releases).
+
+<Tabs>
+  <Tab title="macOS">
+    1. Download the `.dmg` file for your architecture (Apple Silicon or Intel)
+    2. Open the `.dmg` and drag Fury to your Applications folder
+    3. Launch Fury from Applications
+
+    Fury supports both Apple Silicon (M1/M2/M3/M4) and Intel Macs.
+  </Tab>
+  <Tab title="Windows">
+    1. Download the `.msi` installer
+    2. Run the installer and follow the prompts
+    3. Launch Fury from the Start menu
+  </Tab>
+  <Tab title="Linux">
+    1. Download the `.AppImage` or `.deb` file
+    2. For `.AppImage`: make it executable (`chmod +x`) and run it
+    3. For `.deb`: install with `sudo dpkg -i fury_*.deb`
+  </Tab>
+</Tabs>
+
+## Prerequisites
+
+Before using Fury, make sure you have:
+
+### GitHub CLI
+
+Fury uses the GitHub CLI (`gh`) for PR management, workflow runs, and issue operations.
+
+```bash
+# Install
+brew install gh        # macOS
+winget install gh      # Windows
+sudo apt install gh    # Debian/Ubuntu
+
+# Authenticate
+gh auth login
+```
+
+### Claude Code (for Claude agent)
+
+If you want to use the Claude Code agent (default):
+
+```bash
+# Install Claude Code
+npm install -g @anthropic-ai/claude-code
+
+# Log in
+claude /login
+```
+
+### OpenAI Codex CLI (for Codex agent)
+
+If you prefer the OpenAI Codex agent:
+
+```bash
+npm install -g @openai/codex
+```
+
+Set your `OPENAI_API_KEY` environment variable, then switch to Codex in Fury's settings.
+
+### GitHub Copilot (optional)
+
+For code completions in the built-in editor, you need an active [GitHub Copilot](https://github.com/features/copilot) subscription. Enable it in Settings within Fury.
+
+## Building from source
+
+```bash
+# Prerequisites: Node.js (LTS), Rust, Tauri 2 prerequisites
+# See https://v2.tauri.app/start/prerequisites/
+
+git clone https://github.com/tylergraydev/fury.git
+cd fury
+npm install
+npm run tauri dev     # Development
+npm run tauri build   # Production build
+```
+
+## Auto-updates
+
+Fury checks for updates automatically on launch. When an update is available, you'll be prompted to download and install it.

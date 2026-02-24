@@ -1,0 +1,38 @@
+---
+title: GitHub Actions
+description: View workflow runs, logs, and re-run failed jobs
+---
+
+Fury integrates with GitHub Actions so you can monitor CI/CD directly from your workspace.
+
+## Viewing workflow runs
+
+The workflows panel shows recent runs for your workspace's branch, including:
+
+- Workflow name
+- Status (queued, in progress, completed)
+- Conclusion (success, failure, cancelled)
+- Trigger event (push, pull_request, etc.)
+- Timestamp
+
+## Inspecting runs
+
+Click a workflow run to see its jobs and steps. Each job shows its individual status and conclusion.
+
+## Viewing logs
+
+View logs for any workflow run:
+
+- **All logs** — Full output from all jobs
+- **Failed only** — Just the output from failed jobs and steps
+
+Logs are streamed directly from GitHub.
+
+## Re-running workflows
+
+Re-run workflows directly from Fury:
+
+- **Re-run all** — Re-run the entire workflow
+- **Re-run failed** — Re-run only the failed jobs
+
+This is useful when a flaky test fails or when you've pushed a fix and want to re-trigger CI.

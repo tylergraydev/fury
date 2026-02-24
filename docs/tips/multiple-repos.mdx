@@ -1,0 +1,32 @@
+---
+title: Multiple Repositories
+description: Managing multiple repositories in Fury
+---
+
+Fury supports working with multiple repositories simultaneously. Each repository appears in the sidebar with its own workspaces.
+
+## Adding repositories
+
+Add as many repositories as you need from the landing screen or via the repository menu. Each can be a local folder or cloned from a URL.
+
+## Switching between repos
+
+Click a repository in the sidebar to see its workspaces. Each repository has its own:
+
+- Workspace list
+- Script configuration
+- Environment variables
+- Terminal instances
+
+## Repository-scoped operations
+
+Some operations are scoped to the repository level rather than a specific workspace:
+
+- **Repo-level chat** — Chat with the agent in the context of the repo's default branch (no workspace needed)
+- **Repo-level diff** — View changes on the default branch
+- **Repo-level terminal** — Open a terminal in the main repo directory
+- **Repo-level scripts** — Run scripts in the main repo context
+
+## Removing repositories
+
+Remove a repository from Fury to clean up the sidebar. This does not delete the repository from disk — it only removes it from Fury's tracking.
