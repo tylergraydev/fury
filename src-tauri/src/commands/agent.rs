@@ -89,7 +89,8 @@ pub async fn send_message(
             AgentType::CodexCli => codex_process::build_env_vars(&workspace, &repo, &settings),
         };
 
-        // Agent teams: add sibling workspace names (Claude-specific but harmless for Codex)
+        // Agent teams: add sibling workspace names (env var is harmless for Codex,
+    // though CONDUCTOR_AGENT_TEAMS is only set by Claude's build_env_vars)
         if settings.experimental.agent_teams {
             let workspaces = state.workspaces.lock().unwrap();
             let siblings: Vec<String> = workspaces
@@ -455,14 +456,14 @@ pub async fn send_message(
     } // end AgentType::ClaudeCode
 
     AgentType::CodexCli => {
-        // Codex: one-shot mode only via `codex exec --json`
+        // Codex: one-shot mode only via `codex exec --json --full-auto`
+        // (Codex CLI does not support interactive approval or persistent sessions)
         let (child, stdin) = match codex_process::spawn_and_stream(
             context_id,
             &request.message,
             &working_dir,
             env_vars,
             request.model.as_deref(),
-            safe_mode,
             app.clone(),
             Arc::clone(&state.agents),
         )
@@ -560,6 +561,17 @@ pub async fn respond_to_permission(
     let id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    // Codex CLI does not support interactive permission responses
+    let agent_type = {
+        let settings = state.settings.lock().unwrap();
+        settings.agent_type.clone()
+    };
+    if agent_type == AgentType::CodexCli {
+        return Err(AppError::AgentError(
+            "Permission responses are not supported with Codex CLI".to_string(),
+        ));
+    }
 
     let response = if approved { "yes" } else { "no" };
 
