@@ -48,6 +48,7 @@ vi.mock("@tauri-apps/plugin-updater", () => ({
 // Mock @tauri-apps/api/app
 vi.mock("@tauri-apps/api/app", () => ({
   getVersion: vi.fn().mockResolvedValue("1.4.1"),
+  getName: vi.fn().mockResolvedValue("Fury"),
 }));
 
 // Mock @tauri-apps/api/path

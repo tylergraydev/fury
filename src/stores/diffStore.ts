@@ -12,8 +12,8 @@ interface DiffStore {
   diffResults: Record<string, DiffResult | null>;
   fileDiffs: Record<string, FileDiffContent | null>;
   selectedFile: Record<string, string | null>;
-  loading: boolean;
-  error: string | null;
+  loading: Record<string, boolean>;
+  error: Record<string, string | null>;
 
   loadDiff: (workspaceId: string) => Promise<void>;
   loadFileDiff: (workspaceId: string, filePath: string) => Promise<void>;
@@ -35,19 +35,29 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
   diffResults: {},
   fileDiffs: {},
   selectedFile: {},
-  loading: false,
-  error: null,
+  loading: {},
+  error: {},
 
   loadDiff: async (workspaceId: string) => {
-    set({ loading: true, error: null });
+    if (get().loading[workspaceId]) return;
+    const hasCached = workspaceId in get().diffResults;
+    set((state) => ({
+      loading: { ...state.loading, [workspaceId]: !hasCached },
+      error: { ...state.error, [workspaceId]: null },
+    }));
     try {
       const result = await getDiffCmd(workspaceId);
       set((state) => ({
         diffResults: { ...state.diffResults, [workspaceId]: result },
-        loading: false,
+        loading: { ...state.loading, [workspaceId]: false },
       }));
     } catch (e) {
-      set({ loading: false, error: String(e) });
+      set((state) => ({
+        loading: { ...state.loading, [workspaceId]: false },
+        error: hasCached
+          ? state.error
+          : { ...state.error, [workspaceId]: String(e) },
+      }));
     }
   },
 
@@ -60,20 +70,29 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
       }));
     } catch (e) {
       console.error("Failed to load file diff:", e);
-      set({ error: String(e) });
     }
   },
 
   loadRepoDiff: async (repoId: string) => {
-    set({ loading: true, error: null });
+    if (get().loading[repoId]) return;
+    const hasCached = repoId in get().diffResults;
+    set((state) => ({
+      loading: { ...state.loading, [repoId]: !hasCached },
+      error: { ...state.error, [repoId]: null },
+    }));
     try {
       const result = await getRepoDiffCmd(repoId);
       set((state) => ({
         diffResults: { ...state.diffResults, [repoId]: result },
-        loading: false,
+        loading: { ...state.loading, [repoId]: false },
       }));
     } catch (e) {
-      set({ loading: false, error: String(e) });
+      set((state) => ({
+        loading: { ...state.loading, [repoId]: false },
+        error: hasCached
+          ? state.error
+          : { ...state.error, [repoId]: String(e) },
+      }));
     }
   },
 
@@ -86,7 +105,6 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
       }));
     } catch (e) {
       console.error("Failed to load repo file diff:", e);
-      set({ error: String(e) });
     }
   },
 

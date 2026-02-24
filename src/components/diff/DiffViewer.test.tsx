@@ -51,8 +51,8 @@ beforeEach(() => {
     diffResults: {},
     selectedFile: {},
     fileDiffs: {},
-    loading: false,
-    error: null,
+    loading: {},
+    error: {},
     loadDiff: mockLoadDiff,
     refresh: mockRefresh,
     selectFile: mockSelectFile,
@@ -63,7 +63,7 @@ beforeEach(() => {
 
 describe("DiffViewer", () => {
   it("shows Loading diff... when loading with no result", () => {
-    useDiffStore.setState({ loading: true });
+    useDiffStore.setState({ loading: { "ws-1": true } });
     render(<DiffViewer workspaceId="ws-1" />);
     expect(screen.getByText("Loading diff...")).toBeInTheDocument();
   });
@@ -71,7 +71,7 @@ describe("DiffViewer", () => {
   it("shows No changes when diffResult is null", () => {
     useDiffStore.setState({
       diffResults: { "ws-1": null },
-      loading: false,
+      loading: {},
     });
     render(<DiffViewer workspaceId="ws-1" />);
     expect(screen.getByText("No changes")).toBeInTheDocument();
@@ -82,7 +82,7 @@ describe("DiffViewer", () => {
       diffResults: {
         "ws-1": { files: [], totalAdditions: 0, totalDeletions: 0 },
       },
-      loading: false,
+      loading: {},
     });
     render(<DiffViewer workspaceId="ws-1" />);
     expect(screen.getByText("No changes")).toBeInTheDocument();

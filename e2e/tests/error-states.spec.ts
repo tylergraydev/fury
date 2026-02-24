@@ -48,9 +48,9 @@ test.describe("Error & Edge States", () => {
     // Set agent to Running without sending any stream text yet
     await emitAgentStatus(appPage, "ws-auth", "Running");
 
-    // Should show "Stop" button in the composer area when running
+    // Should show stop button in the composer area when running
     await expect(
-      appPage.getByText("Stop").first(),
+      appPage.getByTitle("Stop"),
     ).toBeVisible({ timeout: 5000 });
   });
 });

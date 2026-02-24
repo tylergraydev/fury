@@ -22,6 +22,8 @@ import { clearSession, getAppSettings } from "./lib/tauri";
 import { useChatStore } from "./stores/chatStore";
 import { useCopilotStore } from "./stores/copilotStore";
 import { ToastContainer } from "./components/Toast";
+import { UpdateBanner } from "./components/UpdateBanner";
+import { useAutoUpdate } from "./lib/autoUpdate";
 import { applyTheme } from "./lib/themes";
 import "./App.css";
 
@@ -84,6 +86,7 @@ function App() {
   const theme = useUIStore((s) => s.theme);
   const [showPalette, setShowPalette] = useState(false);
   const [paletteMode, setPaletteMode] = useState<PaletteMode>("default");
+  const autoUpdate = useAutoUpdate();
 
   // Apply theme on mount and when it changes
   useEffect(() => {
@@ -206,7 +209,17 @@ function App() {
     const showSettingsOverlay = activeViewTabId === "settings";
 
     return (
-      <div className="h-screen">
+      <div className="h-screen flex flex-col">
+        {autoUpdate.update && (
+          <UpdateBanner
+            version={autoUpdate.update.version}
+            installing={autoUpdate.installing}
+            installed={autoUpdate.installed}
+            error={autoUpdate.error}
+            onInstall={autoUpdate.install}
+            onDismiss={autoUpdate.dismiss}
+          />
+        )}
         <LandingPage onOpenSettings={() => handleAction("open-settings")} />
 
         {showSettingsOverlay && (
@@ -247,7 +260,17 @@ function App() {
   const showRightSidebar = rightSidebarVisible && sidebarContext !== null;
 
   return (
-    <div className="h-screen">
+    <div className="h-screen flex flex-col">
+      {autoUpdate.update && (
+        <UpdateBanner
+          version={autoUpdate.update.version}
+          installing={autoUpdate.installing}
+          installed={autoUpdate.installed}
+          error={autoUpdate.error}
+          onInstall={autoUpdate.install}
+          onDismiss={autoUpdate.dismiss}
+        />
+      )}
       <PanelGroup direction="horizontal" key={showRightSidebar ? "with-right" : "without-right"}>
         <Panel defaultSize={20} minSize={12} maxSize={30}>
           <ErrorBoundary label="Sidebar">

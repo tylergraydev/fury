@@ -943,19 +943,6 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
               </button>
               )}
 
-              {/* Stop button (shown inline when running) */}
-              {(isRunning || isStopping) && (
-                <button
-                  onClick={onStop}
-                  disabled={isStopping}
-                  className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] cursor-pointer transition-colors"
-                  style={{ color: "var(--error)" }}
-                  title="Stop the running agent"
-                >
-                  <Square className="h-3 w-3" />
-                  <span>{isStopping ? "Stopping..." : "Stop"}</span>
-                </button>
-              )}
             </div>
 
             {/* Center: Context usage indicator */}
@@ -1018,18 +1005,33 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
                 )}
               </div>
 
-              <button
-                onClick={handleSend}
-                disabled={!canSend}
-                className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
-                style={{
-                  backgroundColor: canSend ? "var(--composer-border)" : "var(--bg-hover)",
-                  color: canSend ? "var(--bg-primary)" : "var(--text-muted)",
-                }}
-                title="Send message"
-              >
-                <ArrowUp className="h-4 w-4" />
-              </button>
+              {isRunning || isStopping ? (
+                <button
+                  onClick={onStop}
+                  disabled={isStopping}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors cursor-pointer"
+                  style={{
+                    backgroundColor: isStopping ? "var(--bg-hover)" : "var(--error)",
+                    color: isStopping ? "var(--text-muted)" : "var(--bg-primary)",
+                  }}
+                  title={isStopping ? "Stopping..." : "Stop"}
+                >
+                  <Square className="h-3.5 w-3.5" fill="currentColor" />
+                </button>
+              ) : (
+                <button
+                  onClick={handleSend}
+                  disabled={!canSend}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
+                  style={{
+                    backgroundColor: canSend ? "var(--composer-border)" : "var(--bg-hover)",
+                    color: canSend ? "var(--bg-primary)" : "var(--text-muted)",
+                  }}
+                  title="Send message"
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </div>
         </div>

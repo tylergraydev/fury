@@ -8,7 +8,7 @@ use tokio::process::{Child, ChildStdin, Command};
 use uuid::Uuid;
 
 use crate::error::AppError;
-use crate::models::agent::{AgentInfo, FrontendStreamEvent};
+use crate::models::agent::{AgentInfo, AgentStatus, AgentStatusEvent, FrontendStreamEvent};
 use crate::models::repository::Repository;
 use crate::models::settings::AppSettings;
 use crate::models::workspace::Workspace;
@@ -197,6 +197,31 @@ pub async fn spawn_and_stream(
 
                 let _ = app_handle_stdout.emit(&event_name, &frontend_event);
             }
+        }
+
+        // EOF — process exited; ensure status transitions away from Running
+        let should_emit = {
+            let mut lock = agents.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(agent) = lock.get_mut(&ws_id) {
+                if agent.status == AgentStatus::Running {
+                    agent.status = AgentStatus::Idle;
+                    agent.pid = None;
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        };
+        if should_emit {
+            let _ = app_handle_stdout.emit(
+                &format!("agent-status:{}", ws_id),
+                &AgentStatusEvent {
+                    workspace_id: ws_id,
+                    status: AgentStatus::Idle,
+                },
+            );
         }
     });
 
