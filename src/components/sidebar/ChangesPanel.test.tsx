@@ -36,8 +36,8 @@ beforeEach(() => {
     diffResults: {},
     selectedFile: {},
     fileDiffs: {},
-    loading: false,
-    error: null,
+    loading: {},
+    error: {},
     loadDiff: mockLoadDiff,
     loadRepoDiff: mockLoadRepoDiff,
     refresh: mockRefresh,
@@ -62,7 +62,7 @@ describe("ChangesPanel", () => {
   });
 
   it("shows loading state", () => {
-    useDiffStore.setState({ loading: true });
+    useDiffStore.setState({ loading: { "ws-1": true } });
     render(<ChangesPanel context={wsContext} />);
     expect(screen.getByText("Loading changes...")).toBeInTheDocument();
   });
@@ -299,7 +299,7 @@ describe("ChangesPanel", () => {
   });
 
   it("shows error message when there is an error and no diff result", () => {
-    useDiffStore.setState({ error: "Network error" });
+    useDiffStore.setState({ error: { "ws-1": "Network error" } });
     render(<ChangesPanel context={wsContext} />);
     expect(screen.getByText("Network error")).toBeInTheDocument();
   });

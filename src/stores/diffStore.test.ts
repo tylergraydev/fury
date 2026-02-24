@@ -21,8 +21,8 @@ beforeEach(() => {
       diffResults: {},
       fileDiffs: {},
       selectedFile: {},
-      loading: false,
-      error: null,
+      loading: {},
+      error: {},
     },
   );
   vi.clearAllMocks();
@@ -34,13 +34,13 @@ describe("diffStore - loadDiff", () => {
     vi.mocked(getDiff).mockResolvedValue(result as any);
     await useDiffStore.getState().loadDiff("ws-1");
     expect(useDiffStore.getState().diffResults["ws-1"]).toEqual(result);
-    expect(useDiffStore.getState().loading).toBe(false);
+    expect(useDiffStore.getState().loading["ws-1"]).toBe(false);
   });
 
   it("sets error on failure", async () => {
     vi.mocked(getDiff).mockRejectedValue(new Error("fail"));
     await useDiffStore.getState().loadDiff("ws-1");
-    expect(useDiffStore.getState().error).toBe("Error: fail");
+    expect(useDiffStore.getState().error["ws-1"]).toBe("Error: fail");
   });
 });
 
@@ -52,11 +52,11 @@ describe("diffStore - loadFileDiff", () => {
     expect(useDiffStore.getState().fileDiffs["ws-1:src/a.ts"]).toEqual(content);
   });
 
-  it("sets error on failure", async () => {
+  it("logs error on failure", async () => {
     vi.mocked(getFileDiff).mockRejectedValue(new Error("file fail"));
     vi.spyOn(console, "error").mockImplementation(() => {});
     await useDiffStore.getState().loadFileDiff("ws-1", "src/a.ts");
-    expect(useDiffStore.getState().error).toBe("Error: file fail");
+    expect(console.error).toHaveBeenCalled();
   });
 });
 
@@ -71,8 +71,8 @@ describe("diffStore - loadRepoDiff", () => {
   it("sets error on failure", async () => {
     vi.mocked(getRepoDiff).mockRejectedValue(new Error("repo diff fail"));
     await useDiffStore.getState().loadRepoDiff("repo-1");
-    expect(useDiffStore.getState().error).toBe("Error: repo diff fail");
-    expect(useDiffStore.getState().loading).toBe(false);
+    expect(useDiffStore.getState().error["repo-1"]).toBe("Error: repo diff fail");
+    expect(useDiffStore.getState().loading["repo-1"]).toBe(false);
   });
 });
 
@@ -84,11 +84,11 @@ describe("diffStore - loadRepoFileDiff", () => {
     expect(useDiffStore.getState().fileDiffs["repo-1:main.rs"]).toEqual(content);
   });
 
-  it("sets error on failure", async () => {
+  it("logs error on failure", async () => {
     vi.mocked(getRepoFileDiff).mockRejectedValue(new Error("repo file fail"));
     vi.spyOn(console, "error").mockImplementation(() => {});
     await useDiffStore.getState().loadRepoFileDiff("repo-1", "main.rs");
-    expect(useDiffStore.getState().error).toBe("Error: repo file fail");
+    expect(console.error).toHaveBeenCalled();
   });
 });
 
