@@ -63,10 +63,11 @@ pub fn is_process_alive(pid: u32) -> bool {
     }
     #[cfg(windows)]
     {
-        use windows_sys::Win32::Foundation::CloseHandle;
-        use windows_sys::Win32::System::Threading::{
-            OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
-        };
+        extern "system" {
+            fn OpenProcess(dwDesiredAccess: u32, bInheritHandle: i32, dwProcessId: u32) -> isize;
+            fn CloseHandle(hObject: isize) -> i32;
+        }
+        const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
         unsafe {
             let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
             if handle != 0 {
