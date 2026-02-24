@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -67,8 +68,21 @@ pub fn configure_process_group(cmd: &mut Command) -> &mut Command {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x00000200) // CREATE_NEW_PROCESS_GROUP
+        cmd.creation_flags(0x08000200) // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
     }
+}
+
+/// Create a `Command` that hides the console window on Windows.
+/// Use this for all short-lived process spawns (git, formatters, etc.)
+/// to prevent terminal windows from flashing on screen.
+pub fn command(program: impl AsRef<OsStr>) -> Command {
+    let mut cmd = Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+    cmd
 }
 
 pub fn app_data_dir() -> PathBuf {

@@ -53,7 +53,7 @@ pub fn create_workspace(
     // so create_worktree can find it via refs/heads/<branch>.
     if request.fetch_remote_branch.unwrap_or(false) {
         let refspec = format!("{}:{}", &request.branch_name, &request.branch_name);
-        let fetch_output = std::process::Command::new("git")
+        let fetch_output = crate::platform::command("git")
             .args(["fetch", "origin", &refspec])
             .current_dir(&repo.path)
             .output()
@@ -256,7 +256,7 @@ pub fn update_sparse_dirs(
 
     // Apply or disable sparse checkout
     if dirs.is_empty() {
-        let _ = std::process::Command::new("git")
+        let _ = crate::platform::command("git")
             .args(["sparse-checkout", "disable"])
             .current_dir(&worktree_path)
             .output();

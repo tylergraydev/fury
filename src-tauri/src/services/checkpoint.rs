@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::models::checkpoint::Checkpoint;
+use crate::platform;
 use std::path::Path;
-use std::process::Command;
 use std::thread;
 use std::time::Duration;
 use uuid::Uuid;
@@ -34,7 +34,7 @@ pub fn create_checkpoint(
     git_update_ref(worktree_path, &ref_name, &commit_sha)?;
 
     // 5. Unstage everything (leave working directory untouched)
-    let _ = Command::new("git")
+    let _ = platform::command("git")
         .args(["reset", "HEAD"])
         .current_dir(worktree_path)
         .output();
@@ -57,7 +57,7 @@ pub fn create_checkpoint(
 /// Revert the worktree to match a checkpoint's tree state.
 pub fn revert_to_checkpoint(worktree_path: &Path, tree_sha: &str) -> Result<(), AppError> {
     // Replace index and working tree with checkpoint tree
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["read-tree", "--reset", "-u", tree_sha])
         .current_dir(worktree_path)
         .output()?;
@@ -70,7 +70,7 @@ pub fn revert_to_checkpoint(worktree_path: &Path, tree_sha: &str) -> Result<(), 
     }
 
     // Remove files created after the checkpoint
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["clean", "-fd"])
         .current_dir(worktree_path)
         .output()?;
@@ -93,7 +93,7 @@ pub fn delete_checkpoints_after(
 ) -> Result<Vec<String>, AppError> {
     let prefix = format!("refs/fury/checkpoints/{}/", workspace_id);
 
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["for-each-ref", "--format=%(refname)", &prefix])
         .current_dir(worktree_path)
         .output()?;
@@ -119,7 +119,7 @@ pub fn delete_checkpoints_after(
         {
             if let Ok(n) = turn_str.parse::<u32>() {
                 if n > turn_index {
-                    let del_output = Command::new("git")
+                    let del_output = platform::command("git")
                         .args(["update-ref", "-d", ref_name])
                         .current_dir(worktree_path)
                         .output()?;
@@ -139,7 +139,7 @@ pub fn delete_checkpoints_after(
 
 fn git_add_all_with_retry(worktree_path: &Path) -> Result<(), AppError> {
     for attempt in 0..3 {
-        let output = Command::new("git")
+        let output = platform::command("git")
             .args(["add", "--all"])
             .current_dir(worktree_path)
             .output()?;
@@ -163,7 +163,7 @@ fn git_add_all_with_retry(worktree_path: &Path) -> Result<(), AppError> {
 }
 
 fn git_write_tree(worktree_path: &Path) -> Result<String, AppError> {
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["write-tree"])
         .current_dir(worktree_path)
         .output()?;
@@ -183,7 +183,7 @@ fn git_commit_tree(
     tree_sha: &str,
     message: &str,
 ) -> Result<String, AppError> {
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["commit-tree", tree_sha, "-m", message])
         .current_dir(worktree_path)
         .output()?;
@@ -199,7 +199,7 @@ fn git_commit_tree(
 }
 
 fn git_update_ref(worktree_path: &Path, ref_name: &str, commit_sha: &str) -> Result<(), AppError> {
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["update-ref", ref_name, commit_sha])
         .current_dir(worktree_path)
         .output()?;
