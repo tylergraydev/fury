@@ -1,9 +1,30 @@
+import { Component, type ErrorInfo, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 
 interface Props {
   content: string;
+}
+
+/** Falls back to plain text when markdown parsing throws. */
+class MarkdownErrorBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("[MarkdownContent] Render error:", error, info.componentStack);
+  }
+
+  render() {
+    return this.state.hasError ? this.props.fallback : this.props.children;
+  }
 }
 
 const components: Components = {
@@ -116,11 +137,17 @@ const components: Components = {
 };
 
 export function MarkdownContent({ content }: Props) {
+  if (!content) return null;
+
   return (
-    <div className="markdown-content">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-        {content}
-      </ReactMarkdown>
-    </div>
+    <MarkdownErrorBoundary
+      fallback={<div className="whitespace-pre-wrap">{content}</div>}
+    >
+      <div className="markdown-content">
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+          {content}
+        </ReactMarkdown>
+      </div>
+    </MarkdownErrorBoundary>
   );
 }

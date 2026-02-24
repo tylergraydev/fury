@@ -110,7 +110,6 @@ interface Props {
   messages: ChatMessage[];
   streamingText: string;
   agentStatus: AgentStatus;
-  revertedTurnIndex?: number | null;
   onRetry?: () => void;
 }
 
@@ -118,7 +117,6 @@ export function MessageList({
   messages,
   streamingText,
   agentStatus,
-  revertedTurnIndex,
   onRetry,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -174,17 +172,11 @@ export function MessageList({
         const turnId = turn.userMessage.id;
         const isExpanded = expandedTurns.has(turnId);
 
-        const isAfterRevert =
-          revertedTurnIndex != null && turnIdx > revertedTurnIndex;
-
         const elements: React.ReactNode[] = [];
 
         // User message — always visible
         elements.push(
-          <div
-            key={turn.userMessage.id}
-            style={{ opacity: isAfterRevert ? 0.4 : 1 }}
-          >
+          <div key={turn.userMessage.id}>
             <MessageBubble message={turn.userMessage} />
           </div>,
         );
@@ -206,10 +198,7 @@ export function MessageList({
             // Show all responses when expanded
             for (const msg of turn.responses) {
               elements.push(
-                <div
-                  key={msg.id}
-                  style={{ opacity: isAfterRevert ? 0.4 : 1 }}
-                >
+                <div key={msg.id}>
                   <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} />
                 </div>,
               );
@@ -224,10 +213,7 @@ export function MessageList({
                 ),
               };
               elements.push(
-                <div
-                  key={stats.finalTextMessage.id}
-                  style={{ opacity: isAfterRevert ? 0.4 : 1 }}
-                >
+                <div key={stats.finalTextMessage.id}>
                   <MessageBubble message={textOnly} />
                 </div>,
               );
@@ -237,10 +223,7 @@ export function MessageList({
           // Active turn, no tool calls, or has system messages — render all responses normally
           for (const msg of turn.responses) {
             elements.push(
-              <div
-                key={msg.id}
-                style={{ opacity: isAfterRevert ? 0.4 : 1 }}
-              >
+              <div key={msg.id}>
                 <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} />
               </div>,
             );

@@ -26,10 +26,11 @@ describe("MarkdownContent", () => {
     expect(pre).toBeInTheDocument();
   });
 
-  it("renders links with target _blank", () => {
+  it("renders links with target _blank and noopener", () => {
     render(<MarkdownContent content="[click](https://example.com)" />);
     const link = screen.getByText("click");
     expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
     expect(link).toHaveAttribute("href", "https://example.com");
   });
 
@@ -49,5 +50,10 @@ describe("MarkdownContent", () => {
     const content = "> quoted text";
     const { container } = render(<MarkdownContent content={content} />);
     expect(container.querySelector("blockquote")).toBeInTheDocument();
+  });
+
+  it("renders empty content without crashing", () => {
+    const { container } = render(<MarkdownContent content="" />);
+    expect(container.innerHTML).toBe("");
   });
 });

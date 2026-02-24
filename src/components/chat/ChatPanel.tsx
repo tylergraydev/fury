@@ -31,9 +31,6 @@ export function ChatPanel({ contextId, contextType }: Props) {
   const streamingText = useChatStore(
     (s) => s.streamingText[contextId] ?? "",
   );
-  const revertedTurnIndex = useCheckpointStore(
-    (s) => s.revertedTurnIndex[contextId] ?? null,
-  );
   const isPlanApproval = useChatStore(
     (s) => s.planApproval[contextId] ?? false,
   );
@@ -184,7 +181,6 @@ export function ChatPanel({ contextId, contextType }: Props) {
           messages={messages}
           streamingText={streamingText}
           agentStatus={agentStatus}
-          revertedTurnIndex={revertedTurnIndex}
           onRetry={handleRetry}
         />
         {showTOCButton && (

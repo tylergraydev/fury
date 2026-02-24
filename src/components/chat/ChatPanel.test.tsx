@@ -16,7 +16,6 @@ vi.mock("./MessageList", () => ({
         <span data-testid="msg-count">{props.messages.length}</span>
         <span data-testid="streaming">{props.streamingText}</span>
         <span data-testid="agent-status">{typeof props.agentStatus === "string" ? props.agentStatus : "Error"}</span>
-        <span data-testid="reverted-turn">{props.revertedTurnIndex ?? "null"}</span>
         {props.onRetry && (
           <button data-testid="retry-btn" onClick={props.onRetry}>Retry</button>
         )}
@@ -350,16 +349,6 @@ describe("ChatPanel", () => {
   });
 
   // --- workspace vs repo context ---
-
-  it("passes revertedTurnIndex from checkpoint store", () => {
-    useCheckpointStore.setState({
-      checkpoints: {},
-      revertedTurnIndex: { "ws-1": 3 },
-      subscriptions: {},
-    });
-    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
-    expect(screen.getByTestId("reverted-turn")).toHaveTextContent("3");
-  });
 
   it("passes agent status to Composer", () => {
     useAgentStore.setState({

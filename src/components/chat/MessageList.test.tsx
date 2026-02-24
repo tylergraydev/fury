@@ -93,52 +93,6 @@ describe("MessageList", () => {
     expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
   });
 
-  // --- Tests for revertedTurnIndex dimming ---
-
-  it("dims user messages after the revert point", () => {
-    const msgs = [
-      makeMsg({ id: "m1", role: "user", content: txt("first user msg") }),
-      makeMsg({ id: "m2", role: "assistant", content: txt("first assistant") }),
-      makeMsg({ id: "m3", role: "user", content: txt("second user msg") }),
-      makeMsg({ id: "m4", role: "assistant", content: txt("second assistant") }),
-    ];
-    render(
-      <MessageList
-        messages={msgs}
-        streamingText=""
-        agentStatus="Idle"
-        revertedTurnIndex={0}
-      />,
-    );
-    // m1 is user msg index 0, revertedTurnIndex is 0, so userMsgIndex-1 = 0 which is NOT > 0
-    // m3 is user msg index 1, revertedTurnIndex is 0, so userMsgIndex-1 = 1 which IS > 0
-    const m3Wrapper = screen.getByTestId("msg-m3").parentElement;
-    expect(m3Wrapper?.style.opacity).toBe("0.4");
-
-    // m1 should NOT be dimmed
-    const m1Wrapper = screen.getByTestId("msg-m1").parentElement;
-    expect(m1Wrapper?.style.opacity).toBe("1");
-  });
-
-  it("does not dim non-user messages after revert point", () => {
-    const msgs = [
-      makeMsg({ id: "m1", role: "user", content: txt("user msg") }),
-      makeMsg({ id: "m2", role: "assistant", content: txt("assistant msg") }),
-      makeMsg({ id: "m3", role: "user", content: txt("second user") }),
-    ];
-    render(
-      <MessageList
-        messages={msgs}
-        streamingText=""
-        agentStatus="Idle"
-        revertedTurnIndex={0}
-      />,
-    );
-    // Assistant messages should NOT be dimmed regardless of position
-    const m2Wrapper = screen.getByTestId("msg-m2").parentElement;
-    expect(m2Wrapper?.style.opacity).toBe("1");
-  });
-
   // --- Test that onRetry is passed to system messages ---
 
   it("passes onRetry to system messages only", () => {
