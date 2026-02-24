@@ -91,7 +91,7 @@ describe("Composer", () => {
 
   it("shows stop button when agent is running", () => {
     render(<Composer {...defaultProps} agentStatus="Running" />);
-    expect(screen.getByTitle("Stop the running agent")).toBeInTheDocument();
+    expect(screen.getByTitle("Stop")).toBeInTheDocument();
   });
 
   it("disables textarea when agent is running", () => {
@@ -103,13 +103,13 @@ describe("Composer", () => {
     const onStop = vi.fn();
     const user = userEvent.setup();
     render(<Composer {...defaultProps} agentStatus="Running" onStop={onStop} />);
-    await user.click(screen.getByTitle("Stop the running agent"));
+    await user.click(screen.getByTitle("Stop"));
     expect(onStop).toHaveBeenCalledOnce();
   });
 
-  it("shows Stopping text when agent is stopping", () => {
+  it("shows Stopping title when agent is stopping", () => {
     render(<Composer {...defaultProps} agentStatus="Stopping" />);
-    expect(screen.getByText("Stopping...")).toBeInTheDocument();
+    expect(screen.getByTitle("Stopping...")).toBeInTheDocument();
   });
 
   // --- contextType "repo" loads repo files ---
@@ -631,7 +631,7 @@ describe("Composer", () => {
   // --- Stopping state disables stop button ---
   it("disables stop button when agent is stopping", () => {
     render(<Composer {...defaultProps} agentStatus="Stopping" />);
-    expect(screen.getByTitle("Stop the running agent")).toBeDisabled();
+    expect(screen.getByTitle("Stopping...")).toBeDisabled();
   });
 
   // --- Disables textarea when agent is stopping ---
