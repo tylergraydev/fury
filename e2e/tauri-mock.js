@@ -266,6 +266,9 @@
     if (cmd === "plugin:process|exit") return;
     if (cmd === "plugin:process|relaunch") return;
 
+    // --- App plugin ---
+    if (cmd === "plugin:app|version") return "1.4.1";
+
     // --- Updater plugin ---
     if (cmd === "plugin:updater|check") return null;
 

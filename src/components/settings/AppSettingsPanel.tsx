@@ -25,6 +25,7 @@ import type {
   CursorRulesImportResult,
 } from "../../lib/tauri";
 import { detectCursorrules, importCursorrules, checkForUpdate } from "../../lib/tauri";
+import { getVersion } from "@tauri-apps/api/app";
 import { useCopilotStore } from "../../stores/copilotStore";
 import { isMac } from "../../lib/keybindings";
 
@@ -1372,6 +1373,11 @@ function ExperimentalTab() {
 function UpdatesTab() {
   const [checking, setChecking] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [version, setVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    getVersion().then((v) => setVersion(v));
+  }, []);
 
   const checkForUpdates = async () => {
     setChecking(true);
@@ -1409,7 +1415,7 @@ function UpdatesTab() {
           }}
         >
           <div className="mb-2 text-xs" style={{ color: "var(--text-primary)" }}>
-            Current version: v0.1.0
+            Current version: {version ? `v${version}` : "..."}
           </div>
           {status && (
             <div

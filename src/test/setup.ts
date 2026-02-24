@@ -45,6 +45,11 @@ vi.mock("@tauri-apps/plugin-updater", () => ({
   check: vi.fn().mockResolvedValue(null),
 }));
 
+// Mock @tauri-apps/api/app
+vi.mock("@tauri-apps/api/app", () => ({
+  getVersion: vi.fn().mockResolvedValue("1.4.1"),
+}));
+
 // Mock @tauri-apps/api/path
 vi.mock("@tauri-apps/api/path", () => ({
   homeDir: vi.fn().mockResolvedValue("/home/user/"),
