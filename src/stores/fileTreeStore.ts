@@ -12,15 +12,16 @@ interface FileTreeStore {
   toggleDir: (contextId: string, dir: string) => void;
 }
 
-export const useFileTreeStore = create<FileTreeStore>((set) => ({
+export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
   files: {},
   expandedDirs: {},
   loading: {},
   error: {},
 
   loadFiles: async (workspaceId: string) => {
+    const hasCached = workspaceId in get().files;
     set((state) => ({
-      loading: { ...state.loading, [workspaceId]: true },
+      loading: { ...state.loading, [workspaceId]: !hasCached },
       error: { ...state.error, [workspaceId]: null },
     }));
     try {
@@ -32,14 +33,15 @@ export const useFileTreeStore = create<FileTreeStore>((set) => ({
     } catch (e) {
       set((state) => ({
         loading: { ...state.loading, [workspaceId]: false },
-        error: { ...state.error, [workspaceId]: String(e) },
+        error: hasCached ? state.error : { ...state.error, [workspaceId]: String(e) },
       }));
     }
   },
 
   loadRepoFiles: async (repoId: string) => {
+    const hasCached = repoId in get().files;
     set((state) => ({
-      loading: { ...state.loading, [repoId]: true },
+      loading: { ...state.loading, [repoId]: !hasCached },
       error: { ...state.error, [repoId]: null },
     }));
     try {
@@ -51,7 +53,7 @@ export const useFileTreeStore = create<FileTreeStore>((set) => ({
     } catch (e) {
       set((state) => ({
         loading: { ...state.loading, [repoId]: false },
-        error: { ...state.error, [repoId]: String(e) },
+        error: hasCached ? state.error : { ...state.error, [repoId]: String(e) },
       }));
     }
   },
