@@ -83,6 +83,7 @@ pub fn run() {
             commands::merge::continue_merge,
             commands::merge::cross_worktree_diff,
             commands::merge::get_cross_worktree_file_diff,
+            commands::merge::push_workspace,
             // Script commands
             commands::script::run_script,
             commands::script::stop_script,

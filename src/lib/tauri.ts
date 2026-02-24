@@ -1185,6 +1185,10 @@ export async function pullMerge(workspaceId: string): Promise<PullResult> {
   return invoke<PullResult>("pull_merge", { workspaceId });
 }
 
+export async function pushWorkspace(workspaceId: string): Promise<void> {
+  return invoke("push_workspace", { workspaceId });
+}
+
 export async function getConflictedFiles(
   workspaceId: string,
 ): Promise<ConflictedFile[]> {

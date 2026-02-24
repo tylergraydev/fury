@@ -5,6 +5,7 @@ vi.mock("../lib/tauri", () => ({
   fetchUpstream: vi.fn(),
   pullRebase: vi.fn(),
   pullMerge: vi.fn(),
+  pushWorkspace: vi.fn(),
   getConflictedFiles: vi.fn(),
   getConflictContent: vi.fn(),
   resolveConflict: vi.fn(),
@@ -27,6 +28,7 @@ import {
   continueMerge,
   crossWorktreeDiff,
   getCrossWorktreeFileDiff,
+  pushWorkspace,
 } from "../lib/tauri";
 
 const makeStatus = (overrides: Record<string, unknown> = {}) => ({
@@ -51,6 +53,8 @@ beforeEach(() => {
       selectedConflictFile: {},
       loading: {},
       error: {},
+      syncing: {},
+      syncError: {},
       activeSection: {},
     },
   );
@@ -403,5 +407,81 @@ describe("mergeStore - setActiveSection", () => {
     useMergeStore.getState().setActiveSection("ws-1", "compare");
 
     expect(useMergeStore.getState().activeSection["ws-1"]).toBe("compare");
+  });
+});
+
+describe("mergeStore - syncBranch", () => {
+  it("syncs successfully: fetch → pull → push → refresh status", async () => {
+    const pullResult = {
+      success: true,
+      message: "ok",
+      hasConflicts: false,
+      conflictedFiles: [],
+    };
+    const status = makeStatus({ ahead: 0, behind: 0 });
+    vi.mocked(fetchUpstream).mockResolvedValue(undefined);
+    vi.mocked(pullRebase).mockResolvedValue(pullResult as any);
+    vi.mocked(pushWorkspace).mockResolvedValue(undefined);
+    vi.mocked(getBranchStatus).mockResolvedValue(status as any);
+
+    await useMergeStore.getState().syncBranch("ws-1");
+
+    expect(fetchUpstream).toHaveBeenCalledWith("ws-1");
+    expect(pullRebase).toHaveBeenCalledWith("ws-1");
+    expect(pushWorkspace).toHaveBeenCalledWith("ws-1");
+    expect(getBranchStatus).toHaveBeenCalledWith("ws-1");
+    expect(useMergeStore.getState().syncing["ws-1"]).toBe(false);
+    expect(useMergeStore.getState().syncError["ws-1"]).toBeNull();
+    expect(useMergeStore.getState().branchStatus["ws-1"]).toEqual(status);
+  });
+
+  it("stops on pull conflicts and does not push", async () => {
+    const pullResult = {
+      success: false,
+      message: "conflicts",
+      hasConflicts: true,
+      conflictedFiles: ["file.ts"],
+    };
+    const conflicts = [{ path: "file.ts", conflictType: "BothModified" }];
+    vi.mocked(fetchUpstream).mockResolvedValue(undefined);
+    vi.mocked(pullRebase).mockResolvedValue(pullResult as any);
+    vi.mocked(getConflictedFiles).mockResolvedValue(conflicts as any);
+
+    await useMergeStore.getState().syncBranch("ws-1");
+
+    expect(pushWorkspace).not.toHaveBeenCalled();
+    expect(useMergeStore.getState().syncing["ws-1"]).toBe(false);
+    expect(useMergeStore.getState().syncError["ws-1"]).toBe(
+      "Pull resulted in conflicts. Resolve in Merge view.",
+    );
+    expect(useMergeStore.getState().conflictedFiles["ws-1"]).toEqual(conflicts);
+    expect(useMergeStore.getState().activeSection["ws-1"]).toBe("conflicts");
+  });
+
+  it("sets syncError on fetch failure", async () => {
+    vi.mocked(fetchUpstream).mockRejectedValue(new Error("fetch fail"));
+
+    await useMergeStore.getState().syncBranch("ws-1");
+
+    expect(useMergeStore.getState().syncError["ws-1"]).toBe("Error: fetch fail");
+    expect(useMergeStore.getState().syncing["ws-1"]).toBe(false);
+    expect(pullRebase).not.toHaveBeenCalled();
+  });
+
+  it("sets syncError on push failure", async () => {
+    const pullResult = {
+      success: true,
+      message: "ok",
+      hasConflicts: false,
+      conflictedFiles: [],
+    };
+    vi.mocked(fetchUpstream).mockResolvedValue(undefined);
+    vi.mocked(pullRebase).mockResolvedValue(pullResult as any);
+    vi.mocked(pushWorkspace).mockRejectedValue(new Error("push fail"));
+
+    await useMergeStore.getState().syncBranch("ws-1");
+
+    expect(useMergeStore.getState().syncError["ws-1"]).toBe("Error: push fail");
+    expect(useMergeStore.getState().syncing["ws-1"]).toBe(false);
   });
 });

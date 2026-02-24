@@ -5,7 +5,7 @@ import {
   PanelResizeHandle,
   type ImperativePanelHandle,
 } from "react-resizable-panels";
-import { ChevronUp, ChevronDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronUp, ChevronDown, RefreshCw } from "lucide-react";
 import {
   useUIStore,
   type RightSidebarTab,
@@ -20,6 +20,7 @@ import { RunPanel } from "../terminal/RunPanel";
 import { SetupPanel } from "../terminal/SetupPanel";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
+import { useMergeStore } from "../../stores/mergeStore";
 import { isMac } from "../../lib/keybindings";
 import type { SidebarContext } from "../../App";
 
@@ -43,6 +44,63 @@ const BOTTOM_TABS: { key: BottomTab; label: string }[] = [
   { key: "run", label: "Run" },
   { key: "terminal", label: "Terminal" },
 ];
+
+function SyncButton({ contextId }: { contextId: string }) {
+  const branchStatus = useMergeStore((s) => s.branchStatus[contextId] ?? null);
+  const syncing = useMergeStore((s) => s.syncing[contextId] ?? false);
+  const syncError = useMergeStore((s) => s.syncError[contextId] ?? null);
+
+  useEffect(() => {
+    useMergeStore.getState().loadBranchStatus(contextId);
+  }, [contextId]);
+
+  const handleSync = () => {
+    if (!syncing) {
+      useMergeStore.getState().syncBranch(contextId);
+    }
+  };
+
+  const ahead = branchStatus?.ahead ?? 0;
+  const behind = branchStatus?.behind ?? 0;
+
+  return (
+    <button
+      onClick={handleSync}
+      disabled={syncing}
+      title={syncError ?? "Sync with remote"}
+      className="ml-auto mr-2 flex items-center gap-1 rounded px-2 py-1.5 text-xs transition-colors hover:opacity-80 disabled:opacity-50"
+      style={{
+        color: syncing
+          ? "var(--accent)"
+          : syncError
+            ? "var(--error)"
+            : "var(--text-muted)",
+      }}
+    >
+      {syncing ? (
+        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <>
+          {behind > 0 && (
+            <span className="flex items-center gap-0.5" style={{ color: "var(--warning)" }}>
+              <ArrowDown className="h-3.5 w-3.5" />
+              {behind}
+            </span>
+          )}
+          {ahead > 0 && (
+            <span className="flex items-center gap-0.5" style={{ color: "var(--success)" }}>
+              <ArrowUp className="h-3.5 w-3.5" />
+              {ahead}
+            </span>
+          )}
+          {ahead === 0 && behind === 0 && (
+            <RefreshCw className="h-3.5 w-3.5" />
+          )}
+        </>
+      )}
+    </button>
+  );
+}
 
 export function RightSidebar({ context }: Props) {
   const activeTab = useUIStore((s) => s.rightSidebarTab);
@@ -138,6 +196,7 @@ export function RightSidebar({ context }: Props) {
                   </button>
                 );
               })}
+              <SyncButton contextId={context.id} />
             </div>
 
             {/* Tab content */}
