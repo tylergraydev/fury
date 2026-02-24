@@ -1372,6 +1372,14 @@ function ExperimentalTab() {
 function UpdatesTab() {
   const [checking, setChecking] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    import("@tauri-apps/api/app")
+      .then((mod) => mod.getVersion())
+      .then((v) => setAppVersion(v))
+      .catch(() => {});
+  }, []);
 
   const checkForUpdates = async () => {
     setChecking(true);
@@ -1409,7 +1417,7 @@ function UpdatesTab() {
           }}
         >
           <div className="mb-2 text-xs" style={{ color: "var(--text-primary)" }}>
-            Current version: v0.1.0
+            Current version: v{appVersion ?? "..."}
           </div>
           {status && (
             <div

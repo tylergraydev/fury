@@ -29,7 +29,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/OWNER/fury/releases/latest/download/latest.json"
+        "https://github.com/tylergraydev/fury/releases/latest/download/latest.json"
       ],
       "pubkey": ""
     }

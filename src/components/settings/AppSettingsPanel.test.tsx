@@ -1890,9 +1890,9 @@ describe("UpdatesTab", () => {
     fireEvent.click(screen.getByText("Updates"));
   };
 
-  it("shows current version", () => {
+  it("shows current version", async () => {
     goToUpdatesTab();
-    expect(screen.getByText("Current version: v0.1.0")).toBeInTheDocument();
+    expect(await screen.findByText("Current version: v1.4.1")).toBeInTheDocument();
   });
 
   it("shows Check for Updates button", () => {
