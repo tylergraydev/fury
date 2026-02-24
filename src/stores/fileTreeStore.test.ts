@@ -30,6 +30,31 @@ describe("fileTreeStore - loadFiles", () => {
     expect(useFileTreeStore.getState().error["ws-1"]).toBe("Error: fail");
     expect(useFileTreeStore.getState().loading["ws-1"]).toBe(false);
   });
+
+  it("shows loading spinner on first load only", async () => {
+    vi.mocked(listWorkspaceFiles).mockResolvedValue(["a.ts"]);
+    // First load: loading should be true
+    const promise1 = useFileTreeStore.getState().loadFiles("ws-1");
+    expect(useFileTreeStore.getState().loading["ws-1"]).toBe(true);
+    await promise1;
+
+    // Second load: loading should stay false (cached data shown)
+    vi.mocked(listWorkspaceFiles).mockResolvedValue(["a.ts", "b.ts"]);
+    const promise2 = useFileTreeStore.getState().loadFiles("ws-1");
+    expect(useFileTreeStore.getState().loading["ws-1"]).toBe(false);
+    await promise2;
+    expect(useFileTreeStore.getState().files["ws-1"]).toEqual(["a.ts", "b.ts"]);
+  });
+
+  it("suppresses error when cached data exists", async () => {
+    vi.mocked(listWorkspaceFiles).mockResolvedValue(["a.ts"]);
+    await useFileTreeStore.getState().loadFiles("ws-1");
+
+    vi.mocked(listWorkspaceFiles).mockRejectedValue(new Error("network"));
+    await useFileTreeStore.getState().loadFiles("ws-1");
+    expect(useFileTreeStore.getState().error["ws-1"]).toBeNull();
+    expect(useFileTreeStore.getState().files["ws-1"]).toEqual(["a.ts"]);
+  });
 });
 
 describe("fileTreeStore - loadRepoFiles", () => {
