@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::models::diff::{DiffResult, FileDiff, FileDiffContent, FileStatus};
+use crate::platform;
 use std::path::Path;
-use std::process::Command;
 
 /// Empty tree SHA used as fallback when git merge-base fails.
 const EMPTY_TREE_SHA: &str = "4b825dc642cb6eb9a060e54bf899d15363ed7fd1";
@@ -14,19 +14,19 @@ pub fn get_workspace_diff(
     let merge_base = find_merge_base(worktree_path, default_branch);
 
     // Get file statuses (M/A/D/R)
-    let name_status_output = Command::new("git")
+    let name_status_output = platform::command("git")
         .args(["diff", "--name-status", &merge_base])
         .current_dir(worktree_path)
         .output()?;
 
     // Get line counts
-    let numstat_output = Command::new("git")
+    let numstat_output = platform::command("git")
         .args(["diff", "--numstat", &merge_base])
         .current_dir(worktree_path)
         .output()?;
 
     // Get untracked files
-    let untracked_output = Command::new("git")
+    let untracked_output = platform::command("git")
         .args(["ls-files", "--others", "--exclude-standard"])
         .current_dir(worktree_path)
         .output()?;
@@ -129,7 +129,7 @@ pub fn get_file_diff_content(
     let merge_base = find_merge_base(worktree_path, default_branch);
 
     // Get original content at merge base
-    let original_output = Command::new("git")
+    let original_output = platform::command("git")
         .args(["show", &format!("{}:{}", merge_base, file_path)])
         .current_dir(worktree_path)
         .output()?;
@@ -157,7 +157,7 @@ pub fn get_file_diff_content(
 /// Find the merge base between the current HEAD and the default branch.
 /// Falls back to the empty tree SHA if no common ancestor exists.
 fn find_merge_base(worktree_path: &Path, default_branch: &str) -> String {
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["merge-base", default_branch, "HEAD"])
         .current_dir(worktree_path)
         .output();

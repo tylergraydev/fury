@@ -148,7 +148,7 @@ pub async fn start(root_uri: &str) -> Result<(CopilotLspHandle, Child), AppError
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x00000200);
+        cmd.creation_flags(0x08000200); // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
     }
 
     let mut child = cmd.spawn().map_err(|e| {

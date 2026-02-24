@@ -1,6 +1,6 @@
 use crate::error::AppError;
+use crate::platform;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 /// Create an isolated git worktree for a workspace.
 pub fn create_worktree(
@@ -16,7 +16,7 @@ pub fn create_worktree(
     let worktree_path = worktree_base.join(&safe_name);
 
     // Check branch not already checked out
-    let existing = Command::new("git")
+    let existing = platform::command("git")
         .args(["worktree", "list", "--porcelain"])
         .current_dir(repo_path)
         .output()?;
@@ -27,7 +27,7 @@ pub fn create_worktree(
     }
 
     // Check if branch exists
-    let branch_exists = Command::new("git")
+    let branch_exists = platform::command("git")
         .args([
             "rev-parse",
             "--verify",
@@ -39,7 +39,7 @@ pub fn create_worktree(
         .success();
 
     let output = if branch_exists {
-        Command::new("git")
+        platform::command("git")
             .args([
                 "worktree",
                 "add",
@@ -59,7 +59,7 @@ pub fn create_worktree(
         if let Some(base) = base_branch {
             args.push(base.to_string());
         }
-        Command::new("git")
+        platform::command("git")
             .args(&args)
             .current_dir(repo_path)
             .output()?
@@ -76,7 +76,7 @@ pub fn create_worktree(
 
 /// Remove a git worktree.
 pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<(), AppError> {
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args([
             "worktree",
             "remove",
@@ -92,7 +92,7 @@ pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<(), App
     }
 
     // Prune stale references
-    let _ = Command::new("git")
+    let _ = platform::command("git")
         .args(["worktree", "prune"])
         .current_dir(repo_path)
         .output();
@@ -102,12 +102,12 @@ pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<(), App
 
 /// Apply sparse checkout to restrict visible directories.
 pub fn apply_sparse_checkout(worktree_path: &Path, dirs: &[String]) -> Result<(), AppError> {
-    Command::new("git")
+    platform::command("git")
         .args(["sparse-checkout", "init", "--cone"])
         .current_dir(worktree_path)
         .output()?;
 
-    let mut cmd = Command::new("git");
+    let mut cmd = platform::command("git");
     cmd.arg("sparse-checkout").arg("set");
     for dir in dirs {
         cmd.arg(dir);
@@ -142,7 +142,7 @@ fn sanitize_name(name: &str) -> String {
 
 /// Detect the default branch of a repository.
 pub fn detect_default_branch(repo_path: &Path) -> String {
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["symbolic-ref", "refs/remotes/origin/HEAD", "--short"])
         .current_dir(repo_path)
         .output();
@@ -160,7 +160,7 @@ pub fn detect_default_branch(repo_path: &Path) -> String {
 
     // Fallback: check for common branch names
     for name in &["main", "master"] {
-        let check = Command::new("git")
+        let check = platform::command("git")
             .args(["rev-parse", "--verify", &format!("refs/heads/{}", name)])
             .current_dir(repo_path)
             .output();

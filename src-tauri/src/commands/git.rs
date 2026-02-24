@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use crate::error::AppError;
 use crate::models::diff::{DiffResult, FileDiffContent};
+use crate::platform;
 use crate::services::diff as diff_svc;
 use crate::state::AppState;
 use base64::Engine;
@@ -57,7 +57,7 @@ pub fn get_git_log(
     let count = max_count.unwrap_or(100).to_string();
     let format_arg = "--format=%h\x1f%H\x1f%s\x1f%an\x1f%aI";
 
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["log", &format!("--max-count={}", count), format_arg])
         .current_dir(&worktree_path)
         .output()?;
@@ -175,7 +175,7 @@ pub fn list_repo_directories(
     }
     args.push("HEAD");
 
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(&args)
         .current_dir(&repo_path)
         .output()?;
@@ -215,7 +215,7 @@ pub fn list_workspace_files(
         ws.worktree_path.clone()
     };
 
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["ls-tree", "-r", "--name-only", "HEAD"])
         .current_dir(&worktree_path)
         .output()?;
@@ -253,7 +253,7 @@ pub fn list_repo_files(
         repo.path.clone()
     };
 
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["ls-tree", "-r", "--name-only", "HEAD"])
         .current_dir(&repo_path)
         .output()?;
@@ -436,7 +436,7 @@ fn try_format_file(file_path: &std::path::Path, working_dir: &std::path::Path) -
     };
 
     if let Some((cmd, args)) = formatter {
-        let result = Command::new(&cmd)
+        let result = platform::command(&cmd)
             .args(&args)
             .current_dir(working_dir)
             .output();

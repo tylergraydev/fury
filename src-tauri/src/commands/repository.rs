@@ -1,5 +1,6 @@
 use crate::error::AppError;
 use crate::models::repository::Repository;
+use crate::platform;
 use crate::services::worktree;
 use crate::state::AppState;
 use std::fs;
@@ -9,7 +10,7 @@ use uuid::Uuid;
 
 /// Get the current checked-out branch for a repo path.
 fn detect_current_branch(path: &Path) -> Option<String> {
-    let output = std::process::Command::new("git")
+    let output = platform::command("git")
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
         .current_dir(path)
         .output()
@@ -27,7 +28,7 @@ pub fn add_repository(state: State<'_, AppState>, path: String) -> Result<Reposi
     let path = PathBuf::from(&path);
 
     // Validate it's a git repository
-    let git_check = std::process::Command::new("git")
+    let git_check = platform::command("git")
         .args(["rev-parse", "--git-dir"])
         .current_dir(&path)
         .output()?;
@@ -115,7 +116,7 @@ pub fn list_branches(state: State<'_, AppState>, repo_id: String) -> Result<Vec<
     let repos = state.repositories.lock().unwrap();
     let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
 
-    let output = std::process::Command::new("git")
+    let output = platform::command("git")
         .args(["branch", "--format=%(refname:short)"])
         .current_dir(&repo.path)
         .output()?;
@@ -177,7 +178,7 @@ pub fn clone_repository(
 ) -> Result<Repository, AppError> {
     let dest = PathBuf::from(&path);
 
-    let output = std::process::Command::new("git")
+    let output = platform::command("git")
         .args(["clone", &url, &path])
         .output()?;
 
@@ -201,7 +202,7 @@ pub fn init_repository(
         fs::create_dir_all(&dest)?;
     }
 
-    let output = std::process::Command::new("git")
+    let output = platform::command("git")
         .args(["init"])
         .current_dir(&dest)
         .output()?;
@@ -215,12 +216,12 @@ pub fn init_repository(
     let readme = dest.join("README.md");
     fs::write(&readme, format!("# {}\n", name))?;
 
-    let _ = std::process::Command::new("git")
+    let _ = platform::command("git")
         .args(["add", "."])
         .current_dir(&dest)
         .output();
 
-    let _ = std::process::Command::new("git")
+    let _ = platform::command("git")
         .args(["commit", "-m", "Initial commit"])
         .current_dir(&dest)
         .output();

@@ -1,13 +1,13 @@
 use std::collections::HashMap;
-use std::process::Command;
 
 use crate::error::AppError;
 use crate::models::mcp::{McpScope, McpServer};
+use crate::platform;
 use crate::services::claude_process;
 
 /// Get details for a single MCP server by name.
 fn get_mcp_server(claude: &std::path::Path, name: &str) -> Option<McpServer> {
-    let output = Command::new(claude)
+    let output = platform::command(claude)
         .args(["mcp", "get", name])
         .output()
         .ok()?;
@@ -66,7 +66,7 @@ fn get_mcp_server(claude: &std::path::Path, name: &str) -> Option<McpServer> {
 pub fn list_mcp_servers(_scope: &McpScope) -> Result<Vec<McpServer>, AppError> {
     let claude = claude_process::find_claude_binary()?;
 
-    let output = Command::new(&claude)
+    let output = platform::command(&claude)
         .args(["mcp", "list"])
         .output()
         .map_err(|e| AppError::McpError(format!("Failed to run claude mcp list: {}", e)))?;
@@ -134,7 +134,7 @@ pub fn add_mcp_server(
     cmd_args.push(command.to_string());
     cmd_args.extend(args.iter().cloned());
 
-    let output = Command::new(&claude)
+    let output = platform::command(&claude)
         .args(&cmd_args)
         .output()
         .map_err(|e| AppError::McpError(format!("Failed to run claude mcp add: {}", e)))?;
@@ -153,7 +153,7 @@ pub fn add_mcp_server(
 pub fn remove_mcp_server(name: &str, scope: &McpScope) -> Result<(), AppError> {
     let claude = claude_process::find_claude_binary()?;
 
-    let output = Command::new(&claude)
+    let output = platform::command(&claude)
         .args(["mcp", "remove", name, "-s", scope.as_str()])
         .output()
         .map_err(|e| AppError::McpError(format!("Failed to run claude mcp remove: {}", e)))?;

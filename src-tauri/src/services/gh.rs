@@ -1,11 +1,11 @@
 use std::path::Path;
-use std::process::Command;
 
 use crate::error::AppError;
 use crate::models::pr::{
     IssueDetail, IssueListItem, MergeResult, PrCheck, PrComment, PrDetail, PrInfo, PrListItem,
     PrReview, RunLogsResult, WorkflowJob, WorkflowRun, WorkflowStep,
 };
+use crate::platform;
 
 pub fn find_gh_binary() -> Result<std::path::PathBuf, AppError> {
     which::which("gh").map_err(|_| {
@@ -18,7 +18,7 @@ pub fn find_gh_binary() -> Result<std::path::PathBuf, AppError> {
 
 pub fn check_gh_auth() -> Result<(), AppError> {
     let gh = find_gh_binary()?;
-    let output = Command::new(&gh)
+    let output = platform::command(&gh)
         .args(["auth", "status"])
         .output()
         .map_err(|e| AppError::PrError(format!("Failed to run gh auth status: {}", e)))?;
@@ -32,7 +32,7 @@ pub fn check_gh_auth() -> Result<(), AppError> {
 }
 
 pub fn push_branch(worktree_path: &Path, branch: &str) -> Result<(), AppError> {
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["push", "-u", "origin", branch])
         .current_dir(worktree_path)
         .output()
@@ -69,7 +69,7 @@ pub fn create_pr(
         args.push("--draft".to_string());
     }
 
-    let output = Command::new(&gh)
+    let output = platform::command(&gh)
         .args(&args)
         .current_dir(worktree_path)
         .output()
@@ -89,7 +89,7 @@ pub fn create_pr(
 
 pub fn get_pr_info(worktree_path: &Path) -> Result<Option<PrInfo>, AppError> {
     let gh = find_gh_binary()?;
-    let output = Command::new(&gh)
+    let output = platform::command(&gh)
         .args(["pr", "view", "--json", "number,url,title,state,mergeable"])
         .current_dir(worktree_path)
         .output()
@@ -119,7 +119,7 @@ pub fn get_pr_info(worktree_path: &Path) -> Result<Option<PrInfo>, AppError> {
 
 pub fn get_pr_checks(worktree_path: &Path) -> Result<Vec<PrCheck>, AppError> {
     let gh = find_gh_binary()?;
-    let output = Command::new(&gh)
+    let output = platform::command(&gh)
         .args([
             "pr",
             "checks",
@@ -184,7 +184,7 @@ pub fn merge_pr(worktree_path: &Path, method: &str) -> Result<MergeResult, AppEr
         _ => "--merge",
     };
 
-    let output = Command::new(&gh)
+    let output = platform::command(&gh)
         .args(["pr", "merge", merge_flag, "--delete-branch"])
         .current_dir(worktree_path)
         .output()
@@ -205,7 +205,7 @@ pub fn merge_pr(worktree_path: &Path, method: &str) -> Result<MergeResult, AppEr
 
 pub fn get_pr_reviews(worktree_path: &Path) -> Result<Vec<PrReview>, AppError> {
     let gh = find_gh_binary()?;
-    let output = Command::new(&gh)
+    let output = platform::command(&gh)
         .args(["pr", "view", "--json", "latestReviews"])
         .current_dir(worktree_path)
         .output()
@@ -257,7 +257,7 @@ pub fn get_pr_review_comments(worktree_path: &Path) -> Result<Vec<PrComment>, Ap
     let gh = find_gh_binary()?;
 
     // First get PR number and URL to extract owner/repo
-    let pr_output = Command::new(&gh)
+    let pr_output = platform::command(&gh)
         .args(["pr", "view", "--json", "number,url"])
         .current_dir(worktree_path)
         .output()
@@ -293,7 +293,7 @@ pub fn get_pr_review_comments(worktree_path: &Path) -> Result<Vec<PrComment>, Ap
 
     // Fetch inline review comments via API
     let api_path = format!("repos/{}/{}/pulls/{}/comments", owner, repo, pr_number);
-    let api_output = Command::new(&gh)
+    let api_output = platform::command(&gh)
         .args(["api", &api_path, "--paginate"])
         .current_dir(worktree_path)
         .output()
@@ -339,7 +339,7 @@ pub fn get_pr_review_comments(worktree_path: &Path) -> Result<Vec<PrComment>, Ap
 
 pub fn list_repo_prs(repo_path: &Path) -> Result<Vec<PrListItem>, AppError> {
     let gh = find_gh_binary()?;
-    let output = Command::new(&gh)
+    let output = platform::command(&gh)
         .args([
             "pr",
             "list",
@@ -406,7 +406,7 @@ pub fn list_repo_prs(repo_path: &Path) -> Result<Vec<PrListItem>, AppError> {
 
 pub fn get_pr_detail(repo_path: &Path, number: u32) -> Result<PrDetail, AppError> {
     let gh = find_gh_binary()?;
-    let output = Command::new(&gh)
+    let output = platform::command(&gh)
         .args([
             "pr",
             "view",
@@ -465,7 +465,7 @@ pub fn get_pr_detail(repo_path: &Path, number: u32) -> Result<PrDetail, AppError
 
 pub fn list_repo_issues(repo_path: &Path) -> Result<Vec<IssueListItem>, AppError> {
     let gh = find_gh_binary()?;
-    let output = Command::new(&gh)
+    let output = platform::command(&gh)
         .args([
             "issue",
             "list",
@@ -527,7 +527,7 @@ pub fn list_repo_issues(repo_path: &Path) -> Result<Vec<IssueListItem>, AppError
 
 pub fn get_issue_detail(repo_path: &Path, number: u32) -> Result<IssueDetail, AppError> {
     let gh = find_gh_binary()?;
-    let output = Command::new(&gh)
+    let output = platform::command(&gh)
         .args([
             "issue",
             "view",
@@ -580,7 +580,7 @@ pub fn get_issue_detail(repo_path: &Path, number: u32) -> Result<IssueDetail, Ap
 
 pub fn get_workflow_runs(worktree_path: &Path, branch: &str) -> Result<Vec<WorkflowRun>, AppError> {
     let gh = find_gh_binary()?;
-    let output = Command::new(&gh)
+    let output = platform::command(&gh)
         .args([
             "run",
             "list",
@@ -645,7 +645,7 @@ pub fn get_workflow_runs(worktree_path: &Path, branch: &str) -> Result<Vec<Workf
 
 pub fn get_run_jobs(worktree_path: &Path, run_id: u64) -> Result<Vec<WorkflowJob>, AppError> {
     let gh = find_gh_binary()?;
-    let output = Command::new(&gh)
+    let output = platform::command(&gh)
         .args(["run", "view", &run_id.to_string(), "--json", "jobs"])
         .current_dir(worktree_path)
         .output()
@@ -721,7 +721,7 @@ pub fn get_run_logs(
 ) -> Result<RunLogsResult, AppError> {
     let gh = find_gh_binary()?;
     let log_flag = if failed_only { "--log-failed" } else { "--log" };
-    let output = Command::new(&gh)
+    let output = platform::command(&gh)
         .args(["run", "view", &run_id.to_string(), log_flag])
         .current_dir(worktree_path)
         .output()
@@ -762,7 +762,7 @@ pub fn rerun_workflow(
         args.push("--failed");
     }
 
-    let output = Command::new(&gh)
+    let output = platform::command(&gh)
         .args(&args)
         .current_dir(worktree_path)
         .output()

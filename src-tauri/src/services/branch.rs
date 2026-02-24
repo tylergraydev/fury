@@ -1,11 +1,11 @@
 use std::path::Path;
-use std::process::Command;
 
 use crate::error::AppError;
 use crate::models::diff::{DiffResult, FileDiff, FileDiffContent, FileStatus};
 use crate::models::merge::{
     BranchStatus, ConflictContent, ConflictType, ConflictedFile, PullResult,
 };
+use crate::platform;
 use crate::services::diff::detect_language;
 
 /// Get ahead/behind counts for the current branch relative to the default branch.
@@ -15,7 +15,7 @@ pub fn get_branch_status(
     default_branch: &str,
 ) -> Result<BranchStatus, AppError> {
     // Check if upstream exists
-    let has_upstream = Command::new("git")
+    let has_upstream = platform::command("git")
         .args(["rev-parse", "--verify", &format!("origin/{}", branch)])
         .current_dir(worktree_path)
         .output()
@@ -24,7 +24,7 @@ pub fn get_branch_status(
 
     // Get ahead/behind relative to default branch
     let upstream_ref = format!("origin/{}", default_branch);
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args([
             "rev-list",
             "--left-right",
@@ -61,7 +61,7 @@ pub fn get_branch_status(
 
 /// Fetch from origin.
 pub fn fetch_upstream(worktree_path: &Path) -> Result<(), AppError> {
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["fetch", "origin"])
         .current_dir(worktree_path)
         .output()?;
@@ -78,7 +78,7 @@ pub fn fetch_upstream(worktree_path: &Path) -> Result<(), AppError> {
 
 /// Pull from upstream with rebase.
 pub fn pull_rebase(worktree_path: &Path, default_branch: &str) -> Result<PullResult, AppError> {
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["pull", "--rebase", "origin", default_branch])
         .current_dir(worktree_path)
         .output()?;
@@ -102,7 +102,7 @@ pub fn pull_rebase(worktree_path: &Path, default_branch: &str) -> Result<PullRes
 
 /// Pull from upstream with merge.
 pub fn pull_merge(worktree_path: &Path, default_branch: &str) -> Result<PullResult, AppError> {
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["pull", "origin", default_branch])
         .current_dir(worktree_path)
         .output()?;
@@ -126,7 +126,7 @@ pub fn pull_merge(worktree_path: &Path, default_branch: &str) -> Result<PullResu
 
 /// Get list of files with unmerged entries (conflict markers).
 fn get_unmerged_files(worktree_path: &Path) -> Vec<String> {
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["diff", "--name-only", "--diff-filter=U"])
         .current_dir(worktree_path)
         .output();
@@ -143,7 +143,7 @@ fn get_unmerged_files(worktree_path: &Path) -> Vec<String> {
 
 /// Get list of conflicted files with their conflict types.
 pub fn get_conflicted_files(worktree_path: &Path) -> Result<Vec<ConflictedFile>, AppError> {
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["status", "--porcelain=v2"])
         .current_dir(worktree_path)
         .output()?;
@@ -217,7 +217,7 @@ pub fn get_conflict_content(
 /// Get file content at a specific merge stage (1=base, 2=ours, 3=theirs).
 fn git_show_stage(worktree_path: &Path, stage: u8, file_path: &str) -> String {
     let ref_spec = format!(":{}:{}", stage, file_path);
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["show", &ref_spec])
         .current_dir(worktree_path)
         .output();
@@ -236,7 +236,7 @@ pub fn resolve_conflict(
 ) -> Result<(), AppError> {
     match strategy {
         "ours" => {
-            let output = Command::new("git")
+            let output = platform::command("git")
                 .args(["checkout", "--ours", file_path])
                 .current_dir(worktree_path)
                 .output()?;
@@ -247,7 +247,7 @@ pub fn resolve_conflict(
             }
         }
         "theirs" => {
-            let output = Command::new("git")
+            let output = platform::command("git")
                 .args(["checkout", "--theirs", file_path])
                 .current_dir(worktree_path)
                 .output()?;
@@ -262,7 +262,7 @@ pub fn resolve_conflict(
     }
 
     // Stage the resolved file
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["add", file_path])
         .current_dir(worktree_path)
         .output()?;
@@ -279,14 +279,14 @@ pub fn resolve_conflict(
 /// Abort an in-progress merge.
 pub fn abort_merge(worktree_path: &Path) -> Result<(), AppError> {
     // Try merge --abort first, then rebase --abort
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["merge", "--abort"])
         .current_dir(worktree_path)
         .output()?;
 
     if !output.status.success() {
         // May be a rebase instead
-        let rebase_output = Command::new("git")
+        let rebase_output = platform::command("git")
             .args(["rebase", "--abort"])
             .current_dir(worktree_path)
             .output()?;
@@ -304,7 +304,7 @@ pub fn abort_merge(worktree_path: &Path) -> Result<(), AppError> {
 /// Continue merge after all conflicts resolved.
 pub fn continue_merge(worktree_path: &Path) -> Result<(), AppError> {
     // Try rebase --continue first (more common after pull --rebase)
-    let rebase_output = Command::new("git")
+    let rebase_output = platform::command("git")
         .args(["rebase", "--continue"])
         .env("GIT_EDITOR", "true")
         .current_dir(worktree_path)
@@ -315,7 +315,7 @@ pub fn continue_merge(worktree_path: &Path) -> Result<(), AppError> {
     }
 
     // Fall back to committing the merge
-    let output = Command::new("git")
+    let output = platform::command("git")
         .args(["commit", "--no-edit"])
         .current_dir(worktree_path)
         .output()?;
@@ -339,13 +339,13 @@ pub fn cross_worktree_diff(
     let range = format!("{}...{}", branch_a, branch_b);
 
     // Get file statuses
-    let name_status_output = Command::new("git")
+    let name_status_output = platform::command("git")
         .args(["diff", "--name-status", &range])
         .current_dir(repo_path)
         .output()?;
 
     // Get line counts
-    let numstat_output = Command::new("git")
+    let numstat_output = platform::command("git")
         .args(["diff", "--numstat", &range])
         .current_dir(repo_path)
         .output()?;
@@ -422,7 +422,7 @@ pub fn get_file_at_ref(
 ) -> Result<FileDiffContent, AppError> {
     let original = {
         let ref_spec = format!("{}:{}", branch_a, file_path);
-        let output = Command::new("git")
+        let output = platform::command("git")
             .args(["show", &ref_spec])
             .current_dir(repo_path)
             .output()?;
@@ -435,7 +435,7 @@ pub fn get_file_at_ref(
 
     let modified = {
         let ref_spec = format!("{}:{}", branch_b, file_path);
-        let output = Command::new("git")
+        let output = platform::command("git")
             .args(["show", &ref_spec])
             .current_dir(repo_path)
             .output()?;
