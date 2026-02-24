@@ -1,7 +1,13 @@
 use crate::error::AppError;
 use crate::models::diff::{DiffResult, FileDiff, FileDiffContent, FileStatus};
 use crate::platform;
+use std::io::{BufRead, BufReader};
 use std::path::Path;
+
+/// Skip untracked files larger than 1MB (likely generated or binary).
+const MAX_UNTRACKED_FILE_SIZE: u64 = 1_000_000;
+/// Cap the number of untracked files processed to avoid unbounded I/O.
+const MAX_UNTRACKED_FILES: usize = 200;
 
 /// Empty tree SHA used as fallback when git merge-base fails.
 const EMPTY_TREE_SHA: &str = "4b825dc642cb6eb9a060e54bf899d15363ed7fd1";
@@ -91,16 +97,24 @@ pub fn get_workspace_diff(
     }
 
     // Add untracked files
+    let mut untracked_count = 0;
     for line in untracked_str.lines() {
         let path = line.trim().to_string();
         if path.is_empty() {
             continue;
         }
+        if untracked_count >= MAX_UNTRACKED_FILES {
+            break;
+        }
+        untracked_count += 1;
 
-        // Count lines in the untracked file
+        // Count lines efficiently without reading entire file into a String
         let file_path = worktree_path.join(&path);
-        let line_count = std::fs::read_to_string(&file_path)
-            .map(|content| content.lines().count() as u32)
+        let line_count = std::fs::metadata(&file_path)
+            .ok()
+            .filter(|m| m.len() <= MAX_UNTRACKED_FILE_SIZE)
+            .and_then(|_| std::fs::File::open(&file_path).ok())
+            .map(|f| BufReader::new(f).lines().count() as u32)
             .unwrap_or(0);
 
         total_additions += line_count;

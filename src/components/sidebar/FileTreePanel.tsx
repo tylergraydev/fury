@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { memo, useCallback, useEffect, useMemo } from "react";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
 import { getFileIcon, FolderIcon, FolderOpenIcon } from "../icons/FileIcons";
 import type { SidebarContext } from "../../App";
@@ -62,7 +62,7 @@ function buildTree(paths: string[]): TreeNode[] {
   return root;
 }
 
-function TreeItem({
+const TreeItem = memo(function TreeItem({
   node,
   depth,
   expanded,
@@ -123,7 +123,23 @@ function TreeItem({
         ))}
     </>
   );
-}
+}, (prev, next) => {
+  // Skip re-render if this node's state hasn't changed
+  if (prev.node !== next.node || prev.depth !== next.depth) return false;
+  if (prev.onToggle !== next.onToggle) return false;
+  if (prev.onFileClick !== next.onFileClick) return false;
+  if (prev.onFileDoubleClick !== next.onFileDoubleClick) return false;
+  // For files, only the above props matter
+  if (!prev.node.isDir) return true;
+  // For directories, re-render if our own expansion state changed
+  const wasExpanded = prev.expanded.has(prev.node.path);
+  const isExpanded = next.expanded.has(next.node.path);
+  if (wasExpanded !== isExpanded) return false;
+  // If collapsed, children aren't rendered so expansion changes below don't matter
+  if (!isExpanded) return true;
+  // If expanded, we must re-render because a child's expansion state may have changed
+  return prev.expanded === next.expanded;
+});
 
 export function FileTreePanel({ context, onFileClick, onFileDoubleClick }: Props) {
   const contextId = context.id;
@@ -148,6 +164,8 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick }: Props
     [contextId],
   );
 
+  const tree = useMemo(() => buildTree(files), [files]);
+
   if (loading && files.length === 0) {
     return (
       <div
@@ -166,8 +184,6 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick }: Props
       </div>
     );
   }
-
-  const tree = buildTree(files);
 
   return (
     <div className="h-full overflow-y-auto py-1">
