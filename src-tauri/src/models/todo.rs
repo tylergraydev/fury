@@ -42,3 +42,36 @@ pub struct TodoSummary {
     pub all_completed: bool,
     pub items: Vec<TodoItem>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_todo_item_serde_roundtrip() {
+        let todo = TodoItem {
+            id: Uuid::new_v4(),
+            workspace_id: Uuid::new_v4(),
+            text: "Write tests".to_string(),
+            completed: false,
+            sort_order: 0,
+        };
+        let json = serde_json::to_string(&todo).unwrap();
+        let deserialized: TodoItem = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.text, "Write tests");
+        assert!(!deserialized.completed);
+    }
+
+    #[test]
+    fn test_todo_summary_construction() {
+        let summary = TodoSummary {
+            total: 3,
+            completed: 2,
+            all_completed: false,
+            items: Vec::new(),
+        };
+        assert_eq!(summary.total, 3);
+        assert_eq!(summary.completed, 2);
+        assert!(!summary.all_completed);
+    }
+}

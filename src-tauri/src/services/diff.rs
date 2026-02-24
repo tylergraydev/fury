@@ -220,3 +220,138 @@ pub fn detect_language(file_path: &str) -> String {
     }
     .to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_language_rust() {
+        assert_eq!(detect_language("src/main.rs"), "rust");
+    }
+
+    #[test]
+    fn test_detect_language_typescript() {
+        assert_eq!(detect_language("app.ts"), "typescript");
+        assert_eq!(detect_language("component.tsx"), "typescript");
+    }
+
+    #[test]
+    fn test_detect_language_javascript() {
+        assert_eq!(detect_language("app.js"), "javascript");
+        assert_eq!(detect_language("app.jsx"), "javascript");
+        assert_eq!(detect_language("app.mjs"), "javascript");
+        assert_eq!(detect_language("app.cjs"), "javascript");
+    }
+
+    #[test]
+    fn test_detect_language_python() {
+        assert_eq!(detect_language("script.py"), "python");
+    }
+
+    #[test]
+    fn test_detect_language_go() {
+        assert_eq!(detect_language("main.go"), "go");
+    }
+
+    #[test]
+    fn test_detect_language_shell() {
+        assert_eq!(detect_language("script.sh"), "shell");
+        assert_eq!(detect_language("script.bash"), "shell");
+        assert_eq!(detect_language("script.zsh"), "shell");
+    }
+
+    #[test]
+    fn test_detect_language_markup() {
+        assert_eq!(detect_language("README.md"), "markdown");
+        assert_eq!(detect_language("index.html"), "html");
+        assert_eq!(detect_language("page.htm"), "html");
+    }
+
+    #[test]
+    fn test_detect_language_config() {
+        assert_eq!(detect_language("Cargo.toml"), "toml");
+        assert_eq!(detect_language("config.yaml"), "yaml");
+        assert_eq!(detect_language("config.yml"), "yaml");
+        assert_eq!(detect_language("data.json"), "json");
+    }
+
+    #[test]
+    fn test_detect_language_unknown() {
+        assert_eq!(detect_language("file.xyz"), "plaintext");
+    }
+
+    #[test]
+    fn test_detect_language_no_extension() {
+        assert_eq!(detect_language("Makefile"), "plaintext");
+    }
+
+    #[test]
+    fn test_detect_language_cpp() {
+        assert_eq!(detect_language("main.cpp"), "cpp");
+        assert_eq!(detect_language("main.cc"), "cpp");
+        assert_eq!(detect_language("header.hpp"), "cpp");
+    }
+
+    // --- Integration tests with temp git repo ---
+
+    #[test]
+    fn test_get_workspace_diff_clean_repo() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let result = get_workspace_diff(&path, "main").unwrap();
+        assert!(result.files.is_empty());
+        assert_eq!(result.total_additions, 0);
+        assert_eq!(result.total_deletions, 0);
+    }
+
+    #[test]
+    fn test_get_workspace_diff_with_changes() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        // Create a new branch and modify a file
+        std::process::Command::new("git")
+            .args(["checkout", "-b", "feature"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::fs::write(path.join("new_file.txt"), "hello\nworld\n").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "new_file.txt"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "Add new file"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        let result = get_workspace_diff(&path, "main").unwrap();
+        assert!(!result.files.is_empty());
+        assert!(result.total_additions > 0);
+    }
+
+    #[test]
+    fn test_get_file_diff_content_new_file() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::process::Command::new("git")
+            .args(["checkout", "-b", "feature"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::fs::write(path.join("test.rs"), "fn main() {}\n").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "test.rs"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "Add test.rs"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        let content = get_file_diff_content(&path, "main", "test.rs").unwrap();
+        assert_eq!(content.path, "test.rs");
+        assert!(content.original.is_empty()); // new file, no original
+        assert_eq!(content.modified, "fn main() {}\n");
+        assert_eq!(content.language, "rust");
+    }
+}

@@ -49,3 +49,48 @@ pub struct ConductorScripts {
     pub run: Option<String>,
     pub archive: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_repo_settings_default() {
+        let s = RepoSettings::default();
+        assert!(s.setup_script.is_none());
+        assert!(s.run_script.is_none());
+        assert!(s.archive_script.is_none());
+        assert!(matches!(s.run_script_mode, RunScriptMode::Nonconcurrent));
+        assert!(s.env_vars.is_empty());
+        assert!(s.worktree_base_path.is_none());
+    }
+
+    #[test]
+    fn test_run_script_mode_serde() {
+        let concurrent: RunScriptMode = serde_json::from_str("\"concurrent\"").unwrap();
+        assert!(matches!(concurrent, RunScriptMode::Concurrent));
+
+        let nonconcurrent: RunScriptMode = serde_json::from_str("\"nonconcurrent\"").unwrap();
+        assert!(matches!(nonconcurrent, RunScriptMode::Nonconcurrent));
+    }
+
+    #[test]
+    fn test_conductor_json_serde() {
+        let json = r#"{
+            "scripts": {
+                "setup": "npm install",
+                "run": "npm start",
+                "archive": null
+            },
+            "runScriptMode": "concurrent"
+        }"#;
+        let cj: ConductorJson = serde_json::from_str(json).unwrap();
+        assert_eq!(cj.scripts.setup.as_deref(), Some("npm install"));
+        assert_eq!(cj.scripts.run.as_deref(), Some("npm start"));
+        assert!(cj.scripts.archive.is_none());
+        assert!(matches!(
+            cj.run_script_mode,
+            Some(RunScriptMode::Concurrent)
+        ));
+    }
+}

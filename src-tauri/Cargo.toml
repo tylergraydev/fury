@@ -39,3 +39,6 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls", "blocking"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3"

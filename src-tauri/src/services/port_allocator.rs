@@ -44,3 +44,43 @@ impl PortAllocator {
         true
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_sets_range() {
+        let pa = PortAllocator::new(5000, 6000);
+        assert_eq!(pa.base_port, 5000);
+        assert_eq!(pa.max_port, 6000);
+        assert!(pa.allocated.is_empty());
+    }
+
+    #[test]
+    fn test_allocate_and_release() {
+        let mut pa = PortAllocator::new(49000, 49100);
+        let port = pa.allocate().unwrap();
+        assert_eq!(port, 49000);
+        assert!(pa.allocated.contains(&49000));
+        pa.release(49000);
+        assert!(!pa.allocated.contains(&49000));
+    }
+
+    #[test]
+    fn test_allocate_increments_by_10() {
+        let mut pa = PortAllocator::new(49000, 49100);
+        let p1 = pa.allocate().unwrap();
+        let p2 = pa.allocate().unwrap();
+        assert_eq!(p2 - p1, 10);
+    }
+
+    #[test]
+    fn test_allocate_exhaustion() {
+        // Range only fits 1 block of 10
+        let mut pa = PortAllocator::new(49000, 49010);
+        pa.allocate().unwrap();
+        let result = pa.allocate();
+        assert!(result.is_err());
+    }
+}

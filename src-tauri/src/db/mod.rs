@@ -32,6 +32,15 @@ impl Database {
         Ok(db)
     }
 
+    /// Create an in-memory database for testing with all migrations applied.
+    #[cfg(test)]
+    pub fn init_in_memory() -> Result<Self, AppError> {
+        let conn = Connection::open_in_memory().map_err(|e| AppError::DbError(e.to_string()))?;
+        let db = Self { conn };
+        db.run_migrations()?;
+        Ok(db)
+    }
+
     fn run_migrations(&self) -> Result<(), AppError> {
         migrations::run(&self.conn)
     }
@@ -700,5 +709,494 @@ impl Database {
             .filter_map(|r| r.ok())
             .collect();
         Ok(issues)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::chat::ResponseMetadata;
+    use crate::test_helpers::*;
+
+    // --- Repository CRUD ---
+
+    #[test]
+    fn test_list_repositories_empty() {
+        let db = test_db();
+        let repos = db.list_repositories().unwrap();
+        assert!(repos.is_empty());
+    }
+
+    #[test]
+    fn test_insert_and_list_repository() {
+        let db = test_db();
+        let repo = test_repo();
+        db.insert_repository(&repo).unwrap();
+        let repos = db.list_repositories().unwrap();
+        assert_eq!(repos.len(), 1);
+        assert_eq!(repos[0].id, repo.id);
+        assert_eq!(repos[0].name, "test-repo");
+        assert_eq!(repos[0].default_branch, "main");
+    }
+
+    #[test]
+    fn test_delete_repository() {
+        let db = test_db();
+        let repo = test_repo();
+        db.insert_repository(&repo).unwrap();
+        db.delete_repository(&repo.id).unwrap();
+        let repos = db.list_repositories().unwrap();
+        assert!(repos.is_empty());
+    }
+
+    // --- Workspace CRUD ---
+
+    #[test]
+    fn test_insert_and_list_workspace() {
+        let db = test_db();
+        let (repo, ws) = insert_test_repo_and_workspace(&db);
+        let workspaces = db.list_workspaces().unwrap();
+        assert_eq!(workspaces.len(), 1);
+        assert_eq!(workspaces[0].id, ws.id);
+        assert_eq!(workspaces[0].repo_id, repo.id);
+        assert_eq!(workspaces[0].name, "test-workspace");
+    }
+
+    #[test]
+    fn test_update_workspace_status_to_archived() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        db.update_workspace_status(&ws.id, &WorkspaceStatus::Archived)
+            .unwrap();
+        // Should not appear in active list
+        let active = db.list_workspaces().unwrap();
+        assert!(active.is_empty());
+        // Should appear in archived list
+        let archived = db.list_archived_workspaces().unwrap();
+        assert_eq!(archived.len(), 1);
+        assert!(archived[0].archived_at.is_some());
+    }
+
+    #[test]
+    fn test_list_workspaces_excludes_archived() {
+        let db = test_db();
+        let (repo, ws1) = insert_test_repo_and_workspace(&db);
+        let mut ws2 = test_workspace(repo.id);
+        ws2.branch = "feature-2".to_string();
+        db.insert_workspace(&ws2).unwrap();
+        db.update_workspace_status(&ws1.id, &WorkspaceStatus::Archived)
+            .unwrap();
+        let active = db.list_workspaces().unwrap();
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].id, ws2.id);
+    }
+
+    #[test]
+    fn test_delete_workspace() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        db.delete_workspace(&ws.id).unwrap();
+        let workspaces = db.list_workspaces().unwrap();
+        assert!(workspaces.is_empty());
+    }
+
+    #[test]
+    fn test_update_workspace_name() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        db.update_workspace_name(&ws.id, "renamed").unwrap();
+        let workspaces = db.list_workspaces().unwrap();
+        assert_eq!(workspaces[0].name, "renamed");
+    }
+
+    #[test]
+    fn test_update_workspace_notes() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        db.update_workspace_notes(&ws.id, "some notes").unwrap();
+        let workspaces = db.list_workspaces().unwrap();
+        assert_eq!(workspaces[0].notes, "some notes");
+    }
+
+    #[test]
+    fn test_update_workspace_auto_commit() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        db.update_workspace_auto_commit(&ws.id, false).unwrap();
+        let workspaces = db.list_workspaces().unwrap();
+        assert!(!workspaces[0].auto_commit);
+    }
+
+    #[test]
+    fn test_update_workspace_pinned() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        db.update_workspace_pinned(&ws.id, true).unwrap();
+        let workspaces = db.list_workspaces().unwrap();
+        assert!(workspaces[0].pinned);
+    }
+
+    #[test]
+    fn test_update_workspace_sparse_dirs() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let dirs = Some(vec!["src".to_string(), "tests".to_string()]);
+        db.update_workspace_sparse_dirs(&ws.id, &dirs).unwrap();
+        let workspaces = db.list_workspaces().unwrap();
+        assert_eq!(workspaces[0].sparse_dirs, dirs);
+    }
+
+    // --- Checkpoint operations ---
+
+    #[test]
+    fn test_insert_and_get_checkpoint() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let cp = test_checkpoint(ws.id);
+        db.insert_checkpoint(&cp).unwrap();
+        let fetched = db.get_checkpoint(&cp.id).unwrap().unwrap();
+        assert_eq!(fetched.id, cp.id);
+        assert_eq!(fetched.workspace_id, ws.id);
+        assert_eq!(fetched.session_id, "test-session");
+        assert_eq!(fetched.user_message, "test message");
+    }
+
+    #[test]
+    fn test_get_nonexistent_checkpoint() {
+        let db = test_db();
+        let result = db.get_checkpoint(&Uuid::new_v4()).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_list_checkpoints_ordered() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let mut cp1 = test_checkpoint(ws.id);
+        cp1.turn_index = 0;
+        let mut cp2 = test_checkpoint(ws.id);
+        cp2.turn_index = 1;
+        let mut cp3 = test_checkpoint(ws.id);
+        cp3.turn_index = 2;
+        db.insert_checkpoint(&cp1).unwrap();
+        db.insert_checkpoint(&cp3).unwrap();
+        db.insert_checkpoint(&cp2).unwrap();
+        let list = db.list_checkpoints(&ws.id).unwrap();
+        assert_eq!(list.len(), 3);
+        assert_eq!(list[0].turn_index, 0);
+        assert_eq!(list[1].turn_index, 1);
+        assert_eq!(list[2].turn_index, 2);
+    }
+
+    #[test]
+    fn test_delete_checkpoints_after() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        for i in 0..5 {
+            let mut cp = test_checkpoint(ws.id);
+            cp.turn_index = i;
+            db.insert_checkpoint(&cp).unwrap();
+        }
+        db.delete_checkpoints_after(&ws.id, 2).unwrap();
+        let list = db.list_checkpoints(&ws.id).unwrap();
+        assert_eq!(list.len(), 3); // indices 0, 1, 2 remain
+    }
+
+    #[test]
+    fn test_get_next_turn_index_empty() {
+        let db = test_db();
+        let ws_id = Uuid::new_v4();
+        assert_eq!(db.get_next_turn_index(&ws_id).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_get_next_turn_index_with_checkpoints() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let mut cp = test_checkpoint(ws.id);
+        cp.turn_index = 3;
+        db.insert_checkpoint(&cp).unwrap();
+        assert_eq!(db.get_next_turn_index(&ws.id).unwrap(), 4);
+    }
+
+    // --- Todo operations ---
+
+    #[test]
+    fn test_insert_and_list_todos() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let todo = test_todo(ws.id);
+        db.insert_todo(&todo).unwrap();
+        let todos = db.list_todos(&ws.id).unwrap();
+        assert_eq!(todos.len(), 1);
+        assert_eq!(todos[0].text, "Test todo item");
+        assert!(!todos[0].completed);
+    }
+
+    #[test]
+    fn test_update_todo_text() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let todo = test_todo(ws.id);
+        db.insert_todo(&todo).unwrap();
+        db.update_todo(&todo.id, Some("Updated text"), None)
+            .unwrap();
+        let todos = db.list_todos(&ws.id).unwrap();
+        assert_eq!(todos[0].text, "Updated text");
+    }
+
+    #[test]
+    fn test_toggle_todo() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let todo = test_todo(ws.id);
+        db.insert_todo(&todo).unwrap();
+        let result = db.toggle_todo(&todo.id).unwrap();
+        assert!(result); // toggled from false to true
+        let result = db.toggle_todo(&todo.id).unwrap();
+        assert!(!result); // toggled back
+    }
+
+    #[test]
+    fn test_delete_todo() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let todo = test_todo(ws.id);
+        db.insert_todo(&todo).unwrap();
+        db.delete_todo(&todo.id).unwrap();
+        let todos = db.list_todos(&ws.id).unwrap();
+        assert!(todos.is_empty());
+    }
+
+    #[test]
+    fn test_reorder_todos() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let mut todo1 = test_todo(ws.id);
+        todo1.sort_order = 0;
+        let mut todo2 = test_todo(ws.id);
+        todo2.sort_order = 1;
+        db.insert_todo(&todo1).unwrap();
+        db.insert_todo(&todo2).unwrap();
+        // Reverse order
+        db.reorder_todos(&ws.id, &[todo2.id, todo1.id]).unwrap();
+        let todos = db.list_todos(&ws.id).unwrap();
+        assert_eq!(todos[0].id, todo2.id);
+        assert_eq!(todos[1].id, todo1.id);
+    }
+
+    #[test]
+    fn test_get_next_sort_order() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        assert_eq!(db.get_next_sort_order(&ws.id).unwrap(), 0);
+        let todo = test_todo(ws.id);
+        db.insert_todo(&todo).unwrap();
+        assert_eq!(db.get_next_sort_order(&ws.id).unwrap(), 1);
+    }
+
+    // --- Settings operations ---
+
+    #[test]
+    fn test_get_default_app_settings() {
+        let db = test_db();
+        let settings = db.get_app_settings().unwrap();
+        assert!(!settings.analytics_enabled);
+    }
+
+    #[test]
+    fn test_save_and_get_app_settings() {
+        let db = test_db();
+        let mut settings = AppSettings::default();
+        settings.analytics_enabled = true;
+        db.save_app_settings(&settings).unwrap();
+        let fetched = db.get_app_settings().unwrap();
+        assert!(fetched.analytics_enabled);
+    }
+
+    #[test]
+    fn test_get_default_repo_settings() {
+        let db = test_db();
+        let repo = test_repo();
+        db.insert_repository(&repo).unwrap();
+        let settings = db.get_repo_settings(&repo.id).unwrap();
+        assert!(settings.setup_script.is_none());
+        assert!(matches!(
+            settings.run_script_mode,
+            RunScriptMode::Nonconcurrent
+        ));
+    }
+
+    #[test]
+    fn test_upsert_and_get_repo_settings() {
+        let db = test_db();
+        let repo = test_repo();
+        db.insert_repository(&repo).unwrap();
+        let mut settings = RepoSettings::default();
+        settings.setup_script = Some("npm install".to_string());
+        settings.run_script_mode = RunScriptMode::Concurrent;
+        db.upsert_repo_settings(&repo.id, &settings).unwrap();
+        let fetched = db.get_repo_settings(&repo.id).unwrap();
+        assert_eq!(fetched.setup_script.as_deref(), Some("npm install"));
+        assert!(matches!(fetched.run_script_mode, RunScriptMode::Concurrent));
+    }
+
+    // --- Chat messages ---
+
+    #[test]
+    fn test_insert_and_list_chat_messages() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let msg = test_chat_message(ws.id);
+        db.insert_chat_message(&msg).unwrap();
+        let messages = db.list_chat_messages(&ws.id).unwrap();
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].id, msg.id);
+        assert_eq!(messages[0].role, MessageRole::User);
+    }
+
+    #[test]
+    fn test_clear_chat_messages() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let msg = test_chat_message(ws.id);
+        db.insert_chat_message(&msg).unwrap();
+        db.clear_chat_messages(&ws.id).unwrap();
+        let messages = db.list_chat_messages(&ws.id).unwrap();
+        assert!(messages.is_empty());
+    }
+
+    #[test]
+    fn test_chat_message_with_metadata() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let mut msg = test_chat_message(ws.id);
+        msg.metadata = Some(ResponseMetadata {
+            duration_ms: Some(1000),
+            duration_api_ms: Some(800),
+            total_cost_usd: Some(0.05),
+            num_turns: Some(1),
+            input_tokens: Some(100),
+            output_tokens: Some(200),
+            cache_read_tokens: None,
+            cache_creation_tokens: None,
+        });
+        db.insert_chat_message(&msg).unwrap();
+        let messages = db.list_chat_messages(&ws.id).unwrap();
+        let meta = messages[0].metadata.as_ref().unwrap();
+        assert_eq!(meta.duration_ms, Some(1000));
+        assert_eq!(meta.total_cost_usd, Some(0.05));
+    }
+
+    // --- Workspace links ---
+
+    #[test]
+    fn test_insert_and_get_workspace_links() {
+        let db = test_db();
+        let (repo, ws1) = insert_test_repo_and_workspace(&db);
+        let mut ws2 = test_workspace(repo.id);
+        ws2.branch = "link-branch".to_string();
+        db.insert_workspace(&ws2).unwrap();
+        db.insert_workspace_link(&ws1.id, &ws2.id).unwrap();
+        let links = db.get_workspace_links(&ws1.id).unwrap();
+        assert_eq!(links.len(), 1);
+        assert_eq!(links[0], ws2.id);
+    }
+
+    #[test]
+    fn test_delete_workspace_link() {
+        let db = test_db();
+        let (repo, ws1) = insert_test_repo_and_workspace(&db);
+        let mut ws2 = test_workspace(repo.id);
+        ws2.branch = "link-branch".to_string();
+        db.insert_workspace(&ws2).unwrap();
+        db.insert_workspace_link(&ws1.id, &ws2.id).unwrap();
+        db.delete_workspace_link(&ws1.id, &ws2.id).unwrap();
+        let links = db.get_workspace_links(&ws1.id).unwrap();
+        assert!(links.is_empty());
+    }
+
+    #[test]
+    fn test_duplicate_workspace_link_ignored() {
+        let db = test_db();
+        let (repo, ws1) = insert_test_repo_and_workspace(&db);
+        let mut ws2 = test_workspace(repo.id);
+        ws2.branch = "link-branch".to_string();
+        db.insert_workspace(&ws2).unwrap();
+        db.insert_workspace_link(&ws1.id, &ws2.id).unwrap();
+        db.insert_workspace_link(&ws1.id, &ws2.id).unwrap(); // duplicate
+        let links = db.get_workspace_links(&ws1.id).unwrap();
+        assert_eq!(links.len(), 1);
+    }
+
+    // --- Workspace issues ---
+
+    #[test]
+    fn test_link_and_get_workspace_issues() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        db.link_workspace_issue(
+            &ws.id,
+            "ISSUE-1",
+            "PRJ-1",
+            "Fix bug",
+            "https://linear.app/1",
+        )
+        .unwrap();
+        let issues = db.get_workspace_issues(&ws.id).unwrap();
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].issue_id, "ISSUE-1");
+        assert_eq!(issues[0].identifier, "PRJ-1");
+        assert_eq!(issues[0].title, "Fix bug");
+    }
+
+    #[test]
+    fn test_unlink_workspace_issue() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        db.link_workspace_issue(
+            &ws.id,
+            "ISSUE-1",
+            "PRJ-1",
+            "Fix bug",
+            "https://linear.app/1",
+        )
+        .unwrap();
+        db.unlink_workspace_issue(&ws.id, "ISSUE-1").unwrap();
+        let issues = db.get_workspace_issues(&ws.id).unwrap();
+        assert!(issues.is_empty());
+    }
+
+    #[test]
+    fn test_duplicate_issue_link_ignored() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        db.link_workspace_issue(
+            &ws.id,
+            "ISSUE-1",
+            "PRJ-1",
+            "Fix bug",
+            "https://linear.app/1",
+        )
+        .unwrap();
+        db.link_workspace_issue(
+            &ws.id,
+            "ISSUE-1",
+            "PRJ-1",
+            "Fix bug",
+            "https://linear.app/1",
+        )
+        .unwrap();
+        let issues = db.get_workspace_issues(&ws.id).unwrap();
+        assert_eq!(issues.len(), 1);
+    }
+
+    // --- Migrations ---
+
+    #[test]
+    fn test_migrations_idempotent() {
+        let db = test_db();
+        // Running migrations again should not error
+        db.run_migrations().unwrap();
     }
 }

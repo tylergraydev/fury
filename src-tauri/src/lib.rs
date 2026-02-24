@@ -6,6 +6,9 @@ mod platform;
 mod services;
 mod state;
 
+#[cfg(test)]
+mod test_helpers;
+
 use state::AppState;
 use tauri::Manager;
 

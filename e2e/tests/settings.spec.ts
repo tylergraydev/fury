@@ -140,7 +140,7 @@ test.describe("Settings", () => {
     await appPage.getByText("Updates").click();
 
     // Should show current version
-    await expect(appPage.getByText("v0.1.0")).toBeVisible();
+    await expect(appPage.getByText("v1.4.1")).toBeVisible();
 
     // Check for Updates button
     await expect(

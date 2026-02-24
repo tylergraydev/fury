@@ -50,3 +50,77 @@ pub fn merge_settings(
         worktree_base_path: db_settings.worktree_base_path.clone(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::repository::ConductorScripts;
+
+    #[test]
+    fn test_merge_settings_no_conductor_json() {
+        let db = RepoSettings {
+            setup_script: Some("npm install".to_string()),
+            ..Default::default()
+        };
+        let result = merge_settings(&db, None);
+        assert_eq!(result.setup_script.as_deref(), Some("npm install"));
+    }
+
+    #[test]
+    fn test_merge_settings_conductor_provides_defaults() {
+        let db = RepoSettings::default();
+        let cj = ConductorJson {
+            scripts: ConductorScripts {
+                setup: Some("yarn install".to_string()),
+                run: Some("yarn dev".to_string()),
+                archive: None,
+            },
+            run_script_mode: None,
+        };
+        let result = merge_settings(&db, Some(&cj));
+        assert_eq!(result.setup_script.as_deref(), Some("yarn install"));
+        assert_eq!(result.run_script.as_deref(), Some("yarn dev"));
+        assert!(result.archive_script.is_none());
+    }
+
+    #[test]
+    fn test_merge_settings_db_takes_precedence() {
+        let db = RepoSettings {
+            setup_script: Some("npm install".to_string()),
+            ..Default::default()
+        };
+        let cj = ConductorJson {
+            scripts: ConductorScripts {
+                setup: Some("yarn install".to_string()),
+                ..Default::default()
+            },
+            run_script_mode: None,
+        };
+        let result = merge_settings(&db, Some(&cj));
+        assert_eq!(result.setup_script.as_deref(), Some("npm install"));
+    }
+
+    #[test]
+    fn test_merge_settings_run_script_mode_from_conductor() {
+        let db = RepoSettings::default(); // Nonconcurrent
+        let cj = ConductorJson {
+            scripts: Default::default(),
+            run_script_mode: Some(RunScriptMode::Concurrent),
+        };
+        let result = merge_settings(&db, Some(&cj));
+        assert!(matches!(result.run_script_mode, RunScriptMode::Concurrent));
+    }
+
+    #[test]
+    fn test_merge_settings_env_vars_from_db() {
+        let mut env = std::collections::HashMap::new();
+        env.insert("MY_VAR".to_string(), "value".to_string());
+        let db = RepoSettings {
+            env_vars: env.clone(),
+            ..Default::default()
+        };
+        let cj = ConductorJson::default();
+        let result = merge_settings(&db, Some(&cj));
+        assert_eq!(result.env_vars.get("MY_VAR").unwrap(), "value");
+    }
+}

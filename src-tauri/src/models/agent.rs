@@ -165,3 +165,60 @@ pub struct AgentStatusEvent {
     pub workspace_id: Uuid,
     pub status: AgentStatus,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_agent_status_default_is_idle() {
+        assert_eq!(AgentStatus::default(), AgentStatus::Idle);
+    }
+
+    #[test]
+    fn test_agent_info_new() {
+        let ws_id = Uuid::new_v4();
+        let info = AgentInfo::new(ws_id);
+        assert_eq!(info.workspace_id, ws_id);
+        assert_eq!(info.status, AgentStatus::Idle);
+        assert!(info.session_id.is_none());
+        assert!(info.started_at.is_none());
+        assert!(info.pid.is_none());
+    }
+
+    #[test]
+    fn test_agent_status_serde_roundtrip() {
+        let statuses = vec![
+            AgentStatus::Idle,
+            AgentStatus::Running,
+            AgentStatus::Stopping,
+            AgentStatus::Error("test error".to_string()),
+        ];
+        for status in statuses {
+            let json = serde_json::to_string(&status).unwrap();
+            let deserialized: AgentStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(deserialized, status);
+        }
+    }
+
+    #[test]
+    fn test_frontend_stream_event_system_serde() {
+        let event = FrontendStreamEvent::System {
+            session_id: Some("sess-123".to_string()),
+            message: Some("hello".to_string()),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"system\""));
+        let _: FrontendStreamEvent = serde_json::from_str(&json).unwrap();
+    }
+
+    #[test]
+    fn test_frontend_stream_event_assistant_text_serde() {
+        let event = FrontendStreamEvent::AssistantText {
+            text: "Hello world".to_string(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"assistantText\""));
+        let _: FrontendStreamEvent = serde_json::from_str(&json).unwrap();
+    }
+}
