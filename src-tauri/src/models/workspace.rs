@@ -93,3 +93,78 @@ impl From<&Workspace> for WorkspaceInfo {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_workspace_status_as_str() {
+        assert_eq!(WorkspaceStatus::Creating.as_str(), "creating");
+        assert_eq!(WorkspaceStatus::Active.as_str(), "active");
+        assert_eq!(WorkspaceStatus::Archived.as_str(), "archived");
+        assert_eq!(WorkspaceStatus::Error("oops".into()).as_str(), "error");
+    }
+
+    #[test]
+    fn test_workspace_status_from_str_known() {
+        assert_eq!(
+            WorkspaceStatus::from_str("creating", None),
+            WorkspaceStatus::Creating
+        );
+        assert_eq!(
+            WorkspaceStatus::from_str("active", None),
+            WorkspaceStatus::Active
+        );
+        assert_eq!(
+            WorkspaceStatus::from_str("archived", None),
+            WorkspaceStatus::Archived
+        );
+    }
+
+    #[test]
+    fn test_workspace_status_from_str_error_with_message() {
+        let status = WorkspaceStatus::from_str("error", Some("something broke".to_string()));
+        assert_eq!(
+            status,
+            WorkspaceStatus::Error("something broke".to_string())
+        );
+    }
+
+    #[test]
+    fn test_workspace_status_from_str_error_without_message() {
+        let status = WorkspaceStatus::from_str("error", None);
+        assert_eq!(status, WorkspaceStatus::Error(String::new()));
+    }
+
+    #[test]
+    fn test_workspace_status_from_str_unknown_defaults_to_active() {
+        assert_eq!(
+            WorkspaceStatus::from_str("invalid", None),
+            WorkspaceStatus::Active
+        );
+    }
+
+    #[test]
+    fn test_workspace_info_from_workspace() {
+        let ws = crate::test_helpers::test_workspace(Uuid::new_v4());
+        let info = WorkspaceInfo::from(&ws);
+        assert_eq!(info.id, ws.id);
+        assert_eq!(info.repo_id, ws.repo_id);
+        assert_eq!(info.name, ws.name);
+        assert_eq!(info.branch, ws.branch);
+        assert_eq!(info.status, ws.status);
+        assert_eq!(info.port_base, ws.port_base);
+        assert_eq!(info.auto_commit, ws.auto_commit);
+        assert_eq!(info.pinned, ws.pinned);
+    }
+
+    #[test]
+    fn test_workspace_serde_roundtrip() {
+        let ws = crate::test_helpers::test_workspace(Uuid::new_v4());
+        let json = serde_json::to_string(&ws).unwrap();
+        let deserialized: Workspace = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.id, ws.id);
+        assert_eq!(deserialized.name, ws.name);
+    }
+}

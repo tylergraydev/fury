@@ -90,3 +90,66 @@ pub fn app_data_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
         .join("com.fury.app")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_shell_returns_non_empty() {
+        let shell = default_shell();
+        assert!(!shell.is_empty());
+        #[cfg(target_os = "macos")]
+        assert_eq!(shell, "/bin/zsh");
+        #[cfg(target_os = "linux")]
+        assert_eq!(shell, "/bin/bash");
+    }
+
+    #[test]
+    fn test_shell_exec_flag() {
+        let flag = shell_exec_flag();
+        #[cfg(unix)]
+        assert_eq!(flag, "-c");
+        #[cfg(windows)]
+        assert_eq!(flag, "-Command");
+    }
+
+    #[test]
+    fn test_command_creates_valid_command() {
+        let mut cmd = command("echo");
+        // Command was created successfully — verify it can produce output
+        let output = cmd.output();
+        assert!(output.is_ok());
+    }
+
+    #[test]
+    fn test_command_with_args() {
+        let mut cmd = command("echo");
+        cmd.arg("hello");
+        let output = cmd.output().unwrap();
+        assert!(output.status.success());
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.contains("hello"));
+    }
+
+    #[test]
+    fn test_app_data_dir_ends_with_fury() {
+        let dir = app_data_dir();
+        assert!(dir.ends_with("com.fury.app"));
+    }
+
+    #[test]
+    fn test_configure_process_group() {
+        let mut cmd = Command::new("echo");
+        let result = configure_process_group(&mut cmd);
+        // Just verify it returns a mutable reference without panicking
+        result.arg("test");
+    }
+
+    #[test]
+    fn test_kill_process_group_nonexistent_pid() {
+        // Killing a non-existent process group should not panic
+        // (on Unix, killpg with invalid PID returns error but we ignore it)
+        let _ = kill_process_group(999999);
+    }
+}

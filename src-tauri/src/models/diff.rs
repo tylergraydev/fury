@@ -35,3 +35,43 @@ pub struct FileDiffContent {
     pub modified: String,
     pub language: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_file_status_serde_roundtrip() {
+        let statuses = vec![
+            FileStatus::Added,
+            FileStatus::Modified,
+            FileStatus::Deleted,
+            FileStatus::Renamed {
+                from: "old.rs".to_string(),
+            },
+            FileStatus::Untracked,
+        ];
+        for status in statuses {
+            let json = serde_json::to_string(&status).unwrap();
+            let _: FileStatus = serde_json::from_str(&json).unwrap();
+        }
+    }
+
+    #[test]
+    fn test_diff_result_serde_roundtrip() {
+        let result = DiffResult {
+            files: vec![FileDiff {
+                path: "src/main.rs".to_string(),
+                status: FileStatus::Modified,
+                additions: 10,
+                deletions: 3,
+            }],
+            total_additions: 10,
+            total_deletions: 3,
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        let deserialized: DiffResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.files.len(), 1);
+        assert_eq!(deserialized.total_additions, 10);
+    }
+}

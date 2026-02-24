@@ -64,3 +64,76 @@ impl From<rusqlite::Error> for AppError {
         AppError::DbError(e.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use uuid::Uuid;
+
+    #[test]
+    fn test_display_repo_not_found() {
+        let id = Uuid::new_v4();
+        let err = AppError::RepoNotFound(id);
+        assert_eq!(err.to_string(), format!("Repository not found: {}", id));
+    }
+
+    #[test]
+    fn test_display_workspace_not_found() {
+        let id = Uuid::new_v4();
+        let err = AppError::WorkspaceNotFound(id);
+        assert_eq!(err.to_string(), format!("Workspace not found: {}", id));
+    }
+
+    #[test]
+    fn test_display_port_exhausted() {
+        let err = AppError::PortExhausted;
+        assert_eq!(
+            err.to_string(),
+            "Port allocation failed: no ports available"
+        );
+    }
+
+    #[test]
+    fn test_display_git_error() {
+        let err = AppError::GitError("merge failed".to_string());
+        assert_eq!(err.to_string(), "Git operation failed: merge failed");
+    }
+
+    #[test]
+    fn test_display_db_error() {
+        let err = AppError::DbError("connection lost".to_string());
+        assert_eq!(err.to_string(), "Database error: connection lost");
+    }
+
+    #[test]
+    fn test_from_io_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let app_err: AppError = io_err.into();
+        assert!(matches!(app_err, AppError::IoError(_)));
+        assert!(app_err.to_string().contains("file not found"));
+    }
+
+    #[test]
+    fn test_from_json_error() {
+        let json_err = serde_json::from_str::<serde_json::Value>("invalid").unwrap_err();
+        let app_err: AppError = json_err.into();
+        assert!(matches!(app_err, AppError::JsonError(_)));
+    }
+
+    #[test]
+    fn test_from_rusqlite_error() {
+        let rusqlite_err = rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(1),
+            Some("test error".to_string()),
+        );
+        let app_err: AppError = rusqlite_err.into();
+        assert!(matches!(app_err, AppError::DbError(_)));
+    }
+
+    #[test]
+    fn test_serialize_produces_string() {
+        let err = AppError::PortExhausted;
+        let json = serde_json::to_string(&err).unwrap();
+        assert_eq!(json, "\"Port allocation failed: no ports available\"");
+    }
+}

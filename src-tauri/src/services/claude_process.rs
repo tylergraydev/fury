@@ -550,3 +550,212 @@ pub fn parse_stream_line(line: &str) -> Option<FrontendStreamEvent> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- parse_stream_line tests ---
+
+    #[test]
+    fn test_parse_system_event() {
+        let line = r#"{"type":"system","session_id":"sess-123","message":"Connected"}"#;
+        let event = parse_stream_line(line).unwrap();
+        match event {
+            FrontendStreamEvent::System { session_id, message } => {
+                assert_eq!(session_id.as_deref(), Some("sess-123"));
+                assert_eq!(message.as_deref(), Some("Connected"));
+            }
+            _ => panic!("Expected System event"),
+        }
+    }
+
+    #[test]
+    fn test_parse_assistant_text_event() {
+        let line = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Hello world"}]}}"#;
+        let event = parse_stream_line(line).unwrap();
+        match event {
+            FrontendStreamEvent::AssistantText { text } => {
+                assert_eq!(text, "Hello world");
+            }
+            _ => panic!("Expected AssistantText event"),
+        }
+    }
+
+    #[test]
+    fn test_parse_tool_use_event() {
+        let line = r#"{"type":"assistant","message":{"content":[{"type":"tool_use","id":"tool-1","name":"read_file","input":{"path":"/tmp"}}]}}"#;
+        let event = parse_stream_line(line).unwrap();
+        match event {
+            FrontendStreamEvent::ToolUse { id, name, input } => {
+                assert_eq!(id, "tool-1");
+                assert_eq!(name, "read_file");
+                assert_eq!(input["path"], "/tmp");
+            }
+            _ => panic!("Expected ToolUse event"),
+        }
+    }
+
+    #[test]
+    fn test_parse_tool_result_event() {
+        let line = r#"{"type":"assistant","message":{"content":[{"type":"tool_result","tool_use_id":"tool-1","content":"file contents"}]}}"#;
+        let event = parse_stream_line(line).unwrap();
+        match event {
+            FrontendStreamEvent::ToolResult { tool_use_id, content } => {
+                assert_eq!(tool_use_id, "tool-1");
+                assert_eq!(content, "file contents");
+            }
+            _ => panic!("Expected ToolResult event"),
+        }
+    }
+
+    #[test]
+    fn test_parse_result_event() {
+        let line = r#"{"type":"result","is_error":false,"result":"Done","session_id":"sess-1","duration_ms":1000,"total_cost_usd":0.05,"num_turns":3,"usage":{"input_tokens":100,"output_tokens":200}}"#;
+        let event = parse_stream_line(line).unwrap();
+        match event {
+            FrontendStreamEvent::Result {
+                is_error,
+                result,
+                session_id,
+                duration_ms,
+                total_cost_usd,
+                num_turns,
+                input_tokens,
+                output_tokens,
+                ..
+            } => {
+                assert!(!is_error);
+                assert_eq!(result.as_deref(), Some("Done"));
+                assert_eq!(session_id.as_deref(), Some("sess-1"));
+                assert_eq!(duration_ms, Some(1000));
+                assert_eq!(total_cost_usd, Some(0.05));
+                assert_eq!(num_turns, Some(3));
+                assert_eq!(input_tokens, Some(100));
+                assert_eq!(output_tokens, Some(200));
+            }
+            _ => panic!("Expected Result event"),
+        }
+    }
+
+    #[test]
+    fn test_parse_result_error_via_subtype() {
+        let line = r#"{"type":"result","subtype":"error","result":"Something went wrong"}"#;
+        let event = parse_stream_line(line).unwrap();
+        match event {
+            FrontendStreamEvent::Result { is_error, .. } => assert!(is_error),
+            _ => panic!("Expected Result event"),
+        }
+    }
+
+    #[test]
+    fn test_parse_permission_request() {
+        let line = r#"{"type":"input_request","tool":{"name":"bash","input":{"command":"ls"}}}"#;
+        let event = parse_stream_line(line).unwrap();
+        match event {
+            FrontendStreamEvent::PermissionRequest { tool_name, input } => {
+                assert_eq!(tool_name, "bash");
+                assert_eq!(input["command"], "ls");
+            }
+            _ => panic!("Expected PermissionRequest event"),
+        }
+    }
+
+    #[test]
+    fn test_parse_invalid_json_returns_none() {
+        assert!(parse_stream_line("not json").is_none());
+    }
+
+    #[test]
+    fn test_parse_unknown_type_returns_none() {
+        let line = r#"{"type":"unknown_event","data":"something"}"#;
+        assert!(parse_stream_line(line).is_none());
+    }
+
+    // --- build_env_vars tests ---
+
+    #[test]
+    fn test_build_env_vars_includes_conductor_vars() {
+        let ws = crate::test_helpers::test_workspace(uuid::Uuid::new_v4());
+        let repo = crate::test_helpers::test_repo();
+        let settings = crate::test_helpers::test_settings();
+        let env = build_env_vars(&ws, &repo, &settings);
+        assert_eq!(env.get("CONDUCTOR_WORKSPACE_NAME").unwrap(), "test-workspace");
+        assert_eq!(env.get("CONDUCTOR_DEFAULT_BRANCH").unwrap(), "main");
+        assert!(env.contains_key("CONDUCTOR_PORT"));
+        assert!(env.contains_key("CONDUCTOR_ROOT_PATH"));
+        assert!(env.contains_key("CONDUCTOR_WORKSPACE_PATH"));
+    }
+
+    #[test]
+    fn test_build_env_vars_includes_provider_env_vars() {
+        let ws = crate::test_helpers::test_workspace(uuid::Uuid::new_v4());
+        let repo = crate::test_helpers::test_repo();
+        let mut settings = crate::test_helpers::test_settings();
+        settings.provider.env_vars.insert("ANTHROPIC_API_KEY".to_string(), "sk-test".to_string());
+        let env = build_env_vars(&ws, &repo, &settings);
+        assert_eq!(env.get("ANTHROPIC_API_KEY").unwrap(), "sk-test");
+    }
+
+    #[test]
+    fn test_build_repo_env_vars() {
+        let repo = crate::test_helpers::test_repo();
+        let settings = crate::test_helpers::test_settings();
+        let env = build_repo_env_vars(&repo, &settings);
+        assert!(env.contains_key("CONDUCTOR_ROOT_PATH"));
+        assert_eq!(env.get("CONDUCTOR_DEFAULT_BRANCH").unwrap(), "main");
+        assert!(!env.contains_key("CONDUCTOR_WORKSPACE_NAME")); // repo mode doesn't have this
+    }
+
+    // --- build_common_args tests ---
+
+    #[test]
+    fn test_build_common_args_basic() {
+        let args = build_common_args(None, &[], None, None, false, false);
+        assert!(args.contains(&"--output-format".to_string()));
+        assert!(args.contains(&"stream-json".to_string()));
+        assert!(args.contains(&"--verbose".to_string()));
+        assert!(args.contains(&"--dangerously-skip-permissions".to_string()));
+    }
+
+    #[test]
+    fn test_build_common_args_safe_mode() {
+        let args = build_common_args(None, &[], None, None, true, false);
+        assert!(!args.contains(&"--dangerously-skip-permissions".to_string()));
+    }
+
+    #[test]
+    fn test_build_common_args_with_session_id() {
+        let args = build_common_args(Some("sess-123"), &[], None, None, false, false);
+        assert!(args.contains(&"--resume".to_string()));
+        assert!(args.contains(&"sess-123".to_string()));
+    }
+
+    #[test]
+    fn test_build_common_args_with_model() {
+        let args = build_common_args(None, &[], None, Some("sonnet"), false, false);
+        assert!(args.contains(&"--model".to_string()));
+        assert!(args.contains(&"sonnet".to_string()));
+    }
+
+    #[test]
+    fn test_build_common_args_invalid_model_ignored() {
+        let args = build_common_args(None, &[], None, Some("gpt-4"), false, false);
+        assert!(!args.contains(&"--model".to_string()));
+    }
+
+    #[test]
+    fn test_build_common_args_with_linked_dirs() {
+        let dirs = vec![std::path::PathBuf::from("/tmp/dir1")];
+        let args = build_common_args(None, &dirs, None, None, false, false);
+        assert!(args.contains(&"--add-dir".to_string()));
+        assert!(args.contains(&"/tmp/dir1".to_string()));
+    }
+
+    #[test]
+    fn test_build_common_args_disable_plan_mode() {
+        let args = build_common_args(None, &[], None, None, false, true);
+        let system_prompt = args.last().unwrap();
+        assert!(system_prompt.contains("Do not enter plan mode"));
+    }
+}

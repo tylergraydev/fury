@@ -61,3 +61,34 @@ pub struct CursorRulesImportResult {
     pub written: bool,
     pub claude_md_path: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mcp_scope_as_str() {
+        assert_eq!(McpScope::User.as_str(), "user");
+        assert_eq!(McpScope::Project.as_str(), "project");
+    }
+
+    #[test]
+    fn test_mcp_scope_default_is_user() {
+        assert_eq!(McpScope::default(), McpScope::User);
+    }
+
+    #[test]
+    fn test_mcp_server_serde_roundtrip() {
+        let server = McpServer {
+            name: "test-server".to_string(),
+            command: "node".to_string(),
+            args: vec!["server.js".to_string()],
+            env: HashMap::from([("PORT".to_string(), "3000".to_string())]),
+            scope: McpScope::Project,
+        };
+        let json = serde_json::to_string(&server).unwrap();
+        let deserialized: McpServer = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.name, "test-server");
+        assert_eq!(deserialized.scope, McpScope::Project);
+    }
+}

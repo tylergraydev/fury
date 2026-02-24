@@ -61,3 +61,60 @@ pub enum ContentBlock {
         content: String,
     },
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_message_role_serde() {
+        assert_eq!(
+            serde_json::to_string(&MessageRole::User).unwrap(),
+            "\"user\""
+        );
+        assert_eq!(
+            serde_json::to_string(&MessageRole::Assistant).unwrap(),
+            "\"assistant\""
+        );
+        assert_eq!(
+            serde_json::to_string(&MessageRole::System).unwrap(),
+            "\"system\""
+        );
+
+        let user: MessageRole = serde_json::from_str("\"user\"").unwrap();
+        assert_eq!(user, MessageRole::User);
+    }
+
+    #[test]
+    fn test_content_block_text_serde() {
+        let block = ContentBlock::Text {
+            text: "hello".to_string(),
+        };
+        let json = serde_json::to_string(&block).unwrap();
+        assert!(json.contains("\"type\":\"text\""));
+        let _: ContentBlock = serde_json::from_str(&json).unwrap();
+    }
+
+    #[test]
+    fn test_content_block_tool_use_serde() {
+        let block = ContentBlock::ToolUse {
+            id: "tool-1".to_string(),
+            name: "read_file".to_string(),
+            input: serde_json::json!({"path": "/tmp/test"}),
+        };
+        let json = serde_json::to_string(&block).unwrap();
+        assert!(json.contains("\"type\":\"toolUse\""));
+        let _: ContentBlock = serde_json::from_str(&json).unwrap();
+    }
+
+    #[test]
+    fn test_content_block_tool_result_serde() {
+        let block = ContentBlock::ToolResult {
+            tool_use_id: "tool-1".to_string(),
+            content: "file contents".to_string(),
+        };
+        let json = serde_json::to_string(&block).unwrap();
+        assert!(json.contains("\"type\":\"toolResult\""));
+        let _: ContentBlock = serde_json::from_str(&json).unwrap();
+    }
+}

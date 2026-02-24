@@ -62,3 +62,72 @@ impl AppState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_initializes_empty_collections() {
+        let state = AppState::new();
+
+        assert!(state.repositories.lock().unwrap().is_empty());
+        assert!(state.workspaces.lock().unwrap().is_empty());
+        assert!(state.agents.lock().unwrap().is_empty());
+        assert!(state.agent_processes.lock().unwrap().is_empty());
+        assert!(state.script_processes.lock().unwrap().is_empty());
+        assert!(state.terminal_sessions.lock().unwrap().is_empty());
+        assert!(state.spotlight_watchers.lock().unwrap().is_empty());
+        assert!(state.persistent_agents.lock().unwrap().is_empty());
+        assert!(state.agent_stdins.lock().unwrap().is_empty());
+        assert!(state.copilot.lock().unwrap().is_none());
+        assert!(state.db.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_new_initializes_default_settings() {
+        let state = AppState::new();
+        let settings = state.settings.lock().unwrap();
+        // Verify settings are the default
+        assert!(!settings.analytics_enabled);
+        assert!(settings.system_prompt_additions.is_none());
+    }
+
+    #[test]
+    fn test_repositories_can_be_inserted() {
+        let state = AppState::new();
+        let repo = crate::models::repository::Repository {
+            id: Uuid::new_v4(),
+            name: "test".to_string(),
+            path: std::path::PathBuf::from("/tmp/test"),
+            default_branch: "main".to_string(),
+            current_branch: None,
+        };
+        let id = repo.id;
+        state.repositories.lock().unwrap().insert(id, repo);
+        assert_eq!(state.repositories.lock().unwrap().len(), 1);
+        assert!(state.repositories.lock().unwrap().contains_key(&id));
+    }
+
+    #[test]
+    fn test_workspaces_can_be_inserted() {
+        let state = AppState::new();
+        let ws = crate::test_helpers::test_workspace(Uuid::new_v4());
+        let id = ws.id;
+        state.workspaces.lock().unwrap().insert(id, ws);
+        assert_eq!(state.workspaces.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_agents_arc_clone() {
+        let state = AppState::new();
+        let agents_clone = Arc::clone(&state.agents);
+        let ws_id = Uuid::new_v4();
+        agents_clone
+            .lock()
+            .unwrap()
+            .insert(ws_id, AgentInfo::new(ws_id));
+        // Original should see the insert
+        assert_eq!(state.agents.lock().unwrap().len(), 1);
+    }
+}
