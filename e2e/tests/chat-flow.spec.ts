@@ -84,7 +84,7 @@ test.describe("Chat Flow", () => {
 
     // Simulate agent becoming Running
     await emitAgentStatus(appPage, "ws-auth", "Running");
-    await expect(appPage.getByText("Stop")).toBeVisible();
+    await expect(appPage.getByTitle("Stop")).toBeVisible();
 
     // Simulate streaming assistant text
     await emitStreamText(
