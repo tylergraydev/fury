@@ -802,6 +802,7 @@ describe("App settings commands", () => {
 
   it("updateAppSettings calls invoke with update_app_settings", async () => {
     const settings = {
+      agentType: "claude_code" as const,
       theme: "blend" as const,
       provider: { providerType: "Anthropic" as const, envVars: { ANTHROPIC_API_KEY: "key" } },
       systemPromptAdditions: "Be helpful",

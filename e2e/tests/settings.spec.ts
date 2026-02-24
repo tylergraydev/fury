@@ -56,8 +56,12 @@ test.describe("Settings", () => {
     // Provider label should be visible
     await expect(appPage.getByText("Provider").first()).toBeVisible();
 
+    // Agent type select should be first, with Claude Code selected
+    const agentSelect = appPage.locator("select").first();
+    await expect(agentSelect).toHaveValue("claude_code");
+
     // Provider select dropdown should have Anthropic selected
-    const providerSelect = appPage.locator("select").first();
+    const providerSelect = appPage.locator("select").nth(1);
     await expect(providerSelect).toHaveValue("Anthropic");
 
     // Anthropic provider shows ANTHROPIC_API_KEY hint

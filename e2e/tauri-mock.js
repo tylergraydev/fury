@@ -163,6 +163,7 @@
   };
 
   const APP_SETTINGS = {
+    agentType: "claude_code",
     theme: "blend",
     provider: { providerType: "Anthropic", envVars: {} },
     systemPromptAdditions: null,
