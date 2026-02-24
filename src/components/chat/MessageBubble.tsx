@@ -23,6 +23,7 @@ import {
 import type { ChatMessage, ContentBlock, ResponseMetadata } from "../../lib/tauri";
 import { readFileBase64 } from "../../lib/tauri";
 import { formatDuration, formatTokens, formatCost } from "../../lib/format";
+import { MarkdownContent } from "./MarkdownContent";
 
 // --- Attachment parsing ---
 
@@ -547,8 +548,8 @@ export function MessageBubble({ message, onRetry }: Props) {
       {groups.map((group, i) =>
         group.kind === "text" ? (
           group.blocks.map((block, j) => (
-            <div key={`${i}-${j}`} className="mb-1 whitespace-pre-wrap break-words">
-              {block.text}
+            <div key={`${i}-${j}`} className="mb-1 break-words">
+              <MarkdownContent content={block.text} />
             </div>
           ))
         ) : (

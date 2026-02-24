@@ -16,14 +16,8 @@ vi.mock("./MessageList", () => ({
         <span data-testid="msg-count">{props.messages.length}</span>
         <span data-testid="streaming">{props.streamingText}</span>
         <span data-testid="agent-status">{typeof props.agentStatus === "string" ? props.agentStatus : "Error"}</span>
-        <span data-testid="has-checkpoints">{props.checkpoints ? "yes" : "no"}</span>
-        <span data-testid="has-revert">{props.onRevertCheckpoint ? "yes" : "no"}</span>
-        <span data-testid="reverted-turn">{props.revertedTurnIndex ?? "null"}</span>
         {props.onRetry && (
           <button data-testid="retry-btn" onClick={props.onRetry}>Retry</button>
-        )}
-        {props.onRevertCheckpoint && (
-          <button data-testid="revert-btn" onClick={() => props.onRevertCheckpoint("cp-1")}>Revert</button>
         )}
       </div>
     );
@@ -354,64 +348,7 @@ describe("ChatPanel", () => {
     consoleError.mockRestore();
   });
 
-  // --- handleRevert callback ---
-  it("handleRevert calls revertToCheckpoint", async () => {
-    const revertSpy = vi.fn().mockResolvedValue(undefined);
-    useCheckpointStore.setState({
-      checkpoints: { "ws-1": [{ id: "cp-1", workspaceId: "ws-1", turnIndex: 0, createdAt: "2025-01-01T00:00:00Z" }] as any },
-      revertedTurnIndex: {},
-      subscriptions: {},
-      revertToCheckpoint: revertSpy,
-    });
-    const user = userEvent.setup();
-    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
-    await user.click(screen.getByTestId("revert-btn"));
-    expect(revertSpy).toHaveBeenCalledWith("ws-1", "cp-1");
-  });
-
-  it("handleRevert catches errors", async () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    const revertSpy = vi.fn().mockRejectedValue(new Error("revert failed"));
-    useCheckpointStore.setState({
-      checkpoints: { "ws-1": [{ id: "cp-1", workspaceId: "ws-1", turnIndex: 0, createdAt: "2025-01-01T00:00:00Z" }] as any },
-      revertedTurnIndex: {},
-      subscriptions: {},
-      revertToCheckpoint: revertSpy,
-    });
-    const user = userEvent.setup();
-    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
-    await user.click(screen.getByTestId("revert-btn"));
-    expect(consoleError).toHaveBeenCalledWith("Failed to revert:", expect.any(Error));
-    consoleError.mockRestore();
-  });
-
   // --- workspace vs repo context ---
-  it("passes checkpoints and onRevertCheckpoint for workspace context", () => {
-    useCheckpointStore.setState({
-      checkpoints: { "ws-1": [{ id: "cp-1", workspaceId: "ws-1", turnIndex: 0, createdAt: "2025-01-01T00:00:00Z" }] as any },
-      revertedTurnIndex: {},
-      subscriptions: {},
-    });
-    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
-    expect(screen.getByTestId("has-checkpoints")).toHaveTextContent("yes");
-    expect(screen.getByTestId("has-revert")).toHaveTextContent("yes");
-  });
-
-  it("does not pass checkpoints or onRevertCheckpoint for repo context", () => {
-    render(<ChatPanel contextId="repo-1" contextType="repo" />);
-    expect(screen.getByTestId("has-checkpoints")).toHaveTextContent("no");
-    expect(screen.getByTestId("has-revert")).toHaveTextContent("no");
-  });
-
-  it("passes revertedTurnIndex from checkpoint store", () => {
-    useCheckpointStore.setState({
-      checkpoints: {},
-      revertedTurnIndex: { "ws-1": 3 },
-      subscriptions: {},
-    });
-    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
-    expect(screen.getByTestId("reverted-turn")).toHaveTextContent("3");
-  });
 
   it("passes agent status to Composer", () => {
     useAgentStore.setState({
