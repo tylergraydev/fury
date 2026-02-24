@@ -1,0 +1,23 @@
+---
+title: Create from Issue
+description: Create a workspace from a GitHub issue
+---
+
+Create a workspace pre-loaded with context from a GitHub issue, so the agent knows what to work on from the start.
+
+## How to create from an issue
+
+1. In the repository view, open the issue list
+2. Select an issue
+3. Click **Create Workspace from Issue**
+
+## What happens
+
+- A new workspace is created with a branch name derived from the issue
+- The issue title and body are available as context
+- You can reference the issue in your first message to the agent
+
+## Tips
+
+- Include the issue number when creating the PR (e.g., "Closes #42") to automatically close the issue when merged
+- For Linear issues, use <Tooltip tip="Ctrl+I on Windows/Linux">**Cmd+I**</Tooltip> to link them instead. See [Linear integration](/core/linear-integration).

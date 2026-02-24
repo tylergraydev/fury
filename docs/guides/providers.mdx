@@ -1,0 +1,31 @@
+---
+title: Providers
+description: Configure AI providers for Claude Code
+---
+
+Fury supports multiple AI providers through Claude Code's provider configuration.
+
+## Supported providers
+
+| Provider | Type | Environment Variables |
+|----------|------|----------------------|
+| **Anthropic** (default) | `Anthropic` | `ANTHROPIC_API_KEY` |
+| **OpenRouter** | `OpenRouter` | `OPENROUTER_API_KEY` |
+| **Vercel AI Gateway** | `VercelAIGateway` | Vercel-specific vars |
+| **AWS Bedrock** | `Bedrock` | AWS credentials |
+| **Google Vertex** | `Vertex` | Google Cloud credentials |
+| **Azure Foundry** | `AzureFoundry` | Azure credentials |
+| **Custom** | `Custom` | Custom endpoint vars |
+
+## Configuring a provider
+
+1. Go to **Settings > Provider**
+2. Select a provider type
+3. Enter the required environment variables
+4. Save
+
+The environment variables are passed to the Claude Code process when it starts, so the agent uses your configured provider.
+
+## Using OpenAI Codex
+
+For OpenAI models, switch the **Agent Type** to Codex CLI instead of configuring a Claude provider. See [Codex tips](/tips/codex).

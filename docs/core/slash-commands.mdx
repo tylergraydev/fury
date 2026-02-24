@@ -1,0 +1,50 @@
+---
+title: Slash Commands
+description: Built-in and custom slash commands for quick actions
+---
+
+Slash commands let you quickly trigger actions by typing `/` in the chat composer. Fury discovers commands from multiple sources.
+
+## Using slash commands
+
+Type `/` in the composer to see a list of available commands. Select one to insert it into your message.
+
+## Command sources
+
+| Source | Location | Scope |
+|--------|----------|-------|
+| **Built-in** | Fury internals | Always available |
+| **Global** | `~/.claude/commands/*.md` | All repositories |
+| **Project** | `<repo>/.claude/commands/*.md` | Current repo only |
+| **Plugin** | Installed Claude Code plugins | Depends on plugin |
+
+## Built-in commands
+
+- `/clear` — Clear the current conversation and start fresh
+
+## Creating custom commands
+
+Create a Markdown file in the appropriate commands directory:
+
+**Global command** (available everywhere):
+```
+~/.claude/commands/my-command.md
+```
+
+**Project command** (repo-specific):
+```
+your-repo/.claude/commands/my-command.md
+```
+
+### Command format
+
+```markdown
+---
+description: A brief description of what this command does
+---
+
+The prompt text that gets sent to the agent when this command is invoked.
+You can include instructions, context, or templates here.
+```
+
+The filename (without `.md`) becomes the command name. The YAML frontmatter `description` appears in the autocomplete menu.

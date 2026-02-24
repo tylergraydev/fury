@@ -1,0 +1,41 @@
+---
+title: Workspaces and Branches
+description: How workspaces map to git branches and worktrees
+---
+
+Understanding the relationship between workspaces, branches, and worktrees is key to using Fury effectively.
+
+## One workspace = one branch = one worktree
+
+When you create a workspace, Fury:
+
+1. Creates a new git branch from the base branch (usually `main`)
+2. Creates a git worktree for that branch in a separate directory
+3. Links the workspace to that worktree
+
+This means each workspace has its own full copy of the repository on its own branch. Changes in one workspace don't affect any other workspace.
+
+## Where worktrees live
+
+By default, worktrees are created alongside your repository. You can configure a custom worktree base path in repository settings.
+
+## Port allocation
+
+Each workspace gets a port base number, incremented by 100 from previous workspaces. This prevents port conflicts when multiple dev servers are running simultaneously.
+
+For example:
+- Workspace 1: ports starting at 3000
+- Workspace 2: ports starting at 3100
+- Workspace 3: ports starting at 3200
+
+## Branch naming
+
+By default, the branch name is a slug of the workspace name. You can customize it during creation.
+
+## What happens when you archive
+
+Archiving a workspace removes the worktree directory to free disk space, but the branch is preserved in git. If you restore the workspace later, the worktree is recreated from the branch.
+
+## What happens when you delete
+
+Deleting a workspace removes both the worktree and the branch permanently.

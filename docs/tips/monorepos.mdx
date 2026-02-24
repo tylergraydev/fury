@@ -1,0 +1,29 @@
+---
+title: Monorepos
+description: Using sparse checkout for large repositories
+---
+
+For monorepos and large repositories, Fury supports **sparse checkout** to only clone the directories you need.
+
+## Setting up sparse checkout
+
+When creating a workspace, expand the advanced options and specify **sparse directories** — only these directories will be checked out in the worktree.
+
+For example, in a monorepo with `packages/frontend`, `packages/backend`, and `packages/shared`, you might specify:
+
+```
+packages/frontend
+packages/shared
+```
+
+This keeps the worktree small and focused on the code you're working with.
+
+## Updating sparse directories
+
+After creating a workspace, you can update the sparse directories if you need to add or remove paths.
+
+## Best practices
+
+- Include shared/common directories that your target code depends on
+- Keep the set small to minimize disk usage and improve agent performance
+- Root-level config files (like `package.json`, `tsconfig.json`) are always included

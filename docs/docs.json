@@ -1,0 +1,131 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Fury",
+  "description": "Cross-platform desktop app for orchestrating AI coding agents",
+  "colors": {
+    "primary": "#3b82f6",
+    "light": "#60a5fa",
+    "dark": "#2563eb"
+  },
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg",
+    "href": "https://github.com/tylergraydev/fury"
+  },
+  "favicon": "/favicon.svg",
+  "appearance": {
+    "default": "dark"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "url": "https://github.com/tylergraydev/fury"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Download",
+      "url": "https://github.com/tylergraydev/fury/releases"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/tylergraydev/fury"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "workflow",
+              "faq"
+            ]
+          },
+          {
+            "group": "Account",
+            "pages": [
+              "account/privacy"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Features",
+        "groups": [
+          {
+            "group": "Core",
+            "pages": [
+              "core/ai-chat",
+              "core/workspaces",
+              "core/file-viewer",
+              "core/diff-viewer",
+              "core/terminal",
+              "core/checkpoints",
+              "core/pr-management",
+              "core/scripts",
+              "core/mcp",
+              "core/slash-commands",
+              "core/conductor-json",
+              "core/todos",
+              "core/github-actions",
+              "core/linear-integration",
+              "core/copilot",
+              "core/command-palette",
+              "core/merge-view"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Guides",
+        "groups": [
+          {
+            "group": "Quickstarts",
+            "pages": [
+              "quickstarts/nextjs",
+              "quickstarts/rails",
+              "quickstarts/django",
+              "quickstarts/phoenix"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/first-workspace",
+              "guides/issue-to-pr",
+              "guides/run-scripts",
+              "guides/migrate-from-cursor",
+              "guides/providers",
+              "guides/create-from-pr",
+              "guides/create-from-issue"
+            ]
+          },
+          {
+            "group": "Tips",
+            "pages": [
+              "tips/codex",
+              "tips/keyboard-shortcuts",
+              "tips/workspaces-and-branches",
+              "tips/monorepos",
+              "tips/multiple-repos",
+              "tips/environment-variables",
+              "tips/cross-platform",
+              "tips/themes"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "search": {
+    "prompt": "Search Fury docs..."
+  }
+}

@@ -1,0 +1,44 @@
+---
+title: Terminal
+description: Integrated setup, run, and shell terminals
+---
+
+Fury includes integrated terminals powered by [xterm.js](https://xtermjs.org/), giving you direct shell access within each workspace.
+
+## Terminal types
+
+### Setup terminal
+
+Runs your **setup script** when the workspace opens. Typically used for dependency installation:
+
+```bash
+npm install
+# or
+bundle install && rails db:setup
+```
+
+### Run terminal
+
+Runs your **run script** to start your development server:
+
+```bash
+npm run dev
+# or
+rails server
+```
+
+### Shell terminal
+
+A general-purpose terminal for running commands manually. Focus it with <Tooltip tip="Ctrl+J on Windows/Linux">**Cmd+J**</Tooltip>.
+
+## Workspace isolation
+
+Each terminal runs in the workspace's worktree directory, ensuring commands execute in the correct context with the right branch checked out.
+
+## Configuring scripts
+
+Configure setup and run scripts in **Settings** for each repository, or share them with your team via [`conductor.json`](/core/conductor-json). See [scripts](/core/scripts) for details.
+
+## Resizing
+
+Terminal panels are resizable — drag the border to adjust the height.

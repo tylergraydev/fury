@@ -1,0 +1,43 @@
+---
+title: Codex CLI
+description: Using OpenAI Codex CLI as an alternative agent
+---
+
+Fury supports [OpenAI Codex CLI](https://github.com/openai/codex) as an alternative to Claude Code.
+
+## Setup
+
+1. Install Codex CLI:
+
+```bash
+npm install -g @openai/codex
+```
+
+2. Set your OpenAI API key:
+
+```bash
+export OPENAI_API_KEY=sk-...
+```
+
+3. In Fury, go to **Settings > Agent Type** and select **Codex CLI**
+
+## Available models
+
+| Model | Description |
+|-------|-------------|
+| **GPT-5.1 Codex** | Optimized for code generation |
+| **o3** | Advanced reasoning |
+| **o4-mini** | Fast and efficient |
+| **GPT-4.1** | General purpose |
+
+Select models via the model selector (**Option+P**).
+
+## Differences from Claude Code
+
+- Codex CLI uses OpenAI models instead of Anthropic models
+- Session management and tool approval flows differ slightly
+- Some slash commands may behave differently
+
+## Switching back
+
+To switch back to Claude Code, go to **Settings > Agent Type** and select **Claude Code**.

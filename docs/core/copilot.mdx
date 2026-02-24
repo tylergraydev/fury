@@ -1,0 +1,36 @@
+---
+title: GitHub Copilot
+description: Code completions in the built-in editor
+---
+
+Fury supports GitHub Copilot for inline code completions in the [file viewer](/core/file-viewer).
+
+## Prerequisites
+
+You need an active [GitHub Copilot](https://github.com/features/copilot) subscription (Individual, Business, or Enterprise).
+
+## Enabling Copilot
+
+1. Go to **Settings > Copilot**
+2. Toggle Copilot on
+3. Follow the device code sign-in flow — you'll be given a code to enter at github.com/login/device
+4. Once authenticated, Copilot is active
+
+## Using completions
+
+When Copilot is enabled and connected, you'll see inline suggestions as you type in the Monaco editor. Press **Tab** to accept a suggestion.
+
+## Connection status
+
+The Copilot status indicator shows:
+
+| Status | Meaning |
+|--------|---------|
+| **Disconnected** | Copilot is not running |
+| **Connecting** | Signing in or starting the LSP server |
+| **Connected** | Ready to provide completions |
+| **Error** | Authentication or connection failed |
+
+## How it works
+
+Fury runs the GitHub Copilot Language Server (LSP) locally. The server communicates with GitHub's API to generate completions based on the current file context.

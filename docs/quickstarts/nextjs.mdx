@@ -1,0 +1,42 @@
+---
+title: Next.js
+description: Set up Fury for a Next.js project
+---
+
+## Prerequisites
+
+- [Node.js](https://nodejs.org/) LTS installed
+- A Next.js project (or create one with `npx create-next-app@latest`)
+
+## 1. Add your repository
+
+Open Fury and add your Next.js project folder as a repository.
+
+## 2. Configure conductor.json
+
+Create a `conductor.json` in your project root:
+
+```json
+{
+  "scripts": {
+    "setup": "npm install",
+    "run": "npm run dev"
+  }
+}
+```
+
+## 3. Create a workspace
+
+Press <Tooltip tip="Ctrl+N on Windows/Linux">**Cmd+N**</Tooltip> to create a new workspace. The setup script will run `npm install` and the run script will start the Next.js dev server.
+
+## 4. Start building
+
+Try a prompt like:
+
+```
+Create a new dashboard page at /dashboard that shows a list of
+recent activity. Use the existing layout component and Tailwind
+for styling.
+```
+
+The dev server is running in the **Run** terminal, so you can see your changes live.

@@ -1,0 +1,48 @@
+---
+title: conductor.json
+description: Share scripts and settings with your team
+---
+
+The `conductor.json` file lets you commit workspace configuration to your repository so everyone on the team uses the same setup and run scripts.
+
+## File location
+
+Place `conductor.json` in the root of your repository.
+
+## Format
+
+```json
+{
+  "scripts": {
+    "setup": "npm install",
+    "run": "npm run dev",
+    "archive": "docker compose down"
+  },
+  "runScriptMode": "concurrent"
+}
+```
+
+## Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `scripts.setup` | `string` | Shell command to run when a workspace opens |
+| `scripts.run` | `string` | Shell command to start the dev server |
+| `scripts.archive` | `string` | Shell command to run when archiving |
+| `runScriptMode` | `"concurrent"` \| `"nonconcurrent"` | Whether run starts alongside or after setup |
+
+All fields are optional.
+
+## Precedence
+
+Settings configured in Fury's UI take precedence over `conductor.json` values. The JSON file provides defaults:
+
+1. If a script is set in the UI, that value is used
+2. If not, the `conductor.json` value is used
+3. If neither exists, no script runs
+
+This means individual developers can override team defaults when needed without modifying the shared config.
+
+## Compatibility
+
+The `conductor.json` format is compatible with [Conductor](https://conductor.build). Teams using both tools can share the same configuration file.

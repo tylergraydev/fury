@@ -1,0 +1,55 @@
+---
+title: AI Chat
+description: Chat with Claude Code or OpenAI Codex to write, edit, and debug code
+---
+
+The chat interface is the primary way you interact with AI agents in Fury. Send natural language messages and the agent reads files, writes code, runs commands, and makes changes to your workspace.
+
+## Agent types
+
+Fury supports two agent types, configurable in Settings:
+
+| Agent | Provider | Models |
+|-------|----------|--------|
+| **Claude Code** (default) | Anthropic | Opus 4, Sonnet 4, Haiku |
+| **Codex CLI** | OpenAI | GPT-5.1 Codex, o3, o4-mini, GPT-4.1 |
+
+Switch between agents in **Settings > Agent Type**.
+
+## Sending messages
+
+Type your message in the composer at the bottom of the chat panel and press **Enter** to send. The agent will process your request and stream its response in real time.
+
+### Referencing files
+
+Type **@** in the composer to reference specific files. This adds the file's content to the agent's context, helping it understand what you're working with.
+
+### Attachments
+
+Drag and drop files (including images) into the composer to attach them to your message.
+
+## Thinking mode
+
+Press <Tooltip tip="Option+T">**Option+T**</Tooltip> to toggle thinking mode. When enabled, the agent spends more time reasoning before responding, which can improve quality for complex tasks.
+
+## Plan mode
+
+Press **Shift+Tab** to toggle plan mode. In plan mode, the agent creates a detailed plan before making changes, giving you a chance to review and approve the approach.
+
+## Permission requests
+
+When the agent wants to use a tool (read a file, write a file, run a command), it may request permission depending on your Claude Code configuration. You can approve or deny each request individually, or approve the tool for the rest of the session.
+
+Use <Tooltip tip="Ctrl+Shift+Enter on Windows/Linux">**Cmd+Shift+Enter**</Tooltip> to quickly approve a pending permission or plan.
+
+## Model selection
+
+Press **Option+P** to open the model selector. Choose from available models for your current agent type.
+
+## Session stats
+
+After the agent finishes responding, you can see session statistics including tokens used, cost, and duration in the response metadata.
+
+## Clearing the session
+
+Use the `/clear` slash command or clear the session from the command palette to start a fresh conversation while keeping your workspace files intact.

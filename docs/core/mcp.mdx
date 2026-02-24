@@ -1,0 +1,37 @@
+---
+title: MCP
+description: Extend your agent with Model Context Protocol servers
+---
+
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io/) lets you give your AI agent access to custom tools and data sources. Fury supports adding MCP servers that your agent can use during conversations.
+
+## Adding an MCP server
+
+Go to **Settings > MCP Servers** and provide:
+
+- **Name** — A unique identifier for the server
+- **Command** — The command to run the server (e.g., `npx`)
+- **Args** — Command arguments (e.g., `["-y", "@modelcontextprotocol/server-filesystem", "/path"]`)
+- **Environment variables** — Any env vars the server needs
+- **Scope** — User-level (available in all repos) or project-level (specific to one repo)
+
+## Scopes
+
+| Scope | Availability | Storage |
+|-------|-------------|---------|
+| **User** | All repositories | `~/.claude/` config |
+| **Project** | Current repository only | `.claude/` in repo |
+
+## Removing servers
+
+Remove MCP servers from the same Settings panel. Select the server and click Remove.
+
+## How it works
+
+Under the hood, Fury manages MCP servers through Claude Code's built-in MCP support (`claude mcp add/list/remove`). The servers are available to the agent during conversations, providing additional tools beyond the default set.
+
+## Popular MCP servers
+
+- **Context7** — Up-to-date library documentation
+- **Filesystem** — Extended file operations
+- **GitHub** — Enhanced GitHub API access

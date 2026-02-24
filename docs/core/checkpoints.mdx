@@ -1,0 +1,34 @@
+---
+title: Checkpoints
+description: Save and revert conversation states
+---
+
+Checkpoints let you save snapshots of your workspace at any point during a conversation. If the agent goes in the wrong direction, you can revert to an earlier state.
+
+## How checkpoints work
+
+Checkpoints are created automatically during agent conversations. Each checkpoint captures:
+
+- The state of all files in the workspace (as a git tree)
+- The conversation history up to that point
+- A reference to the user message that triggered the turn
+
+## Viewing checkpoints
+
+Open the checkpoints panel to see a timeline of all saved states for the current workspace. Each entry shows the user message that preceded it.
+
+## Reverting
+
+Click a checkpoint to revert the workspace to that point. This:
+
+1. Restores all files to their state at that checkpoint
+2. Truncates the conversation history to that point
+3. Lets you continue from that state with a different approach
+
+Reverting is non-destructive — the later checkpoints are still accessible if you change your mind.
+
+## Use cases
+
+- **Wrong direction** — The agent misunderstood your request. Revert and rephrase.
+- **Experimentation** — Try multiple approaches from the same starting point.
+- **Recovery** — Undo unintended file changes made by the agent.

@@ -1,0 +1,58 @@
+---
+title: Workflow
+description: A typical end-to-end workflow with Fury
+---
+
+Fury is designed around a simple loop: create a workspace, chat with an AI agent to implement changes, review the results, and ship a PR.
+
+## 1. Add a repository
+
+Open Fury and add a repository — either select a local folder or clone from a URL. Fury detects the default branch and sets up the repo for workspace creation.
+
+## 2. Create a workspace
+
+Press <Tooltip tip="Ctrl+N on Windows/Linux">**Cmd+N**</Tooltip> to create a new workspace. Each workspace gets its own git worktree on a separate branch, keeping your changes fully isolated from other workspaces and the main branch.
+
+## 3. Configure scripts (optional)
+
+Set up **setup** and **run** scripts in your repo settings or via a [`conductor.json`](/core/conductor-json) file. The setup script runs when the workspace opens (e.g., `npm install`), and the run script starts your dev server (e.g., `npm run dev`).
+
+## 4. Chat with the agent
+
+Send messages to Claude or Codex describing what you want to build or fix. The agent has full access to your workspace files and can read, write, and execute commands.
+
+- Use **@** to reference specific files in your message
+- Toggle **thinking mode** with <Tooltip tip="Option+T">**Option+T**</Tooltip> for deeper reasoning
+- Toggle **plan mode** with **Shift+Tab** to have the agent plan before acting
+- Approve or deny [permission requests](/core/ai-chat) when the agent wants to use tools
+
+## 5. Review changes
+
+Switch to the **Changes** panel (<Tooltip tip="Ctrl+2 on Windows/Linux">**Cmd+2**</Tooltip>) to see all modified files. Click any file to view an inline diff showing exactly what changed.
+
+If you need to undo, use [checkpoints](/core/checkpoints) to revert to any previous point in the conversation.
+
+## 6. Create a PR
+
+Once you're satisfied with the changes:
+
+1. Push your changes to the remote
+2. Create a PR directly from Fury with a title and description
+3. Monitor CI checks in the **Checks** panel (<Tooltip tip="Ctrl+3 on Windows/Linux">**Cmd+3**</Tooltip>)
+4. If checks fail, ask the agent to fix them
+5. Merge when ready — squash, merge, or rebase
+
+## 7. Archive the workspace
+
+After merging, archive the workspace. This cleans up the worktree and branch, keeping your repo tidy. You can always restore archived workspaces later.
+
+## Running multiple workspaces
+
+The real power of Fury is running many workspaces in parallel. Each workspace operates independently with its own:
+
+- Git branch and worktree
+- Agent session
+- Terminal instances
+- Port allocation for dev servers
+
+This means you can work on multiple features, bug fixes, or experiments simultaneously without conflicts.

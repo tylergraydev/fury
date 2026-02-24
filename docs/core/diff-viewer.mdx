@@ -1,0 +1,27 @@
+---
+title: Diff Viewer
+description: Review code changes with inline diffs
+---
+
+The diff viewer shows all changes made in your workspace compared to the base branch.
+
+## Changes panel
+
+Open the **Changes** panel (<Tooltip tip="Ctrl+2 on Windows/Linux">**Cmd+2**</Tooltip>) to see a list of all modified files with their status and line counts.
+
+Each file shows:
+- **Status** — Added, Modified, Deleted, Renamed, or Untracked
+- **Additions** — Number of lines added (green)
+- **Deletions** — Number of lines removed (red)
+
+## Inline diff view
+
+Click any file in the changes list to open a side-by-side diff view powered by Monaco's diff editor. The original file is shown on the left and the modified version on the right, with changes highlighted inline.
+
+## Summary
+
+The top of the changes panel shows totals for additions and deletions across all files.
+
+## Cross-worktree diffs
+
+When two workspaces are [linked](/core/workspaces), you can compare their changes against each other instead of against the base branch. This is useful for reviewing related features side by side. See [merge view](/core/merge-view).

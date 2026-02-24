@@ -1,0 +1,27 @@
+---
+title: Create from PR
+description: Create a workspace from an existing pull request
+---
+
+You can create a workspace directly from a GitHub pull request, which checks out the PR's branch and lets you continue working on it.
+
+## How to create from a PR
+
+1. In the repository view, open the PR list
+2. Select a pull request
+3. Click **Create Workspace from PR**
+
+Fury creates a workspace on the PR's head branch with `fetchRemoteBranch` enabled, so you get the latest remote state.
+
+## What happens
+
+- A new workspace is created with the PR's branch name
+- The worktree is set up on that branch
+- The PR is automatically linked to the workspace
+- You can continue making changes and pushing to the same PR
+
+## Use cases
+
+- **Review and iterate** — Check out a teammate's PR, test it, and push improvements
+- **Pick up where someone left off** — Continue work on an existing PR
+- **Fix CI failures** — Create a workspace to debug and fix failing checks

@@ -1,0 +1,32 @@
+---
+title: Environment Variables
+description: Configure environment variables for scripts and agents
+---
+
+## Custom environment variables
+
+Set per-repository environment variables in **Settings > Environment Variables**. These are passed to all scripts and agent processes for that repository.
+
+## Automatic variables
+
+Fury automatically provides these environment variables to scripts:
+
+| Variable | Value |
+|----------|-------|
+| `CONDUCTOR_WORKSPACE_NAME` | Name of the current workspace |
+| `CONDUCTOR_WORKSPACE_PATH` | Absolute path to the workspace worktree |
+| `CONDUCTOR_ROOT_PATH` | Absolute path to the main repository |
+| `CONDUCTOR_DEFAULT_BRANCH` | Repository's default branch (e.g., `main`) |
+
+## Provider variables
+
+When using a non-default [provider](/guides/providers), the provider's environment variables (API keys, endpoints) are passed to the agent process.
+
+## Using in scripts
+
+Reference these variables in your scripts like any shell variable:
+
+```bash
+echo "Working in $CONDUCTOR_WORKSPACE_PATH"
+echo "Default branch is $CONDUCTOR_DEFAULT_BRANCH"
+```

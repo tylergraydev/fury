@@ -1,0 +1,68 @@
+---
+title: Workspaces
+description: Isolated parallel agent sessions on separate git branches
+---
+
+Workspaces are the core organizational unit in Fury. Each workspace gets its own git worktree on a dedicated branch, providing full isolation between parallel tasks.
+
+## Creating a workspace
+
+Press <Tooltip tip="Ctrl+N on Windows/Linux">**Cmd+N**</Tooltip> or click the **+** button in the sidebar. You'll need to provide:
+
+- **Workspace name** — A descriptive name for the task
+- **Branch name** — The git branch to create (defaults to a slug of the workspace name)
+- **Base branch** — The branch to fork from (defaults to the repo's default branch)
+
+### Advanced options
+
+- **Sparse directories** — For monorepos, specify only the directories you need to check out. See [monorepos](/tips/monorepos).
+- **Auto-commit** — Automatically commit changes after each agent turn
+- **Fetch remote branch** — Check out an existing remote branch instead of creating a new one
+
+## Creating from PRs and issues
+
+You can create workspaces directly from:
+
+- **GitHub PRs** — Creates a workspace on the PR's head branch. See [create from PR](/guides/create-from-pr).
+- **GitHub Issues** — Creates a workspace with the issue context pre-loaded. See [create from issue](/guides/create-from-issue).
+
+## Workspace lifecycle
+
+| Status | Description |
+|--------|-------------|
+| **Creating** | Worktree is being set up |
+| **Active** | Ready for use |
+| **Archived** | Worktree removed, branch preserved |
+| **Error** | Something went wrong during creation |
+
+### Archiving
+
+Archive a workspace when you're done with it. This removes the worktree to free disk space but preserves the branch. You can restore archived workspaces at any time.
+
+### Restoring
+
+Restore an archived workspace to continue where you left off. The worktree is recreated from the preserved branch.
+
+### Deleting
+
+Delete a workspace to permanently remove both the worktree and branch.
+
+## Pinning
+
+Pin important workspaces to keep them at the top of the sidebar list. Toggle pinning from the workspace context menu.
+
+## Renaming
+
+Rename a workspace at any time from the workspace context menu. This only changes the display name — the branch name stays the same.
+
+## Linking workspaces
+
+Link two workspaces together to compare their changes side by side with [cross-worktree diffs](/core/merge-view). This is useful when two workspaces are implementing related features.
+
+## Searching
+
+Press <Tooltip tip="Ctrl+Shift+F on Windows/Linux">**Cmd+Shift+F**</Tooltip> to search across all workspaces by name.
+
+## Notes
+
+Each workspace has a freeform notes field for tracking context, decisions, or anything else. Access it from the workspace panel.
