@@ -180,3 +180,8 @@ body,
 .toast-slide-in {
   animation: toast-slide-in 0.2s ease-out;
 }
+
+/* Remove trailing margin from last element in markdown blocks */
+.markdown-content > :last-child {
+  margin-bottom: 0;
+}

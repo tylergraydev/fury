@@ -1,12 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MessageList, segmentTurns } from "./MessageList";
-import type { ChatMessage, Checkpoint } from "../../lib/tauri";
+import type { ChatMessage } from "../../lib/tauri";
 
 beforeEach(() => {
   // jsdom doesn't implement scrollIntoView
   Element.prototype.scrollIntoView = vi.fn();
 });
+
+vi.mock("./MarkdownContent", () => ({
+  MarkdownContent: ({ content }: { content: string }) => <span>{content}</span>,
+}));
 
 vi.mock("./MessageBubble", () => ({
   MessageBubble: ({ message, onRetry }: any) => (
@@ -14,12 +18,6 @@ vi.mock("./MessageBubble", () => ({
       {message.content.map((c: any) => c.text).join("")}
       {onRetry && <button data-testid={`retry-${message.id}`} onClick={onRetry}>Retry</button>}
     </div>
-  ),
-}));
-
-vi.mock("./CheckpointIndicator", () => ({
-  CheckpointIndicator: ({ checkpoint }: { checkpoint: Checkpoint }) => (
-    <div data-testid={`cp-${checkpoint.id}`}>Checkpoint {checkpoint.turnIndex}</div>
   ),
 }));
 
@@ -93,26 +91,6 @@ describe("MessageList", () => {
       />,
     );
     expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
-  });
-
-  it("renders checkpoint indicators before user messages", () => {
-    const msgs = [
-      makeMsg({ id: "m1", role: "user" }),
-      makeMsg({ id: "m2", role: "assistant" }),
-    ];
-    const checkpoints: Checkpoint[] = [
-      { id: "cp-1", turnIndex: 0, createdAt: "2025-01-01T00:00:00Z" } as Checkpoint,
-    ];
-    render(
-      <MessageList
-        messages={msgs}
-        streamingText=""
-        agentStatus="Idle"
-        checkpoints={checkpoints}
-        onRevertCheckpoint={vi.fn()}
-      />,
-    );
-    expect(screen.getByTestId("cp-cp-1")).toBeInTheDocument();
   });
 
   // --- Tests for revertedTurnIndex dimming ---

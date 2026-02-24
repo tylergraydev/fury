@@ -4,7 +4,7 @@ import { useAgentStore } from "../../stores/agentStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useCheckpointStore } from "../../stores/checkpointStore";
 import { useTodoStore } from "../../stores/todoStore";
-import type { ChatMessage, Checkpoint } from "../../lib/tauri";
+import type { ChatMessage } from "../../lib/tauri";
 import { respondToPermission } from "../../lib/tauri";
 import { MessageList, segmentTurns } from "./MessageList";
 import { Composer } from "./Composer";
@@ -15,7 +15,6 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 
 // Stable references for empty defaults — avoids infinite re-render with useSyncExternalStore
 const EMPTY_MESSAGES: ChatMessage[] = [];
-const EMPTY_CHECKPOINTS: Checkpoint[] = [];
 
 interface Props {
   contextId: string;
@@ -31,9 +30,6 @@ export function ChatPanel({ contextId, contextType }: Props) {
   );
   const streamingText = useChatStore(
     (s) => s.streamingText[contextId] ?? "",
-  );
-  const checkpoints = useCheckpointStore(
-    (s) => s.checkpoints[contextId] ?? EMPTY_CHECKPOINTS,
   );
   const revertedTurnIndex = useCheckpointStore(
     (s) => s.revertedTurnIndex[contextId] ?? null,
@@ -181,19 +177,6 @@ export function ChatPanel({ contextId, contextType }: Props) {
     }
   }, [contextId]);
 
-  const handleRevert = useCallback(
-    async (checkpointId: string) => {
-      try {
-        await useCheckpointStore
-          .getState()
-          .revertToCheckpoint(contextId, checkpointId);
-      } catch (e) {
-        console.error("Failed to revert:", e);
-      }
-    },
-    [contextId],
-  );
-
   return (
     <div className="flex h-full flex-col">
       <div className="relative flex flex-1 flex-col min-h-0">
@@ -201,11 +184,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
           messages={messages}
           streamingText={streamingText}
           agentStatus={agentStatus}
-          checkpoints={contextType === "workspace" ? checkpoints : undefined}
           revertedTurnIndex={revertedTurnIndex}
-          onRevertCheckpoint={
-            contextType === "workspace" ? handleRevert : undefined
-          }
           onRetry={handleRetry}
         />
         {showTOCButton && (

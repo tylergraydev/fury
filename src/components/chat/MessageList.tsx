@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
-import type { AgentStatus, ChatMessage, Checkpoint } from "../../lib/tauri";
+import type { AgentStatus, ChatMessage } from "../../lib/tauri";
 import { MessageBubble } from "./MessageBubble";
-import { CheckpointIndicator } from "./CheckpointIndicator";
+import { MarkdownContent } from "./MarkdownContent";
 
 // --- Turn segmentation ---
 
@@ -110,9 +110,7 @@ interface Props {
   messages: ChatMessage[];
   streamingText: string;
   agentStatus: AgentStatus;
-  checkpoints?: Checkpoint[];
   revertedTurnIndex?: number | null;
-  onRevertCheckpoint?: (checkpointId: string) => void;
   onRetry?: () => void;
 }
 
@@ -120,9 +118,7 @@ export function MessageList({
   messages,
   streamingText,
   agentStatus,
-  checkpoints = [],
   revertedTurnIndex,
-  onRevertCheckpoint,
   onRetry,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -148,17 +144,6 @@ export function MessageList({
   }, []);
 
   const { orphans, turns } = useMemo(() => segmentTurns(messages), [messages]);
-
-  // Build a map of turn_index -> checkpoint for quick lookup
-  const checkpointByTurn = new Map<number, Checkpoint>();
-  for (const cp of checkpoints) {
-    checkpointByTurn.set(cp.turnIndex, cp);
-  }
-
-  const latestTurnIndex =
-    checkpoints.length > 0
-      ? Math.max(...checkpoints.map((cp) => cp.turnIndex))
-      : -1;
 
   if (messages.length === 0 && !streamingText) {
     return (
@@ -193,19 +178,6 @@ export function MessageList({
           revertedTurnIndex != null && turnIdx > revertedTurnIndex;
 
         const elements: React.ReactNode[] = [];
-
-        // Checkpoint indicator before user message
-        const cp = checkpointByTurn.get(turnIdx);
-        if (cp && onRevertCheckpoint) {
-          elements.push(
-            <CheckpointIndicator
-              key={`cp-${cp.id}`}
-              checkpoint={cp}
-              isLatest={cp.turnIndex === latestTurnIndex}
-              onRevert={onRevertCheckpoint}
-            />,
-          );
-        }
 
         // User message — always visible
         elements.push(
@@ -281,10 +253,10 @@ export function MessageList({
       {/* Show streaming text as in-progress assistant message */}
       {streamingText && (
         <div
-          className="mb-3 text-[15px] whitespace-pre-wrap break-words"
+          className="mb-3 text-[15px] break-words"
           style={{ color: "var(--text-primary)" }}
         >
-          {streamingText}
+          <MarkdownContent content={streamingText} />
           <span
             className="inline-block h-4 w-1 animate-pulse"
             style={{ backgroundColor: "var(--accent)" }}
