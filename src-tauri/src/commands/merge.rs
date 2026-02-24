@@ -2,6 +2,7 @@ use crate::error::AppError;
 use crate::models::diff::{DiffResult, FileDiffContent};
 use crate::models::merge::{BranchStatus, ConflictContent, ConflictedFile, PullResult};
 use crate::services::branch as branch_svc;
+use crate::services::gh as gh_svc;
 use crate::state::AppState;
 use tauri::State;
 use uuid::Uuid;
@@ -163,4 +164,10 @@ pub fn get_cross_worktree_file_diff(
     };
 
     branch_svc::get_file_at_ref(&repo_path, &branch_a, &branch_b, &file_path)
+}
+
+#[tauri::command]
+pub fn push_workspace(state: State<'_, AppState>, workspace_id: String) -> Result<(), AppError> {
+    let (worktree_path, branch, _, _) = resolve_workspace(&state, &workspace_id)?;
+    gh_svc::push_branch(&worktree_path, &branch)
 }

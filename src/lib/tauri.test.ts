@@ -109,6 +109,7 @@ import {
   fetchUpstream,
   pullRebase,
   pullMerge,
+  pushWorkspace,
   getConflictedFiles,
   getConflictContent,
   resolveConflict,
@@ -1021,6 +1022,11 @@ describe("Merge/branch commands", () => {
     const result = await pullMerge("w1");
     expect(invoke).toHaveBeenCalledWith("pull_merge", { workspaceId: "w1" });
     expect(result).toEqual(pullResult);
+  });
+
+  it("pushWorkspace calls invoke with push_workspace", async () => {
+    await pushWorkspace("w1");
+    expect(invoke).toHaveBeenCalledWith("push_workspace", { workspaceId: "w1" });
   });
 
   it("getConflictedFiles calls invoke with get_conflicted_files", async () => {

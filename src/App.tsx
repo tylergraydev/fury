@@ -21,6 +21,7 @@ import { useKeyboardShortcuts } from "./lib/keybindings";
 import { clearSession, getAppSettings } from "./lib/tauri";
 import { useChatStore } from "./stores/chatStore";
 import { useCopilotStore } from "./stores/copilotStore";
+import { ToastContainer } from "./components/Toast";
 import { applyTheme } from "./lib/themes";
 import "./App.css";
 
@@ -294,6 +295,8 @@ function App() {
         onAction={handleAction}
         mode={paletteMode}
       />
+
+      <ToastContainer />
     </div>
   );
 }

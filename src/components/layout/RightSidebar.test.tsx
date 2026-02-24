@@ -46,6 +46,9 @@ vi.mock("react-resizable-panels", () => ({
 vi.mock("lucide-react", () => ({
   ChevronUp: () => <span data-testid="chevron-up" />,
   ChevronDown: () => <span data-testid="chevron-down" />,
+  ArrowDown: () => <span data-testid="arrow-down" />,
+  ArrowUp: () => <span data-testid="arrow-up" />,
+  RefreshCw: ({ className }: any) => <span data-testid="refresh-cw" className={className} />,
 }));
 
 // Capture FileTreePanel props so we can invoke the callbacks
@@ -86,6 +89,7 @@ import { RightSidebar } from "./RightSidebar";
 import { useUIStore } from "../../stores/uiStore";
 import { useDiffStore } from "../../stores/diffStore";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
+import { useMergeStore } from "../../stores/mergeStore";
 
 vi.mock("../../lib/tauri", () => ({
   getDiff: vi.fn().mockResolvedValue({ files: [], totalAdditions: 0, totalDeletions: 0 }),
@@ -103,6 +107,13 @@ beforeEach(() => {
   });
   useDiffStore.setState({
     diffResults: {},
+  });
+  useMergeStore.setState({
+    branchStatus: {},
+    syncing: {},
+    syncError: {},
+    loading: {},
+    error: {},
   });
   capturedPanelProps = {};
   capturedFileTreeProps = {};
@@ -491,6 +502,76 @@ describe("RightSidebar", () => {
       // Should not throw and should not call expand/collapse
       expect(mockPanelCollapse).not.toHaveBeenCalled();
       expect(mockPanelExpand).not.toHaveBeenCalled();
+    });
+  });
+
+  // --- Sync button ---
+  describe("SyncButton", () => {
+    it("renders sync button in the tab bar", () => {
+      render(<RightSidebar context={wsContext} />);
+      const btn = screen.getByTitle("Sync with remote");
+      expect(btn).toBeInTheDocument();
+    });
+
+    it("shows behind count when behind remote", () => {
+      useMergeStore.setState({
+        branchStatus: {
+          "ws-1": {
+            branch: "fix-bug",
+            defaultBranch: "main",
+            ahead: 0,
+            behind: 3,
+            hasUpstream: true,
+          },
+        },
+      });
+      render(<RightSidebar context={wsContext} />);
+      expect(screen.getByText("3")).toBeInTheDocument();
+      expect(screen.getByTestId("arrow-down")).toBeInTheDocument();
+    });
+
+    it("shows ahead count when ahead of remote", () => {
+      useMergeStore.setState({
+        branchStatus: {
+          "ws-1": {
+            branch: "fix-bug",
+            defaultBranch: "main",
+            ahead: 2,
+            behind: 0,
+            hasUpstream: true,
+          },
+        },
+      });
+      render(<RightSidebar context={wsContext} />);
+      expect(screen.getByText("2")).toBeInTheDocument();
+      expect(screen.getByTestId("arrow-up")).toBeInTheDocument();
+    });
+
+    it("calls syncBranch on click", () => {
+      const syncSpy = vi.fn();
+      useMergeStore.setState({ syncBranch: syncSpy } as any);
+      render(<RightSidebar context={wsContext} />);
+      const btn = screen.getByTitle("Sync with remote");
+      fireEvent.click(btn);
+      expect(syncSpy).toHaveBeenCalledWith("ws-1");
+    });
+
+    it("disables button while syncing", () => {
+      useMergeStore.setState({
+        syncing: { "ws-1": true },
+      });
+      render(<RightSidebar context={wsContext} />);
+      const btn = screen.getByTitle("Sync with remote");
+      expect(btn).toBeDisabled();
+    });
+
+    it("shows sync error in title", () => {
+      useMergeStore.setState({
+        syncError: { "ws-1": "Push failed" },
+      });
+      render(<RightSidebar context={wsContext} />);
+      const btn = screen.getByTitle("Push failed");
+      expect(btn).toBeInTheDocument();
     });
   });
 });

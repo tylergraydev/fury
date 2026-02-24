@@ -17,7 +17,9 @@ import {
   continueMerge as continueMergeCmd,
   crossWorktreeDiff,
   getCrossWorktreeFileDiff,
+  pushWorkspace as pushWorkspaceCmd,
 } from "../lib/tauri";
+import { useToastStore } from "./toastStore";
 
 export type MergeSection = "sync" | "compare" | "conflicts";
 
@@ -39,6 +41,10 @@ interface MergeStore {
   // Loading/error
   loading: Record<string, boolean>;
   error: Record<string, string | null>;
+
+  // Sync state (TopBar sync button)
+  syncing: Record<string, boolean>;
+  syncError: Record<string, string | null>;
 
   // Active sub-tab
   activeSection: Record<string, MergeSection>;
@@ -70,6 +76,8 @@ interface MergeStore {
   continueMerge: (workspaceId: string) => Promise<void>;
 
   setActiveSection: (workspaceId: string, section: MergeSection) => void;
+
+  syncBranch: (workspaceId: string) => Promise<void>;
 }
 
 export const useMergeStore = create<MergeStore>((set, get) => ({
@@ -83,6 +91,8 @@ export const useMergeStore = create<MergeStore>((set, get) => ({
   selectedConflictFile: {},
   loading: {},
   error: {},
+  syncing: {},
+  syncError: {},
   activeSection: {},
 
   loadBranchStatus: async (workspaceId: string) => {
@@ -350,5 +360,49 @@ export const useMergeStore = create<MergeStore>((set, get) => ({
     set((state) => ({
       activeSection: { ...state.activeSection, [workspaceId]: section },
     }));
+  },
+
+  syncBranch: async (workspaceId: string) => {
+    if (get().syncing[workspaceId]) return;
+
+    set((state) => ({
+      syncing: { ...state.syncing, [workspaceId]: true },
+      syncError: { ...state.syncError, [workspaceId]: null },
+    }));
+
+    const setSyncError = (msg: string) => {
+      console.error(`[mergeStore] syncBranch failed for ${workspaceId}:`, msg);
+      set((state) => ({
+        syncError: { ...state.syncError, [workspaceId]: msg },
+        syncing: { ...state.syncing, [workspaceId]: false },
+      }));
+      useToastStore.getState().addToast(msg, "error");
+    };
+
+    try {
+      await fetchUpstreamCmd(workspaceId);
+
+      const pullResult = await pullRebaseCmd(workspaceId);
+      if (pullResult.hasConflicts) {
+        const files = await getConflictedFilesCmd(workspaceId);
+        set((state) => ({
+          conflictedFiles: { ...state.conflictedFiles, [workspaceId]: files },
+          activeSection: { ...state.activeSection, [workspaceId]: "conflicts" },
+        }));
+        setSyncError("Pull resulted in conflicts. Resolve in Merge view.");
+        return;
+      }
+
+      await pushWorkspaceCmd(workspaceId);
+
+      const status = await getBranchStatus(workspaceId);
+      set((state) => ({
+        branchStatus: { ...state.branchStatus, [workspaceId]: status },
+        syncing: { ...state.syncing, [workspaceId]: false },
+      }));
+      useToastStore.getState().addToast("Branch synced with remote", "success");
+    } catch (e) {
+      setSyncError(String(e));
+    }
   },
 }));
