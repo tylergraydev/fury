@@ -363,22 +363,20 @@ export const useMergeStore = create<MergeStore>((set, get) => ({
   },
 
   syncBranch: async (workspaceId: string) => {
+    if (get().syncing[workspaceId]) return;
+
     set((state) => ({
       syncing: { ...state.syncing, [workspaceId]: true },
       syncError: { ...state.syncError, [workspaceId]: null },
     }));
 
     const setSyncError = (msg: string) => {
+      console.error(`[mergeStore] syncBranch failed for ${workspaceId}:`, msg);
       set((state) => ({
         syncError: { ...state.syncError, [workspaceId]: msg },
         syncing: { ...state.syncing, [workspaceId]: false },
       }));
-      // Auto-clear after 5 seconds so the button doesn't stay red
-      setTimeout(() => {
-        set((state) => ({
-          syncError: { ...state.syncError, [workspaceId]: null },
-        }));
-      }, 5000);
+      useToastStore.getState().addToast(msg, "error");
     };
 
     try {

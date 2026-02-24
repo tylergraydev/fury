@@ -22,11 +22,12 @@ export const useToastStore = create<ToastStore>((set) => ({
     set((state) => ({
       toasts: [...state.toasts, { id, message, type }],
     }));
+    const duration = type === "error" ? 8000 : 3000;
     setTimeout(() => {
       set((state) => ({
         toasts: state.toasts.filter((t) => t.id !== id),
       }));
-    }, 3000);
+    }, duration);
   },
 
   removeToast: (id) => {
