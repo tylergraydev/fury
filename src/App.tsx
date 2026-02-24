@@ -25,6 +25,7 @@ import { ToastContainer } from "./components/Toast";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { useAutoUpdate } from "./lib/autoUpdate";
 import { applyTheme } from "./lib/themes";
+import { useAutoUpdate } from "./hooks/useAutoUpdate";
 import "./App.css";
 
 export type SidebarContext =
@@ -87,6 +88,9 @@ function App() {
   const [showPalette, setShowPalette] = useState(false);
   const [paletteMode, setPaletteMode] = useState<PaletteMode>("default");
   const autoUpdate = useAutoUpdate();
+
+  // Check for updates on startup
+  useAutoUpdate();
 
   // Apply theme on mount and when it changes
   useEffect(() => {
