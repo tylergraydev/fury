@@ -54,6 +54,31 @@ pub fn kill_process_group(pid: u32) -> Result<(), std::io::Error> {
     }
 }
 
+/// Check if a process with the given PID is still alive.
+pub fn is_process_alive(pid: u32) -> bool {
+    #[cfg(unix)]
+    {
+        // kill(pid, 0) checks existence without sending a signal
+        unsafe { libc::kill(pid as i32, 0) == 0 }
+    }
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::System::Threading::{
+            OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+        };
+        unsafe {
+            let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+            if handle != 0 {
+                CloseHandle(handle);
+                true
+            } else {
+                false
+            }
+        }
+    }
+}
+
 pub fn configure_process_group(cmd: &mut Command) -> &mut Command {
     #[cfg(unix)]
     {

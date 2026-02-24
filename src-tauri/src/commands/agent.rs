@@ -51,12 +51,34 @@ pub async fn send_message(
 
     // Check if agent is already running
     {
-        let agents = state.agents.lock().unwrap();
-        if let Some(agent) = agents.get(&context_id) {
+        let mut agents = state.agents.lock().unwrap();
+        if let Some(agent) = agents.get_mut(&context_id) {
             if agent.status == AgentStatus::Running {
-                return Err(AppError::AgentError(
-                    "Agent is already processing a message".to_string(),
-                ));
+                // Verify the process is actually alive before rejecting.
+                // Stale "Running" status can linger from crashed or stuck processes.
+                let is_alive = agent.pid.map_or(false, |pid| {
+                    crate::platform::is_process_alive(pid)
+                });
+                if is_alive {
+                    return Err(AppError::AgentError(
+                        "Agent is already processing a message".to_string(),
+                    ));
+                }
+                // Process is dead — reset stale status so we can proceed
+                agent.status = AgentStatus::Idle;
+                agent.pid = None;
+                // Clean up orphaned handles
+                drop(agents);
+                state.agent_processes.lock().unwrap().remove(&context_id);
+                state.agent_stdins.lock().unwrap().remove(&context_id);
+                state.persistent_agents.lock().unwrap().remove(&context_id);
+                let _ = app.emit(
+                    &format!("agent-status:{}", context_id),
+                    &AgentStatusEvent {
+                        workspace_id: context_id,
+                        status: AgentStatus::Idle,
+                    },
+                );
             }
         }
     }
@@ -330,29 +352,47 @@ pub async fn send_message(
 
                 let new_status = match exit_status {
                     Some(ref status) if status.success() => AgentStatus::Idle,
-                    Some(ref status) => AgentStatus::Error(format!(
-                        "Persistent process exited with code: {:?}",
-                        status.code()
-                    )),
+                    Some(ref status) => {
+                        let code = status.code();
+                        // Exit code 143 = SIGTERM (128+15), expected for user-initiated stops
+                        if code == Some(143) {
+                            AgentStatus::Idle
+                        } else {
+                            AgentStatus::Error(format!(
+                                "Persistent process exited with code: {}",
+                                code.map_or("unknown".to_string(), |c| c.to_string())
+                            ))
+                        }
+                    }
                     None => AgentStatus::Idle,
                 };
 
-                {
+                let should_emit = {
                     let mut agents =
                         agents_ref.lock().unwrap_or_else(|e| e.into_inner());
                     if let Some(agent) = agents.get_mut(&context_id) {
-                        agent.status = new_status.clone();
+                        // If stop_agent already set Idle, don't overwrite with an Error
+                        let suppressed = agent.status == AgentStatus::Idle
+                            && matches!(new_status, AgentStatus::Error(_));
+                        if !suppressed {
+                            agent.status = new_status.clone();
+                        }
                         agent.pid = None;
+                        !suppressed
+                    } else {
+                        false
                     }
-                }
+                };
 
-                let _ = app_clone.emit(
-                    &format!("agent-status:{}", context_id),
-                    &AgentStatusEvent {
-                        workspace_id: context_id,
-                        status: new_status,
-                    },
-                );
+                if should_emit {
+                    let _ = app_clone.emit(
+                        &format!("agent-status:{}", context_id),
+                        &AgentStatusEvent {
+                            workspace_id: context_id,
+                            status: new_status,
+                        },
+                    );
+                }
             });
         }
     } else {
@@ -381,12 +421,14 @@ pub async fn send_message(
             }
         };
 
-        // Store stdin for safe mode permission responses
-        state
-            .agent_stdins
-            .lock()
-            .unwrap()
-            .insert(context_id, stdin);
+        // Store stdin for safe mode permission responses (only available when safe_mode=true)
+        if let Some(stdin) = stdin {
+            state
+                .agent_stdins
+                .lock()
+                .unwrap()
+                .insert(context_id, stdin);
+        }
 
         // Store PID in agent info for stop_agent
         if let Some(pid) = child.id() {
@@ -428,29 +470,45 @@ pub async fn send_message(
 
             let new_status = match exit_status {
                 Some(ref status) if status.success() => AgentStatus::Idle,
-                Some(ref status) => AgentStatus::Error(format!(
-                    "Process exited with code: {:?}",
-                    status.code()
-                )),
+                Some(ref status) => {
+                    let code = status.code();
+                    if code == Some(143) {
+                        AgentStatus::Idle
+                    } else {
+                        AgentStatus::Error(format!(
+                            "Process exited with code: {}",
+                            code.map_or("unknown".to_string(), |c| c.to_string())
+                        ))
+                    }
+                }
                 None => AgentStatus::Idle,
             };
 
-            {
+            let should_emit = {
                 let mut agents =
                     agents_ref.lock().unwrap_or_else(|e| e.into_inner());
                 if let Some(agent) = agents.get_mut(&context_id) {
-                    agent.status = new_status.clone();
+                    let suppressed = agent.status == AgentStatus::Idle
+                        && matches!(new_status, AgentStatus::Error(_));
+                    if !suppressed {
+                        agent.status = new_status.clone();
+                    }
                     agent.pid = None;
+                    !suppressed
+                } else {
+                    false
                 }
-            }
+            };
 
-            let _ = app_clone.emit(
-                &format!("agent-status:{}", context_id),
-                &AgentStatusEvent {
-                    workspace_id: context_id,
-                    status: new_status,
-                },
-            );
+            if should_emit {
+                let _ = app_clone.emit(
+                    &format!("agent-status:{}", context_id),
+                    &AgentStatusEvent {
+                        workspace_id: context_id,
+                        status: new_status,
+                    },
+                );
+            }
         });
     }
     } // end AgentType::ClaudeCode
@@ -522,29 +580,45 @@ pub async fn send_message(
 
             let new_status = match exit_status {
                 Some(ref status) if status.success() => AgentStatus::Idle,
-                Some(ref status) => AgentStatus::Error(format!(
-                    "Process exited with code: {:?}",
-                    status.code()
-                )),
+                Some(ref status) => {
+                    let code = status.code();
+                    if code == Some(143) {
+                        AgentStatus::Idle
+                    } else {
+                        AgentStatus::Error(format!(
+                            "Process exited with code: {}",
+                            code.map_or("unknown".to_string(), |c| c.to_string())
+                        ))
+                    }
+                }
                 None => AgentStatus::Idle,
             };
 
-            {
+            let should_emit = {
                 let mut agents =
                     agents_ref.lock().unwrap_or_else(|e| e.into_inner());
                 if let Some(agent) = agents.get_mut(&context_id) {
-                    agent.status = new_status.clone();
+                    let suppressed = agent.status == AgentStatus::Idle
+                        && matches!(new_status, AgentStatus::Error(_));
+                    if !suppressed {
+                        agent.status = new_status.clone();
+                    }
                     agent.pid = None;
+                    !suppressed
+                } else {
+                    false
                 }
-            }
+            };
 
-            let _ = app_clone.emit(
-                &format!("agent-status:{}", context_id),
-                &AgentStatusEvent {
-                    workspace_id: context_id,
-                    status: new_status,
-                },
-            );
+            if should_emit {
+                let _ = app_clone.emit(
+                    &format!("agent-status:{}", context_id),
+                    &AgentStatusEvent {
+                        workspace_id: context_id,
+                        status: new_status,
+                    },
+                );
+            }
         });
     }
     } // end match agent_type

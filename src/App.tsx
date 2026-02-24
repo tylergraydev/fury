@@ -23,6 +23,7 @@ import { useChatStore } from "./stores/chatStore";
 import { useCopilotStore } from "./stores/copilotStore";
 import { ToastContainer } from "./components/Toast";
 import { applyTheme } from "./lib/themes";
+import { useAutoUpdate } from "./hooks/useAutoUpdate";
 import "./App.css";
 
 export type SidebarContext =
@@ -84,6 +85,9 @@ function App() {
   const theme = useUIStore((s) => s.theme);
   const [showPalette, setShowPalette] = useState(false);
   const [paletteMode, setPaletteMode] = useState<PaletteMode>("default");
+
+  // Check for updates on startup
+  useAutoUpdate();
 
   // Apply theme on mount and when it changes
   useEffect(() => {

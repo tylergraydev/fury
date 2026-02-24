@@ -39,6 +39,21 @@ export function ToastContainer() {
               style={{ color: colors[toast.type] }}
             />
             <span className="flex-1">{toast.message}</span>
+            {toast.action && (
+              <button
+                onClick={() => {
+                  toast.action!.onClick();
+                  removeToast(toast.id);
+                }}
+                className="flex-shrink-0 rounded px-2 py-0.5 text-xs font-medium"
+                style={{
+                  backgroundColor: "var(--accent)",
+                  color: "var(--bg-primary)",
+                }}
+              >
+                {toast.action.label}
+              </button>
+            )}
             <button
               onClick={() => removeToast(toast.id)}
               className="flex-shrink-0 rounded p-0.5 transition-colors hover:bg-[var(--bg-hover)]"

@@ -184,7 +184,7 @@ pub async fn spawn_and_stream(
     disable_plan_mode: bool,
     app_handle: AppHandle,
     agents: Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
-) -> Result<(Child, ChildStdin), AppError> {
+) -> Result<(Child, Option<ChildStdin>), AppError> {
     let claude_bin = find_claude_binary()?;
 
     if disable_thinking {
@@ -205,7 +205,18 @@ pub async fn spawn_and_stream(
     cmd.args(&args)
         .current_dir(worktree_path)
         .envs(&env_vars)
-        .stdin(std::process::Stdio::piped())
+        // Strip Claude Code env vars so the child doesn't think it's a nested/SDK session
+        .env_remove("CLAUDECODE")
+        .env_remove("CLAUDE_CODE_ENTRYPOINT")
+        .env_remove("CLAUDE_AGENT_SDK_VERSION")
+        .env_remove("CLAUDE_CODE_ENABLE_TASKS")
+        // Only pipe stdin when safe mode needs it for permission responses;
+        // Bun-based Claude CLI hangs on init if stdin is an open pipe with no data
+        .stdin(if safe_mode {
+            std::process::Stdio::piped()
+        } else {
+            std::process::Stdio::null()
+        })
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
@@ -232,9 +243,7 @@ pub async fn spawn_and_stream(
         AppError::AgentError(format!("Failed to spawn Claude Code: {}", e))
     })?;
 
-    let stdin = child.stdin.take().ok_or_else(|| {
-        AppError::AgentError("Failed to capture Claude Code stdin".to_string())
-    })?;
+    let stdin = child.stdin.take();
 
     let stdout = child.stdout.take().ok_or_else(|| {
         AppError::AgentError("Failed to capture Claude Code stdout".to_string())
@@ -267,15 +276,41 @@ pub async fn spawn_and_stream(
                 let _ = app_handle_stdout.emit(&event_name, &frontend_event);
             }
         }
+
+        // EOF — process exited; ensure status transitions away from Running
+        let should_emit = {
+            let mut lock = agents.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(agent) = lock.get_mut(&ws_id) {
+                if agent.status == AgentStatus::Running {
+                    agent.status = AgentStatus::Idle;
+                    agent.pid = None;
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        };
+        if should_emit {
+            let _ = app_handle_stdout.emit(
+                &format!("agent-status:{}", ws_id),
+                &AgentStatusEvent {
+                    workspace_id: ws_id,
+                    status: AgentStatus::Idle,
+                },
+            );
+        }
     });
 
     // Spawn task to read stderr (log it, don't emit)
+    let ws_id_stderr = workspace_id;
     tokio::spawn(async move {
         let reader = BufReader::new(stderr);
         let mut lines = reader.lines();
 
         while let Ok(Some(line)) = lines.next_line().await {
-            eprintln!("[claude-stderr:{}] {}", ws_id, line);
+            eprintln!("[claude-stderr:{}] {}", ws_id_stderr, line);
         }
     });
 
@@ -327,10 +362,16 @@ pub async fn spawn_persistent(
     cmd.args(&args)
         .current_dir(worktree_path)
         .envs(&env_vars)
+        // Strip Claude Code env vars so the child doesn't think it's a nested/SDK session
+        .env_remove("CLAUDECODE")
+        .env_remove("CLAUDE_CODE_ENTRYPOINT")
+        .env_remove("CLAUDE_AGENT_SDK_VERSION")
+        .env_remove("CLAUDE_CODE_ENABLE_TASKS")
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
+    // Persistent mode always has stdin piped (messages written to it), so setpgid is safe
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
@@ -412,20 +453,29 @@ pub async fn spawn_persistent(
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .remove(&ws_id);
-        {
+        let should_emit = {
             let mut lock = agents_stdout.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(agent) = lock.get_mut(&ws_id) {
-                agent.status = AgentStatus::Idle;
-                agent.pid = None;
+                if agent.status == AgentStatus::Running {
+                    agent.status = AgentStatus::Idle;
+                    agent.pid = None;
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
             }
+        };
+        if should_emit {
+            let _ = app_handle_stdout.emit(
+                &format!("agent-status:{}", ws_id),
+                &AgentStatusEvent {
+                    workspace_id: ws_id,
+                    status: AgentStatus::Idle,
+                },
+            );
         }
-        let _ = app_handle_stdout.emit(
-            &format!("agent-status:{}", ws_id),
-            &AgentStatusEvent {
-                workspace_id: ws_id,
-                status: AgentStatus::Idle,
-            },
-        );
     });
 
     // Spawn task to read stderr
