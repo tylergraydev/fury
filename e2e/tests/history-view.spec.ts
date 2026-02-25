@@ -15,9 +15,11 @@ test.describe("History View", () => {
   test("shows Activity Timeline header with Refresh button", async ({
     appPage,
   }) => {
-    await expect(appPage.getByText("Activity Timeline")).toBeVisible();
+    const header = appPage.getByText("Activity Timeline");
+    await expect(header).toBeVisible();
+    // Scope to the Refresh button next to the Activity Timeline header
     await expect(
-      appPage.locator("button", { hasText: "Refresh" }),
+      header.locator("..").locator("button", { hasText: "Refresh" }),
     ).toBeVisible();
   });
 

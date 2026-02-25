@@ -210,13 +210,13 @@ export function RightSidebar({ context }: Props) {
                   />
                 </ErrorBoundary>
               </div>
-              <div className={activeTab === "changes" ? "h-full" : "hidden"}>
+              <div data-testid="panel-changes" className={activeTab === "changes" ? "h-full" : "hidden"}>
                 <ErrorBoundary label="changes" resetKey={context.id}>
                   <ChangesPanel context={context} />
                 </ErrorBoundary>
               </div>
               {context.type === "workspace" && (
-                <div className={activeTab === "checks" ? "h-full" : "hidden"}>
+                <div data-testid="panel-checks" className={activeTab === "checks" ? "h-full" : "hidden"}>
                   <ErrorBoundary label="checks" resetKey={context.id}>
                     <ChecksPanel workspaceId={context.id} />
                   </ErrorBoundary>
