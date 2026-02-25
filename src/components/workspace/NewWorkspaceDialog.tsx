@@ -3,7 +3,6 @@ import {
   Sparkles,
   X,
   GitFork,
-  MessageSquare,
   ChevronDown,
   GitPullRequest,
   CircleDot,
@@ -623,34 +622,6 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
           </div>
         )}
 
-        {/* Task description */}
-        <div className="mb-4">
-          <label
-            className="mb-1.5 flex items-center gap-1.5 text-xs"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            <MessageSquare className="h-3.5 w-3.5" />
-            What do you want to work on?
-          </label>
-          <textarea
-            value={taskDescription}
-            onChange={(e) => setTaskDescription(e.target.value)}
-            placeholder="e.g., Add OAuth authentication, Refactor the API layer, Fix database migrations..."
-            rows={3}
-            className="w-full resize-none rounded-lg px-3 py-2.5 text-xs"
-            style={inputStyle}
-            autoFocus={mode === "branch"}
-          />
-          <p
-            className="mt-1 text-[11px]"
-            style={{ color: "var(--text-muted)" }}
-          >
-            {mode === "pr" || mode === "issue" || mode === "linear"
-              ? "Auto-filled from selection. Edit to customize the initial message."
-              : "This helps the AI understand the context and will be used to name your worktree"}
-          </p>
-        </div>
-
         {/* Worktree Name */}
         <div className="mb-4">
           <label
@@ -659,45 +630,21 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
           >
             Worktree Name
           </label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={worktreeName}
-              onChange={(e) => setWorktreeName(e.target.value)}
-              placeholder="feature-auth"
-              className="flex-1 rounded-lg px-3 py-2 text-xs"
-              style={{
-                ...inputStyle,
-                ...(mode === "pr"
-                  ? { opacity: 0.7, cursor: "default" }
-                  : {}),
-              }}
-              readOnly={mode === "pr"}
-            />
-            {mode === "branch" && (
-              <button
-                onClick={() => {
-                  /* v8 ignore next -- @preserve */
-                  if (taskDescription.trim()) {
-                    setWorktreeName(generateName(taskDescription));
-                  }
-                }}
-                disabled={!taskDescription.trim()}
-                className="rounded-lg px-4 py-2 text-xs font-medium transition-colors"
-                style={{
-                  backgroundColor: taskDescription.trim()
-                    ? "var(--accent)"
-                    : "var(--bg-surface)",
-                  color: taskDescription.trim()
-                    ? "#1e1e2e"
-                    : "var(--text-muted)",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                Generate
-              </button>
-            )}
-          </div>
+          <input
+            type="text"
+            value={worktreeName}
+            onChange={(e) => setWorktreeName(e.target.value)}
+            placeholder="feature-auth"
+            className="w-full rounded-lg px-3 py-2 text-xs"
+            style={{
+              ...inputStyle,
+              ...(mode === "pr"
+                ? { opacity: 0.7, cursor: "default" }
+                : {}),
+            }}
+            readOnly={mode === "pr"}
+            autoFocus={mode === "branch"}
+          />
         </div>
 
         {/* Base Branch */}

@@ -24,7 +24,7 @@ test.describe("Workspace Dialogs", () => {
     ).toBeVisible();
   });
 
-  test("task description textarea and worktree name input visible", async ({
+  test("worktree name input visible", async ({
     appPage,
   }) => {
     await appPage.getByText("add-auth").click();
@@ -38,44 +38,12 @@ test.describe("Workspace Dialogs", () => {
 
     const dialog = appPage.locator(".fixed.inset-0.z-50");
     await expect(dialog).toBeVisible();
-
-    // Task description
-    await expect(
-      dialog.getByText("What do you want to work on?"),
-    ).toBeVisible();
-    await expect(dialog.locator("textarea")).toBeVisible();
 
     // Worktree name input
     await expect(dialog.getByText("Worktree Name")).toBeVisible();
     await expect(
       dialog.locator('input[placeholder="feature-auth"]'),
     ).toBeVisible();
-  });
-
-  test("Generate button creates name from task description", async ({
-    appPage,
-  }) => {
-    await appPage.getByText("add-auth").click();
-    await expect(
-      appPage.getByText("/add-auth", { exact: true }),
-    ).toBeVisible();
-
-    await appPage
-      .locator("button", { hasText: "New Chat Worktree" })
-      .click();
-
-    const dialog = appPage.locator(".fixed.inset-0.z-50");
-    await expect(dialog).toBeVisible();
-
-    // Type a task description
-    await dialog.locator("textarea").fill("Add OAuth authentication flow");
-
-    // Click Generate
-    await dialog.locator("button", { hasText: "Generate" }).click();
-
-    // Worktree name should be auto-generated as kebab-case
-    const nameInput = dialog.locator('input[placeholder="feature-auth"]');
-    await expect(nameInput).toHaveValue("add-oauth-authentication-flow");
   });
 
   test("branch dropdown loads branches from mock", async ({ appPage }) => {
