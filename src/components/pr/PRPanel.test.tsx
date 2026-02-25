@@ -46,6 +46,12 @@ vi.mock("../../lib/tauri", () => ({
   listTodos: (...args: unknown[]) => mockListTodos(...args),
   getPrReviews: vi.fn().mockResolvedValue([]),
   getPrReviewComments: vi.fn().mockResolvedValue([]),
+  getPrFullData: vi.fn().mockResolvedValue({
+    info: { workspaceId: "ws-1", prNumber: null, prUrl: null, title: null, state: null, checks: [], mergeable: null },
+    reviews: [],
+    reviewComments: [],
+  }),
+  getReviewsAndComments: vi.fn().mockResolvedValue({ reviews: [], reviewComments: [] }),
   getWorkflowRuns: vi.fn().mockResolvedValue([]),
   listen: vi.fn().mockResolvedValue(() => {}),
   listChatMessages: vi.fn().mockResolvedValue([]),

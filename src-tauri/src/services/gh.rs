@@ -203,6 +203,181 @@ pub fn merge_pr(worktree_path: &Path, method: &str) -> Result<MergeResult, AppEr
     })
 }
 
+/// Combined `gh pr view` that fetches both PR info and reviews in a single CLI call.
+/// Returns (PrInfo, Vec<PrReview>) or None if no PR exists.
+pub fn get_pr_info_with_reviews(
+    worktree_path: &Path,
+) -> Result<Option<(PrInfo, Vec<PrReview>)>, AppError> {
+    let gh = find_gh_binary()?;
+    let output = platform::command(&gh)
+        .args([
+            "pr",
+            "view",
+            "--json",
+            "number,url,title,state,mergeable,latestReviews",
+        ])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::PrError(format!("Failed to run gh pr view: {}", e)))?;
+
+    if !output.status.success() {
+        return Ok(None);
+    }
+
+    let raw: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| AppError::PrError(format!("Failed to parse gh output: {}", e)))?;
+
+    let info = PrInfo {
+        workspace_id: uuid::Uuid::nil(),
+        pr_number: raw.get("number").and_then(|v| v.as_u64()),
+        pr_url: raw.get("url").and_then(|v| v.as_str()).map(String::from),
+        title: raw.get("title").and_then(|v| v.as_str()).map(String::from),
+        state: raw.get("state").and_then(|v| v.as_str()).map(String::from),
+        checks: Vec::new(),
+        mergeable: raw
+            .get("mergeable")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+    };
+
+    let reviews = parse_reviews_from_json(&raw);
+
+    Ok(Some((info, reviews)))
+}
+
+/// Fetch review comments given known PR metadata, avoiding a redundant `gh pr view` call.
+pub fn get_pr_review_comments_for_pr(
+    worktree_path: &Path,
+    pr_number: u64,
+    pr_url: &str,
+) -> Result<Vec<PrComment>, AppError> {
+    let gh = find_gh_binary()?;
+
+    let parts: Vec<&str> = pr_url.split('/').collect();
+    if parts.len() < 5 {
+        return Err(AppError::PrError(format!(
+            "Could not parse owner/repo from URL: {}",
+            pr_url
+        )));
+    }
+    let owner = parts[parts.len() - 4];
+    let repo = parts[parts.len() - 3];
+
+    let api_path = format!("repos/{}/{}/pulls/{}/comments", owner, repo, pr_number);
+    let api_output = platform::command(&gh)
+        .args(["api", &api_path, "--paginate"])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::PrError(format!("Failed to run gh api: {}", e)))?;
+
+    if !api_output.status.success() {
+        let stderr = String::from_utf8_lossy(&api_output.stderr);
+        return Err(AppError::PrError(format!("gh api failed: {}", stderr)));
+    }
+
+    let raw: Vec<serde_json::Value> = serde_json::from_slice(&api_output.stdout)
+        .map_err(|e| AppError::PrError(format!("Failed to parse review comments: {}", e)))?;
+
+    Ok(parse_comments_from_json(&raw))
+}
+
+/// Fetch reviews and comments in an optimized way: single `gh pr view` for reviews + PR metadata,
+/// then use that metadata to fetch comments without a redundant call.
+pub fn get_reviews_and_comments(
+    worktree_path: &Path,
+) -> Result<(Vec<PrReview>, Vec<PrComment>), AppError> {
+    let gh = find_gh_binary()?;
+
+    let output = platform::command(&gh)
+        .args(["pr", "view", "--json", "number,url,latestReviews"])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::PrError(format!("Failed to run gh pr view: {}", e)))?;
+
+    if !output.status.success() {
+        return Ok((Vec::new(), Vec::new()));
+    }
+
+    let raw: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| AppError::PrError(format!("Failed to parse reviews output: {}", e)))?;
+
+    let reviews = parse_reviews_from_json(&raw);
+
+    let pr_number = raw.get("number").and_then(|v| v.as_u64());
+    let pr_url = raw.get("url").and_then(|v| v.as_str());
+
+    let comments = match (pr_number, pr_url) {
+        (Some(number), Some(url)) => get_pr_review_comments_for_pr(worktree_path, number, url)?,
+        _ => Vec::new(),
+    };
+
+    Ok((reviews, comments))
+}
+
+fn parse_reviews_from_json(raw: &serde_json::Value) -> Vec<PrReview> {
+    raw.get("latestReviews")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .map(|r| PrReview {
+                    id: r.get("id").and_then(|v| v.as_u64()).unwrap_or(0),
+                    author: r
+                        .get("author")
+                        .and_then(|v| v.get("login"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    state: r
+                        .get("state")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    body: r
+                        .get("body")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    submitted_at: r
+                        .get("submittedAt")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn parse_comments_from_json(raw: &[serde_json::Value]) -> Vec<PrComment> {
+    raw.iter()
+        .map(|c| PrComment {
+            id: c.get("id").and_then(|v| v.as_u64()).unwrap_or(0),
+            author: c
+                .get("user")
+                .and_then(|v| v.get("login"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            body: c
+                .get("body")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            created_at: c
+                .get("created_at")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            path: c.get("path").and_then(|v| v.as_str()).map(String::from),
+            line: c
+                .get("line")
+                .and_then(|v| v.as_u64())
+                .or_else(|| c.get("original_line").and_then(|v| v.as_u64()))
+                .map(|v| v as u32),
+        })
+        .collect()
+}
+
 pub fn get_pr_reviews(worktree_path: &Path) -> Result<Vec<PrReview>, AppError> {
     let gh = find_gh_binary()?;
     let output = platform::command(&gh)
