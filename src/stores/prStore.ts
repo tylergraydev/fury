@@ -24,6 +24,7 @@ interface PrStore {
   reviewComments: Record<string, PrComment[]>;
   workflowRuns: Record<string, WorkflowRun[]>;
   workflowLoading: Record<string, boolean>;
+  reviewsLoading: Record<string, boolean>;
   loading: Record<string, boolean>;
   error: Record<string, string | null>;
   subscriptions: Record<string, UnlistenFn[]>;
@@ -49,12 +50,19 @@ interface PrStore {
   getError: (workspaceId: string) => string | null;
 }
 
+// Module-level inflight trackers — prevent duplicate concurrent requests
+// without polluting store state or triggering re-renders.
+const _inflightPrInfo = new Set<string>();
+const _inflightReviews = new Set<string>();
+const _inflightWorkflowRuns = new Set<string>();
+
 export const usePrStore = create<PrStore>((set, get) => ({
   prInfo: {},
   reviews: {},
   reviewComments: {},
   workflowRuns: {},
   workflowLoading: {},
+  reviewsLoading: {},
   loading: {},
   error: {},
   subscriptions: {},
@@ -102,8 +110,13 @@ export const usePrStore = create<PrStore>((set, get) => ({
   },
 
   loadPrInfo: async (workspaceId: string) => {
+    // Inflight set: dedup concurrent loadPrInfo calls
+    // Loading guard: respect cross-function lock (pushChanges/createPr/mergePr set loading=true)
+    if (_inflightPrInfo.has(workspaceId) || get().loading[workspaceId]) return;
+    _inflightPrInfo.add(workspaceId);
+    const hasCached = workspaceId in get().prInfo;
     set((state) => ({
-      loading: { ...state.loading, [workspaceId]: true },
+      loading: { ...state.loading, [workspaceId]: !hasCached },
       error: { ...state.error, [workspaceId]: null },
     }));
     try {
@@ -118,13 +131,19 @@ export const usePrStore = create<PrStore>((set, get) => ({
       }
     } catch (e) {
       set((state) => ({
-        error: { ...state.error, [workspaceId]: String(e) },
         loading: { ...state.loading, [workspaceId]: false },
+        error: hasCached
+          ? state.error
+          : { ...state.error, [workspaceId]: String(e) },
       }));
+    } finally {
+      _inflightPrInfo.delete(workspaceId);
     }
   },
 
   loadReviews: async (workspaceId: string) => {
+    if (_inflightReviews.has(workspaceId)) return;
+    _inflightReviews.add(workspaceId);
     try {
       const [reviews, comments] = await Promise.all([
         getPrReviewsCmd(workspaceId),
@@ -136,12 +155,17 @@ export const usePrStore = create<PrStore>((set, get) => ({
       }));
     } catch (e) {
       console.error(`[prStore] Failed to load reviews for ${workspaceId}:`, e);
+    } finally {
+      _inflightReviews.delete(workspaceId);
     }
   },
 
   loadWorkflowRuns: async (workspaceId: string) => {
+    if (_inflightWorkflowRuns.has(workspaceId)) return;
+    _inflightWorkflowRuns.add(workspaceId);
+    const hasCached = workspaceId in get().workflowRuns;
     set((state) => ({
-      workflowLoading: { ...state.workflowLoading, [workspaceId]: true },
+      workflowLoading: { ...state.workflowLoading, [workspaceId]: !hasCached },
     }));
     try {
       const runs = await getWorkflowRunsCmd(workspaceId);
@@ -154,6 +178,8 @@ export const usePrStore = create<PrStore>((set, get) => ({
       set((state) => ({
         workflowLoading: { ...state.workflowLoading, [workspaceId]: false },
       }));
+    } finally {
+      _inflightWorkflowRuns.delete(workspaceId);
     }
   },
 

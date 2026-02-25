@@ -80,6 +80,12 @@ interface MergeStore {
   syncBranch: (workspaceId: string) => Promise<void>;
 }
 
+// Module-level inflight trackers — prevent duplicate concurrent requests
+// without polluting store state or triggering re-renders.
+const _inflightBranchStatus = new Set<string>();
+const _inflightComparisonDiff = new Set<string>();
+const _inflightConflictedFiles = new Set<string>();
+
 export const useMergeStore = create<MergeStore>((set, get) => ({
   branchStatus: {},
   comparisonTarget: {},
@@ -96,6 +102,8 @@ export const useMergeStore = create<MergeStore>((set, get) => ({
   activeSection: {},
 
   loadBranchStatus: async (workspaceId: string) => {
+    if (_inflightBranchStatus.has(workspaceId)) return;
+    _inflightBranchStatus.add(workspaceId);
     try {
       const status = await getBranchStatus(workspaceId);
       set((state) => ({
@@ -105,6 +113,8 @@ export const useMergeStore = create<MergeStore>((set, get) => ({
       set((state) => ({
         error: { ...state.error, [workspaceId]: String(e) },
       }));
+    } finally {
+      _inflightBranchStatus.delete(workspaceId);
     }
   },
 
@@ -208,6 +218,8 @@ export const useMergeStore = create<MergeStore>((set, get) => ({
   loadComparisonDiff: async (workspaceId: string) => {
     const linkedId = get().comparisonTarget[workspaceId];
     if (!linkedId) return;
+    if (_inflightComparisonDiff.has(workspaceId)) return;
+    _inflightComparisonDiff.add(workspaceId);
 
     set((state) => ({
       loading: { ...state.loading, [workspaceId]: true },
@@ -223,6 +235,8 @@ export const useMergeStore = create<MergeStore>((set, get) => ({
         error: { ...state.error, [workspaceId]: String(e) },
         loading: { ...state.loading, [workspaceId]: false },
       }));
+    } finally {
+      _inflightComparisonDiff.delete(workspaceId);
     }
   },
 
@@ -255,6 +269,8 @@ export const useMergeStore = create<MergeStore>((set, get) => ({
   },
 
   loadConflictedFiles: async (workspaceId: string) => {
+    if (_inflightConflictedFiles.has(workspaceId)) return;
+    _inflightConflictedFiles.add(workspaceId);
     try {
       const files = await getConflictedFilesCmd(workspaceId);
       set((state) => ({
@@ -264,6 +280,8 @@ export const useMergeStore = create<MergeStore>((set, get) => ({
       set((state) => ({
         error: { ...state.error, [workspaceId]: String(e) },
       }));
+    } finally {
+      _inflightConflictedFiles.delete(workspaceId);
     }
   },
 

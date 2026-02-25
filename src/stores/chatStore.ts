@@ -15,6 +15,7 @@ import {
   fromPersisted,
 } from "../lib/tauri";
 import { useSlashCommandStore } from "./slashCommandStore";
+import { pushAgentTurnMetric } from "../lib/ipcInstrumentation";
 
 export interface PermissionRequestInfo {
   toolName: string;
@@ -403,6 +404,20 @@ function handleStreamEvent(
               },
             },
           };
+        });
+
+        // Push agent turn metrics to perf monitor
+        pushAgentTurnMetric({
+          workspaceId,
+          durationMs: event.durationMs ?? 0,
+          durationApiMs: event.durationApiMs ?? 0,
+          inputTokens: event.inputTokens ?? 0,
+          outputTokens: event.outputTokens ?? 0,
+          cacheReadTokens: event.cacheReadTokens ?? 0,
+          cacheCreationTokens: event.cacheCreationTokens ?? 0,
+          totalCostUsd: event.totalCostUsd ?? 0,
+          numTurns: event.numTurns ?? 0,
+          timestamp: Date.now(),
         });
       }
 

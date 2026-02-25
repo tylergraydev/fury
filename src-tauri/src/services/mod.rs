@@ -9,6 +9,7 @@ pub mod diff;
 pub mod gh;
 pub mod linear;
 pub mod mcp;
+pub mod perf_server;
 pub mod port_allocator;
 pub mod spotlight;
 pub mod script_runner;

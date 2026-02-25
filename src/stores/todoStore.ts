@@ -31,14 +31,21 @@ interface TodoStore {
   getTodosAsText: (workspaceId: string) => string;
 }
 
+// Module-level inflight tracker — prevent duplicate concurrent requests
+// without polluting store state or triggering re-renders.
+const _inflightTodos = new Set<string>();
+
 export const useTodoStore = create<TodoStore>((set, get) => ({
   todos: {},
   loading: {},
   error: {},
 
   loadTodos: async (workspaceId: string) => {
+    if (_inflightTodos.has(workspaceId)) return;
+    _inflightTodos.add(workspaceId);
+    const hasCached = workspaceId in get().todos;
     set((s) => ({
-      loading: { ...s.loading, [workspaceId]: true },
+      loading: { ...s.loading, [workspaceId]: !hasCached },
       error: { ...s.error, [workspaceId]: null },
     }));
     try {
@@ -50,8 +57,12 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
     } catch (e) {
       set((s) => ({
         loading: { ...s.loading, [workspaceId]: false },
-        error: { ...s.error, [workspaceId]: String(e) },
+        error: hasCached
+          ? s.error
+          : { ...s.error, [workspaceId]: String(e) },
       }));
+    } finally {
+      _inflightTodos.delete(workspaceId);
     }
   },
 

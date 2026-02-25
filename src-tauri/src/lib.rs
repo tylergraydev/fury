@@ -9,6 +9,7 @@ mod state;
 #[cfg(test)]
 mod test_helpers;
 
+use std::sync::Arc;
 use state::AppState;
 use tauri::Manager;
 
@@ -152,6 +153,12 @@ pub fn run() {
             commands::mcp::update_app_settings,
             commands::mcp::detect_cursorrules,
             commands::mcp::import_cursorrules,
+            // Performance monitor commands
+            commands::perf::push_ipc_metrics,
+            commands::perf::push_frame_metrics,
+            commands::perf::push_agent_turn_metric,
+            commands::perf::toggle_perf_monitor,
+            commands::perf::get_perf_status,
         ])
         .setup(|app| {
             let app_data_dir = app
@@ -191,6 +198,10 @@ pub fn run() {
                     eprintln!("Failed to initialize database: {}", e);
                 }
             }
+
+            // Start performance monitor HTTP server
+            let perf_metrics = Arc::clone(&app.state::<AppState>().perf_metrics);
+            tauri::async_runtime::spawn(services::perf_server::start_perf_server(perf_metrics));
 
             Ok(())
         })

@@ -16,6 +16,10 @@ interface SlashCommandStore {
   findMatching: (contextId: string, prefix: string) => SlashCommand[];
 }
 
+// Module-level inflight tracker — prevent duplicate concurrent requests
+// without polluting store state or triggering re-renders.
+const _inflightCommands = new Set<string>();
+
 export const useSlashCommandStore = create<SlashCommandStore>((set, get) => ({
   commands: {},
   discoveredSkills: {},
@@ -23,7 +27,8 @@ export const useSlashCommandStore = create<SlashCommandStore>((set, get) => ({
   error: {},
 
   loadCommands: async (contextId: string, contextType: "workspace" | "repo" = "workspace") => {
-    if (get().loading[contextId]) return;
+    if (_inflightCommands.has(contextId)) return;
+    _inflightCommands.add(contextId);
     set((s) => ({
       loading: { ...s.loading, [contextId]: true },
       error: { ...s.error, [contextId]: null },
@@ -40,6 +45,8 @@ export const useSlashCommandStore = create<SlashCommandStore>((set, get) => ({
         loading: { ...s.loading, [contextId]: false },
         error: { ...s.error, [contextId]: String(e) },
       }));
+    } finally {
+      _inflightCommands.delete(contextId);
     }
   },
 

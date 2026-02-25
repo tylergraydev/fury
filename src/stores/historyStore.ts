@@ -10,14 +10,21 @@ interface HistoryStore {
   getGitLog: (workspaceId: string) => GitLogEntry[];
 }
 
+// Module-level inflight tracker — prevent duplicate concurrent requests
+// without polluting store state or triggering re-renders.
+const _inflightGitLog = new Set<string>();
+
 export const useHistoryStore = create<HistoryStore>((set, get) => ({
   gitLog: {},
   loading: {},
   error: {},
 
   loadGitLog: async (workspaceId: string) => {
+    if (_inflightGitLog.has(workspaceId)) return;
+    _inflightGitLog.add(workspaceId);
+    const hasCached = workspaceId in get().gitLog;
     set((state) => ({
-      loading: { ...state.loading, [workspaceId]: true },
+      loading: { ...state.loading, [workspaceId]: !hasCached },
       error: { ...state.error, [workspaceId]: null },
     }));
     try {
@@ -28,9 +35,13 @@ export const useHistoryStore = create<HistoryStore>((set, get) => ({
       }));
     } catch (e) {
       set((state) => ({
-        error: { ...state.error, [workspaceId]: String(e) },
         loading: { ...state.loading, [workspaceId]: false },
+        error: hasCached
+          ? state.error
+          : { ...state.error, [workspaceId]: String(e) },
       }));
+    } finally {
+      _inflightGitLog.delete(workspaceId);
     }
   },
 

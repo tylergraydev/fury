@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { instrumentedInvoke as invoke } from "./ipcInstrumentation";
 
 // Repository types
 export interface Repository {

@@ -31,6 +31,11 @@ interface DiffStore {
   refreshRepo: (repoId: string) => Promise<void>;
 }
 
+// Module-level inflight trackers — prevent duplicate concurrent requests
+// without polluting store state or triggering re-renders.
+const _inflightDiff = new Set<string>();
+const _inflightRepoDiff = new Set<string>();
+
 export const useDiffStore = create<DiffStore>((set, get) => ({
   diffResults: {},
   fileDiffs: {},
@@ -39,7 +44,8 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
   error: {},
 
   loadDiff: async (workspaceId: string) => {
-    if (get().loading[workspaceId]) return;
+    if (_inflightDiff.has(workspaceId)) return;
+    _inflightDiff.add(workspaceId);
     const hasCached = workspaceId in get().diffResults;
     set((state) => ({
       loading: { ...state.loading, [workspaceId]: !hasCached },
@@ -58,6 +64,8 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
           ? state.error
           : { ...state.error, [workspaceId]: String(e) },
       }));
+    } finally {
+      _inflightDiff.delete(workspaceId);
     }
   },
 
@@ -74,7 +82,8 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
   },
 
   loadRepoDiff: async (repoId: string) => {
-    if (get().loading[repoId]) return;
+    if (_inflightRepoDiff.has(repoId)) return;
+    _inflightRepoDiff.add(repoId);
     const hasCached = repoId in get().diffResults;
     set((state) => ({
       loading: { ...state.loading, [repoId]: !hasCached },
@@ -93,6 +102,8 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
           ? state.error
           : { ...state.error, [repoId]: String(e) },
       }));
+    } finally {
+      _inflightRepoDiff.delete(repoId);
     }
   },
 

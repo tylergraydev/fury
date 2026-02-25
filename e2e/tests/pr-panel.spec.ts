@@ -28,16 +28,17 @@ test.describe("PR Panel (Checks Tab)", () => {
     });
 
     test("Create PR button submits form", async ({ appPage }) => {
-      const titleInput = appPage.locator('input[placeholder="PR title"]');
+      const checksPanel = appPage.locator('[data-testid="panel-checks"]');
+      const titleInput = checksPanel.locator('input[placeholder="PR title"]');
       await titleInput.fill("Add JWT authentication");
 
-      const createButton = appPage.locator("button", {
+      const createButton = checksPanel.locator("button", {
         hasText: "Create PR",
       });
       await createButton.click();
 
       // After creation, should show PR status (mock returns PR #42)
-      await expect(appPage.getByText("#42")).toBeVisible({ timeout: 5000 });
+      await expect(checksPanel.getByText("#42").first()).toBeVisible({ timeout: 5000 });
     });
   });
 
@@ -54,46 +55,49 @@ test.describe("PR Panel (Checks Tab)", () => {
     });
 
     test("shows PR number and title", async ({ appPage }) => {
+      const checksPanel = appPage.locator('[data-testid="panel-checks"]');
       await expect(
-        appPage.getByText("#42").first(),
+        checksPanel.getByText("#42").first(),
       ).toBeVisible({ timeout: 5000 });
       await expect(
-        appPage.getByText("Redesign sidebar layout").first(),
+        checksPanel.getByText("Redesign sidebar layout").first(),
       ).toBeVisible();
     });
 
     test("CI checks display with status indicators", async ({ appPage }) => {
+      const checksPanel = appPage.locator('[data-testid="panel-checks"]');
       // Wait for PR info to load
       await expect(
-        appPage.getByText("#42").first(),
+        checksPanel.getByText("#42").first(),
       ).toBeVisible({ timeout: 5000 });
 
       // Check names should be visible
-      await expect(appPage.getByText("build").first()).toBeVisible();
-      await expect(appPage.getByText("lint").first()).toBeVisible();
-      await expect(appPage.getByText("test").first()).toBeVisible();
+      await expect(checksPanel.getByText("build").first()).toBeVisible();
+      await expect(checksPanel.getByText("lint").first()).toBeVisible();
+      await expect(checksPanel.getByText("test").first()).toBeVisible();
 
       // Success/failure labels
-      await expect(appPage.getByText("success").first()).toBeVisible();
-      await expect(appPage.getByText("failure").first()).toBeVisible();
-      await expect(appPage.getByText("pending").first()).toBeVisible();
+      await expect(checksPanel.getByText("success").first()).toBeVisible();
+      await expect(checksPanel.getByText("failure").first()).toBeVisible();
+      await expect(checksPanel.getByText("pending").first()).toBeVisible();
     });
 
     test("Push button and Fix with Claude button visible", async ({
       appPage,
     }) => {
+      const checksPanel = appPage.locator('[data-testid="panel-checks"]');
       await expect(
-        appPage.getByText("#42").first(),
+        checksPanel.getByText("#42").first(),
       ).toBeVisible({ timeout: 5000 });
 
       // Push button (inline ChecksPanel shows "Push")
       await expect(
-        appPage.locator("button", { hasText: "Push" }).first(),
+        checksPanel.locator("button", { hasText: "Push" }).first(),
       ).toBeVisible();
 
       // Fix with Claude button appears because there's a failing check
       await expect(
-        appPage.locator("button", { hasText: "Fix with Claude" }),
+        checksPanel.locator("button", { hasText: "Fix with Claude" }),
       ).toBeVisible();
     });
   });
