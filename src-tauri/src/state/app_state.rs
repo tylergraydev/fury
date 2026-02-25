@@ -4,6 +4,7 @@ use crate::models::repository::Repository;
 use crate::models::settings::AppSettings;
 use crate::models::workspace::Workspace;
 use crate::services::copilot_lsp::CopilotLspHandle;
+use crate::services::perf_server::PerfMetrics;
 use crate::services::port_allocator::PortAllocator;
 use crate::services::spotlight::SpotlightHandle;
 use crate::services::terminal::TerminalSession;
@@ -41,6 +42,8 @@ pub struct AppState {
     pub agent_stdins: Arc<Mutex<HashMap<Uuid, ChildStdin>>>,
     /// Copilot Language Server — global singleton (handle + child process)
     pub copilot: Arc<Mutex<Option<(CopilotLspHandle, Child)>>>,
+    /// Performance metrics — shared with the HTTP perf server
+    pub perf_metrics: Arc<Mutex<PerfMetrics>>,
 }
 
 impl AppState {
@@ -59,6 +62,7 @@ impl AppState {
             terminal_sessions: Arc::new(Mutex::new(HashMap::new())),
             spotlight_watchers: Arc::new(Mutex::new(HashMap::new())),
             copilot: Arc::new(Mutex::new(None)),
+            perf_metrics: Arc::new(Mutex::new(PerfMetrics::new())),
         }
     }
 }

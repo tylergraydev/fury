@@ -25,6 +25,8 @@ import { ToastContainer } from "./components/Toast";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { useAutoUpdate } from "./lib/autoUpdate";
 import { applyTheme } from "./lib/themes";
+import { startIpcFlush, stopIpcFlush } from "./lib/ipcInstrumentation";
+import { startFrameMonitor, stopFrameMonitor } from "./lib/frameMonitor";
 import "./App.css";
 
 export type SidebarContext =
@@ -102,6 +104,16 @@ function App() {
         }
       })
       .catch((e) => console.error("Failed to load app settings:", e));
+  }, []);
+
+  // Start perf instrumentation — always on, backend gates storage via its enabled flag
+  useEffect(() => {
+    startIpcFlush();
+    startFrameMonitor();
+    return () => {
+      stopIpcFlush();
+      stopFrameMonitor();
+    };
   }, []);
 
   // Load repositories and workspaces on mount

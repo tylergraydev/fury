@@ -6,6 +6,7 @@ pub mod git;
 pub mod linear;
 pub mod mcp;
 pub mod merge;
+pub mod perf;
 pub mod pr;
 pub mod repository;
 pub mod script;
