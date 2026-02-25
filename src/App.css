@@ -181,6 +181,35 @@ body,
   animation: toast-slide-in 0.2s ease-out;
 }
 
+/* Thinking spinner — 3×3 dot grid */
+.spinner-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  width: 18px;
+  height: 18px;
+}
+
+.spinner-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--text-muted);
+  animation: spinner-dot 1.2s ease-in-out infinite;
+}
+
+@keyframes spinner-dot {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 /* Remove trailing margin from last element in markdown blocks */
 .markdown-content > :last-child {
   margin-bottom: 0;

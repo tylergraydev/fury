@@ -3,6 +3,7 @@ import { ChevronRight, ChevronDown } from "lucide-react";
 import type { AgentStatus, ChatMessage } from "../../lib/tauri";
 import { MessageBubble } from "./MessageBubble";
 import { MarkdownContent } from "./MarkdownContent";
+import { ThinkingSpinner } from "./ThinkingSpinner";
 
 // --- Turn segmentation ---
 
@@ -248,31 +249,7 @@ export function MessageList({
       )}
 
       {/* Show thinking indicator when running with no streaming text */}
-      {isRunning && !streamingText && (
-        <div className="mb-3" style={{ color: "var(--text-muted)" }}>
-          <span className="text-sm">Thinking</span>
-          <span className="ml-1 inline-flex gap-0.5">
-            <span
-              className="animate-bounce text-sm"
-              style={{ animationDelay: "0ms" }}
-            >
-              .
-            </span>
-            <span
-              className="animate-bounce text-sm"
-              style={{ animationDelay: "200ms" }}
-            >
-              .
-            </span>
-            <span
-              className="animate-bounce text-sm"
-              style={{ animationDelay: "400ms" }}
-            >
-              .
-            </span>
-          </span>
-        </div>
-      )}
+      {isRunning && !streamingText && <ThinkingSpinner />}
 
       <div ref={bottomRef} />
     </div>
