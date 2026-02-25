@@ -70,13 +70,6 @@ describe("NewWorkspaceDialog", () => {
     expect(screen.getByText("my-repo")).toBeInTheDocument();
   });
 
-  it("has task description textarea", () => {
-    render(
-      <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={vi.fn()} />,
-    );
-    expect(screen.getByText("What do you want to work on?")).toBeInTheDocument();
-  });
-
   it("has auto-commit checkbox defaulting to checked", () => {
     render(
       <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={vi.fn()} />,
@@ -99,15 +92,6 @@ describe("NewWorkspaceDialog", () => {
     );
     expect(mockListBranches).toHaveBeenCalledWith("r1");
   });
-
-  it("has Generate button for worktree name", () => {
-    render(
-      <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={vi.fn()} />,
-    );
-    expect(screen.getByText("Generate")).toBeInTheDocument();
-  });
-
-  // --- New tests for full coverage ---
 
   it("populates branch dropdown with loaded branches", async () => {
     render(
@@ -188,47 +172,6 @@ describe("NewWorkspaceDialog", () => {
     const select = screen.getByRole("combobox");
     fireEvent.change(select, { target: { value: "dev" } });
     expect((select as HTMLSelectElement).value).toBe("dev");
-  });
-
-  it("updates task description textarea", () => {
-    render(
-      <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={vi.fn()} />,
-    );
-    const textarea = screen.getByPlaceholderText(/Add OAuth authentication/);
-    fireEvent.change(textarea, { target: { value: "Fix the login bug" } });
-    expect(textarea).toHaveValue("Fix the login bug");
-  });
-
-  it("generates worktree name from task description", () => {
-    render(
-      <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={vi.fn()} />,
-    );
-    const textarea = screen.getByPlaceholderText(/Add OAuth authentication/);
-    fireEvent.change(textarea, { target: { value: "Add OAuth Authentication!" } });
-
-    fireEvent.click(screen.getByText("Generate"));
-
-    const nameInput = screen.getByPlaceholderText("feature-auth");
-    expect(nameInput).toHaveValue("add-oauth-authentication");
-  });
-
-  it("Generate button does not update name when task description is empty", () => {
-    render(
-      <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={vi.fn()} />,
-    );
-    const generateBtn = screen.getByText("Generate").closest("button")!;
-    expect(generateBtn).toBeDisabled();
-
-    // Directly invoke the onClick handler via React fiber to bypass the disabled button check,
-    // exercising the if-guard false branch when taskDescription is empty.
-    const fiber = Object.keys(generateBtn).find(k => k.startsWith("__reactFiber"));
-    const onClick = fiber ? (generateBtn as any)[fiber]?.memoizedProps?.onClick : null;
-    expect(onClick).toBeDefined();
-    onClick();
-
-    // Worktree name should still be empty
-    const nameInput = screen.getByPlaceholderText("feature-auth");
-    expect(nameInput).toHaveValue("");
   });
 
   it("allows manual worktree name input", () => {
@@ -325,29 +268,6 @@ describe("NewWorkspaceDialog", () => {
       expect(mockCreateWs).toHaveBeenCalledWith(
         expect.objectContaining({ autoCommit: false }),
       );
-    });
-  });
-
-  it("sends task description as first message when provided", async () => {
-    const onClose = vi.fn();
-    render(
-      <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={onClose} />,
-    );
-    await waitFor(() => {
-      const select = screen.getByRole("combobox");
-      expect(select).not.toBeDisabled();
-    });
-
-    const textarea = screen.getByPlaceholderText(/Add OAuth authentication/);
-    fireEvent.change(textarea, { target: { value: "Fix the login issue" } });
-
-    const nameInput = screen.getByPlaceholderText("feature-auth");
-    fireEvent.change(nameInput, { target: { value: "fix-login" } });
-
-    fireEvent.click(screen.getByText("Create & Start Chat"));
-
-    await waitFor(() => {
-      expect(mockSendMsg).toHaveBeenCalledWith("ws-new", "Fix the login issue");
     });
   });
 
@@ -451,8 +371,7 @@ describe("NewWorkspaceDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("handles sendMessage failure gracefully (non-blocking)", async () => {
-    mockSendMsg.mockRejectedValueOnce(new Error("Send failed"));
+  it("does not send message in branch mode (no task description)", async () => {
     const onClose = vi.fn();
 
     render(
@@ -463,18 +382,15 @@ describe("NewWorkspaceDialog", () => {
       expect(select).not.toBeDisabled();
     });
 
-    const textarea = screen.getByPlaceholderText(/Add OAuth authentication/);
-    fireEvent.change(textarea, { target: { value: "Do something" } });
-
     const nameInput = screen.getByPlaceholderText("feature-auth");
     fireEvent.change(nameInput, { target: { value: "my-ws" } });
 
     fireEvent.click(screen.getByText("Create & Start Chat"));
 
-    // Even if sendMessage fails, onClose should still be called
     await waitFor(() => {
       expect(onClose).toHaveBeenCalled();
     });
+    expect(mockSendMsg).not.toHaveBeenCalled();
   });
 
   it("shows Loading... in branch dropdown while loading", () => {
