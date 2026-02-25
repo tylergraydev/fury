@@ -64,9 +64,10 @@ export function ChatPanel({ contextId, contextType }: Props) {
       useTodoStore.getState().loadTodos(contextId);
     }
 
+    // NOTE: We intentionally do NOT unsubscribe agent/chat listeners on unmount.
+    // These must stay alive so events aren't missed when the user switches tabs.
+    // Subscriptions are deduplicated in the stores, so re-mounting is a no-op.
     return () => {
-      agent.unsubscribe(contextId);
-      chat.unsubscribe(contextId);
       if (contextType === "workspace") {
         cp.unsubscribe(contextId);
       }

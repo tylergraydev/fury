@@ -120,6 +120,16 @@ export function RightSidebar({ context }: Props) {
     }
   }, [context.type, activeTab, setTab]);
 
+  // Eagerly load diff for the change count badge (ChangesPanel itself is lazy-mounted)
+  useEffect(() => {
+    const store = useDiffStore.getState();
+    if (context.type === "workspace") {
+      store.loadDiff(context.id);
+    } else {
+      store.loadRepoDiff(context.id);
+    }
+  }, [context.type, context.id]);
+
   const bottomPanelRef = useRef<ImperativePanelHandle>(null);
   const [bottomCollapsed, setBottomCollapsed] = useState(false);
 
@@ -210,13 +220,15 @@ export function RightSidebar({ context }: Props) {
                   />
                 </ErrorBoundary>
               </div>
-              <div data-testid="panel-changes" className={activeTab === "changes" ? "h-full" : "hidden"}>
-                <ErrorBoundary label="changes" resetKey={context.id}>
-                  <ChangesPanel context={context} />
-                </ErrorBoundary>
-              </div>
-              {context.type === "workspace" && (
-                <div data-testid="panel-checks" className={activeTab === "checks" ? "h-full" : "hidden"}>
+              {activeTab === "changes" && (
+                <div data-testid="panel-changes" className="h-full">
+                  <ErrorBoundary label="changes" resetKey={context.id}>
+                    <ChangesPanel context={context} />
+                  </ErrorBoundary>
+                </div>
+              )}
+              {context.type === "workspace" && activeTab === "checks" && (
+                <div data-testid="panel-checks" className="h-full">
                   <ErrorBoundary label="checks" resetKey={context.id}>
                     <ChecksPanel workspaceId={context.id} />
                   </ErrorBoundary>

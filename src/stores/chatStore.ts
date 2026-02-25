@@ -15,7 +15,7 @@ import {
   fromPersisted,
 } from "../lib/tauri";
 import { useSlashCommandStore } from "./slashCommandStore";
-import { pushAgentTurnMetric } from "../lib/ipcInstrumentation";
+import { pushAgentTurnMetric, pushStreamEvent } from "../lib/ipcInstrumentation";
 
 export interface PermissionRequestInfo {
   toolName: string;
@@ -70,6 +70,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       `agent-stream:${workspaceId}`,
       (event) => {
         const payload = event.payload;
+        pushStreamEvent(workspaceId, "event_received", payload.type);
         handleStreamEvent(workspaceId, payload, set, get);
       },
     );
@@ -419,11 +420,15 @@ function handleStreamEvent(
           numTurns: event.numTurns ?? 0,
           timestamp: Date.now(),
         });
+
+        pushStreamEvent(workspaceId, "result_handled", event.isError ? "error" : "success");
       }
 
       // If error, add a user-friendly error message (after metadata is already attached)
-      if (event.isError && event.result) {
-        const friendly = formatErrorMessage(event.result);
+      if (event.isError) {
+        const friendly = event.result
+          ? formatErrorMessage(event.result)
+          : "An unknown error occurred. The agent process exited unexpectedly. Please retry.";
         const msg: ChatMessage = {
           id: crypto.randomUUID(),
           role: "system",

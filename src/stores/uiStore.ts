@@ -54,7 +54,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
       set({ rightSidebarVisible: true });
     }
   },
-  bottomTab: "terminal",
+  bottomTab: "setup",
   setBottomTab: (tab) => set({ bottomTab: tab }),
 
   viewTabs: [{ id: "chat", type: "chat" as ViewType, pinned: true, label: "Chat" }],

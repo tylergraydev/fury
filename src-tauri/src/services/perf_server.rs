@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 const MAX_IPC_METRICS: usize = 500;
 const MAX_FRAME_METRICS: usize = 200;
 const MAX_AGENT_TURN_METRICS: usize = 100;
+const MAX_STREAM_EVENTS: usize = 1000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,12 +50,24 @@ pub struct AgentTurnMetric {
     pub timestamp: f64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamEventMetric {
+    pub workspace_id: String,
+    pub event_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<String>,
+    pub source: String,
+    pub timestamp: f64,
+}
+
 // --- Shared state ---
 
 pub struct PerfMetrics {
     pub ipc_calls: VecDeque<IpcMetric>,
     pub long_frames: VecDeque<FrameMetric>,
     pub agent_turns: VecDeque<AgentTurnMetric>,
+    pub stream_events: VecDeque<StreamEventMetric>,
     pub enabled: bool,
 }
 
@@ -64,6 +77,7 @@ impl PerfMetrics {
             ipc_calls: VecDeque::new(),
             long_frames: VecDeque::new(),
             agent_turns: VecDeque::new(),
+            stream_events: VecDeque::new(),
             enabled: false,
         }
     }
@@ -89,10 +103,18 @@ impl PerfMetrics {
         self.agent_turns.push_back(metric);
     }
 
+    pub fn push_stream_event(&mut self, metric: StreamEventMetric) {
+        if self.stream_events.len() >= MAX_STREAM_EVENTS {
+            self.stream_events.pop_front();
+        }
+        self.stream_events.push_back(metric);
+    }
+
     pub fn clear(&mut self) {
         self.ipc_calls.clear();
         self.long_frames.clear();
         self.agent_turns.clear();
+        self.stream_events.clear();
     }
 }
 
@@ -108,6 +130,7 @@ struct MetricsSummary {
     avg_ipc_duration_ms: f64,
     total_long_frames: usize,
     total_agent_turns: usize,
+    total_stream_events: usize,
 }
 
 #[derive(Serialize)]
@@ -118,6 +141,7 @@ struct MetricsResponse {
     ipc_calls: Vec<IpcMetric>,
     long_frames: Vec<FrameMetric>,
     agent_turns: Vec<AgentTurnMetric>,
+    stream_events: Vec<StreamEventMetric>,
 }
 
 // --- HTTP handlers ---
@@ -145,10 +169,12 @@ async fn get_metrics(State(metrics): State<SharedPerfMetrics>) -> Json<MetricsRe
             avg_ipc_duration_ms: (avg * 100.0).round() / 100.0,
             total_long_frames: lock.long_frames.len(),
             total_agent_turns: lock.agent_turns.len(),
+            total_stream_events: lock.stream_events.len(),
         },
         ipc_calls: lock.ipc_calls.iter().cloned().collect(),
         long_frames: lock.long_frames.iter().cloned().collect(),
         agent_turns: lock.agent_turns.iter().cloned().collect(),
+        stream_events: lock.stream_events.iter().cloned().collect(),
     })
 }
 
@@ -337,12 +363,14 @@ const DASHBOARD_HTML: &str = r##"<!DOCTYPE html>
   <div class="stat"><div class="label">Avg IPC</div><div class="value" id="s-avg">0ms</div></div>
   <div class="stat"><div class="label">Long Frames</div><div class="value" id="s-frames">0</div></div>
   <div class="stat"><div class="label">Agent Turns</div><div class="value" id="s-turns">0</div></div>
+  <div class="stat"><div class="label">Stream Events</div><div class="value" id="s-stream">0</div></div>
 </div>
 
 <div class="tabs">
   <div class="tab active" data-tab="ipc" onclick="switchTab('ipc')">IPC Calls<span class="count" id="tc-ipc">0</span></div>
   <div class="tab" data-tab="frames" onclick="switchTab('frames')">Long Frames<span class="count" id="tc-frames">0</span></div>
   <div class="tab" data-tab="agent" onclick="switchTab('agent')">Agent Turns<span class="count" id="tc-agent">0</span></div>
+  <div class="tab" data-tab="stream" onclick="switchTab('stream')">Stream Log<span class="count" id="tc-stream">0</span></div>
 </div>
 
 <div class="content">
@@ -365,6 +393,16 @@ const DASHBOARD_HTML: &str = r##"<!DOCTYPE html>
     <table><thead><tr>
       <th>Workspace</th><th>Wall Time</th><th>API Time</th><th>In Tokens</th><th>Out Tokens</th><th>Cache</th><th>Cost</th><th>Turns</th><th>Time</th>
     </tr></thead><tbody id="agent-body"></tbody></table>
+  </div>
+
+  <div id="panel-stream" style="display:none">
+    <div class="filter">
+      <label><input type="checkbox" id="backendOnly" onchange="render()"> Backend only</label>
+      <label style="margin-left:12px"><input type="checkbox" id="frontendOnly" onchange="render()"> Frontend only</label>
+    </div>
+    <table><thead><tr>
+      <th>Time</th><th>Source</th><th>Workspace</th><th>Event</th><th>Details</th>
+    </tr></thead><tbody id="stream-body"></tbody></table>
   </div>
 </div>
 
@@ -406,7 +444,7 @@ function fmtTime(ts) {
 function switchTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  ['ipc','frames','agent'].forEach(p => {
+  ['ipc','frames','agent','stream'].forEach(p => {
     document.getElementById('panel-' + p).style.display = p === tab ? '' : 'none';
   });
 }
@@ -420,9 +458,11 @@ function render() {
   document.getElementById('s-avg').textContent = fmtDur(s.avgIpcDurationMs);
   document.getElementById('s-frames').textContent = s.totalLongFrames;
   document.getElementById('s-turns').textContent = s.totalAgentTurns;
+  document.getElementById('s-stream').textContent = s.totalStreamEvents;
   document.getElementById('tc-ipc').textContent = s.totalIpcCalls;
   document.getElementById('tc-frames').textContent = s.totalLongFrames;
   document.getElementById('tc-agent').textContent = s.totalAgentTurns;
+  document.getElementById('tc-stream').textContent = s.totalStreamEvents;
 
   const badge = document.getElementById('status');
   badge.textContent = data.enabled ? 'ON' : 'OFF';
@@ -487,6 +527,39 @@ function render() {
     }).join('');
   }
 
+  // Stream events table
+  let streamData = [...(data.streamEvents || [])].reverse();
+  if (document.getElementById('backendOnly').checked) {
+    streamData = streamData.filter(m => m.source === 'backend');
+  }
+  if (document.getElementById('frontendOnly').checked) {
+    streamData = streamData.filter(m => m.source === 'frontend');
+  }
+  const streamBody = document.getElementById('stream-body');
+  if (streamData.length === 0) {
+    streamBody.innerHTML = '<tr><td colspan="5" class="empty">No stream events recorded</td></tr>';
+  } else {
+    streamBody.innerHTML = streamData.slice(0, 500).map(m => {
+      const wsShort = m.workspaceId.substring(0, 8);
+      const evtColor = m.eventType.includes('fail') || m.eventType.includes('error') || m.eventType === 'stderr'
+        ? 'var(--red)' : m.eventType === 'eof' || m.eventType === 'process_exit'
+        ? 'var(--yellow)' : 'var(--text)';
+      const srcBadge = m.source === 'backend'
+        ? '<span style="color:var(--accent)">BE</span>'
+        : '<span style="color:var(--green)">FE</span>';
+      const details = m.details
+        ? (m.details.length > 120 ? m.details.substring(0, 117) + '...' : m.details)
+        : '';
+      return `<tr>
+        <td style="color:var(--text2)">${fmtTime(m.timestamp)}</td>
+        <td>${srcBadge}</td>
+        <td title="${m.workspaceId}">${wsShort}</td>
+        <td style="color:${evtColor}">${m.eventType}</td>
+        <td style="color:var(--text2);white-space:normal;max-width:400px;overflow:hidden;text-overflow:ellipsis">${details}</td>
+      </tr>`;
+    }).join('');
+  }
+
   document.getElementById('updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
 }
 
@@ -527,6 +600,7 @@ mod tests {
         assert!(m.ipc_calls.is_empty());
         assert!(m.long_frames.is_empty());
         assert!(m.agent_turns.is_empty());
+        assert!(m.stream_events.is_empty());
     }
 
     #[test]
@@ -578,6 +652,22 @@ mod tests {
     }
 
     #[test]
+    fn test_stream_event_ring_buffer_cap() {
+        let mut m = PerfMetrics::new();
+        for i in 0..1200 {
+            m.push_stream_event(StreamEventMetric {
+                workspace_id: "ws".to_string(),
+                event_type: format!("evt_{}", i),
+                details: None,
+                source: "backend".to_string(),
+                timestamp: i as f64,
+            });
+        }
+        assert_eq!(m.stream_events.len(), MAX_STREAM_EVENTS);
+        assert_eq!(m.stream_events.front().unwrap().event_type, "evt_200");
+    }
+
+    #[test]
     fn test_clear() {
         let mut m = PerfMetrics::new();
         m.push_ipc(IpcMetric {
@@ -591,9 +681,17 @@ mod tests {
             duration_ms: 60.0,
             timestamp: 0.0,
         });
+        m.push_stream_event(StreamEventMetric {
+            workspace_id: "ws".to_string(),
+            event_type: "test".to_string(),
+            details: None,
+            source: "backend".to_string(),
+            timestamp: 0.0,
+        });
         m.clear();
         assert!(m.ipc_calls.is_empty());
         assert!(m.long_frames.is_empty());
         assert!(m.agent_turns.is_empty());
+        assert!(m.stream_events.is_empty());
     }
 }

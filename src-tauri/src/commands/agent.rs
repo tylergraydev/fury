@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use crate::error::AppError;
@@ -6,6 +7,7 @@ use crate::models::agent::{AgentInfo, AgentStatus, AgentStatusEvent, SendMessage
 use crate::models::settings::AgentType;
 use crate::services::claude_process;
 use crate::services::codex_process;
+use crate::services::perf_server::StreamEventMetric;
 use crate::state::app_state::PersistentAgentHandle;
 use crate::state::AppState;
 use tauri::{Emitter, State};
@@ -231,6 +233,21 @@ pub async fn send_message(
     let disable_thinking = request.disable_thinking.unwrap_or(false);
     let disable_plan_mode = request.disable_plan_mode.unwrap_or(false);
 
+    // Validate working directory exists before spawning
+    if !std::path::Path::new(&working_dir).exists() {
+        reset_agent_on_error(&state.agents, &app, context_id);
+        return Err(AppError::AgentError(format!(
+            "Working directory does not exist: {}",
+            working_dir.display()
+        )));
+    }
+
+    // Filter out non-existent linked directories to prevent CLI failures
+    let linked_dirs: Vec<PathBuf> = linked_dirs
+        .into_iter()
+        .filter(|d| d.exists())
+        .collect();
+
     match agent_type {
     AgentType::ClaudeCode => {
     if persistent_mode {
@@ -286,6 +303,7 @@ pub async fn send_message(
                 app.clone(),
                 Arc::clone(&state.agents),
                 Arc::clone(&state.persistent_agents),
+                Arc::clone(&state.perf_metrics),
             )
             .await
             {
@@ -330,6 +348,7 @@ pub async fn send_message(
             let agents_ref = Arc::clone(&state.agents);
             let processes_ref = Arc::clone(&state.agent_processes);
             let persistent_ref = Arc::clone(&state.persistent_agents);
+            let perf_ref = Arc::clone(&state.perf_metrics);
             let app_clone = app.clone();
             tokio::spawn(async move {
                 let mut child = {
@@ -343,6 +362,20 @@ pub async fn send_message(
                 } else {
                     None
                 };
+
+                // Log process exit to perf metrics
+                {
+                    let mut lock = perf_ref.lock().unwrap_or_else(|e| e.into_inner());
+                    if lock.enabled {
+                        lock.push_stream_event(StreamEventMetric {
+                            workspace_id: context_id.to_string(),
+                            event_type: "process_exit".to_string(),
+                            details: Some(format!("{:?}", exit_status)),
+                            source: "backend".to_string(),
+                            timestamp: chrono::Utc::now().timestamp_millis() as f64,
+                        });
+                    }
+                }
 
                 // Process exited — clean up persistent state
                 persistent_ref
@@ -397,7 +430,7 @@ pub async fn send_message(
         }
     } else {
         // Low RAM Mode: spawn a new process per turn
-        let (child, stdin) = match claude_process::spawn_and_stream(
+        let (child, stdin, had_content) = match claude_process::spawn_and_stream(
             context_id,
             &request.message,
             session_id.as_deref(),
@@ -411,6 +444,7 @@ pub async fn send_message(
             disable_plan_mode,
             app.clone(),
             Arc::clone(&state.agents),
+            Arc::clone(&state.perf_metrics),
         )
         .await
         {
@@ -448,6 +482,7 @@ pub async fn send_message(
         let agents_ref = Arc::clone(&state.agents);
         let processes_ref = Arc::clone(&state.agent_processes);
         let stdins_ref = Arc::clone(&state.agent_stdins);
+        let perf_ref = Arc::clone(&state.perf_metrics);
         let app_clone = app.clone();
         tokio::spawn(async move {
             let mut child = {
@@ -462,11 +497,47 @@ pub async fn send_message(
                 None
             };
 
+            // Log process exit to perf metrics
+            {
+                let mut lock = perf_ref.lock().unwrap_or_else(|e| e.into_inner());
+                if lock.enabled {
+                    lock.push_stream_event(StreamEventMetric {
+                        workspace_id: context_id.to_string(),
+                        event_type: "process_exit".to_string(),
+                        details: Some(format!("{:?}", exit_status)),
+                        source: "backend".to_string(),
+                        timestamp: chrono::Utc::now().timestamp_millis() as f64,
+                    });
+                }
+            }
+
             // Clean up stdin handle
             stdins_ref
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .remove(&context_id);
+
+            // Cold error recovery: if the process failed without producing any
+            // assistant content, clear the session_id so the next retry starts fresh.
+            // This handles the most common recoverable failure: stale session resumption.
+            let is_cold_error = !had_content.load(std::sync::atomic::Ordering::Relaxed);
+            let exited_with_error = exit_status
+                .as_ref()
+                .map_or(false, |s| !s.success() && s.code() != Some(143));
+            if is_cold_error && exited_with_error {
+                let mut agents = agents_ref.lock().unwrap_or_else(|e| e.into_inner());
+                if let Some(agent) = agents.get_mut(&context_id) {
+                    if agent.session_id.is_some() {
+                        eprintln!(
+                            "[cold-error-recovery:{}] Clearing stale session_id after cold error (exit {:?})",
+                            context_id,
+                            exit_status.as_ref().and_then(|s| s.code())
+                        );
+                        agent.session_id = None;
+                    }
+                }
+                drop(agents);
+            }
 
             let new_status = match exit_status {
                 Some(ref status) if status.success() => AgentStatus::Idle,

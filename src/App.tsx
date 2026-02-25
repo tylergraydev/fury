@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Sidebar } from "./components/layout/Sidebar";
 import { TopBar } from "./components/layout/TopBar";
@@ -89,16 +89,18 @@ function App() {
   const [showPalette, setShowPalette] = useState(false);
   const [paletteMode, setPaletteMode] = useState<PaletteMode>("default");
   const autoUpdate = useAutoUpdate();
+  const settingsRef = useRef<{ copilotEnabled?: boolean } | null>(null);
 
   // Apply theme on mount and when it changes
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
 
-  // Load saved theme from settings on mount
+  // Load saved settings once on mount (single IPC call)
   useEffect(() => {
     getAppSettings()
       .then((settings) => {
+        settingsRef.current = { copilotEnabled: !!settings.copilot?.enabled };
         if (settings.theme) {
           useUIStore.getState().setTheme(settings.theme);
         }
@@ -135,14 +137,22 @@ function App() {
 
     if (!repo) return;
 
-    getAppSettings()
-      .then((settings) => {
-        if (settings.copilot?.enabled) {
-          const rootUri = `file://${repo.path}`;
-          useCopilotStore.getState().initialize(rootUri);
-        }
-      })
-      .catch((e) => console.error("Failed to load Copilot settings:", e));
+    const rootUri = `file://${repo.path}`;
+    if (settingsRef.current) {
+      if (settingsRef.current.copilotEnabled) {
+        useCopilotStore.getState().initialize(rootUri);
+      }
+    } else {
+      // Settings not yet loaded — wait for them
+      getAppSettings()
+        .then((settings) => {
+          settingsRef.current = { copilotEnabled: !!settings.copilot?.enabled };
+          if (settings.copilot?.enabled) {
+            useCopilotStore.getState().initialize(rootUri);
+          }
+        })
+        .catch((e) => console.error("Failed to load Copilot settings:", e));
+    }
   }, [hasContext, activeWorkspaceId, activeRepoId, workspaces, repositories]);
 
   const handleAction = useCallback((action: string) => {

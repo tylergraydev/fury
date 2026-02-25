@@ -8,6 +8,7 @@ import {
   stopAgent as stopAgentCmd,
   getAgentStatus,
 } from "../lib/tauri";
+import { pushStreamEvent } from "../lib/ipcInstrumentation";
 
 interface AgentStore {
   agents: Record<string, AgentInfo>;
@@ -43,13 +44,16 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     const unlisten = await listen<AgentStatusEvent>(
       `agent-status:${workspaceId}`,
       (event) => {
+        const newStatus = event.payload.status;
+        const prevStatus = get().agents[workspaceId]?.status ?? "Idle";
+        pushStreamEvent(workspaceId, "status_changed", `${JSON.stringify(prevStatus)} -> ${JSON.stringify(newStatus)}`);
         set((state) => ({
           agents: {
             ...state.agents,
             [workspaceId]: {
               ...state.agents[workspaceId],
               workspaceId,
-              status: event.payload.status,
+              status: newStatus,
             } as AgentInfo,
           },
         }));

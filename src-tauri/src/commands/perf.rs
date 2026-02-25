@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::services::perf_server::{AgentTurnMetric, FrameMetric, IpcMetric};
+use crate::services::perf_server::{AgentTurnMetric, FrameMetric, IpcMetric, StreamEventMetric};
 use crate::state::AppState;
 use serde::Deserialize;
 use tauri::State;
@@ -70,6 +70,37 @@ pub fn push_frame_metrics(
         lock.push_frame(FrameMetric {
             duration_ms: m.duration_ms,
             timestamp: m.timestamp,
+        });
+    }
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamEventPayload {
+    pub workspace_id: String,
+    pub event_type: String,
+    pub details: Option<String>,
+    pub source: String,
+    pub timestamp: f64,
+}
+
+#[tauri::command]
+pub fn push_stream_events(
+    state: State<'_, AppState>,
+    events: Vec<StreamEventPayload>,
+) -> Result<(), AppError> {
+    let mut lock = state.perf_metrics.lock().unwrap();
+    if !lock.enabled {
+        return Ok(());
+    }
+    for e in events {
+        lock.push_stream_event(StreamEventMetric {
+            workspace_id: e.workspace_id,
+            event_type: e.event_type,
+            details: e.details,
+            source: e.source,
+            timestamp: e.timestamp,
         });
     }
     Ok(())

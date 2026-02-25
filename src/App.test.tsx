@@ -145,7 +145,7 @@ beforeEach(() => {
     theme: "blend",
     rightSidebarVisible: true,
     rightSidebarTab: "files",
-    bottomTab: "terminal",
+    bottomTab: "setup",
     viewTabs: [{ id: "chat", type: "chat" as const, pinned: true, label: "Chat" }],
     activeViewTabId: "chat",
   });
