@@ -20,7 +20,7 @@ beforeEach(() => {
       theme: "blend",
       rightSidebarTab: "files",
       rightSidebarVisible: true,
-      bottomTab: "terminal",
+      bottomTab: "setup",
       viewTabs: [{ ...defaultChatTab }],
       activeViewTabId: "chat",
     },
@@ -34,7 +34,7 @@ describe("uiStore - initial state", () => {
     expect(state.theme).toBe("blend");
     expect(state.rightSidebarTab).toBe("files");
     expect(state.rightSidebarVisible).toBe(true);
-    expect(state.bottomTab).toBe("terminal");
+    expect(state.bottomTab).toBe("setup");
     expect(state.viewTabs).toHaveLength(1);
     expect(state.viewTabs[0]).toEqual(defaultChatTab);
     expect(state.activeViewTabId).toBe("chat");

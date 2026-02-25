@@ -5,6 +5,7 @@ const SKIP_COMMANDS = new Set([
   "push_ipc_metrics",
   "push_frame_metrics",
   "push_agent_turn_metric",
+  "push_stream_events",
   "toggle_perf_monitor",
   "get_perf_status",
 ]);
@@ -30,7 +31,16 @@ interface AgentTurnPayload {
   timestamp: number;
 }
 
+interface StreamEventPayload {
+  workspaceId: string;
+  eventType: string;
+  details?: string;
+  source: string;
+  timestamp: number;
+}
+
 const ipcBuffer: IpcMetricPayload[] = [];
+const streamEventBuffer: StreamEventPayload[] = [];
 let flushInterval: ReturnType<typeof setInterval> | null = null;
 
 function flushIpcBuffer() {
@@ -39,9 +49,20 @@ function flushIpcBuffer() {
   rawInvoke("push_ipc_metrics", { metrics: batch }).catch(() => {});
 }
 
+function flushStreamEventBuffer() {
+  if (streamEventBuffer.length === 0) return;
+  const batch = streamEventBuffer.splice(0, streamEventBuffer.length);
+  rawInvoke("push_stream_events", { events: batch }).catch((e) => {
+    console.error("[perf] push_stream_events failed:", e);
+  });
+}
+
 export function startIpcFlush() {
   if (!flushInterval) {
-    flushInterval = setInterval(flushIpcBuffer, 2000);
+    flushInterval = setInterval(() => {
+      flushIpcBuffer();
+      flushStreamEventBuffer();
+    }, 2000);
   }
 }
 
@@ -51,6 +72,7 @@ export function stopIpcFlush() {
     flushInterval = null;
   }
   flushIpcBuffer();
+  flushStreamEventBuffer();
 }
 
 function callInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -84,4 +106,18 @@ export async function instrumentedInvoke<T>(
 
 export function pushAgentTurnMetric(metric: AgentTurnPayload) {
   rawInvoke("push_agent_turn_metric", { metric }).catch(() => {});
+}
+
+export function pushStreamEvent(
+  workspaceId: string,
+  eventType: string,
+  details?: string,
+) {
+  streamEventBuffer.push({
+    workspaceId,
+    eventType,
+    details,
+    source: "frontend",
+    timestamp: Date.now(),
+  });
 }

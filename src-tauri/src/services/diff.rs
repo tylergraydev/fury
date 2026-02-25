@@ -19,23 +19,32 @@ pub fn get_workspace_diff(
 ) -> Result<DiffResult, AppError> {
     let merge_base = find_merge_base(worktree_path, default_branch);
 
-    // Get file statuses (M/A/D/R)
-    let name_status_output = platform::command("git")
-        .args(["diff", "--name-status", &merge_base])
-        .current_dir(worktree_path)
-        .output()?;
+    // Run all three git commands in parallel — they are independent
+    let (name_status_result, numstat_result, untracked_result) = std::thread::scope(|s| {
+        let h1 = s.spawn(|| {
+            platform::command("git")
+                .args(["diff", "--name-status", &merge_base])
+                .current_dir(worktree_path)
+                .output()
+        });
+        let h2 = s.spawn(|| {
+            platform::command("git")
+                .args(["diff", "--numstat", &merge_base])
+                .current_dir(worktree_path)
+                .output()
+        });
+        let h3 = s.spawn(|| {
+            platform::command("git")
+                .args(["ls-files", "--others", "--exclude-standard"])
+                .current_dir(worktree_path)
+                .output()
+        });
+        (h1.join().unwrap(), h2.join().unwrap(), h3.join().unwrap())
+    });
 
-    // Get line counts
-    let numstat_output = platform::command("git")
-        .args(["diff", "--numstat", &merge_base])
-        .current_dir(worktree_path)
-        .output()?;
-
-    // Get untracked files
-    let untracked_output = platform::command("git")
-        .args(["ls-files", "--others", "--exclude-standard"])
-        .current_dir(worktree_path)
-        .output()?;
+    let name_status_output = name_status_result?;
+    let numstat_output = numstat_result?;
+    let untracked_output = untracked_result?;
 
     let name_status_str = String::from_utf8_lossy(&name_status_output.stdout);
     let numstat_str = String::from_utf8_lossy(&numstat_output.stdout);

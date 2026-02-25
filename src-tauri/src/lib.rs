@@ -157,6 +157,7 @@ pub fn run() {
             commands::perf::push_ipc_metrics,
             commands::perf::push_frame_metrics,
             commands::perf::push_agent_turn_metric,
+            commands::perf::push_stream_events,
             commands::perf::toggle_perf_monitor,
             commands::perf::get_perf_status,
         ])

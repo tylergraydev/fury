@@ -1,5 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use tauri::{AppHandle, Emitter};
@@ -9,6 +10,7 @@ use uuid::Uuid;
 
 use crate::error::AppError;
 use crate::models::agent::{AgentInfo, AgentStatus, AgentStatusEvent, FrontendStreamEvent};
+use crate::services::perf_server::{SharedPerfMetrics, StreamEventMetric};
 use crate::state::app_state::PersistentAgentHandle;
 use crate::models::repository::Repository;
 use crate::models::settings::AppSettings;
@@ -166,6 +168,58 @@ fn try_capture_session_id(
     }
 }
 
+/// Log a stream event to the perf metrics ring buffer (if monitoring is enabled).
+fn log_stream_event(
+    perf_metrics: &SharedPerfMetrics,
+    workspace_id: Uuid,
+    event_type: &str,
+    details: Option<String>,
+) {
+    let mut lock = perf_metrics.lock().unwrap_or_else(|e| e.into_inner());
+    if !lock.enabled {
+        return;
+    }
+    lock.push_stream_event(StreamEventMetric {
+        workspace_id: workspace_id.to_string(),
+        event_type: event_type.to_string(),
+        details,
+        source: "backend".to_string(),
+        timestamp: chrono::Utc::now().timestamp_millis() as f64,
+    });
+}
+
+/// Return a detail string for the frontend stream event type.
+/// For result events, includes error status and truncated result text.
+fn stream_event_detail(event: &FrontendStreamEvent) -> String {
+    match event {
+        FrontendStreamEvent::System { .. } => "system".to_string(),
+        FrontendStreamEvent::AssistantText { .. } => "assistantText".to_string(),
+        FrontendStreamEvent::ToolUse { name, .. } => format!("toolUse:{}", name),
+        FrontendStreamEvent::ToolResult { .. } => "toolResult".to_string(),
+        FrontendStreamEvent::Result { is_error, result, .. } => {
+            if *is_error {
+                let msg = result.as_deref().unwrap_or("(no message)");
+                let truncated = if msg.len() > 150 { format!("{}...", &msg[..150]) } else { msg.to_string() };
+                format!("result:ERROR — {}", truncated)
+            } else {
+                "result:ok".to_string()
+            }
+        }
+        FrontendStreamEvent::PermissionRequest { tool_name, .. } => format!("permissionRequest:{}", tool_name),
+    }
+}
+
+/// Check if a JSON line has a known event type that we intentionally don't convert
+/// to a frontend event (e.g. echoed user messages, rate limit info, metadata-only
+/// assistant messages). These should not be logged as parse failures.
+fn is_known_skippable_line(line: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(line)
+        .ok()
+        .and_then(|raw| raw.get("type").and_then(|v| v.as_str()).map(String::from))
+        .map(|t| matches!(t.as_str(), "user" | "rate_limit_event" | "assistant"))
+        .unwrap_or(false)
+}
+
 /// Spawn Claude Code CLI and stream its output via Tauri events.
 ///
 /// Returns the child process handle. The session_id will be emitted
@@ -184,7 +238,8 @@ pub async fn spawn_and_stream(
     disable_plan_mode: bool,
     app_handle: AppHandle,
     agents: Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
-) -> Result<(Child, Option<ChildStdin>), AppError> {
+    perf_metrics: SharedPerfMetrics,
+) -> Result<(Child, Option<ChildStdin>, Arc<AtomicBool>), AppError> {
     let claude_bin = find_claude_binary()?;
 
     if disable_thinking {
@@ -253,9 +308,19 @@ pub async fn spawn_and_stream(
         AppError::AgentError("Failed to capture Claude Code stderr".to_string())
     })?;
 
+    log_stream_event(&perf_metrics, workspace_id, "stream_started", Some("one-shot mode".to_string()));
+
+    // Shared stderr buffer: stderr reader pushes lines, stdout reader pulls on error
+    let stderr_buffer: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::new()));
+    // Tracks whether any assistant content was emitted (false = "cold error" on failure)
+    let had_content = Arc::new(AtomicBool::new(false));
+
     // Spawn task to read stdout (NDJSON stream)
     let app_handle_stdout = app_handle.clone();
     let ws_id = workspace_id;
+    let perf_metrics_stdout = Arc::clone(&perf_metrics);
+    let stderr_buf_stdout = Arc::clone(&stderr_buffer);
+    let had_content_stdout = Arc::clone(&had_content);
     tokio::spawn(async move {
         let reader = BufReader::new(stdout);
         let mut lines = reader.lines();
@@ -267,17 +332,36 @@ pub async fn spawn_and_stream(
                 continue;
             }
 
-            if let Some(frontend_event) = parse_stream_line(&line) {
+            if let Some(mut frontend_event) = parse_stream_line(&line) {
                 if !session_id_captured {
                     session_id_captured =
                         try_capture_session_id(&frontend_event, &agents, ws_id);
                 }
 
+                // Track whether any non-result content was emitted
+                if !matches!(&frontend_event, FrontendStreamEvent::Result { .. }) {
+                    had_content_stdout.store(true, Ordering::Relaxed);
+                }
+
+                // If error result has no message, pull from stderr buffer
+                enrich_error_from_stderr(&mut frontend_event, &stderr_buf_stdout);
+
+                log_stream_event(
+                    &perf_metrics_stdout,
+                    ws_id,
+                    "event_emitted",
+                    Some(stream_event_detail(&frontend_event)),
+                );
+
                 let _ = app_handle_stdout.emit(&event_name, &frontend_event);
+            } else if !is_known_skippable_line(&line) {
+                let truncated = if line.len() > 200 { format!("{}...", &line[..200]) } else { line.clone() };
+                log_stream_event(&perf_metrics_stdout, ws_id, "line_parse_failed", Some(truncated));
             }
         }
 
         // EOF — process exited; ensure status transitions away from Running
+        log_stream_event(&perf_metrics_stdout, ws_id, "eof", None);
         let should_emit = {
             let mut lock = agents.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(agent) = lock.get_mut(&ws_id) {
@@ -293,6 +377,7 @@ pub async fn spawn_and_stream(
             }
         };
         if should_emit {
+            log_stream_event(&perf_metrics_stdout, ws_id, "status_changed", Some("Running -> Idle (eof)".to_string()));
             let _ = app_handle_stdout.emit(
                 &format!("agent-status:{}", ws_id),
                 &AgentStatusEvent {
@@ -303,18 +388,30 @@ pub async fn spawn_and_stream(
         }
     });
 
-    // Spawn task to read stderr (log it, don't emit)
+    // Spawn task to read stderr (log it + push to perf stream log + buffer for error surfacing)
     let ws_id_stderr = workspace_id;
+    let perf_metrics_stderr = Arc::clone(&perf_metrics);
+    let stderr_buf_writer = Arc::clone(&stderr_buffer);
     tokio::spawn(async move {
         let reader = BufReader::new(stderr);
         let mut lines = reader.lines();
+        const MAX_STDERR_LINES: usize = 20;
 
         while let Ok(Some(line)) = lines.next_line().await {
             eprintln!("[claude-stderr:{}] {}", ws_id_stderr, line);
+            {
+                let mut buf = stderr_buf_writer.lock().unwrap_or_else(|e| e.into_inner());
+                if buf.len() >= MAX_STDERR_LINES {
+                    buf.pop_front();
+                }
+                buf.push_back(line.clone());
+            }
+            let truncated = if line.len() > 300 { format!("{}...", &line[..300]) } else { line };
+            log_stream_event(&perf_metrics_stderr, ws_id_stderr, "stderr", Some(truncated));
         }
     });
 
-    Ok((child, stdin))
+    Ok((child, stdin, Arc::clone(&had_content)))
 }
 
 /// Write a message to a persistent Claude process's stdin.
@@ -349,6 +446,7 @@ pub async fn spawn_persistent(
     app_handle: AppHandle,
     agents: Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
     persistent_agents: Arc<Mutex<HashMap<Uuid, PersistentAgentHandle>>>,
+    perf_metrics: SharedPerfMetrics,
 ) -> Result<(Child, ChildStdin), AppError> {
     let claude_bin = find_claude_binary()?;
 
@@ -405,10 +503,17 @@ pub async fn spawn_persistent(
         AppError::AgentError("Failed to capture Claude Code stderr".to_string())
     })?;
 
+    log_stream_event(&perf_metrics, workspace_id, "stream_started", Some("persistent mode".to_string()));
+
+    // Shared stderr buffer for surfacing errors in result events
+    let stderr_buffer: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::new()));
+
     // Spawn persistent stdout reader — stays alive between turns
     let app_handle_stdout = app_handle.clone();
     let ws_id = workspace_id;
     let agents_stdout = Arc::clone(&agents);
+    let perf_metrics_stdout = Arc::clone(&perf_metrics);
+    let stderr_buf_stdout = Arc::clone(&stderr_buffer);
     tokio::spawn(async move {
         let reader = BufReader::new(stdout);
         let mut lines = reader.lines();
@@ -420,11 +525,21 @@ pub async fn spawn_persistent(
                 continue;
             }
 
-            if let Some(frontend_event) = parse_stream_line(&line) {
+            if let Some(mut frontend_event) = parse_stream_line(&line) {
                 if !session_id_captured {
                     session_id_captured =
                         try_capture_session_id(&frontend_event, &agents_stdout, ws_id);
                 }
+
+                // If error result has no message, pull from stderr buffer
+                enrich_error_from_stderr(&mut frontend_event, &stderr_buf_stdout);
+
+                log_stream_event(
+                    &perf_metrics_stdout,
+                    ws_id,
+                    "event_emitted",
+                    Some(stream_event_detail(&frontend_event)),
+                );
 
                 // In persistent mode, a result event means the turn is done (set Idle)
                 if matches!(&frontend_event, FrontendStreamEvent::Result { .. }) {
@@ -435,6 +550,7 @@ pub async fn spawn_persistent(
                             agent.status = AgentStatus::Idle;
                         }
                     }
+                    log_stream_event(&perf_metrics_stdout, ws_id, "status_changed", Some("Running -> Idle (result)".to_string()));
                     let _ = app_handle_stdout.emit(
                         &format!("agent-status:{}", ws_id),
                         &AgentStatusEvent {
@@ -445,10 +561,14 @@ pub async fn spawn_persistent(
                 }
 
                 let _ = app_handle_stdout.emit(&event_name, &frontend_event);
+            } else if !is_known_skippable_line(&line) {
+                let truncated = if line.len() > 200 { format!("{}...", &line[..200]) } else { line.clone() };
+                log_stream_event(&perf_metrics_stdout, ws_id, "line_parse_failed", Some(truncated));
             }
         }
 
         // EOF — process exited unexpectedly, clean up
+        log_stream_event(&perf_metrics_stdout, ws_id, "eof", None);
         persistent_agents
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -468,6 +588,7 @@ pub async fn spawn_persistent(
             }
         };
         if should_emit {
+            log_stream_event(&perf_metrics_stdout, ws_id, "status_changed", Some("Running -> Idle (eof)".to_string()));
             let _ = app_handle_stdout.emit(
                 &format!("agent-status:{}", ws_id),
                 &AgentStatusEvent {
@@ -478,16 +599,56 @@ pub async fn spawn_persistent(
         }
     });
 
-    // Spawn task to read stderr
+    // Spawn task to read stderr (log it + push to perf stream log + buffer for error surfacing)
+    let perf_metrics_stderr = Arc::clone(&perf_metrics);
+    let ws_id_stderr = workspace_id;
+    let stderr_buf_writer = Arc::clone(&stderr_buffer);
     tokio::spawn(async move {
         let reader = BufReader::new(stderr);
         let mut lines = reader.lines();
+        const MAX_STDERR_LINES: usize = 20;
         while let Ok(Some(line)) = lines.next_line().await {
-            eprintln!("[claude-persistent-stderr:{}] {}", ws_id, line);
+            eprintln!("[claude-persistent-stderr:{}] {}", ws_id_stderr, line);
+            {
+                let mut buf = stderr_buf_writer.lock().unwrap_or_else(|e| e.into_inner());
+                if buf.len() >= MAX_STDERR_LINES {
+                    buf.pop_front();
+                }
+                buf.push_back(line.clone());
+            }
+            let truncated = if line.len() > 300 { format!("{}...", &line[..300]) } else { line };
+            log_stream_event(&perf_metrics_stderr, ws_id_stderr, "stderr", Some(truncated));
         }
     });
 
     Ok((child, stdin))
+}
+
+/// If a result event has `is_error: true` but no `result` message,
+/// pull recent stderr lines into the result so the error reason reaches the frontend.
+fn enrich_error_from_stderr(
+    event: &mut FrontendStreamEvent,
+    stderr_buffer: &Arc<Mutex<VecDeque<String>>>,
+) {
+    if let FrontendStreamEvent::Result {
+        is_error: true,
+        ref mut result,
+        ..
+    } = event
+    {
+        if result.is_none() {
+            let buf = stderr_buffer.lock().unwrap_or_else(|e| e.into_inner());
+            if !buf.is_empty() {
+                let joined: String = buf.iter().cloned().collect::<Vec<_>>().join("\n");
+                let truncated = if joined.len() > 500 {
+                    format!("...{}", &joined[joined.len() - 497..])
+                } else {
+                    joined
+                };
+                *result = Some(truncated);
+            }
+        }
+    }
 }
 
 /// Parse a single NDJSON line from Claude Code's stream output
@@ -553,7 +714,25 @@ pub fn parse_stream_line(line: &str) -> Option<FrontendStreamEvent> {
         "result" => {
             let is_error = raw.get("is_error").and_then(|v| v.as_bool()).unwrap_or(false)
                 || raw.get("subtype").and_then(|v| v.as_str()) == Some("error");
-            let result = raw.get("result").and_then(|v| v.as_str()).map(String::from);
+            // Try to extract result as string; fall back to stringified non-null value
+            let result = raw.get("result").and_then(|v| {
+                if let Some(s) = v.as_str() {
+                    return Some(s.to_string());
+                }
+                if !v.is_null() {
+                    return Some(v.to_string());
+                }
+                None
+            });
+            // For errors, also check fallback fields if result is still missing
+            let result = result.or_else(|| {
+                if !is_error {
+                    return None;
+                }
+                raw.get("error")
+                    .and_then(|v| v.as_str().map(String::from).or_else(|| if !v.is_null() { Some(v.to_string()) } else { None }))
+                    .or_else(|| raw.get("error_message").and_then(|v| v.as_str()).map(String::from))
+            });
             let session_id = raw.get("session_id").and_then(|v| v.as_str()).map(String::from);
             let duration_ms = raw.get("duration_ms").and_then(|v| v.as_u64());
             let duration_api_ms = raw.get("duration_api_ms").and_then(|v| v.as_u64());
@@ -720,6 +899,39 @@ mod tests {
     fn test_parse_unknown_type_returns_none() {
         let line = r#"{"type":"unknown_event","data":"something"}"#;
         assert!(parse_stream_line(line).is_none());
+    }
+
+    // --- is_known_skippable_line tests ---
+
+    #[test]
+    fn test_skippable_user_event() {
+        let line = r#"{"type":"user","message":{"role":"user","content":[{"type":"text","text":"hello"}]}}"#;
+        assert!(is_known_skippable_line(line));
+    }
+
+    #[test]
+    fn test_skippable_rate_limit_event() {
+        let line = r#"{"type":"rate_limit_event","retry_after":1.5}"#;
+        assert!(is_known_skippable_line(line));
+    }
+
+    #[test]
+    fn test_skippable_assistant_metadata() {
+        // Assistant message without extractable content blocks (metadata-only)
+        let line = r#"{"type":"assistant","message":{"model":"claude-sonnet-4-20250514","stop_reason":"end_turn"}}"#;
+        assert!(parse_stream_line(line).is_none()); // not a frontend event
+        assert!(is_known_skippable_line(line));      // but known-skippable
+    }
+
+    #[test]
+    fn test_not_skippable_invalid_json() {
+        assert!(!is_known_skippable_line("not json"));
+    }
+
+    #[test]
+    fn test_not_skippable_unknown_type() {
+        let line = r#"{"type":"totally_unknown","data":"x"}"#;
+        assert!(!is_known_skippable_line(line));
     }
 
     // --- build_env_vars tests ---

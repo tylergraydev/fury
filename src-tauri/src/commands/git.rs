@@ -90,7 +90,7 @@ pub fn get_git_log(
 }
 
 #[tauri::command]
-pub fn get_diff(state: State<'_, AppState>, workspace_id: String) -> Result<DiffResult, AppError> {
+pub async fn get_diff(state: State<'_, AppState>, workspace_id: String) -> Result<DiffResult, AppError> {
     let ws_id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
@@ -113,7 +113,9 @@ pub fn get_diff(state: State<'_, AppState>, workspace_id: String) -> Result<Diff
         (ws.worktree_path.clone(), repo.default_branch.clone())
     };
 
-    diff_svc::get_workspace_diff(&worktree_path, &default_branch)
+    tokio::task::spawn_blocking(move || diff_svc::get_workspace_diff(&worktree_path, &default_branch))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]

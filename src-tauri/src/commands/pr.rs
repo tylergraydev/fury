@@ -50,7 +50,7 @@ pub fn create_pr(
 }
 
 #[tauri::command]
-pub fn get_pr_info(state: State<'_, AppState>, workspace_id: String) -> Result<PrInfo, AppError> {
+pub async fn get_pr_info(state: State<'_, AppState>, workspace_id: String) -> Result<PrInfo, AppError> {
     let ws_id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
@@ -63,14 +63,25 @@ pub fn get_pr_info(state: State<'_, AppState>, workspace_id: String) -> Result<P
         ws.worktree_path.clone()
     };
 
-    match gh_svc::get_pr_info(&worktree_path)? {
-        Some(mut info) => {
-            info.workspace_id = ws_id;
-            info.checks = gh_svc::get_pr_checks(&worktree_path).unwrap_or_default();
-            Ok(info)
+    tokio::task::spawn_blocking(move || {
+        // Run gh pr view and gh pr checks in parallel
+        let (pr_result, checks_result) = std::thread::scope(|s| {
+            let h1 = s.spawn(|| gh_svc::get_pr_info(&worktree_path));
+            let h2 = s.spawn(|| gh_svc::get_pr_checks(&worktree_path));
+            (h1.join().unwrap(), h2.join().unwrap())
+        });
+
+        match pr_result? {
+            Some(mut info) => {
+                info.workspace_id = ws_id;
+                info.checks = checks_result.unwrap_or_default();
+                Ok(info)
+            }
+            None => Ok(PrInfo::empty(ws_id)),
         }
-        None => Ok(PrInfo::empty(ws_id)),
-    }
+    })
+    .await
+    .map_err(|e| AppError::PrError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
@@ -310,7 +321,7 @@ pub fn get_issue_details(
 }
 
 #[tauri::command]
-pub fn get_workflow_runs(
+pub async fn get_workflow_runs(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<WorkflowRun>, AppError> {
@@ -326,7 +337,9 @@ pub fn get_workflow_runs(
         (ws.worktree_path.clone(), ws.branch.clone())
     };
 
-    gh_svc::get_workflow_runs(&worktree_path, &branch)
+    tokio::task::spawn_blocking(move || gh_svc::get_workflow_runs(&worktree_path, &branch))
+        .await
+        .map_err(|e| AppError::PrError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
