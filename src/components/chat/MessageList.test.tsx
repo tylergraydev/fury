@@ -79,7 +79,7 @@ describe("MessageList", () => {
         agentStatus="Running"
       />,
     );
-    expect(screen.getByText("Thinking")).toBeInTheDocument();
+    expect(screen.getByTestId("thinking-spinner")).toBeInTheDocument();
   });
 
   it("does not show thinking indicator when idle", () => {
@@ -90,7 +90,7 @@ describe("MessageList", () => {
         agentStatus="Idle"
       />,
     );
-    expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("thinking-spinner")).not.toBeInTheDocument();
   });
 
   // --- Test that onRetry is passed to system messages ---

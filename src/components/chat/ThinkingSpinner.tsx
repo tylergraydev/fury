@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 
+function formatElapsed(ms: number): string {
+  const seconds = ms / 1000;
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`;
+}
+
 export function ThinkingSpinner() {
   const [elapsed, setElapsed] = useState(0);
   const startRef = useRef(performance.now());
@@ -11,14 +17,8 @@ export function ThinkingSpinner() {
     return () => clearInterval(id);
   }, []);
 
-  const seconds = elapsed / 1000;
-  const display =
-    seconds < 60
-      ? `${seconds.toFixed(1)}s`
-      : `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
-
   return (
-    <div className="mb-3 flex items-center gap-3" style={{ color: "var(--text-muted)" }}>
+    <div data-testid="thinking-spinner" className="mb-3 flex items-center gap-3" style={{ color: "var(--text-muted)" }}>
       <div className="spinner-grid">
         {Array.from({ length: 9 }, (_, i) => (
           <span
@@ -28,7 +28,7 @@ export function ThinkingSpinner() {
           />
         ))}
       </div>
-      <span className="text-sm tabular-nums">{display}</span>
+      <span className="text-sm tabular-nums">{formatElapsed(elapsed)}</span>
     </div>
   );
 }
