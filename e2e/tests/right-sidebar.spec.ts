@@ -89,17 +89,17 @@ test.describe("Right Sidebar", () => {
     appPage,
   }) => {
     // Bottom panel should show Setup, Run, Terminal tabs
-    await expect(appPage.getByText("Setup")).toBeVisible();
-    await expect(appPage.getByText("Run")).toBeVisible();
-    await expect(appPage.getByText("Terminal")).toBeVisible();
+    await expect(appPage.getByText("Setup", { exact: true })).toBeVisible();
+    await expect(appPage.getByText("Run", { exact: true })).toBeVisible();
+    await expect(appPage.getByText("Terminal", { exact: true })).toBeVisible();
 
     // Click Run tab
-    await appPage.getByText("Run").click();
+    await appPage.getByText("Run", { exact: true }).click();
 
     // Click Terminal tab
-    await appPage.getByText("Terminal").click();
+    await appPage.getByText("Terminal", { exact: true }).click();
 
     // Click Setup tab to go back
-    await appPage.getByText("Setup").click();
+    await appPage.getByText("Setup", { exact: true }).click();
   });
 });
