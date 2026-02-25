@@ -38,14 +38,6 @@ pub fn create_worktree(
         .status
         .success();
 
-    // Fetch the base branch from origin so we branch off the latest remote state
-    if let Some(base) = base_branch {
-        let _ = platform::command("git")
-            .args(["fetch", "origin", base])
-            .current_dir(repo_path)
-            .output();
-    }
-
     let output = if branch_exists {
         platform::command("git")
             .args([
@@ -57,6 +49,23 @@ pub fn create_worktree(
             .current_dir(repo_path)
             .output()?
     } else {
+        // Fetch the base branch so the remote-tracking ref is current
+        if let Some(base) = base_branch {
+            let fetch_output = platform::command("git")
+                .args(["fetch", "origin", base])
+                .current_dir(repo_path)
+                .output()?;
+
+            if !fetch_output.status.success() {
+                return Err(AppError::GitError(format!(
+                    "Failed to fetch '{}' from origin: {}",
+                    base,
+                    String::from_utf8_lossy(&fetch_output.stderr).trim()
+                )));
+            }
+        }
+
+        // Use the remote-tracking ref as the start point instead of the local branch
         let mut args = vec![
             "worktree".to_string(),
             "add".to_string(),
