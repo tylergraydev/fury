@@ -7,34 +7,58 @@ use crate::state::AppState;
 use tauri::State;
 use uuid::Uuid;
 
-/// Helper to resolve workspace ID to (worktree_path, branch, default_branch, repo_path).
+/// Helper to resolve a workspace or repo ID to (worktree_path, branch, default_branch, repo_path).
+/// Checks workspaces first; falls back to repositories so callers work in both contexts.
 fn resolve_workspace(
     state: &State<'_, AppState>,
     workspace_id: &str,
 ) -> Result<(std::path::PathBuf, String, String, std::path::PathBuf), AppError> {
-    let ws_id: Uuid = workspace_id
+    let id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
-    let workspaces = state
-        .workspaces
-        .lock()
-        .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
-    let ws = workspaces
-        .get(&ws_id)
-        .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+    // Try workspace first
+    {
+        let workspaces = state
+            .workspaces
+            .lock()
+            .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
+        if let Some(ws) = workspaces.get(&id) {
+            let repos = state
+                .repositories
+                .lock()
+                .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
+            let repo = repos
+                .get(&ws.repo_id)
+                .ok_or(AppError::RepoNotFound(ws.repo_id))?;
+            return Ok((
+                ws.worktree_path.clone(),
+                ws.branch.clone(),
+                repo.default_branch.clone(),
+                repo.path.clone(),
+            ));
+        }
+    }
 
+    // Fall back to repo — the ID may be a repository, not a workspace
     let repos = state
         .repositories
         .lock()
         .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
-    let repo = repos
-        .get(&ws.repo_id)
-        .ok_or(AppError::RepoNotFound(ws.repo_id))?;
+    let repo = repos.get(&id).ok_or(AppError::WorkspaceNotFound(id))?;
+
+    let branch = crate::platform::command("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .current_dir(&repo.path)
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|| repo.default_branch.clone());
 
     Ok((
-        ws.worktree_path.clone(),
-        ws.branch.clone(),
+        repo.path.clone(),
+        branch,
         repo.default_branch.clone(),
         repo.path.clone(),
     ))
