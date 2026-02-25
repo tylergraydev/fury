@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { usePrStore } from "../../stores/prStore";
-import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTodoStore } from "../../stores/todoStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -423,31 +422,52 @@ function WorkflowRunRow({
 
 function CreatePRInline({
   workspaceId,
-  loading,
   error,
-  onCreate,
 }: {
   workspaceId: string;
-  loading: boolean;
   error: string | null;
-  onCreate: (title: string, body: string, draft: boolean) => Promise<unknown>;
 }) {
-  const workspace = useWorkspaceStore((s) =>
-    s.workspaces.find((w) => w.id === workspaceId),
-  );
-  const [title, setTitle] = useState(workspace?.branch ?? "");
-  const [body, setBody] = useState("");
-  const [draft, setDraft] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    if (!creating) return;
+    const interval = setInterval(() => {
+      usePrStore.getState().loadPrInfo(workspaceId);
+    }, 5000);
+    const timeout = setTimeout(() => {
+      setCreating(false);
+    }, 120000);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [creating, workspaceId]);
+
+  // Stop the creating state once a PR is detected
+  const hasPr = usePrStore((s) => s.prInfo[workspaceId]?.prNumber != null);
+  useEffect(() => {
+    if (hasPr && creating) setCreating(false);
+  }, [hasPr, creating]);
+
+  const handleCreate = () => {
+    setCreating(true);
+    const message =
+      "Create a pull request for this branch. Look at the git log and diff to generate a concise, descriptive title and a clear description summarizing the changes. Use `gh pr create` to create the PR.";
+    useChatStore.getState().addUserMessage(workspaceId, message);
+    useAgentStore
+      .getState()
+      .sendMessage(workspaceId, message, "workspace");
+  };
 
   return (
-    <div className="space-y-3 p-3">
-      <div className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>
-        Create Pull Request
+    <div className="flex h-full flex-col items-center justify-center gap-3 p-4">
+      <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+        No pull request
       </div>
 
       {error && (
         <div
-          className="rounded p-2 text-xs"
+          className="w-full rounded p-2 text-xs"
           style={{
             backgroundColor: "color-mix(in srgb, var(--error) 15%, transparent)",
             color: "var(--error)",
@@ -457,60 +477,23 @@ function CreatePRInline({
         </div>
       )}
 
-      <input
-        type="text"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        className="w-full rounded px-2 py-1 text-xs outline-none"
+      <button
+        onClick={handleCreate}
+        disabled={creating}
+        className="rounded px-4 py-1.5 text-xs disabled:opacity-50"
         style={{
-          backgroundColor: "var(--bg-primary)",
-          color: "var(--text-primary)",
-          border: "1px solid var(--border)",
+          backgroundColor: "var(--accent)",
+          color: "var(--bg-primary)",
         }}
-        placeholder="PR title"
-      />
+      >
+        {creating ? "Creating..." : "Create PR"}
+      </button>
 
-      <textarea
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        rows={4}
-        className="w-full resize-none rounded px-2 py-1 text-xs outline-none"
-        style={{
-          backgroundColor: "var(--bg-primary)",
-          color: "var(--text-primary)",
-          border: "1px solid var(--border)",
-        }}
-        placeholder="Description..."
-      />
-
-      <div className="flex items-center gap-2">
-        <label
-          className="flex items-center gap-1 text-[10px]"
-          style={{ color: "var(--text-muted)" }}
-        >
-          <input
-            type="checkbox"
-            checked={draft}
-            onChange={(e) => setDraft(e.target.checked)}
-          />
-          Draft
-        </label>
-
-        <button
-          onClick={async () => {
-            /* v8 ignore next -- @preserve */
-            if (title.trim()) await onCreate(title, body, draft);
-          }}
-          disabled={loading || !title.trim()}
-          className="ml-auto rounded px-3 py-1 text-xs disabled:opacity-50"
-          style={{
-            backgroundColor: "var(--accent)",
-            color: "var(--bg-primary)",
-          }}
-        >
-          {loading ? "Creating..." : "Create PR"}
-        </button>
-      </div>
+      {creating && (
+        <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+          Claude is generating title and description...
+        </div>
+      )}
     </div>
   );
 }
@@ -585,16 +568,12 @@ export function ChecksPanel({ workspaceId }: Props) {
       .sendMessage(workspaceId, message, "workspace");
   };
 
-  // No PR yet - show creation form
+  // No PR yet - show creation button
   if (!hasPr) {
     return (
       <CreatePRInline
         workspaceId={workspaceId}
-        loading={loading}
         error={error}
-        onCreate={(title, body, draft) =>
-          usePrStore.getState().createPr({ workspaceId, title, body, draft })
-        }
       />
     );
   }
