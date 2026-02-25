@@ -199,23 +199,29 @@ export function RightSidebar({ context }: Props) {
               <SyncButton contextId={context.id} />
             </div>
 
-            {/* Tab content */}
+            {/* Tab content — keep all panels mounted, hide inactive with CSS */}
             <div className="flex-1 overflow-hidden">
-              <ErrorBoundary label={activeTab} resetKey={`${context.id}:${activeTab}`}>
-                {activeTab === "files" && (
+              <div className={activeTab === "files" ? "h-full" : "hidden"}>
+                <ErrorBoundary label="files" resetKey={context.id}>
                   <FileTreePanel
                     context={context}
                     onFileClick={handleFileClick}
                     onFileDoubleClick={handleFileDoubleClick}
                   />
-                )}
-                {activeTab === "changes" && (
+                </ErrorBoundary>
+              </div>
+              <div className={activeTab === "changes" ? "h-full" : "hidden"}>
+                <ErrorBoundary label="changes" resetKey={context.id}>
                   <ChangesPanel context={context} />
-                )}
-                {activeTab === "checks" && context.type === "workspace" && (
-                  <ChecksPanel workspaceId={context.id} />
-                )}
-              </ErrorBoundary>
+                </ErrorBoundary>
+              </div>
+              {context.type === "workspace" && (
+                <div className={activeTab === "checks" ? "h-full" : "hidden"}>
+                  <ErrorBoundary label="checks" resetKey={context.id}>
+                    <ChecksPanel workspaceId={context.id} />
+                  </ErrorBoundary>
+                </div>
+              )}
             </div>
           </div>
         </Panel>

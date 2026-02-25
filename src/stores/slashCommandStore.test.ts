@@ -28,10 +28,16 @@ describe("slashCommandStore - loadCommands", () => {
     expect(useSlashCommandStore.getState().loading["ws-1"]).toBe(false);
   });
 
-  it("skips if already loading", async () => {
-    useSlashCommandStore.setState({ loading: { "ws-1": true } });
-    await useSlashCommandStore.getState().loadCommands("ws-1");
-    expect(listSlashCommands).not.toHaveBeenCalled();
+  it("deduplicates concurrent calls", async () => {
+    let resolve: (v: any) => void;
+    vi.mocked(listSlashCommands).mockImplementation(
+      () => new Promise((r) => { resolve = r; }),
+    );
+    const p1 = useSlashCommandStore.getState().loadCommands("ws-1");
+    const p2 = useSlashCommandStore.getState().loadCommands("ws-1");
+    resolve!([makeCmd("/help")] as any);
+    await Promise.all([p1, p2]);
+    expect(listSlashCommands).toHaveBeenCalledTimes(1);
   });
 
   it("sets error on failure", async () => {

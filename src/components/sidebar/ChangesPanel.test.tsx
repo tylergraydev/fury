@@ -160,23 +160,41 @@ describe("ChangesPanel", () => {
     expect(mockLoadRepoDiff).toHaveBeenCalledWith("repo-1");
   });
 
-  it("refreshes workspace when agent goes idle", () => {
+  it("refreshes workspace when agent transitions to idle", () => {
+    // Start with agent Running
+    useAgentStore.setState({
+      agents: {
+        "ws-1": { workspaceId: "ws-1", sessionId: "s1", status: "Running", startedAt: null },
+      },
+    });
+    const { rerender } = render(<ChangesPanel context={wsContext} />);
+    mockRefresh.mockClear();
+    // Transition to Idle
     useAgentStore.setState({
       agents: {
         "ws-1": { workspaceId: "ws-1", sessionId: "s1", status: "Idle", startedAt: null },
       },
     });
-    render(<ChangesPanel context={wsContext} />);
+    rerender(<ChangesPanel context={wsContext} />);
     expect(mockRefresh).toHaveBeenCalledWith("ws-1");
   });
 
-  it("refreshes repo when agent goes idle", () => {
+  it("refreshes repo when agent transitions to idle", () => {
+    // Start with agent Running
+    useAgentStore.setState({
+      agents: {
+        "repo-1": { workspaceId: "repo-1", sessionId: "s1", status: "Running", startedAt: null },
+      },
+    });
+    const { rerender } = render(<ChangesPanel context={repoContext} />);
+    mockRefreshRepo.mockClear();
+    // Transition to Idle
     useAgentStore.setState({
       agents: {
         "repo-1": { workspaceId: "repo-1", sessionId: "s1", status: "Idle", startedAt: null },
       },
     });
-    render(<ChangesPanel context={repoContext} />);
+    rerender(<ChangesPanel context={repoContext} />);
     expect(mockRefreshRepo).toHaveBeenCalledWith("repo-1");
   });
 

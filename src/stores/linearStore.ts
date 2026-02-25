@@ -24,6 +24,10 @@ interface LinearStore {
   unlinkIssue: (workspaceId: string, issueId: string) => Promise<void>;
 }
 
+// Module-level inflight tracker — prevent duplicate concurrent requests
+// without polluting store state or triggering re-renders.
+const _inflightLinkedIssues = new Set<string>();
+
 export const useLinearStore = create<LinearStore>((set, get) => ({
   searchResults: [],
   searchLoading: false,
@@ -46,6 +50,8 @@ export const useLinearStore = create<LinearStore>((set, get) => ({
   },
 
   loadLinkedIssues: async (workspaceId: string) => {
+    if (_inflightLinkedIssues.has(workspaceId)) return;
+    _inflightLinkedIssues.add(workspaceId);
     set((state) => ({
       loading: { ...state.loading, [workspaceId]: true },
     }));
@@ -60,6 +66,8 @@ export const useLinearStore = create<LinearStore>((set, get) => ({
       set((state) => ({
         loading: { ...state.loading, [workspaceId]: false },
       }));
+    } finally {
+      _inflightLinkedIssues.delete(workspaceId);
     }
   },
 

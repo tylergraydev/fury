@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { ExternalLink } from "lucide-react";
 import { useDiffStore } from "../../stores/diffStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -220,10 +220,13 @@ export function ChangesPanel({ context }: Props) {
     }
   }, [context.type, contextId]);
 
-  // Auto-refresh when agent finishes
+  // Auto-refresh when agent transitions to Idle (not on initial mount)
+  const prevAgentStatus = useRef(agentStatus);
   useEffect(() => {
+    const wasRunning = prevAgentStatus.current !== "Idle";
+    prevAgentStatus.current = agentStatus;
     /* v8 ignore next -- @preserve */
-    if (agentStatus === "Idle") {
+    if (agentStatus === "Idle" && wasRunning) {
       const store = useDiffStore.getState();
       if (context.type === "workspace") {
         store.refresh(contextId);

@@ -12,6 +12,11 @@ interface FileTreeStore {
   toggleDir: (contextId: string, dir: string) => void;
 }
 
+// Module-level inflight trackers — prevent duplicate concurrent requests
+// without polluting store state or triggering re-renders.
+const _inflightFiles = new Set<string>();
+const _inflightRepoFiles = new Set<string>();
+
 export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
   files: {},
   expandedDirs: {},
@@ -19,6 +24,8 @@ export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
   error: {},
 
   loadFiles: async (workspaceId: string) => {
+    if (_inflightFiles.has(workspaceId)) return;
+    _inflightFiles.add(workspaceId);
     const hasCached = workspaceId in get().files;
     set((state) => ({
       loading: { ...state.loading, [workspaceId]: !hasCached },
@@ -35,10 +42,14 @@ export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
         loading: { ...state.loading, [workspaceId]: false },
         error: hasCached ? state.error : { ...state.error, [workspaceId]: String(e) },
       }));
+    } finally {
+      _inflightFiles.delete(workspaceId);
     }
   },
 
   loadRepoFiles: async (repoId: string) => {
+    if (_inflightRepoFiles.has(repoId)) return;
+    _inflightRepoFiles.add(repoId);
     const hasCached = repoId in get().files;
     set((state) => ({
       loading: { ...state.loading, [repoId]: !hasCached },
@@ -55,6 +66,8 @@ export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
         loading: { ...state.loading, [repoId]: false },
         error: hasCached ? state.error : { ...state.error, [repoId]: String(e) },
       }));
+    } finally {
+      _inflightRepoFiles.delete(repoId);
     }
   },
 
