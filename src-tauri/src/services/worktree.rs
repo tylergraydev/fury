@@ -38,6 +38,14 @@ pub fn create_worktree(
         .status
         .success();
 
+    // Fetch the base branch from origin so we branch off the latest remote state
+    if let Some(base) = base_branch {
+        let _ = platform::command("git")
+            .args(["fetch", "origin", base])
+            .current_dir(repo_path)
+            .output();
+    }
+
     let output = if branch_exists {
         platform::command("git")
             .args([
@@ -57,7 +65,7 @@ pub fn create_worktree(
             worktree_path.to_string_lossy().to_string(),
         ];
         if let Some(base) = base_branch {
-            args.push(base.to_string());
+            args.push(format!("origin/{}", base));
         }
         platform::command("git")
             .args(&args)
