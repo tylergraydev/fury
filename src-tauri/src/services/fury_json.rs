@@ -1,27 +1,24 @@
 use std::path::Path;
 
 use crate::error::AppError;
-use crate::models::repository::{ConductorJson, RepoSettings, RunScriptMode};
+use crate::models::repository::{FuryJson, RepoSettings, RunScriptMode};
 
-/// Load and parse conductor.json from the given repository root.
+/// Load and parse fury.json from the given repository root.
 /// Returns None if the file doesn't exist.
-pub fn load_conductor_json(repo_path: &Path) -> Result<Option<ConductorJson>, AppError> {
-    let path = repo_path.join("conductor.json");
+pub fn load_fury_json(repo_path: &Path) -> Result<Option<FuryJson>, AppError> {
+    let path = repo_path.join("fury.json");
     if !path.exists() {
         return Ok(None);
     }
     let content = std::fs::read_to_string(&path)?;
-    let config: ConductorJson = serde_json::from_str(&content)?;
+    let config: FuryJson = serde_json::from_str(&content)?;
     Ok(Some(config))
 }
 
-/// Merge conductor.json scripts with DB-persisted RepoSettings.
-/// DB settings take precedence; conductor.json provides defaults.
-pub fn merge_settings(
-    db_settings: &RepoSettings,
-    conductor_json: Option<&ConductorJson>,
-) -> RepoSettings {
-    let cj = match conductor_json {
+/// Merge fury.json scripts with DB-persisted RepoSettings.
+/// DB settings take precedence; fury.json provides defaults.
+pub fn merge_settings(db_settings: &RepoSettings, fury_json: Option<&FuryJson>) -> RepoSettings {
+    let cj = match fury_json {
         Some(cj) => cj,
         None => return db_settings.clone(),
     };
@@ -54,10 +51,10 @@ pub fn merge_settings(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::repository::ConductorScripts;
+    use crate::models::repository::FuryScripts;
 
     #[test]
-    fn test_merge_settings_no_conductor_json() {
+    fn test_merge_settings_no_fury_json() {
         let db = RepoSettings {
             setup_script: Some("npm install".to_string()),
             ..Default::default()
@@ -67,10 +64,10 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_settings_conductor_provides_defaults() {
+    fn test_merge_settings_fury_provides_defaults() {
         let db = RepoSettings::default();
-        let cj = ConductorJson {
-            scripts: ConductorScripts {
+        let cj = FuryJson {
+            scripts: FuryScripts {
                 setup: Some("yarn install".to_string()),
                 run: Some("yarn dev".to_string()),
                 archive: None,
@@ -89,8 +86,8 @@ mod tests {
             setup_script: Some("npm install".to_string()),
             ..Default::default()
         };
-        let cj = ConductorJson {
-            scripts: ConductorScripts {
+        let cj = FuryJson {
+            scripts: FuryScripts {
                 setup: Some("yarn install".to_string()),
                 ..Default::default()
             },
@@ -101,9 +98,9 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_settings_run_script_mode_from_conductor() {
+    fn test_merge_settings_run_script_mode_from_fury() {
         let db = RepoSettings::default(); // Nonconcurrent
-        let cj = ConductorJson {
+        let cj = FuryJson {
             scripts: Default::default(),
             run_script_mode: Some(RunScriptMode::Concurrent),
         };
@@ -119,7 +116,7 @@ mod tests {
             env_vars: env.clone(),
             ..Default::default()
         };
-        let cj = ConductorJson::default();
+        let cj = FuryJson::default();
         let result = merge_settings(&db, Some(&cj));
         assert_eq!(result.env_vars.get("MY_VAR").unwrap(), "value");
     }

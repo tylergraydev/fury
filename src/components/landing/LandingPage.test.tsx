@@ -82,7 +82,7 @@ describe("LandingPage", () => {
     render(<LandingPage />);
     expect(screen.getByText("Fury")).toBeInTheDocument();
     expect(
-      screen.getByText("Multi-workspace conductor for Claude Code"),
+      screen.getByText("Multi-workspace orchestrator for Claude Code"),
     ).toBeInTheDocument();
   });
 

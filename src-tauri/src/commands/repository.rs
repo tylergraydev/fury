@@ -1,6 +1,12 @@
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
 use crate::error::AppError;
+use crate::models::mcp::{IndexingState, IndexingStatus};
 use crate::models::repository::Repository;
+use crate::models::settings::ClaudeContextSettings;
 use crate::platform;
+use crate::services::claude_context as ctx_svc;
 use crate::services::worktree;
 use crate::state::AppState;
 use std::fs;
@@ -21,6 +27,67 @@ fn detect_current_branch(path: &Path) -> Option<String> {
     } else {
         None
     }
+}
+
+/// Fire-and-forget background indexing if Claude Context is enabled.
+fn maybe_auto_index(
+    repo_id: Uuid,
+    repo_path: String,
+    ctx_settings: ClaudeContextSettings,
+    indexing_status: Arc<Mutex<HashMap<Uuid, IndexingStatus>>>,
+) {
+    if !ctx_settings.enabled {
+        return;
+    }
+    if ctx_svc::validate_settings(&ctx_settings).is_err() {
+        return;
+    }
+
+    std::thread::spawn(move || {
+        {
+            let mut statuses = indexing_status.lock().unwrap();
+            statuses.insert(
+                repo_id,
+                IndexingStatus {
+                    repo_id: repo_id.to_string(),
+                    repo_path: repo_path.clone(),
+                    status: IndexingState::Indexing,
+                    error: None,
+                    last_indexed_at: None,
+                },
+            );
+        }
+
+        match ctx_svc::index_codebase(&ctx_settings, &repo_path) {
+            Ok(_) => {
+                let mut statuses = indexing_status.lock().unwrap();
+                statuses.insert(
+                    repo_id,
+                    IndexingStatus {
+                        repo_id: repo_id.to_string(),
+                        repo_path,
+                        status: IndexingState::Indexed,
+                        error: None,
+                        last_indexed_at: Some(chrono::Utc::now().to_rfc3339()),
+                    },
+                );
+            }
+            Err(e) => {
+                eprintln!("[claude-context] Indexing failed for {}: {}", repo_path, e);
+                let mut statuses = indexing_status.lock().unwrap();
+                statuses.insert(
+                    repo_id,
+                    IndexingStatus {
+                        repo_id: repo_id.to_string(),
+                        repo_path,
+                        status: IndexingState::Error,
+                        error: Some(e.to_string()),
+                        last_indexed_at: None,
+                    },
+                );
+            }
+        }
+    });
 }
 
 #[tauri::command]
@@ -72,6 +139,15 @@ pub fn add_repository(state: State<'_, AppState>, path: String) -> Result<Reposi
         .lock()
         .unwrap()
         .insert(repo.id, repo.clone());
+
+    // Auto-index with Claude Context if enabled
+    let ctx_settings = state.settings.lock().unwrap().claude_context.clone();
+    maybe_auto_index(
+        repo.id,
+        repo.path.to_string_lossy().to_string(),
+        ctx_settings,
+        state.indexing_status.clone(),
+    );
 
     Ok(repo)
 }
@@ -166,6 +242,15 @@ fn register_repository(state: &State<'_, AppState>, path: PathBuf) -> Result<Rep
         .lock()
         .unwrap()
         .insert(repo.id, repo.clone());
+
+    // Auto-index with Claude Context if enabled
+    let ctx_settings = state.settings.lock().unwrap().claude_context.clone();
+    maybe_auto_index(
+        repo.id,
+        repo.path.to_string_lossy().to_string(),
+        ctx_settings,
+        state.indexing_status.clone(),
+    );
 
     Ok(repo)
 }

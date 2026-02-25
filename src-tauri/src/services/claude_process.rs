@@ -33,25 +33,25 @@ pub fn build_env_vars(
 ) -> HashMap<String, String> {
     let mut env = HashMap::new();
 
-    // Conductor-compatible env vars
+    // Fury env vars
     env.insert(
-        "CONDUCTOR_WORKSPACE_NAME".to_string(),
+        "FURY_WORKSPACE_NAME".to_string(),
         workspace.name.clone(),
     );
     env.insert(
-        "CONDUCTOR_WORKSPACE_PATH".to_string(),
+        "FURY_WORKSPACE_PATH".to_string(),
         workspace.worktree_path.to_string_lossy().to_string(),
     );
     env.insert(
-        "CONDUCTOR_ROOT_PATH".to_string(),
+        "FURY_ROOT_PATH".to_string(),
         repo.path.to_string_lossy().to_string(),
     );
     env.insert(
-        "CONDUCTOR_DEFAULT_BRANCH".to_string(),
+        "FURY_DEFAULT_BRANCH".to_string(),
         repo.default_branch.clone(),
     );
     env.insert(
-        "CONDUCTOR_PORT".to_string(),
+        "FURY_PORT".to_string(),
         workspace.port_base.to_string(),
     );
 
@@ -62,7 +62,7 @@ pub fn build_env_vars(
 
     // Agent teams experimental feature
     if settings.experimental.agent_teams {
-        env.insert("CONDUCTOR_AGENT_TEAMS".to_string(), "true".to_string());
+        env.insert("FURY_AGENT_TEAMS".to_string(), "true".to_string());
     }
 
     env
@@ -76,11 +76,11 @@ pub fn build_repo_env_vars(
     let mut env = HashMap::new();
 
     env.insert(
-        "CONDUCTOR_ROOT_PATH".to_string(),
+        "FURY_ROOT_PATH".to_string(),
         repo.path.to_string_lossy().to_string(),
     );
     env.insert(
-        "CONDUCTOR_DEFAULT_BRANCH".to_string(),
+        "FURY_DEFAULT_BRANCH".to_string(),
         repo.default_branch.clone(),
     );
 
@@ -130,6 +130,12 @@ fn build_common_args(
     if disable_plan_mode {
         combined_prompt.push_str("\n\nIMPORTANT: Do not enter plan mode. Execute tasks directly without presenting a plan for approval first.");
     }
+
+    // When Code Search (claude-context) is available, instruct the agent to
+    // always search against the main repository path, not the worktree path.
+    // This ensures indexed data is found regardless of which worktree the
+    // agent is running in.  The main repo path is available as FURY_ROOT_PATH.
+    combined_prompt.push_str("\n\nWhen using the search_code or index_codebase tools from claude-context, always use the FURY_ROOT_PATH environment variable as the path argument, not the current working directory. This ensures code search works correctly across worktrees.");
 
     args.push("--append-system-prompt".to_string());
     args.push(combined_prompt);
@@ -937,16 +943,16 @@ mod tests {
     // --- build_env_vars tests ---
 
     #[test]
-    fn test_build_env_vars_includes_conductor_vars() {
+    fn test_build_env_vars_includes_fury_vars() {
         let ws = crate::test_helpers::test_workspace(uuid::Uuid::new_v4());
         let repo = crate::test_helpers::test_repo();
         let settings = crate::test_helpers::test_settings();
         let env = build_env_vars(&ws, &repo, &settings);
-        assert_eq!(env.get("CONDUCTOR_WORKSPACE_NAME").unwrap(), "test-workspace");
-        assert_eq!(env.get("CONDUCTOR_DEFAULT_BRANCH").unwrap(), "main");
-        assert!(env.contains_key("CONDUCTOR_PORT"));
-        assert!(env.contains_key("CONDUCTOR_ROOT_PATH"));
-        assert!(env.contains_key("CONDUCTOR_WORKSPACE_PATH"));
+        assert_eq!(env.get("FURY_WORKSPACE_NAME").unwrap(), "test-workspace");
+        assert_eq!(env.get("FURY_DEFAULT_BRANCH").unwrap(), "main");
+        assert!(env.contains_key("FURY_PORT"));
+        assert!(env.contains_key("FURY_ROOT_PATH"));
+        assert!(env.contains_key("FURY_WORKSPACE_PATH"));
     }
 
     #[test]
@@ -964,9 +970,9 @@ mod tests {
         let repo = crate::test_helpers::test_repo();
         let settings = crate::test_helpers::test_settings();
         let env = build_repo_env_vars(&repo, &settings);
-        assert!(env.contains_key("CONDUCTOR_ROOT_PATH"));
-        assert_eq!(env.get("CONDUCTOR_DEFAULT_BRANCH").unwrap(), "main");
-        assert!(!env.contains_key("CONDUCTOR_WORKSPACE_NAME")); // repo mode doesn't have this
+        assert!(env.contains_key("FURY_ROOT_PATH"));
+        assert_eq!(env.get("FURY_DEFAULT_BRANCH").unwrap(), "main");
+        assert!(!env.contains_key("FURY_WORKSPACE_NAME")); // repo mode doesn't have this
     }
 
     // --- build_common_args tests ---

@@ -6,6 +6,7 @@ use crate::models::mcp::{
     RemoveMcpRequest,
 };
 use crate::models::settings::AppSettings;
+use crate::services::claude_context as ctx_svc;
 use crate::services::cursor_migration;
 use crate::services::mcp as mcp_svc;
 use crate::state::AppState;
@@ -67,15 +68,43 @@ pub fn update_app_settings(
     state: State<'_, AppState>,
     settings: AppSettings,
 ) -> Result<(), AppError> {
+    let old_settings = state.settings.lock().unwrap().clone();
+
     // Persist to database
     let db_guard = state.db.lock().unwrap();
     if let Some(ref db) = *db_guard {
         db.save_app_settings(&settings)?;
     }
+    drop(db_guard);
 
     // Update in-memory state
-    let mut current = state.settings.lock().unwrap();
-    *current = settings;
+    {
+        let mut current = state.settings.lock().unwrap();
+        *current = settings.clone();
+    }
+
+    // Handle Claude Context MCP server registration changes
+    let was_enabled = old_settings.claude_context.enabled;
+    let now_enabled = settings.claude_context.enabled;
+    let creds_changed = old_settings.claude_context.openai_api_key
+        != settings.claude_context.openai_api_key
+        || old_settings.claude_context.zilliz_uri != settings.claude_context.zilliz_uri
+        || old_settings.claude_context.zilliz_token != settings.claude_context.zilliz_token;
+
+    if now_enabled && (!was_enabled || creds_changed) {
+        let ctx_settings = settings.claude_context.clone();
+        std::thread::spawn(move || {
+            if let Err(e) = ctx_svc::ensure_mcp_server_registered(&ctx_settings) {
+                eprintln!("[claude-context] Failed to register MCP server: {}", e);
+            }
+        });
+    } else if !now_enabled && was_enabled {
+        std::thread::spawn(|| {
+            if let Err(e) = ctx_svc::remove_mcp_server_registration() {
+                eprintln!("[claude-context] Failed to remove MCP server: {}", e);
+            }
+        });
+    }
 
     Ok(())
 }

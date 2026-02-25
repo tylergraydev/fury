@@ -246,7 +246,7 @@ const DASHBOARD_HTML: &str = r##"<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Conductor — Performance Monitor</title>
+<title>Fury — Performance Monitor</title>
 <style>
   :root {
     --bg: #0d1117;
@@ -347,7 +347,7 @@ const DASHBOARD_HTML: &str = r##"<!DOCTYPE html>
 
 <div class="header">
   <div style="display:flex;align-items:center;gap:12px">
-    <h1>Conductor Perf Monitor</h1>
+    <h1>Fury Perf Monitor</h1>
     <span id="status" class="badge off">OFF</span>
   </div>
   <div class="controls">

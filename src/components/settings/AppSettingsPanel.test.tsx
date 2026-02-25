@@ -31,6 +31,7 @@ vi.mock("../../lib/tauri", () => ({
     experimental: { spotlightTesting: false, agentTeams: false, persistentProcesses: false, safeMode: false },
     copilot: { enabled: false },
     linear: { apiKey: null },
+    claudeContext: { enabled: false, openaiApiKey: null, zillizUri: null, zillizToken: null },
   }),
   getAppSettings: vi.fn().mockResolvedValue({
     theme: "blend",
@@ -40,6 +41,7 @@ vi.mock("../../lib/tauri", () => ({
     experimental: { spotlightTesting: false, agentTeams: false, persistentProcesses: false, safeMode: false },
     copilot: { enabled: false },
     linear: { apiKey: null },
+    claudeContext: { enabled: false, openaiApiKey: null, zillizUri: null, zillizToken: null },
   }),
   updateAppSettings: vi.fn().mockResolvedValue(undefined),
   saveSettings: vi.fn().mockResolvedValue(undefined),
@@ -88,6 +90,7 @@ vi.mock("lucide-react", () => ({
   ExternalLink: () => <span data-testid="link-icon" />,
   FolderOpen: () => <span data-testid="folder-icon" />,
   CircleDot: () => <span data-testid="circle-dot-icon" />,
+  Search: () => <span data-testid="search-icon" />,
 }));
 
 const fullSettings = {
@@ -102,6 +105,7 @@ const fullSettings = {
   experimental: { spotlightTesting: false, agentTeams: false, persistentProcesses: false, safeMode: false },
   copilot: { enabled: false },
   linear: { apiKey: null },
+  claudeContext: { enabled: false, openaiApiKey: null, zillizUri: null, zillizToken: null },
 };
 
 beforeEach(() => {

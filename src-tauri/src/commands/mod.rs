@@ -1,6 +1,7 @@
 pub mod agent;
 pub mod chat;
 pub mod checkpoint;
+pub mod claude_context;
 pub mod copilot;
 pub mod git;
 pub mod linear;

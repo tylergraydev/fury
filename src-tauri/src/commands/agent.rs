@@ -114,7 +114,7 @@ pub async fn send_message(
         };
 
         // Agent teams: add sibling workspace names (env var is harmless for Codex,
-    // though CONDUCTOR_AGENT_TEAMS is only set by Claude's build_env_vars)
+    // though FURY_AGENT_TEAMS is only set by Claude's build_env_vars)
         if settings.experimental.agent_teams {
             let workspaces = state.workspaces.lock().unwrap();
             let siblings: Vec<String> = workspaces
@@ -124,7 +124,7 @@ pub async fn send_message(
                 .collect();
             if !siblings.is_empty() {
                 env.insert(
-                    "CONDUCTOR_TEAM_WORKSPACES".to_string(),
+                    "FURY_TEAM_WORKSPACES".to_string(),
                     siblings.join(","),
                 );
             }
