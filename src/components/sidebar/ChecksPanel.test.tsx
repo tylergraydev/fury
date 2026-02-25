@@ -123,109 +123,42 @@ beforeEach(() => {
 });
 
 describe("ChecksPanel", () => {
-  // === Create PR Form ===
+  // === Create PR Button ===
 
-  it("shows Create PR form when no PR exists", () => {
+  it("shows Create PR button when no PR exists", () => {
     render(<ChecksPanel workspaceId="ws-1" />);
-    expect(screen.getByText("Create Pull Request")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("PR title")).toBeInTheDocument();
+    expect(screen.getByText("No pull request")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create PR" })).toBeInTheDocument();
   });
 
-  it("shows title pre-filled with branch name", () => {
+  it("shows error in create view", async () => {
     render(<ChecksPanel workspaceId="ws-1" />);
-    const input = screen.getByPlaceholderText("PR title") as HTMLInputElement;
-    expect(input.value).toBe("feature-1");
-  });
-
-  it("shows description textarea", () => {
-    render(<ChecksPanel workspaceId="ws-1" />);
-    expect(screen.getByPlaceholderText("Description...")).toBeInTheDocument();
-  });
-
-  it("shows draft checkbox", () => {
-    render(<ChecksPanel workspaceId="ws-1" />);
-    expect(screen.getByText("Draft")).toBeInTheDocument();
-  });
-
-  it("shows error in create form", async () => {
-    render(<ChecksPanel workspaceId="ws-1" />);
-    await screen.findByPlaceholderText("PR title");
     await act(async () => {
       usePrStore.setState({ error: { "ws-1": "Failed to create PR" } });
     });
     expect(screen.getByText("Failed to create PR")).toBeInTheDocument();
   });
 
-  it("updates title input on change", async () => {
+  it("sends message to agent on Create PR click", async () => {
     render(<ChecksPanel workspaceId="ws-1" />);
-    const input = screen.getByPlaceholderText("PR title") as HTMLInputElement;
-    await act(async () => {
-      fireEvent.change(input, { target: { value: "New Title" } });
-    });
-    expect(input.value).toBe("New Title");
-  });
-
-  it("updates body textarea on change", async () => {
-    render(<ChecksPanel workspaceId="ws-1" />);
-    const textarea = screen.getByPlaceholderText("Description...") as HTMLTextAreaElement;
-    await act(async () => {
-      fireEvent.change(textarea, { target: { value: "My PR body" } });
-    });
-    expect(textarea.value).toBe("My PR body");
-  });
-
-  it("toggles draft checkbox", async () => {
-    render(<ChecksPanel workspaceId="ws-1" />);
-    const checkbox = screen.getByRole("checkbox") as HTMLInputElement;
-    expect(checkbox.checked).toBe(false);
-    await act(async () => {
-      fireEvent.click(checkbox);
-    });
-    expect(checkbox.checked).toBe(true);
-  });
-
-  it("submits create PR form", async () => {
-    render(<ChecksPanel workspaceId="ws-1" />);
-    await screen.findByPlaceholderText("PR title");
-    const createPrSpy = vi.spyOn(usePrStore.getState(), "createPr");
+    const addUserMsgSpy = vi.spyOn(useChatStore.getState(), "addUserMessage");
+    const sendMsgSpy = vi.spyOn(useAgentStore.getState(), "sendMessage");
     const button = screen.getByRole("button", { name: "Create PR" });
     await act(async () => {
       fireEvent.click(button);
     });
-    expect(createPrSpy).toHaveBeenCalledWith({
-      workspaceId: "ws-1",
-      title: "feature-1",
-      body: "",
-      draft: false,
-    });
+    expect(addUserMsgSpy).toHaveBeenCalledWith("ws-1", expect.stringContaining("pull request"));
+    expect(sendMsgSpy).toHaveBeenCalledWith("ws-1", expect.stringContaining("pull request"), "workspace");
   });
 
-  it("does not submit when title is empty", async () => {
+  it("shows Creating... state after clicking Create PR", async () => {
     render(<ChecksPanel workspaceId="ws-1" />);
-    const input = screen.getByPlaceholderText("PR title") as HTMLInputElement;
-    await act(async () => {
-      fireEvent.change(input, { target: { value: "" } });
-    });
     const button = screen.getByRole("button", { name: "Create PR" });
-    expect(button).toBeDisabled();
-  });
-
-  it("shows Creating... when loading", async () => {
-    render(<ChecksPanel workspaceId="ws-1" />);
-    await screen.findByPlaceholderText("PR title");
     await act(async () => {
-      usePrStore.setState({ loading: { "ws-1": true } });
+      fireEvent.click(button);
     });
     expect(screen.getByText("Creating...")).toBeInTheDocument();
-  });
-
-  it("defaults title to empty when workspace branch is undefined", () => {
-    useWorkspaceStore.setState({
-      workspaces: [{ id: "ws-1", name: "test-ws", branch: undefined, repoId: "r1" }] as any,
-    });
-    render(<ChecksPanel workspaceId="ws-1" />);
-    const input = screen.getByPlaceholderText("PR title") as HTMLInputElement;
-    expect(input.value).toBe("");
+    expect(screen.getByText("Claude is generating title and description...")).toBeInTheDocument();
   });
 
   // === Merged State ===
