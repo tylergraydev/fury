@@ -16,3 +16,4 @@ pub mod stash;
 pub mod terminal;
 pub mod todo;
 pub mod workspace;
+pub mod workspace_template;

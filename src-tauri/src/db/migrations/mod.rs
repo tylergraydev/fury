@@ -129,5 +129,29 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
     )
     .map_err(|e| AppError::DbError(e.to_string()))?;
 
+    // Workspace templates table (idempotent)
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS workspace_templates (
+            id TEXT PRIMARY KEY,
+            repo_id TEXT NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            description TEXT,
+            setup_script TEXT,
+            run_script TEXT,
+            archive_script TEXT,
+            run_script_mode TEXT NOT NULL DEFAULT 'nonconcurrent',
+            env_vars TEXT NOT NULL DEFAULT '{}',
+            sparse_dirs TEXT,
+            auto_commit INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(repo_id, name)
+        );
+        CREATE INDEX IF NOT EXISTS idx_templates_repo ON workspace_templates(repo_id);
+        ",
+    )
+    .map_err(|e| AppError::DbError(e.to_string()))?;
+
     Ok(())
 }

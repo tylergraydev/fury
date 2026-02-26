@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { NewWorkspaceDialog } from "./NewWorkspaceDialog";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useAgentStore } from "../../stores/agentStore";
+import { useWorkspaceTemplateStore } from "../../stores/workspaceTemplateStore";
 
 vi.mock("lucide-react", () => ({
   Sparkles: () => <span data-testid="sparkle-icon" />,
@@ -21,11 +22,14 @@ const mockListRepoPrs = vi.fn();
 const mockListRepoIssues = vi.fn();
 const mockSearchLinearIssues = vi.fn();
 
+const mockListWorkspaceTemplates = vi.fn();
+
 vi.mock("../../lib/tauri", () => ({
   listBranches: (...args: unknown[]) => mockListBranches(...args),
   listRepoPrs: (...args: unknown[]) => mockListRepoPrs(...args),
   listRepoIssues: (...args: unknown[]) => mockListRepoIssues(...args),
   searchLinearIssues: (...args: unknown[]) => mockSearchLinearIssues(...args),
+  listWorkspaceTemplates: (...args: unknown[]) => mockListWorkspaceTemplates(...args),
   createWorkspace: vi.fn().mockResolvedValue({
     id: "ws-new",
     name: "test",
@@ -49,6 +53,13 @@ beforeEach(() => {
   mockListRepoIssues.mockResolvedValue([]);
   mockSearchLinearIssues.mockReset();
   mockSearchLinearIssues.mockResolvedValue([]);
+  mockListWorkspaceTemplates.mockReset();
+  mockListWorkspaceTemplates.mockResolvedValue([]);
+  useWorkspaceTemplateStore.setState({
+    templates: [],
+    loading: false,
+    error: null,
+  });
   mockCreateWs.mockReset();
   mockCreateWs.mockResolvedValue({
     id: "ws-new",
@@ -641,6 +652,121 @@ describe("Issue mode", () => {
     fireEvent.click(screen.getByText("Login bug").closest("button")!);
     const nameInput = screen.getByPlaceholderText("feature-auth");
     expect(nameInput).toHaveValue("issue-10-login-bug");
+  });
+});
+
+describe("Template mode", () => {
+  const TEMPLATES = [
+    {
+      id: "tmpl-1",
+      repoId: "r1",
+      name: "frontend-feature",
+      description: "Standard frontend setup",
+      setupScript: "npm install",
+      runScript: "npm run dev",
+      archiveScript: null,
+      runScriptMode: "nonconcurrent",
+      envVars: {},
+      sparseDirs: ["src", "tests"],
+      autoCommit: true,
+      createdAt: "2025-01-01T00:00:00Z",
+      updatedAt: "2025-01-01T00:00:00Z",
+    },
+    {
+      id: "tmpl-2",
+      repoId: "r1",
+      name: "backend-service",
+      description: null,
+      setupScript: null,
+      runScript: null,
+      archiveScript: null,
+      runScriptMode: "nonconcurrent",
+      envVars: {},
+      sparseDirs: null,
+      autoCommit: false,
+      createdAt: "2025-01-01T00:00:00Z",
+      updatedAt: "2025-01-01T00:00:00Z",
+    },
+  ];
+
+  async function switchToTemplateMode() {
+    render(
+      <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={vi.fn()} />,
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("combobox")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByText("From Template"));
+  }
+
+  it("shows 'No templates saved yet' when no templates exist", async () => {
+    await switchToTemplateMode();
+    await waitFor(() => {
+      expect(
+        screen.getByText(/No templates saved yet/),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows loading state", async () => {
+    mockListWorkspaceTemplates.mockReturnValue(new Promise(() => {}));
+    useWorkspaceTemplateStore.setState({ loading: true, templates: [] });
+    await switchToTemplateMode();
+    expect(screen.getByText("Loading templates...")).toBeInTheDocument();
+  });
+
+  it("renders template list with names and descriptions", async () => {
+    useWorkspaceTemplateStore.setState({ templates: TEMPLATES });
+    await switchToTemplateMode();
+    expect(screen.getByText("frontend-feature")).toBeInTheDocument();
+    expect(screen.getByText("Standard frontend setup")).toBeInTheDocument();
+    expect(screen.getByText("backend-service")).toBeInTheDocument();
+  });
+
+  it("selects template and sets autoCommit from template", async () => {
+    useWorkspaceTemplateStore.setState({ templates: TEMPLATES });
+    await switchToTemplateMode();
+    // The second template has autoCommit: false
+    fireEvent.click(screen.getByText("backend-service").closest("button")!);
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).not.toBeChecked();
+  });
+
+  it("creates workspace with sparseDirs from selected template", async () => {
+    useWorkspaceTemplateStore.setState({ templates: TEMPLATES });
+    const onClose = vi.fn();
+    render(
+      <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={onClose} />,
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("combobox")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByText("From Template"));
+
+    // Select template with sparseDirs
+    fireEvent.click(screen.getByText("frontend-feature").closest("button")!);
+
+    // Fill in worktree name
+    const nameInput = screen.getByPlaceholderText("feature-auth");
+    fireEvent.change(nameInput, { target: { value: "my-feature" } });
+
+    fireEvent.click(screen.getByText("Create & Start Chat"));
+
+    await waitFor(() => {
+      expect(mockCreateWs).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sparseDirs: ["src", "tests"],
+          autoCommit: true,
+        }),
+      );
+    });
+  });
+
+  it("shows 'From Template' tab in mode tabs", () => {
+    render(
+      <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={vi.fn()} />,
+    );
+    expect(screen.getByText("From Template")).toBeInTheDocument();
   });
 });
 

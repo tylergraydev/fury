@@ -12,3 +12,4 @@ pub mod slash_command;
 pub mod stash;
 pub mod todo;
 pub mod workspace;
+pub mod workspace_template;

@@ -2,18 +2,13 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub enum AgentStatus {
+    #[default]
     Idle,
     Running,
     Stopping,
     Error(String),
-}
-
-impl Default for AgentStatus {
-    fn default() -> Self {
-        Self::Idle
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,6 +50,7 @@ pub struct SendMessageRequest {
 
 /// A parsed event from Claude Code's NDJSON stream output.
 /// Claude Code outputs one JSON object per line with a `type` field.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum StreamEvent {
@@ -83,6 +79,7 @@ pub enum StreamEvent {
     },
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssistantMessageEvent {
     pub role: Option<String>,
@@ -92,6 +89,7 @@ pub struct AssistantMessageEvent {
     pub extra: serde_json::Value,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentBlockEvent {

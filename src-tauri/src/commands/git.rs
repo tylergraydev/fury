@@ -172,7 +172,7 @@ pub fn list_repo_directories(
     let mut args = vec!["ls-tree", "--name-only", "-d"];
     let depth_str;
     if depth > 1 {
-        depth_str = format!("-r");
+        depth_str = "-r".to_string();
         args.push(&depth_str);
     }
     args.push("HEAD");

@@ -5,7 +5,9 @@ use crate::models::repository::{RepoSettings, Repository};
 use crate::models::settings::AppSettings;
 use crate::models::todo::TodoItem;
 use crate::models::workspace::{Workspace, WorkspaceStatus};
+use crate::models::workspace_template::WorkspaceTemplate;
 use chrono::Utc;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use uuid::Uuid;
 
@@ -146,4 +148,23 @@ pub fn insert_test_repo_and_workspace(db: &Database) -> (Repository, Workspace) 
     db.insert_workspace(&ws)
         .expect("Failed to insert test workspace");
     (repo, ws)
+}
+
+/// Create a dummy WorkspaceTemplate for testing.
+pub fn test_workspace_template(repo_id: Uuid) -> WorkspaceTemplate {
+    WorkspaceTemplate {
+        id: Uuid::new_v4(),
+        repo_id,
+        name: "test-template".to_string(),
+        description: Some("A test template".to_string()),
+        setup_script: Some("npm install".to_string()),
+        run_script: Some("npm start".to_string()),
+        archive_script: None,
+        run_script_mode: "nonconcurrent".to_string(),
+        env_vars: HashMap::from([("NODE_ENV".to_string(), "development".to_string())]),
+        sparse_dirs: Some(vec!["src".to_string()]),
+        auto_commit: true,
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    }
 }

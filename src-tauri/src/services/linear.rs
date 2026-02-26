@@ -100,6 +100,7 @@ pub fn search_issues(api_key: &str, query: &str) -> Result<Vec<LinearIssue>, App
         .collect())
 }
 
+#[allow(dead_code)]
 pub fn get_issue(api_key: &str, issue_id: &str) -> Result<LinearIssue, AppError> {
     let client = reqwest::blocking::Client::new();
 

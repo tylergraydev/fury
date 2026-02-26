@@ -1365,3 +1365,74 @@ export async function showStash(
 ): Promise<StashDetail> {
   return invoke<StashDetail>("show_stash", { workspaceId, index });
 }
+
+// Workspace template types
+export interface WorkspaceTemplate {
+  id: string;
+  repoId: string;
+  name: string;
+  description: string | null;
+  setupScript: string | null;
+  runScript: string | null;
+  archiveScript: string | null;
+  runScriptMode: string;
+  envVars: Record<string, string>;
+  sparseDirs: string[] | null;
+  autoCommit: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateWorkspaceTemplateRequest {
+  repoId: string;
+  name: string;
+  description?: string;
+  setupScript?: string;
+  runScript?: string;
+  archiveScript?: string;
+  runScriptMode?: string;
+  envVars?: Record<string, string>;
+  sparseDirs?: string[];
+  autoCommit?: boolean;
+}
+
+export interface UpdateWorkspaceTemplateRequest {
+  name?: string;
+  description?: string;
+  setupScript?: string;
+  runScript?: string;
+  archiveScript?: string;
+  runScriptMode?: string;
+  envVars?: Record<string, string>;
+  sparseDirs?: string[];
+  autoCommit?: boolean;
+}
+
+// Workspace template commands
+export async function createWorkspaceTemplate(
+  request: CreateWorkspaceTemplateRequest,
+): Promise<WorkspaceTemplate> {
+  return invoke<WorkspaceTemplate>("create_workspace_template", { request });
+}
+
+export async function listWorkspaceTemplates(
+  repoId: string,
+): Promise<WorkspaceTemplate[]> {
+  return invoke<WorkspaceTemplate[]>("list_workspace_templates", { repoId });
+}
+
+export async function updateWorkspaceTemplate(
+  templateId: string,
+  request: UpdateWorkspaceTemplateRequest,
+): Promise<WorkspaceTemplate> {
+  return invoke<WorkspaceTemplate>("update_workspace_template", {
+    templateId,
+    request,
+  });
+}
+
+export async function deleteWorkspaceTemplate(
+  templateId: string,
+): Promise<void> {
+  return invoke("delete_workspace_template", { templateId });
+}

@@ -25,7 +25,7 @@ pub fn list_stashes(worktree_path: &Path) -> Result<Vec<StashEntry>, AppError> {
     let entries = text
         .lines()
         .filter(|l| !l.is_empty())
-        .filter_map(|line| parse_stash_list_line(line))
+        .filter_map(parse_stash_list_line)
         .collect();
 
     Ok(entries)

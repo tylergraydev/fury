@@ -58,7 +58,7 @@ pub async fn send_message(
             if agent.status == AgentStatus::Running {
                 // Verify the process is actually alive before rejecting.
                 // Stale "Running" status can linger from crashed or stuck processes.
-                let is_alive = agent.pid.map_or(false, |pid| {
+                let is_alive = agent.pid.is_some_and(|pid| {
                     crate::platform::is_process_alive(pid)
                 });
                 if is_alive {
@@ -523,7 +523,7 @@ pub async fn send_message(
             let is_cold_error = !had_content.load(std::sync::atomic::Ordering::Relaxed);
             let exited_with_error = exit_status
                 .as_ref()
-                .map_or(false, |s| !s.success() && s.code() != Some(143));
+                .is_some_and(|s| !s.success() && s.code() != Some(143));
             if is_cold_error && exited_with_error {
                 let mut agents = agents_ref.lock().unwrap_or_else(|e| e.into_inner());
                 if let Some(agent) = agents.get_mut(&context_id) {

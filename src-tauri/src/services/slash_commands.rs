@@ -139,7 +139,7 @@ fn scan_directory(
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
-        if path.extension().map_or(false, |e| e == "md") {
+        if path.extension().is_some_and(|e| e == "md") {
             let file_stem = path
                 .file_stem()
                 .map(|s| s.to_string_lossy().to_string())

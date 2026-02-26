@@ -80,6 +80,7 @@ pub fn is_process_alive(pid: u32) -> bool {
     }
 }
 
+#[allow(dead_code)]
 pub fn configure_process_group(cmd: &mut Command) -> &mut Command {
     #[cfg(unix)]
     {
@@ -102,6 +103,7 @@ pub fn configure_process_group(cmd: &mut Command) -> &mut Command {
 /// Use this for all short-lived process spawns (git, formatters, etc.)
 /// to prevent terminal windows from flashing on screen.
 pub fn command(program: impl AsRef<OsStr>) -> Command {
+    #[allow(unused_mut)]
     let mut cmd = Command::new(program);
     #[cfg(windows)]
     {
