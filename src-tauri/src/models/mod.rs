@@ -6,6 +6,7 @@ pub mod linear;
 pub mod mcp;
 pub mod merge;
 pub mod pr;
+pub mod prompt;
 pub mod repository;
 pub mod settings;
 pub mod slash_command;

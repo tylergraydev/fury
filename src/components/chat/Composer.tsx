@@ -11,7 +11,10 @@ import { useSettingsStore } from "../../stores/settingsStore";
 import { useTodoStore } from "../../stores/todoStore";
 import { useSlashCommandStore } from "../../stores/slashCommandStore";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
+import { usePromptLibraryStore } from "../../stores/promptLibraryStore";
 import { BUILTIN_COMMANDS, type BuiltinCommand } from "../../lib/builtinCommands";
+import { extractVariables, substituteVariables, isAutoFillVariable } from "../../lib/promptVariables";
+import { PromptLibraryDialog } from "../prompt-library/PromptLibraryDialog";
 
 function ActionBar({ icon, description, bgStyle, secondaryActions, primaryAction }: {
   icon?: React.ReactNode;
@@ -221,6 +224,9 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
   // Store expanded command content separately so the textarea shows only /{name}
   const [pendingCommandContent, setPendingCommandContent] = useState<string | null>(null);
 
+  // Prompt library state
+  const [showPromptLibrary, setShowPromptLibrary] = useState(false);
+
   const currentModelDisplay = MODEL_OPTIONS.find(m => m.value === selectedModel)?.displayName ?? "Opus 4.6";
 
   const isRunning = agentStatus === "Running";
@@ -236,6 +242,11 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
   useEffect(() => {
     useSlashCommandStore.getState().loadCommands(contextId, contextType);
   }, [contextId, contextType]);
+
+  // Load prompt library
+  useEffect(() => {
+    usePromptLibraryStore.getState().loadPrompts();
+  }, []);
 
   // Load file list for @mention autocomplete
   useEffect(() => {
@@ -390,12 +401,21 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
   const discoveredSkills = useSlashCommandStore((s) =>
     s.discoveredSkills[contextId] ?? EMPTY_COMMANDS,
   );
+  const libraryPrompts = usePromptLibraryStore((s) => s.prompts);
+  const promptCommands: SlashCommand[] = useMemo(() => {
+    return libraryPrompts.map((p) => ({
+      name: `prompt:${p.name}`,
+      source: "built-in" as const,
+      description: p.description ?? `Prompt: ${p.name}`,
+      content: p.content,
+    }));
+  }, [libraryPrompts]);
   const allCommands: SlashCommand[] = useMemo(() => {
     // File-discovered commands take priority; add stream-discovered skills that aren't duplicates
     const knownNames = new Set(fileCommands.map((c) => c.name));
     const uniqueSkills = discoveredSkills.filter((s) => !knownNames.has(s.name));
-    return [...BUILTIN_COMMANDS, ...fileCommands, ...uniqueSkills];
-  }, [fileCommands, discoveredSkills]);
+    return [...BUILTIN_COMMANDS, ...promptCommands, ...fileCommands, ...uniqueSkills];
+  }, [fileCommands, discoveredSkills, promptCommands]);
   const matchingCommands = useMemo(() => {
     if (!slashFilter) return allCommands;
     const lower = slashFilter.toLowerCase();
@@ -470,6 +490,28 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
       if (asBuiltin.action) {
         asBuiltin.action();
         setText(textBeforeLine + textAfterCursor);
+        setShowSlashMenu(false);
+        return;
+      }
+
+      // Prompt library commands: check for variables and auto-substitute
+      if (cmd.name.startsWith("prompt:") && cmd.content) {
+        const variables = extractVariables(cmd.content);
+        const hasCustomVars = variables.some((v) => !isAutoFillVariable(v));
+        if (hasCustomVars) {
+          // Open prompt library dialog for variable substitution
+          setText(textBeforeLine + textAfterCursor);
+          setShowSlashMenu(false);
+          setShowPromptLibrary(true);
+          return;
+        }
+        // Auto-fill only — substitute immediately
+        const values: Record<string, string> = {};
+        // Auto-fill variables would be populated by the PromptLibraryDialog
+        const resolved = substituteVariables(cmd.content, values);
+        setText(textBeforeLine + textAfterCursor);
+        setPendingCommandName(`/${cmd.name}`);
+        setPendingCommandContent(resolved);
         setShowSlashMenu(false);
         return;
       }
@@ -575,6 +617,13 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     if (e.key === "p" && e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
       e.preventDefault();
       setShowModelMenu((prev) => !prev);
+      return;
+    }
+
+    // Option+L to open prompt library
+    if (e.key === "l" && e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+      e.preventDefault();
+      setShowPromptLibrary(true);
       return;
     }
 
@@ -1009,6 +1058,15 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
                         <span>Link workspaces</span>
                       </button>
                     )}
+                    <button
+                      onClick={() => { setShowPlusMenu(false); setShowPromptLibrary(true); }}
+                      className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--bg-hover)]"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      <BookOpen className="h-4 w-4" style={{ color: "var(--text-secondary)" }} />
+                      <span className="flex-1">Prompt Library</span>
+                      <kbd className="text-xs" style={{ color: "var(--text-muted)" }}>⌥L</kbd>
+                    </button>
                   </div>
                 )}
               </div>
@@ -1044,6 +1102,18 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
           </div>
         </div>
       </div>
+
+      {showPromptLibrary && (
+        <PromptLibraryDialog
+          onClose={() => setShowPromptLibrary(false)}
+          onInsert={(resolvedContent, displayName) => {
+            setText(resolvedContent);
+            setPendingCommandName(displayName);
+            setPendingCommandContent(resolvedContent);
+            setShowPromptLibrary(false);
+          }}
+        />
+      )}
     </div>
   );
 }

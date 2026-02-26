@@ -1,6 +1,7 @@
 use crate::db::Database;
 use crate::models::chat::{ChatMessage, ContentBlock, MessageRole};
 use crate::models::checkpoint::Checkpoint;
+use crate::models::prompt::Prompt;
 use crate::models::repository::{RepoSettings, Repository};
 use crate::models::settings::AppSettings;
 use crate::models::todo::TodoItem;
@@ -148,6 +149,21 @@ pub fn insert_test_repo_and_workspace(db: &Database) -> (Repository, Workspace) 
     db.insert_workspace(&ws)
         .expect("Failed to insert test workspace");
     (repo, ws)
+}
+
+/// Create a dummy Prompt for testing.
+pub fn test_prompt() -> Prompt {
+    Prompt {
+        id: Uuid::new_v4(),
+        name: "test-prompt".to_string(),
+        content: "Review the {{file}} for {{issue_type}} issues".to_string(),
+        description: Some("A test prompt".to_string()),
+        category: Some("Code Review".to_string()),
+        tags: vec!["review".to_string(), "quality".to_string()],
+        sort_order: 0,
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    }
 }
 
 /// Create a dummy WorkspaceTemplate for testing.
