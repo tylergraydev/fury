@@ -11,13 +11,24 @@ import {
   Sparkles,
   CircleDot,
   Search,
+  Pencil,
+  Trash2,
+  Copy,
 } from "lucide-react";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useUIStore } from "../../stores/uiStore";
-import { getThemeNames, type ThemeName } from "../../lib/themes";
+import {
+  getThemeNames,
+  type BuiltInThemeName,
+  type ThemeVars,
+  registerCustomTheme,
+  unregisterCustomTheme,
+} from "../../lib/themes";
+import { ThemeEditorModal } from "./ThemeEditorModal";
 import type {
+  CustomTheme,
   AgentType,
   AppSettings,
   ProviderType,
@@ -71,8 +82,8 @@ const NAV_ITEMS: { tab: SettingsTab; label: string; icon: React.ComponentType<{ 
   { tab: "updates", label: "Updates", icon: Download },
 ];
 
-// Theme display metadata (must stay in sync with themes.ts definitions)
-const THEME_META: Record<ThemeName, { label: string; description: string; swatches: string[] }> = {
+// Theme display metadata for built-in themes
+const BUILT_IN_THEME_META: Record<BuiltInThemeName, { label: string; description: string; swatches: string[] }> = {
   blend: {
     label: "Blend",
     description: "Black base with blue accents",
@@ -168,17 +179,55 @@ function AppearanceTab() {
   const theme = useUIStore((s) => s.theme);
   const setTheme = useUIStore((s) => s.setTheme);
   const { appSettings, saveSettings, loadSettings } = useSettingsStore();
-  const themeNames = getThemeNames();
+  const builtInNames = getThemeNames();
+  const customThemes = appSettings?.customThemes ?? [];
+
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingTheme, setEditingTheme] = useState<CustomTheme | null>(null);
+  const [duplicateFrom, setDuplicateFrom] = useState<string | null>(null);
 
   useEffect(() => {
     if (!appSettings) loadSettings();
   }, [appSettings, loadSettings]);
 
-  const handleSetTheme = (name: ThemeName) => {
+  const handleSetTheme = (name: string) => {
     setTheme(name);
     if (appSettings) {
       saveSettings({ ...appSettings, theme: name }).catch(() => {});
     }
+  };
+
+  const handleSaveCustomTheme = async (ct: CustomTheme) => {
+    if (!appSettings) return;
+    const existing = appSettings.customThemes ?? [];
+    const idx = existing.findIndex((t) => t.id === ct.id);
+    const updated = idx >= 0
+      ? existing.map((t, i) => (i === idx ? ct : t))
+      : [...existing, ct];
+
+    registerCustomTheme(ct.id, ct.vars as unknown as ThemeVars);
+    await saveSettings({ ...appSettings, customThemes: updated, theme: ct.id }).catch(() => {});
+    setTheme(ct.id);
+    setEditorOpen(false);
+    setEditingTheme(null);
+    setDuplicateFrom(null);
+  };
+
+  const handleDeleteCustomTheme = async (themeId: string) => {
+    if (!appSettings) return;
+    const updated = (appSettings.customThemes ?? []).filter((t) => t.id !== themeId);
+    unregisterCustomTheme(themeId);
+    const newTheme = appSettings.theme === themeId ? "blend" : appSettings.theme;
+    if (newTheme !== appSettings.theme) setTheme(newTheme);
+    await saveSettings({ ...appSettings, customThemes: updated, theme: newTheme }).catch(() => {});
+    setEditorOpen(false);
+    setEditingTheme(null);
+  };
+
+  const openEditor = (existing: CustomTheme | null, dupFrom: string | null) => {
+    setEditingTheme(existing);
+    setDuplicateFrom(dupFrom);
+    setEditorOpen(true);
   };
 
   return (
@@ -191,60 +240,180 @@ function AppearanceTab() {
           Theme
         </label>
         <div className="grid grid-cols-3 gap-3">
-          {themeNames.map((name) => {
-            const meta = THEME_META[name];
+          {/* Built-in themes */}
+          {builtInNames.map((name) => {
+            const meta = BUILT_IN_THEME_META[name];
             const isActive = theme === name;
             return (
-              <button
-                key={name}
-                onClick={() => handleSetTheme(name)}
-                className="rounded-lg p-3 text-left transition-colors"
-                style={{
-                  backgroundColor: "var(--bg-surface)",
-                  border: isActive
-                    ? "2px solid var(--accent)"
-                    : "1px solid var(--border)",
-                }}
-              >
-                <div className="mb-2 flex gap-1">
-                  {meta.swatches.map((color, i) => (
-                    <div
-                      key={i}
-                      className="h-5 flex-1 rounded"
-                      style={{
-                        backgroundColor: color,
-                        border: "1px solid rgba(255,255,255,0.1)",
-                      }}
-                    />
-                  ))}
-                </div>
-                <div
-                  className="text-xs font-medium"
+              <div key={name} className="relative">
+                <button
+                  onClick={() => handleSetTheme(name)}
+                  className="w-full rounded-lg p-3 text-left transition-colors"
                   style={{
-                    color: isActive ? "var(--accent)" : "var(--text-primary)",
+                    backgroundColor: "var(--bg-surface)",
+                    border: isActive
+                      ? "2px solid var(--accent)"
+                      : "1px solid var(--border)",
                   }}
                 >
-                  {meta.label}
-                </div>
-                <div
-                  className="text-[10px]"
+                  <div className="mb-2 flex gap-1">
+                    {meta.swatches.map((color, i) => (
+                      <div
+                        key={i}
+                        className="h-5 flex-1 rounded"
+                        style={{
+                          backgroundColor: color,
+                          border: "1px solid rgba(255,255,255,0.1)",
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <div
+                    className="text-xs font-medium"
+                    style={{
+                      color: isActive ? "var(--accent)" : "var(--text-primary)",
+                    }}
+                  >
+                    {meta.label}
+                  </div>
+                  <div
+                    className="text-[10px]"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {meta.description}
+                  </div>
+                  {isActive && (
+                    <div
+                      className="mt-1.5 text-[10px] font-medium"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      Active
+                    </div>
+                  )}
+                </button>
+                {/* Duplicate action */}
+                <button
+                  onClick={() => openEditor(null, name)}
+                  title="Duplicate as custom theme"
+                  className="absolute right-2 top-2 rounded p-1 opacity-0 transition-opacity hover:bg-[var(--bg-hover)] [div:hover>&]:opacity-100"
                   style={{ color: "var(--text-muted)" }}
                 >
-                  {meta.description}
-                </div>
-                {isActive && (
-                  <div
-                    className="mt-1.5 text-[10px] font-medium"
-                    style={{ color: "var(--accent)" }}
-                  >
-                    Active
+                  <Copy className="h-3 w-3" />
+                </button>
+              </div>
+            );
+          })}
+
+          {/* Custom themes */}
+          {customThemes.map((ct) => {
+            const isActive = theme === ct.id;
+            const swatches = [
+              ct.vars["--bg-primary"],
+              ct.vars["--bg-surface"],
+              ct.vars["--accent"],
+              ct.vars["--text-primary"],
+            ].filter(Boolean);
+            return (
+              <div key={ct.id} className="group relative">
+                <button
+                  onClick={() => handleSetTheme(ct.id)}
+                  className="w-full rounded-lg p-3 text-left transition-colors"
+                  style={{
+                    backgroundColor: "var(--bg-surface)",
+                    border: isActive
+                      ? "2px solid var(--accent)"
+                      : "1px solid var(--border)",
+                  }}
+                >
+                  <div className="mb-2 flex gap-1">
+                    {swatches.map((color, i) => (
+                      <div
+                        key={i}
+                        className="h-5 flex-1 rounded"
+                        style={{
+                          backgroundColor: color,
+                          border: "1px solid rgba(255,255,255,0.1)",
+                        }}
+                      />
+                    ))}
                   </div>
-                )}
-              </button>
+                  <div
+                    className="text-xs font-medium"
+                    style={{
+                      color: isActive ? "var(--accent)" : "var(--text-primary)",
+                    }}
+                  >
+                    {ct.name}
+                  </div>
+                  <div
+                    className="text-[10px]"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Custom theme
+                  </div>
+                  {isActive && (
+                    <div
+                      className="mt-1.5 text-[10px] font-medium"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      Active
+                    </div>
+                  )}
+                </button>
+                {/* Edit / Delete actions */}
+                <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  <button
+                    onClick={() => openEditor(ct, null)}
+                    title="Edit theme"
+                    className="rounded p-1 hover:bg-[var(--bg-hover)]"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteCustomTheme(ct.id)}
+                    title="Delete theme"
+                    className="rounded p-1 hover:bg-[var(--bg-hover)]"
+                    style={{ color: "var(--error)" }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
             );
           })}
         </div>
+
+        {/* Create custom theme button */}
+        <button
+          onClick={() => openEditor(null, null)}
+          className="mt-3 flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs"
+          style={{
+            backgroundColor: "var(--bg-surface)",
+            color: "var(--text-secondary)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Create Custom Theme
+        </button>
       </div>
+
+      {/* Theme editor modal */}
+      {editorOpen && (
+        <ThemeEditorModal
+          existingTheme={editingTheme}
+          duplicateFrom={duplicateFrom}
+          currentThemeId={theme}
+          onSave={handleSaveCustomTheme}
+          onDelete={editingTheme ? handleDeleteCustomTheme : undefined}
+          onClose={() => {
+            setEditorOpen(false);
+            setEditingTheme(null);
+            setDuplicateFrom(null);
+          }}
+        />
+      )}
     </div>
   );
 }

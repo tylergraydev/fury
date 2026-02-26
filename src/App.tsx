@@ -25,7 +25,7 @@ import { useCopilotStore } from "./stores/copilotStore";
 import { ToastContainer } from "./components/Toast";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { useAutoUpdate } from "./lib/autoUpdate";
-import { applyTheme } from "./lib/themes";
+import { applyTheme, registerCustomTheme, type ThemeVars } from "./lib/themes";
 import { startIpcFlush, stopIpcFlush } from "./lib/ipcInstrumentation";
 import { startFrameMonitor, stopFrameMonitor } from "./lib/frameMonitor";
 import { NotificationPanel } from "./components/notifications/NotificationPanel";
@@ -110,6 +110,12 @@ function App() {
     getAppSettings()
       .then((settings) => {
         settingsRef.current = { copilotEnabled: !!settings.copilot?.enabled };
+        // Register custom themes before applying
+        if (settings.customThemes) {
+          for (const ct of settings.customThemes) {
+            registerCustomTheme(ct.id, ct.vars as unknown as ThemeVars);
+          }
+        }
         if (settings.theme) {
           useUIStore.getState().setTheme(settings.theme);
         }

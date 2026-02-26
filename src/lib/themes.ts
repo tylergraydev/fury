@@ -1,6 +1,7 @@
-export type ThemeName = "blend" | "midnight" | "github";
+export type BuiltInThemeName = "blend" | "midnight" | "github";
+export type ThemeName = string;
 
-interface ThemeVars {
+export interface ThemeVars {
   "--bg-primary": string;
   "--bg-secondary": string;
   "--bg-surface": string;
@@ -20,7 +21,26 @@ interface ThemeVars {
   "--composer-border": string;
 }
 
-const themes: Record<ThemeName, ThemeVars> = {
+export const THEME_VAR_GROUPS = [
+  {
+    label: "Backgrounds",
+    vars: ["--bg-primary", "--bg-secondary", "--bg-surface", "--bg-hover"] as const,
+  },
+  {
+    label: "Text",
+    vars: ["--text-primary", "--text-secondary", "--text-muted"] as const,
+  },
+  {
+    label: "Accents",
+    vars: ["--accent", "--accent-hover", "--accent-green", "--accent-purple", "--accent-orange"] as const,
+  },
+  {
+    label: "Borders & Status",
+    vars: ["--border", "--composer-border", "--success", "--warning", "--error"] as const,
+  },
+] as const;
+
+export const builtInThemes: Record<BuiltInThemeName, ThemeVars> = {
   // Blend: black base + Figma panel colors + blue accent
   blend: {
     "--bg-primary": "#000000",
@@ -85,14 +105,43 @@ const themes: Record<ThemeName, ThemeVars> = {
   },
 };
 
+const customThemeRegistry = new Map<string, ThemeVars>();
+
+export function registerCustomTheme(id: string, vars: ThemeVars): void {
+  customThemeRegistry.set(id, vars);
+}
+
+export function unregisterCustomTheme(id: string): void {
+  customThemeRegistry.delete(id);
+}
+
+export function clearCustomThemes(): void {
+  customThemeRegistry.clear();
+}
+
+export function getThemeVars(name: ThemeName): ThemeVars | undefined {
+  return builtInThemes[name as BuiltInThemeName] ?? customThemeRegistry.get(name);
+}
+
 export function applyTheme(name: ThemeName): void {
-  const vars = themes[name];
+  const vars = getThemeVars(name);
+  if (!vars) {
+    applyTheme("blend");
+    return;
+  }
   const root = document.documentElement;
   for (const [key, value] of Object.entries(vars)) {
     root.style.setProperty(key, value);
   }
 }
 
-export function getThemeNames(): ThemeName[] {
-  return Object.keys(themes) as ThemeName[];
+export function applyThemeVars(vars: ThemeVars): void {
+  const root = document.documentElement;
+  for (const [key, value] of Object.entries(vars)) {
+    root.style.setProperty(key, value);
+  }
+}
+
+export function getThemeNames(): BuiltInThemeName[] {
+  return Object.keys(builtInThemes) as BuiltInThemeName[];
 }

@@ -976,9 +976,17 @@ export interface IndexingStatus {
   lastIndexedAt: string | null;
 }
 
+export interface CustomTheme {
+  id: string;
+  name: string;
+  vars: Record<string, string>;
+  baseTheme?: string;
+  createdAt: string;
+}
+
 export interface AppSettings {
   agentType: AgentType;
-  theme: "blend" | "midnight" | "github";
+  theme: string;
   provider: ProviderConfig;
   systemPromptAdditions: string | null;
   analyticsEnabled: boolean;
@@ -986,6 +994,7 @@ export interface AppSettings {
   copilot: CopilotSettings;
   linear: LinearSettings;
   claudeContext: ClaudeContextSettings;
+  customThemes?: CustomTheme[];
 }
 
 // MCP commands
