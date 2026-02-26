@@ -153,11 +153,11 @@ pub async fn spawn_test_run(
     let stdout_lines = std::sync::Arc::new(tokio::sync::Mutex::new(Vec::<String>::new()));
 
     // Stream stdout
-    if let Some(stdout) = child.stdout.take() {
+    let stdout_handle = if let Some(stdout) = child.stdout.take() {
         let app_out = app_handle.clone();
         let event_out = event_name.clone();
         let lines_ref = std::sync::Arc::clone(&stdout_lines);
-        tokio::spawn(async move {
+        Some(tokio::spawn(async move {
             let reader = BufReader::new(stdout);
             let mut lines = reader.lines();
             while let Ok(Some(line)) = lines.next_line().await {
@@ -170,8 +170,10 @@ pub async fn spawn_test_run(
                     },
                 );
             }
-        });
-    }
+        }))
+    } else {
+        None
+    };
 
     // Stream stderr
     if let Some(stderr) = child.stderr.take() {
@@ -192,13 +194,15 @@ pub async fn spawn_test_run(
         });
     }
 
-    // Background task: wait for exit, parse output, emit results
+    // Background task: wait for stdout reader to finish, then parse output and emit results
     let app_final = app_handle.clone();
     let event_final = event_name;
     let lines_final = stdout_lines;
     tokio::spawn(async move {
-        // Give the IO tasks a moment to finish flushing
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        // Wait for the stdout reader to finish (i.e., process closed its stdout)
+        if let Some(handle) = stdout_handle {
+            let _ = handle.await;
+        }
 
         let collected = lines_final.lock().await;
         let full_stdout = collected.join("\n");

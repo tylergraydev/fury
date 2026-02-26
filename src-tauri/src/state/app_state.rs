@@ -47,8 +47,8 @@ pub struct AppState {
     pub perf_metrics: Arc<Mutex<PerfMetrics>>,
     /// Claude Context indexing status per repo — keyed by repo UUID
     pub indexing_status: Arc<Mutex<HashMap<Uuid, IndexingStatus>>>,
-    /// Test runner process handles — keyed by "test:{context_id}"
-    pub test_processes: Arc<Mutex<HashMap<String, Child>>>,
+    /// Test runner process PIDs — keyed by "test:{context_id}"
+    pub test_processes: Arc<Mutex<HashMap<String, u32>>>,
 }
 
 impl AppState {

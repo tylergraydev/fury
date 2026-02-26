@@ -201,10 +201,8 @@ pub async fn run_tests(
     let process_key = format!("test:{}", ctx_id);
     {
         let mut processes = state.test_processes.lock().unwrap();
-        if let Some(child) = processes.remove(&process_key) {
-            if let Some(pid) = child.id() {
-                let _ = crate::platform::kill_process_group(pid);
-            }
+        if let Some(pid) = processes.remove(&process_key) {
+            let _ = crate::platform::kill_process_group(pid);
         }
     }
 
@@ -233,7 +231,7 @@ pub async fn run_tests(
     };
 
     // Spawn test process
-    let child = test_runner::spawn_test_run(
+    let mut child = test_runner::spawn_test_run(
         ctx_id,
         &command,
         &effective_dir,
@@ -243,27 +241,25 @@ pub async fn run_tests(
     )
     .await?;
 
-    // Store process handle
-    {
+    // Store PID so stop_tests can kill the process
+    let pid = child.id();
+    if let Some(pid) = pid {
         let mut processes = state.test_processes.lock().unwrap();
-        processes.insert(process_key.clone(), child);
+        processes.insert(process_key.clone(), pid);
     }
 
-    // Background task to wait for exit
+    // Background task to wait for exit, then clean up and emit event
     let processes_ref = Arc::clone(&state.test_processes);
     let app_clone = app.clone();
     let exit_event = format!("test-exit:{}", ctx_id);
     tokio::spawn(async move {
-        let mut child = {
-            let mut processes = processes_ref.lock().unwrap();
-            processes.remove(&process_key)
-        };
+        let exit_status = child.wait().await.ok();
 
-        let exit_status = if let Some(ref mut c) = child {
-            c.wait().await.ok()
-        } else {
-            None
-        };
+        // Remove PID from map now that process has exited
+        {
+            let mut processes = processes_ref.lock().unwrap();
+            processes.remove(&process_key);
+        }
 
         let (exit_code, success) = match exit_status {
             Some(ref status) => (status.code(), status.success()),
@@ -287,10 +283,8 @@ pub fn stop_tests(
 
     let process_key = format!("test:{}", ctx_id);
     let mut processes = state.test_processes.lock().unwrap();
-    if let Some(child) = processes.remove(&process_key) {
-        if let Some(pid) = child.id() {
-            let _ = crate::platform::kill_process_group(pid);
-        }
+    if let Some(pid) = processes.remove(&process_key) {
+        let _ = crate::platform::kill_process_group(pid);
     }
 
     // Also emit an error event to signal the UI
