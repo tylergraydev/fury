@@ -34,7 +34,7 @@ export function BookmarkNoteDialog() {
     const store = useBookmarkStore.getState();
     if (editing.existing) {
       await store.editBookmark(editing.repoId, editing.existing.id, {
-        note: note || undefined,
+        note,
         color,
       });
     } else {

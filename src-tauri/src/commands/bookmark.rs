@@ -64,7 +64,7 @@ pub fn update_bookmark(
         .ok_or_else(|| AppError::DbError(format!("Bookmark not found: {}", id)))?;
 
     if let Some(note) = request.note {
-        bookmark.note = Some(note);
+        bookmark.note = if note.is_empty() { None } else { Some(note) };
     }
     if let Some(color) = request.color {
         bookmark.color = Some(color);
