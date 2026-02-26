@@ -1,0 +1,11 @@
+#!/bin/sh
+# Pre-commit hook: runs TypeScript type checking before each commit.
+# Install: npm run hooks:install
+
+echo "Running tsc --noEmit..."
+npx tsc --noEmit
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "Commit blocked: TypeScript type errors found. Fix them and try again."
+  exit 1
+fi
