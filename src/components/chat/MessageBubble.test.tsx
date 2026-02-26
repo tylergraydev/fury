@@ -1,8 +1,53 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MessageBubble } from "./MessageBubble";
 import type { ChatMessage } from "../../lib/tauri";
+
+// Mock lucide-react icons as simple spans
+vi.mock("lucide-react", () => ({
+  FileText: (props: Record<string, unknown>) => <span data-testid="icon-filetext" {...props} />,
+  Pencil: (props: Record<string, unknown>) => <span data-testid="icon-pencil" {...props} />,
+  FilePlus2: (props: Record<string, unknown>) => <span data-testid="icon-fileplus2" {...props} />,
+  SquareTerminal: (props: Record<string, unknown>) => <span data-testid="icon-terminal" {...props} />,
+  FileSearch: (props: Record<string, unknown>) => <span data-testid="icon-filesearch" {...props} />,
+  FolderSearch: (props: Record<string, unknown>) => <span data-testid="icon-foldersearch" {...props} />,
+  Bot: (props: Record<string, unknown>) => <span data-testid="icon-bot" {...props} />,
+  NotebookPen: (props: Record<string, unknown>) => <span data-testid="icon-notebookpen" {...props} />,
+  Globe: (props: Record<string, unknown>) => <span data-testid="icon-globe" {...props} />,
+  Radar: (props: Record<string, unknown>) => <span data-testid="icon-radar" {...props} />,
+  ChevronRight: (props: Record<string, unknown>) => <span data-testid="chevron-right" {...props} />,
+  ChevronDown: (props: Record<string, unknown>) => <span data-testid="chevron-down" {...props} />,
+  Wrench: (props: Record<string, unknown>) => <span data-testid="icon-wrench" {...props} />,
+  RotateCw: (props: Record<string, unknown>) => <span data-testid="icon-retry" {...props} />,
+  Brain: (props: Record<string, unknown>) => <span data-testid="icon-brain" {...props} />,
+  ListPlus: (props: Record<string, unknown>) => <span data-testid="icon-listplus" {...props} />,
+  ListChecks: (props: Record<string, unknown>) => <span data-testid="icon-listchecks" {...props} />,
+  GitCompare: (props: Record<string, unknown>) => <span data-testid="icon-gitcompare" {...props} />,
+  ImageIcon: (props: Record<string, unknown>) => <span data-testid="icon-image" {...props} />,
+}));
+
+// Mock MarkdownContent
+vi.mock("./MarkdownContent", () => ({
+  MarkdownContent: ({ content }: { content: string }) => <span>{content}</span>,
+}));
+
+// Mock readFileBase64
+const mockReadFileBase64 = vi.fn();
+vi.mock("../../lib/tauri", async () => {
+  const actual = await vi.importActual("../../lib/tauri");
+  return {
+    ...actual,
+    readFileBase64: (...args: unknown[]) => mockReadFileBase64(...args),
+  };
+});
+
+// Mock format utilities to return predictable values
+vi.mock("../../lib/format", () => ({
+  formatDuration: (ms: number) => `${ms}ms`,
+  formatTokens: (n: number) => `${n}tok`,
+  formatCost: (usd: number) => `$${usd.toFixed(4)}`,
+}));
 
 function makeMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {
@@ -927,5 +972,779 @@ describe("MessageBubble", () => {
       />,
     );
     expect(screen.getByText("Agent")).toBeInTheDocument();
+  });
+
+  // --- ResponseMetadataRow tests (lines 566-591) ---
+
+  it("renders ResponseMetadataRow with duration", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [{ type: "text", text: "done" }],
+          metadata: { durationMs: 1500 },
+        })}
+      />,
+    );
+    expect(screen.getByText("1500ms")).toBeInTheDocument();
+  });
+
+  it("renders ResponseMetadataRow with input and output tokens", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [{ type: "text", text: "done" }],
+          metadata: { inputTokens: 100, outputTokens: 200 },
+        })}
+      />,
+    );
+    expect(screen.getByText(/100tok in \/ 200tok out/)).toBeInTheDocument();
+  });
+
+  it("renders ResponseMetadataRow with only inputTokens (outputTokens shows ?)", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [{ type: "text", text: "done" }],
+          metadata: { inputTokens: 50 },
+        })}
+      />,
+    );
+    expect(screen.getByText(/50tok in \/ \? out/)).toBeInTheDocument();
+  });
+
+  it("renders ResponseMetadataRow with only outputTokens (inputTokens shows ?)", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [{ type: "text", text: "done" }],
+          metadata: { outputTokens: 75 },
+        })}
+      />,
+    );
+    expect(screen.getByText(/\? in \/ 75tok out/)).toBeInTheDocument();
+  });
+
+  it("renders ResponseMetadataRow with cacheReadTokens when > 0", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [{ type: "text", text: "done" }],
+          metadata: { cacheReadTokens: 500 },
+        })}
+      />,
+    );
+    expect(screen.getByText(/500tok cached/)).toBeInTheDocument();
+  });
+
+  it("does not render cacheReadTokens when 0", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [{ type: "text", text: "done" }],
+          metadata: { cacheReadTokens: 0 },
+        })}
+      />,
+    );
+    expect(screen.queryByText(/cached/)).not.toBeInTheDocument();
+  });
+
+  it("renders ResponseMetadataRow with totalCostUsd", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [{ type: "text", text: "done" }],
+          metadata: { totalCostUsd: 0.0123 },
+        })}
+      />,
+    );
+    expect(screen.getByText("$0.0123")).toBeInTheDocument();
+  });
+
+  it("renders ResponseMetadataRow with all metadata fields and separators", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [{ type: "text", text: "done" }],
+          metadata: {
+            durationMs: 2000,
+            inputTokens: 100,
+            outputTokens: 200,
+            cacheReadTokens: 50,
+            totalCostUsd: 0.05,
+          },
+        })}
+      />,
+    );
+    // Check separators (middle dots) exist
+    const dots = screen.getAllByText("·");
+    expect(dots.length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByText("2000ms")).toBeInTheDocument();
+    expect(screen.getByText("$0.0500")).toBeInTheDocument();
+  });
+
+  it("does not render ResponseMetadataRow when metadata has no displayable parts", () => {
+    const { container } = render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [{ type: "text", text: "done" }],
+          metadata: {},
+        })}
+      />,
+    );
+    // The metadata row should not be rendered when empty
+    expect(container.querySelector(".select-none")).not.toBeInTheDocument();
+  });
+
+  // --- ToolRow hover state (line 622) ---
+
+  it("changes chevron icon on hover", () => {
+    const { container } = render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "Read", input: { file_path: "/a.ts" } },
+          ],
+        })}
+      />,
+    );
+    const button = container.querySelector("button")!;
+    // Initially shows ChevronRight
+    expect(screen.getByTestId("chevron-right")).toBeInTheDocument();
+
+    // Hover shows ChevronDown
+    fireEvent.mouseEnter(button);
+    expect(screen.getByTestId("chevron-down")).toBeInTheDocument();
+
+    // Mouse leave goes back to ChevronRight
+    fireEvent.mouseLeave(button);
+    expect(screen.getByTestId("chevron-right")).toBeInTheDocument();
+  });
+
+  // --- User message with file attachments (lines 477-489) ---
+
+  it("renders user message with file attachments", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "user",
+          content: [{ type: "text", text: "[Attached file: /path/to/doc.pdf] Check this file" }],
+        })}
+      />,
+    );
+    expect(screen.getByText("doc.pdf")).toBeInTheDocument();
+    expect(screen.getByText("Check this file")).toBeInTheDocument();
+  });
+
+  it("renders user message with image attachments", async () => {
+    mockReadFileBase64.mockResolvedValue("data:image/png;base64,abc123");
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "user",
+          content: [{ type: "text", text: "[Attached image: /path/to/photo.png] Look at this" }],
+        })}
+      />,
+    );
+    // Wait for the image to load
+    await waitFor(() => {
+      expect(screen.getByAltText("photo.png")).toBeInTheDocument();
+    });
+    expect(screen.getByText("photo.png")).toBeInTheDocument();
+    expect(screen.getByText("Look at this")).toBeInTheDocument();
+  });
+
+  it("shows fallback when image attachment fails to load", async () => {
+    mockReadFileBase64.mockRejectedValue(new Error("File not found"));
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "user",
+          content: [{ type: "text", text: "[Attached image: /path/to/missing.png]" }],
+        })}
+      />,
+    );
+    // Wait for the error fallback
+    await waitFor(() => {
+      expect(screen.getByText("missing.png")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("icon-image")).toBeInTheDocument();
+  });
+
+  it("shows loading placeholder while image is loading", () => {
+    // Never resolve
+    mockReadFileBase64.mockReturnValue(new Promise(() => {}));
+    const { container } = render(
+      <MessageBubble
+        message={makeMessage({
+          role: "user",
+          content: [{ type: "text", text: "[Attached image: /path/to/loading.png]" }],
+        })}
+      />,
+    );
+    // Should show loading placeholder (animate-pulse div)
+    expect(container.querySelector(".animate-pulse")).toBeInTheDocument();
+  });
+
+  // --- normalizeToolName additional branches ---
+
+  it("normalizes TodoWrite tool name", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "todowrite", input: {} },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Update todos")).toBeInTheDocument();
+  });
+
+  it("normalizes todo_write tool name", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "todo_write", input: {} },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Update todos")).toBeInTheDocument();
+  });
+
+  it("normalizes TodoRead tool name", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "todoread", input: {} },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Read todos")).toBeInTheDocument();
+  });
+
+  it("normalizes todo_read tool name", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "todo_read", input: {} },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Read todos")).toBeInTheDocument();
+  });
+
+  it("normalizes WebFetch tool name", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "webfetch", input: { url: "https://example.com" } },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Fetch")).toBeInTheDocument();
+  });
+
+  it("normalizes WebSearch tool name", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "websearch", input: { query: "test" } },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Search web")).toBeInTheDocument();
+  });
+
+  it("normalizes think/plan tool name to Think", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "think_about_it", input: {} },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Thinking")).toBeInTheDocument();
+  });
+
+  it("normalizes plan tool name to Think", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "plan_steps", input: {} },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Thinking")).toBeInTheDocument();
+  });
+
+  it("normalizes diff tool name to Diff", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "diff_tool", input: {} },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Diff")).toBeInTheDocument();
+  });
+
+  // --- Edit tool with old_string/new_string badges ---
+
+  it("shows +/- line badges for Edit tool with old and new strings", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            {
+              type: "toolUse",
+              id: "t1",
+              name: "Edit",
+              input: {
+                file_path: "/a/b.ts",
+                old_string: "line1\nline2",
+                new_string: "line1\nline2\nline3",
+              },
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("+3")).toBeInTheDocument();
+    expect(screen.getByText("-2")).toBeInTheDocument();
+  });
+
+  // --- Write tool with content line count badge ---
+
+  it("shows line count badge for Write tool with content", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            {
+              type: "toolUse",
+              id: "t1",
+              name: "Write",
+              input: {
+                file_path: "/a/b.ts",
+                content: "line1\nline2\nline3",
+              },
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("3 lines")).toBeInTheDocument();
+  });
+
+  // --- Grep with path and result matches ---
+
+  it("shows path badge for Grep tool", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            {
+              type: "toolUse",
+              id: "t1",
+              name: "Grep",
+              input: { pattern: "TODO", path: "/a/b/c/src" },
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("TODO")).toBeInTheDocument();
+    expect(screen.getByText("c/src")).toBeInTheDocument();
+  });
+
+  it("shows match count badge for Grep tool with results", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            {
+              type: "toolUse",
+              id: "t1",
+              name: "Grep",
+              input: { pattern: "TODO" },
+            },
+            {
+              type: "toolResult",
+              toolUseId: "t1",
+              content: "file1.ts:1:TODO fix\nfile2.ts:5:TODO clean",
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("2 matches")).toBeInTheDocument();
+  });
+
+  // --- WebSearch summary ---
+
+  it("shows query badge for WebSearch tool", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            {
+              type: "toolUse",
+              id: "t1",
+              name: "WebSearch",
+              input: { query: "vitest docs" },
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Search web")).toBeInTheDocument();
+    expect(screen.getByText("vitest docs")).toBeInTheDocument();
+  });
+
+  it("shows empty badge for WebSearch with no query", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            {
+              type: "toolUse",
+              id: "t1",
+              name: "WebSearch",
+              input: {},
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Search web")).toBeInTheDocument();
+  });
+
+  // --- WebFetch summary ---
+
+  it("shows hostname badge for WebFetch tool", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            {
+              type: "toolUse",
+              id: "t1",
+              name: "WebFetch",
+              input: { url: "https://docs.example.com/page" },
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Fetch")).toBeInTheDocument();
+    expect(screen.getByText("docs.example.com")).toBeInTheDocument();
+  });
+
+  it("shows raw url as badge when URL parsing fails", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            {
+              type: "toolUse",
+              id: "t1",
+              name: "WebFetch",
+              input: { url: "not-a-url" },
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("not-a-url")).toBeInTheDocument();
+  });
+
+  it("shows no badge for WebFetch with no url", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            {
+              type: "toolUse",
+              id: "t1",
+              name: "WebFetch",
+              input: {},
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Fetch")).toBeInTheDocument();
+  });
+
+  // --- formatToolDetail for Edit (expanded) ---
+
+  it("shows Edit tool detail with file, removed, and added sections", async () => {
+    const user = userEvent.setup();
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            {
+              type: "toolUse",
+              id: "t1",
+              name: "Edit",
+              input: {
+                file_path: "/src/main.ts",
+                old_string: "const x = 1;",
+                new_string: "const x = 2;",
+              },
+            },
+          ],
+        })}
+      />,
+    );
+
+    await user.click(screen.getByText("Edit"));
+    expect(screen.getByText(/File:/)).toBeInTheDocument();
+    expect(screen.getByText("/src/main.ts")).toBeInTheDocument();
+    expect(screen.getByText("Removed")).toBeInTheDocument();
+    expect(screen.getByText("const x = 1;")).toBeInTheDocument();
+    expect(screen.getByText("Added")).toBeInTheDocument();
+    expect(screen.getByText("const x = 2;")).toBeInTheDocument();
+  });
+
+  it("shows Edit tool detail with only new_string (no old_string)", async () => {
+    const user = userEvent.setup();
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            {
+              type: "toolUse",
+              id: "t1",
+              name: "Edit",
+              input: {
+                file_path: "/src/main.ts",
+                new_string: "const y = 3;",
+              },
+            },
+          ],
+        })}
+      />,
+    );
+
+    await user.click(screen.getByText("Edit"));
+    expect(screen.queryByText("Removed")).not.toBeInTheDocument();
+    expect(screen.getByText("Added")).toBeInTheDocument();
+  });
+
+  it("shows Edit tool detail fallback when input is null", async () => {
+    const user = userEvent.setup();
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "Edit", input: null },
+          ],
+        })}
+      />,
+    );
+
+    await user.click(screen.getByText("Edit"));
+    // Falls through to generic fallback with "Input" label
+    expect(screen.getByText("Input")).toBeInTheDocument();
+  });
+
+  // --- formatToolDetail for Read (expanded) ---
+
+  it("shows Read tool detail with file path, offset, limit, and result", async () => {
+    const user = userEvent.setup();
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            {
+              type: "toolUse",
+              id: "t1",
+              name: "Read",
+              input: { file_path: "/src/app.ts", offset: 10, limit: 50 },
+            },
+            { type: "toolResult", toolUseId: "t1", content: "file data here" },
+          ],
+        })}
+      />,
+    );
+
+    await user.click(screen.getByText("Read 1 lines"));
+    expect(screen.getByText(/File:/)).toBeInTheDocument();
+    expect(screen.getByText("/src/app.ts")).toBeInTheDocument();
+    expect(screen.getByText(/offset: 10/)).toBeInTheDocument();
+    expect(screen.getByText(/limit: 50/)).toBeInTheDocument();
+    expect(screen.getByText("file data here")).toBeInTheDocument();
+  });
+
+  it("shows Read tool detail fallback when input is null", async () => {
+    const user = userEvent.setup();
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "Read", input: null },
+          ],
+        })}
+      />,
+    );
+
+    await user.click(screen.getByText("Read"));
+    expect(screen.getByText("Input")).toBeInTheDocument();
+  });
+
+  // --- Bash tool detail fallback ---
+
+  it("shows Bash tool detail fallback when input is null", async () => {
+    const user = userEvent.setup();
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "Bash", input: null },
+          ],
+        })}
+      />,
+    );
+
+    await user.click(screen.getByText("Run"));
+    expect(screen.getByText("Input")).toBeInTheDocument();
+  });
+
+  // --- Generic fallback tool detail with result ---
+
+  it("shows generic tool detail with result section", async () => {
+    const user = userEvent.setup();
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "custom_tool", input: { foo: "bar" } },
+            { type: "toolResult", toolUseId: "t1", content: "custom output" },
+          ],
+        })}
+      />,
+    );
+
+    await user.click(screen.getByText("custom_tool"));
+    expect(screen.getByText("Input")).toBeInTheDocument();
+    expect(screen.getByText("Result")).toBeInTheDocument();
+    expect(screen.getByText("custom output")).toBeInTheDocument();
+  });
+
+  // --- Task with subagent_type ---
+
+  it("shows Agent label with subagent type", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            {
+              type: "toolUse",
+              id: "t1",
+              name: "Task",
+              input: { description: "Do it", subagent_type: "code" },
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Agent (code)")).toBeInTheDocument();
+  });
+
+  // --- Bash with description ---
+
+  it("shows description for Bash tool when both command and description are present", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            {
+              type: "toolUse",
+              id: "t1",
+              name: "Bash",
+              input: { command: "npm test", description: "Run the tests" },
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Run the tests")).toBeInTheDocument();
+  });
+
+  // --- Multiple attachments ---
+
+  it("renders user message with multiple file and image attachments", async () => {
+    mockReadFileBase64.mockResolvedValue("data:image/png;base64,abc");
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "user",
+          content: [{
+            type: "text",
+            text: "[Attached image: /img1.png][Attached file: /doc.txt] Please review",
+          }],
+        })}
+      />,
+    );
+    await waitFor(() => {
+      expect(screen.getByAltText("img1.png")).toBeInTheDocument();
+    });
+    expect(screen.getByText("doc.txt")).toBeInTheDocument();
+    expect(screen.getByText("Please review")).toBeInTheDocument();
   });
 });

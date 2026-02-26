@@ -1,10 +1,27 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { Composer } from "./Composer";
+import { useChatStore } from "../../stores/chatStore";
+import { useSettingsStore } from "../../stores/settingsStore";
 import { useSlashCommandStore } from "../../stores/slashCommandStore";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
 import { useTodoStore } from "../../stores/todoStore";
+import { readFileBase64 } from "../../lib/tauri";
+
+vi.mock("../../lib/tauri", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/tauri")>();
+  return {
+    ...actual,
+    readFileBase64: vi.fn().mockResolvedValue("data:image/png;base64,abc123"),
+  };
+});
+
+vi.mock("@tauri-apps/api/webview", () => ({
+  getCurrentWebview: vi.fn(() => { throw new Error("not in tauri"); }),
+}));
 
 beforeEach(() => {
   useSlashCommandStore.setState({
@@ -700,6 +717,634 @@ describe("Composer", () => {
     await user.type(textarea, "check @");
     await user.click(screen.getByText("@todos"));
     expect(textarea).toHaveValue("check @todos ");
+  });
+
+  // --- Model selector dropdown (lines 876-915) ---
+  describe("model selector", () => {
+    it("shows model selector button with default model name", () => {
+      render(<Composer {...defaultProps} />);
+      expect(screen.getByTitle("Change model (⌥P)")).toBeInTheDocument();
+      expect(screen.getByText("Opus 4.6")).toBeInTheDocument();
+    });
+
+    it("opens model dropdown when clicking model button", async () => {
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      await user.click(screen.getByTitle("Change model (⌥P)"));
+      // All model options should appear
+      expect(screen.getByText("Sonnet")).toBeInTheDocument();
+      expect(screen.getByText("Haiku")).toBeInTheDocument();
+    });
+
+    it("selects a model from dropdown and sends with it", async () => {
+      const onSend = vi.fn();
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} onSend={onSend} />);
+      // Open model menu
+      await user.click(screen.getByTitle("Change model (⌥P)"));
+      // Select Sonnet
+      await user.click(screen.getByText("Sonnet"));
+      // Type and send
+      await user.type(screen.getByRole("textbox"), "hello{Enter}");
+      expect(onSend).toHaveBeenCalledWith("hello", "sonnet", undefined);
+    });
+
+    it("toggles model menu with Alt+P keyboard shortcut", async () => {
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      const textarea = screen.getByRole("textbox");
+      // Alt+P to open menu
+      await user.click(textarea);
+      await user.keyboard("{Alt>}p{/Alt}");
+      expect(screen.getByText("Sonnet")).toBeInTheDocument();
+    });
+
+    it("disables model selector when agent is running", () => {
+      render(<Composer {...defaultProps} agentStatus="Running" />);
+      expect(screen.getByTitle("Change model (⌥P)")).toBeDisabled();
+    });
+
+    it("shows codex model options when agentType is codex_cli", () => {
+      useSettingsStore.setState({
+        appSettings: { agentType: "codex_cli" } as any,
+      });
+      render(<Composer {...defaultProps} />);
+      expect(screen.getByText("codex")).toBeInTheDocument();
+    });
+  });
+
+  // --- Plus menu / attachments / link buttons (lines 955-1005) ---
+  describe("plus menu", () => {
+    it("shows plus button with correct title", () => {
+      render(<Composer {...defaultProps} />);
+      expect(screen.getByTitle("Add file or context")).toBeInTheDocument();
+    });
+
+    it("opens plus menu when clicking plus button", async () => {
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      await user.click(screen.getByTitle("Add file or context"));
+      expect(screen.getByText("Add attachment")).toBeInTheDocument();
+      expect(screen.getByText("Link issue")).toBeInTheDocument();
+    });
+
+    it("shows link workspaces option when onLinkWorkspaces is provided", async () => {
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} onLinkWorkspaces={vi.fn()} />);
+      await user.click(screen.getByTitle("Add file or context"));
+      expect(screen.getByText("Link workspaces")).toBeInTheDocument();
+    });
+
+    it("does not show link workspaces option when onLinkWorkspaces is not provided", async () => {
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      await user.click(screen.getByTitle("Add file or context"));
+      expect(screen.queryByText("Link workspaces")).not.toBeInTheDocument();
+    });
+
+    it("calls onLinkIssue when link issue button is clicked", async () => {
+      const onLinkIssue = vi.fn();
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} onLinkIssue={onLinkIssue} />);
+      await user.click(screen.getByTitle("Add file or context"));
+      await user.click(screen.getByText("Link issue"));
+      expect(onLinkIssue).toHaveBeenCalledOnce();
+    });
+
+    it("calls onLinkWorkspaces when link workspaces button is clicked", async () => {
+      const onLinkWorkspaces = vi.fn();
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} onLinkWorkspaces={onLinkWorkspaces} />);
+      await user.click(screen.getByTitle("Add file or context"));
+      await user.click(screen.getByText("Link workspaces"));
+      expect(onLinkWorkspaces).toHaveBeenCalledOnce();
+    });
+
+    it("disables link issue button when onLinkIssue is not provided", async () => {
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      await user.click(screen.getByTitle("Add file or context"));
+      const linkIssueBtn = screen.getByText("Link issue").closest("button")!;
+      expect(linkIssueBtn).toBeDisabled();
+    });
+
+    it("disables plus button when agent is running", () => {
+      render(<Composer {...defaultProps} agentStatus="Running" />);
+      expect(screen.getByTitle("Add file or context")).toBeDisabled();
+    });
+
+    it("opens file dialog and adds non-image attachment", async () => {
+      const mockOpen = vi.mocked(openFileDialog);
+      mockOpen.mockResolvedValueOnce("/path/to/file.txt" as any);
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      await user.click(screen.getByTitle("Add file or context"));
+      await user.click(screen.getByText("Add attachment"));
+      await waitFor(() => {
+        expect(screen.getByText("file.txt")).toBeInTheDocument();
+      });
+    });
+
+    it("sends message with attached file paths prepended", async () => {
+      const onSend = vi.fn();
+      const mockOpen = vi.mocked(openFileDialog);
+      mockOpen.mockResolvedValueOnce("/path/to/notes.txt" as any);
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} onSend={onSend} />);
+      // Add attachment
+      await user.click(screen.getByTitle("Add file or context"));
+      await user.click(screen.getByText("Add attachment"));
+      await waitFor(() => {
+        expect(screen.getByText("notes.txt")).toBeInTheDocument();
+      });
+      // Type message and send
+      await user.type(screen.getByRole("textbox"), "check this{Enter}");
+      expect(onSend).toHaveBeenCalledOnce();
+      const sentMessage = onSend.mock.calls[0][0];
+      expect(sentMessage).toContain("[Attached file: /path/to/notes.txt]");
+      expect(sentMessage).toContain("check this");
+    });
+
+    it("can remove an attached file chip", async () => {
+      const mockOpen = vi.mocked(openFileDialog);
+      mockOpen.mockResolvedValueOnce("/path/to/remove-me.txt" as any);
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      await user.click(screen.getByTitle("Add file or context"));
+      await user.click(screen.getByText("Add attachment"));
+      await waitFor(() => {
+        expect(screen.getByText("remove-me.txt")).toBeInTheDocument();
+      });
+      // Click the X button next to the file chip
+      const removeBtn = screen.getByText("remove-me.txt").closest("div")!.querySelector("button")!;
+      await user.click(removeBtn);
+      expect(screen.queryByText("remove-me.txt")).not.toBeInTheDocument();
+    });
+
+    it("enables send button when files are attached even without text", async () => {
+      const mockOpen = vi.mocked(openFileDialog);
+      mockOpen.mockResolvedValueOnce("/path/to/data.csv" as any);
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      await user.click(screen.getByTitle("Add file or context"));
+      await user.click(screen.getByText("Add attachment"));
+      await waitFor(() => {
+        expect(screen.getByText("data.csv")).toBeInTheDocument();
+      });
+      expect(screen.getByTitle("Send message")).not.toBeDisabled();
+    });
+
+    it("sends attached image file with [Attached image: ...] prefix", async () => {
+      const onSend = vi.fn();
+      const mockOpen = vi.mocked(openFileDialog);
+      mockOpen.mockResolvedValueOnce("/photos/pic.png" as any);
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} onSend={onSend} />);
+      await user.click(screen.getByTitle("Add file or context"));
+      await user.click(screen.getByText("Add attachment"));
+      await waitFor(() => {
+        expect(screen.getByText("pic.png")).toBeInTheDocument();
+      });
+      await user.type(screen.getByRole("textbox"), "look{Enter}");
+      const sentMessage = onSend.mock.calls[0][0];
+      expect(sentMessage).toContain("[Attached image: /photos/pic.png]");
+    });
+
+    it("handles openFileDialog returning null (user cancelled)", async () => {
+      const mockOpen = vi.mocked(openFileDialog);
+      mockOpen.mockResolvedValueOnce(null as any);
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      await user.click(screen.getByTitle("Add file or context"));
+      await user.click(screen.getByText("Add attachment"));
+      // No file chip should appear
+      await waitFor(() => {
+        expect(mockOpen).toHaveBeenCalled();
+      });
+      // Should not have any file chips
+      expect(screen.queryByText("remove-me.txt")).not.toBeInTheDocument();
+    });
+
+    it("handles multiple files from openFileDialog", async () => {
+      const mockOpen = vi.mocked(openFileDialog);
+      mockOpen.mockResolvedValueOnce(["/a/b.txt", "/c/d.ts"] as any);
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      await user.click(screen.getByTitle("Add file or context"));
+      await user.click(screen.getByText("Add attachment"));
+      await waitFor(() => {
+        expect(screen.getByText("b.txt")).toBeInTheDocument();
+        expect(screen.getByText("d.ts")).toBeInTheDocument();
+      });
+    });
+  });
+
+  // --- Permission request bar ---
+  describe("permission request bar", () => {
+    it("shows permission request bar with tool name", () => {
+      render(
+        <Composer
+          {...defaultProps}
+          permissionRequest={{ toolName: "shell_exec", input: {} }}
+          onRespondToPermission={vi.fn()}
+        />,
+      );
+      expect(screen.getByText("shell_exec")).toBeInTheDocument();
+      expect(screen.getByText("Allow")).toBeInTheDocument();
+      expect(screen.getByText("Deny")).toBeInTheDocument();
+    });
+
+    it("calls onRespondToPermission(true) when Allow is clicked", async () => {
+      const onRespond = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <Composer
+          {...defaultProps}
+          permissionRequest={{ toolName: "write_file", input: {} }}
+          onRespondToPermission={onRespond}
+        />,
+      );
+      await user.click(screen.getByText("Allow"));
+      expect(onRespond).toHaveBeenCalledWith(true);
+    });
+
+    it("calls onRespondToPermission(false) when Deny is clicked", async () => {
+      const onRespond = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <Composer
+          {...defaultProps}
+          permissionRequest={{ toolName: "write_file", input: {} }}
+          onRespondToPermission={onRespond}
+        />,
+      );
+      await user.click(screen.getByText("Deny"));
+      expect(onRespond).toHaveBeenCalledWith(false);
+    });
+
+    it("approves permission with Cmd+Shift+Enter", async () => {
+      const onRespond = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <Composer
+          {...defaultProps}
+          permissionRequest={{ toolName: "exec", input: {} }}
+          onRespondToPermission={onRespond}
+        />,
+      );
+      const textarea = screen.getByRole("textbox");
+      await user.click(textarea);
+      await user.keyboard("{Meta>}{Shift>}{Enter}{/Shift}{/Meta}");
+      expect(onRespond).toHaveBeenCalledWith(true);
+    });
+  });
+
+  // --- Plan approval bar ---
+  describe("plan approval bar", () => {
+    it("shows plan approval bar with approve and copy buttons", () => {
+      const onApprovePlan = vi.fn();
+      const onCopyPlan = vi.fn();
+      render(
+        <Composer
+          {...defaultProps}
+          isPlanApproval
+          onApprovePlan={onApprovePlan}
+          onCopyPlan={onCopyPlan}
+        />,
+      );
+      expect(screen.getByText("Approve")).toBeInTheDocument();
+      expect(screen.getByText("Copy")).toBeInTheDocument();
+      expect(screen.getByText("Hand off")).toBeInTheDocument();
+    });
+
+    it("calls onApprovePlan when approve button is clicked", async () => {
+      const onApprovePlan = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <Composer
+          {...defaultProps}
+          isPlanApproval
+          onApprovePlan={onApprovePlan}
+        />,
+      );
+      await user.click(screen.getByText("Approve"));
+      expect(onApprovePlan).toHaveBeenCalledOnce();
+    });
+
+    it("calls onCopyPlan when copy button is clicked", async () => {
+      const onCopyPlan = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <Composer
+          {...defaultProps}
+          isPlanApproval
+          onApprovePlan={vi.fn()}
+          onCopyPlan={onCopyPlan}
+        />,
+      );
+      await user.click(screen.getByText("Copy"));
+      expect(onCopyPlan).toHaveBeenCalledOnce();
+    });
+
+    it("approves plan with Cmd+Shift+Enter", async () => {
+      const onApprovePlan = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <Composer
+          {...defaultProps}
+          isPlanApproval
+          onApprovePlan={onApprovePlan}
+        />,
+      );
+      const textarea = screen.getByRole("textbox");
+      await user.click(textarea);
+      await user.keyboard("{Meta>}{Shift>}{Enter}{/Shift}{/Meta}");
+      expect(onApprovePlan).toHaveBeenCalledOnce();
+    });
+
+    it("shows plan approval placeholder text", () => {
+      render(
+        <Composer
+          {...defaultProps}
+          isPlanApproval
+          onApprovePlan={vi.fn()}
+        />,
+      );
+      expect(screen.getByPlaceholderText("Enter your plan adjustments here...")).toBeInTheDocument();
+    });
+  });
+
+  // --- Context near-full warning ---
+  describe("context usage warning", () => {
+    it("shows compact warning when context is >= 90% full", () => {
+      useChatStore.setState({
+        sessionStats: {
+          "ws-1": { totalInputTokens: 190_000, totalOutputTokens: 0, totalCostUsd: 1.5, numTurns: 10 },
+        },
+      });
+      render(<Composer {...defaultProps} />);
+      expect(screen.getByText("Compact")).toBeInTheDocument();
+    });
+
+    it("calls onSend with /compact when compact button is clicked", async () => {
+      const onSend = vi.fn();
+      useChatStore.setState({
+        sessionStats: {
+          "ws-1": { totalInputTokens: 195_000, totalOutputTokens: 0, totalCostUsd: 2.0, numTurns: 15 },
+        },
+      });
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} onSend={onSend} />);
+      await user.click(screen.getByText("Compact"));
+      expect(onSend).toHaveBeenCalledWith("/compact");
+    });
+
+    it("does not show compact warning when context < 90%", () => {
+      useChatStore.setState({
+        sessionStats: {
+          "ws-1": { totalInputTokens: 100_000, totalOutputTokens: 0, totalCostUsd: 0.5, numTurns: 5 },
+        },
+      });
+      render(<Composer {...defaultProps} />);
+      expect(screen.queryByText("Compact")).not.toBeInTheDocument();
+    });
+
+    it("does not show compact warning when agent is running", () => {
+      useChatStore.setState({
+        sessionStats: {
+          "ws-1": { totalInputTokens: 195_000, totalOutputTokens: 0, totalCostUsd: 2.0, numTurns: 15 },
+        },
+      });
+      render(<Composer {...defaultProps} agentStatus="Running" />);
+      expect(screen.queryByText("Compact")).not.toBeInTheDocument();
+    });
+
+    it("shows context usage indicator in bottom toolbar when tokens > 0", () => {
+      useChatStore.setState({
+        sessionStats: {
+          "ws-1": { totalInputTokens: 50_000, totalOutputTokens: 1000, totalCostUsd: 0.25, numTurns: 3 },
+        },
+      });
+      render(<Composer {...defaultProps} />);
+      expect(screen.getByText("$0.250")).toBeInTheDocument();
+    });
+
+    it("applies warning color when context is 75-89% full", () => {
+      useChatStore.setState({
+        sessionStats: {
+          "ws-1": { totalInputTokens: 160_000, totalOutputTokens: 0, totalCostUsd: 1.0, numTurns: 8 },
+        },
+      });
+      render(<Composer {...defaultProps} />);
+      // The ContextUsageIndicator wrapper div should have the warning color
+      const costEl = screen.getByText("$1.00");
+      const indicator = costEl.closest(".flex.items-center") as HTMLElement;
+      expect(indicator.style.color).toBe("var(--accent-orange)");
+    });
+  });
+
+  // --- Keyboard shortcuts ---
+  describe("keyboard shortcuts", () => {
+    it("toggles thinking with Alt+T", async () => {
+      const onThinkingEnabledChange = vi.fn();
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} thinkingEnabled={false} onThinkingEnabledChange={onThinkingEnabledChange} />);
+      const textarea = screen.getByRole("textbox");
+      await user.click(textarea);
+      await user.keyboard("{Alt>}t{/Alt}");
+      expect(onThinkingEnabledChange).toHaveBeenCalledWith(true);
+    });
+
+    it("toggles plan mode with Shift+Tab", async () => {
+      const onPlanEnabledChange = vi.fn();
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} planEnabled={false} onPlanEnabledChange={onPlanEnabledChange} />);
+      const textarea = screen.getByRole("textbox");
+      await user.click(textarea);
+      await user.keyboard("{Shift>}{Tab}{/Shift}");
+      expect(onPlanEnabledChange).toHaveBeenCalledWith(true);
+    });
+
+    it("calls onLinkIssue with Cmd+I", async () => {
+      const onLinkIssue = vi.fn();
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} onLinkIssue={onLinkIssue} />);
+      const textarea = screen.getByRole("textbox");
+      await user.click(textarea);
+      await user.keyboard("{Meta>}i{/Meta}");
+      expect(onLinkIssue).toHaveBeenCalledOnce();
+    });
+  });
+
+  // --- Border styles ---
+  describe("border styles", () => {
+    it("applies dashed border when plan mode is enabled", () => {
+      render(<Composer {...defaultProps} planEnabled={true} />);
+      const borderEl = screen.getByRole("textbox").closest("[class*='rounded-xl']") as HTMLElement;
+      expect(borderEl.style.border).toBe("1px dashed var(--composer-border)");
+    });
+
+    it("applies solid border when plan mode is disabled", () => {
+      render(<Composer {...defaultProps} planEnabled={false} />);
+      const borderEl = screen.getByRole("textbox").closest("[class*='rounded-xl']") as HTMLElement;
+      expect(borderEl.style.border).toBe("1px solid var(--border)");
+    });
+  });
+
+  // --- Codex model hides thinking/plan toggles ---
+  describe("codex agent type", () => {
+    beforeEach(() => {
+      useSettingsStore.setState({
+        appSettings: { agentType: "codex_cli" } as any,
+      });
+    });
+
+    it("hides thinking toggle for codex agent", () => {
+      render(<Composer {...defaultProps} />);
+      expect(screen.queryByTitle("Disable thinking (⌥T)")).not.toBeInTheDocument();
+    });
+
+    it("hides plan toggle for codex agent", () => {
+      render(<Composer {...defaultProps} />);
+      expect(screen.queryByTitle("Disable plan mode (⇧⇥)")).not.toBeInTheDocument();
+    });
+  });
+
+  // --- discoveredSkills dedup ---
+  it("merges discoveredSkills with fileCommands without duplicates", async () => {
+    useSlashCommandStore.setState({
+      commands: {
+        "ws-1": [
+          { name: "existing", source: "project", description: "Existing", content: "ec" },
+        ],
+      },
+      discoveredSkills: {
+        "ws-1": [
+          { name: "existing", source: "plugin", description: "Dup", content: "dup" },
+          { name: "newskill", source: "plugin", description: "New skill", content: "ns" },
+        ],
+      },
+      loading: {},
+      error: {},
+      loadCommands: vi.fn(),
+    });
+    const user = userEvent.setup();
+    render(<Composer {...defaultProps} />);
+    await user.type(screen.getByRole("textbox"), "/");
+    // "existing" should appear once (from fileCommands), "newskill" should also appear
+    const existingItems = screen.getAllByText("/existing");
+    expect(existingItems).toHaveLength(1);
+    expect(screen.getByText("/newskill")).toBeInTheDocument();
+  });
+
+  // --- Sends only file block when no text is typed ---
+  it("sends only file block when text is empty but files are attached", async () => {
+    const onSend = vi.fn();
+    const mockOpen = vi.mocked(openFileDialog);
+    mockOpen.mockResolvedValueOnce("/path/to/only-file.txt" as any);
+    const user = userEvent.setup();
+    render(<Composer {...defaultProps} onSend={onSend} />);
+    await user.click(screen.getByTitle("Add file or context"));
+    await user.click(screen.getByText("Add attachment"));
+    await waitFor(() => {
+      expect(screen.getByText("only-file.txt")).toBeInTheDocument();
+    });
+    await user.click(screen.getByTitle("Send message"));
+    expect(onSend).toHaveBeenCalledOnce();
+    const sentMessage = onSend.mock.calls[0][0];
+    expect(sentMessage).toBe("[Attached file: /path/to/only-file.txt]");
+  });
+
+  // --- Clears dropped files after send ---
+  it("clears dropped files after sending", async () => {
+    const mockOpen = vi.mocked(openFileDialog);
+    mockOpen.mockResolvedValueOnce("/path/to/cleared.txt" as any);
+    const user = userEvent.setup();
+    render(<Composer {...defaultProps} onSend={vi.fn()} />);
+    await user.click(screen.getByTitle("Add file or context"));
+    await user.click(screen.getByText("Add attachment"));
+    await waitFor(() => {
+      expect(screen.getByText("cleared.txt")).toBeInTheDocument();
+    });
+    await user.type(screen.getByRole("textbox"), "go{Enter}");
+    // File chip should be gone after send
+    expect(screen.queryByText("cleared.txt")).not.toBeInTheDocument();
+  });
+
+  // --- Line 348: openFileDialog rejection is caught gracefully ---
+  it("catches and returns early when openFileDialog rejects", async () => {
+    const mockOpen = vi.mocked(openFileDialog);
+    mockOpen.mockRejectedValueOnce(new Error("dialog failed"));
+    const user = userEvent.setup();
+    render(<Composer {...defaultProps} />);
+    await user.click(screen.getByTitle("Add file or context"));
+    await user.click(screen.getByText("Add attachment"));
+    // Wait for the rejection to be handled
+    await waitFor(() => {
+      expect(mockOpen).toHaveBeenCalled();
+    });
+    // No file chip should appear and no crash
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  // --- Lines 366-368: readFileBase64 rejection sets dataUrl to "error" ---
+  it("sets dataUrl to 'error' when readFileBase64 rejects for an image attachment", async () => {
+    const mockOpen = vi.mocked(openFileDialog);
+    mockOpen.mockResolvedValueOnce("/path/to/photo.png" as any);
+    const mockReadBase64 = vi.mocked(readFileBase64);
+    mockReadBase64.mockRejectedValueOnce(new Error("read failed"));
+    const user = userEvent.setup();
+    render(<Composer {...defaultProps} />);
+    await user.click(screen.getByTitle("Add file or context"));
+    await user.click(screen.getByText("Add attachment"));
+    // Wait for the file chip to appear
+    await waitFor(() => {
+      expect(screen.getByText("photo.png")).toBeInTheDocument();
+    });
+    // After readFileBase64 rejects, the image file should fall back to the
+    // non-image / error icon (FileIcon) instead of showing an <img> or loading spinner.
+    // The FileChipIcon renders a FileText icon when isImage && dataUrl === "error".
+    await waitFor(() => {
+      // When dataUrl is "error", the chip renders neither an <img> nor the loading spinner;
+      // it renders the generic FileIcon (lucide FileText). Verify no <img> tag is present
+      // inside the chip (an <img> would mean the preview loaded successfully).
+      const chip = screen.getByText("photo.png").closest("div")!;
+      expect(chip.querySelector("img")).toBeNull();
+      // Also ensure the loading spinner (animate-pulse) is not present
+      expect(chip.querySelector(".animate-pulse")).toBeNull();
+    });
+  });
+
+  // --- Line 662: isDragOver applies dashed accent border ---
+  it("applies dashed accent border when isDragOver is true", async () => {
+    // Mock getCurrentWebview to provide a working onDragDropEvent
+    let dragCallback: (event: any) => void = () => {};
+    const mockGetCurrentWebview = vi.mocked(getCurrentWebview);
+    mockGetCurrentWebview.mockReturnValue({
+      onDragDropEvent: vi.fn((cb: any) => {
+        dragCallback = cb;
+        return Promise.resolve(() => {});
+      }),
+    } as any);
+
+    render(<Composer {...defaultProps} />);
+
+    // Simulate a drag "over" event through the Tauri callback
+    await waitFor(() => {
+      dragCallback({ payload: { type: "over" } });
+    });
+
+    // The rounded-xl container should now have the drag-over border style
+    const borderEl = screen.getByRole("textbox").closest("[class*='rounded-xl']") as HTMLElement;
+    await waitFor(() => {
+      expect(borderEl.style.border).toBe("2px dashed var(--accent)");
+    });
+
+    // Also verify the "Drop files here" overlay appears
+    expect(screen.getByText("Drop files here")).toBeInTheDocument();
+
+    // Restore default mock behavior (throw) so other tests aren't affected
+    mockGetCurrentWebview.mockImplementation(() => { throw new Error("not in tauri"); });
   });
 
 });

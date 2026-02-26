@@ -13,6 +13,7 @@ vi.mock("../lib/tauri", () => ({
   mergePr: vi.fn(),
   getPrReviews: vi.fn(),
   getPrReviewComments: vi.fn(),
+  getWorkflowRuns: vi.fn(),
 }));
 
 import { usePrStore } from "./prStore";
@@ -26,6 +27,7 @@ import {
   mergePr,
   getPrReviews,
   getPrReviewComments,
+  getWorkflowRuns,
 } from "../lib/tauri";
 
 const makePrInfo = (overrides: Record<string, unknown> = {}) => ({
@@ -46,6 +48,8 @@ beforeEach(() => {
       prInfo: {},
       reviews: {},
       reviewComments: {},
+      workflowRuns: {},
+      workflowLoading: {},
       loading: {},
       error: {},
       subscriptions: {},
@@ -244,6 +248,26 @@ describe("prStore - refreshChecks", () => {
 
     expect(usePrStore.getState().pollIntervals["ws-1"]).toBeDefined();
     // Clean up
+    usePrStore.getState().stopPolling("ws-1");
+  });
+
+  it("keeps polling when workflow runs are still in progress", async () => {
+    usePrStore.setState({
+      prInfo: { "ws-1": makePrInfo() as any },
+      workflowRuns: {
+        "ws-1": [{ id: 1, name: "ci", workflowName: "CI", status: "in_progress", conclusion: null, event: "push", createdAt: "" }] as any,
+      },
+    });
+    usePrStore.getState().startPolling("ws-1");
+    const checks = [
+      { name: "ci", status: "COMPLETED", conclusion: "SUCCESS", detailsUrl: null, description: null },
+    ];
+    vi.mocked(getPrChecks).mockResolvedValue(checks as any);
+
+    await usePrStore.getState().refreshChecks("ws-1");
+
+    // Checks are done but workflow runs are not → keep polling
+    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeDefined();
     usePrStore.getState().stopPolling("ws-1");
   });
 
@@ -466,6 +490,28 @@ describe("prStore - loadReviews", () => {
     // Should not throw and state should remain empty
     expect(usePrStore.getState().reviews["ws-1"]).toBeUndefined();
   });
+
+  it("deduplicates concurrent calls", async () => {
+    let resolveReviews: (v: any) => void;
+    let resolveComments: (v: any) => void;
+    vi.mocked(getPrReviews).mockImplementation(
+      () => new Promise((r) => { resolveReviews = r; }),
+    );
+    vi.mocked(getPrReviewComments).mockImplementation(
+      () => new Promise((r) => { resolveComments = r; }),
+    );
+
+    const p1 = usePrStore.getState().loadReviews("ws-1");
+    const p2 = usePrStore.getState().loadReviews("ws-1");
+
+    resolveReviews!([]);
+    resolveComments!([]);
+    await p1;
+    await p2;
+
+    expect(getPrReviews).toHaveBeenCalledTimes(1);
+    expect(getPrReviewComments).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("prStore - getReviewFixMessage", () => {
@@ -522,5 +568,70 @@ describe("prStore - getReviewFixMessage", () => {
 
     expect(msg).toContain("@alice");
     expect(msg).toContain("APPROVED");
+  });
+
+  it("formats comment with path but no line", () => {
+    usePrStore.setState({
+      reviews: { "ws-1": [] },
+      reviewComments: {
+        "ws-1": [
+          { id: 10, author: "bob", body: "Check this file", createdAt: "", path: "src/bar.ts", line: null },
+        ] as any,
+      },
+    });
+    const msg = usePrStore.getState().getReviewFixMessage("ws-1");
+    expect(msg).toContain("`src/bar.ts`");
+    expect(msg).not.toContain("null");
+  });
+
+  it("formats comment with no path as general", () => {
+    usePrStore.setState({
+      reviews: { "ws-1": [] },
+      reviewComments: {
+        "ws-1": [
+          { id: 10, author: "bob", body: "General note", createdAt: "", path: null, line: null },
+        ] as any,
+      },
+    });
+    const msg = usePrStore.getState().getReviewFixMessage("ws-1");
+    expect(msg).toContain("general");
+  });
+});
+
+describe("prStore - loadWorkflowRuns", () => {
+  it("fetches and stores workflow runs", async () => {
+    const runs = [{ id: 1, name: "CI", status: "completed", conclusion: "success", url: "" }];
+    vi.mocked(getWorkflowRuns).mockResolvedValue(runs as any);
+
+    await usePrStore.getState().loadWorkflowRuns("ws-1");
+
+    expect(usePrStore.getState().workflowRuns["ws-1"]).toEqual(runs);
+    expect(usePrStore.getState().workflowLoading["ws-1"]).toBe(false);
+  });
+
+  it("handles errors gracefully", async () => {
+    vi.mocked(getWorkflowRuns).mockRejectedValue(new Error("api error"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await usePrStore.getState().loadWorkflowRuns("ws-1");
+
+    expect(usePrStore.getState().workflowRuns["ws-1"]).toBeUndefined();
+    expect(usePrStore.getState().workflowLoading["ws-1"]).toBe(false);
+  });
+
+  it("deduplicates concurrent calls", async () => {
+    let resolve: () => void;
+    vi.mocked(getWorkflowRuns).mockImplementation(
+      () => new Promise<any>((r) => { resolve = () => r([]); }),
+    );
+
+    const p1 = usePrStore.getState().loadWorkflowRuns("ws-1");
+    const p2 = usePrStore.getState().loadWorkflowRuns("ws-1");
+
+    resolve!();
+    await p1;
+    await p2;
+
+    expect(getWorkflowRuns).toHaveBeenCalledTimes(1);
   });
 });

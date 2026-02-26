@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChatPanel } from "./ChatPanel";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useCheckpointStore } from "../../stores/checkpointStore";
 import { useTodoStore } from "../../stores/todoStore";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { respondToPermission } from "../../lib/tauri";
 
 // Capture props passed to mocked components so we can invoke callbacks
 
@@ -45,11 +47,50 @@ vi.mock("./Composer", () => ({
       <div data-testid="composer">
         <span data-testid="composer-ctx">{props.contextId}</span>
         <span data-testid="composer-agent-status">{typeof props.agentStatus === "string" ? props.agentStatus : "Error"}</span>
+        <span data-testid="composer-plan-approval">{String(props.isPlanApproval)}</span>
+        <span data-testid="composer-permission">{props.permissionRequest ? JSON.stringify(props.permissionRequest) : "null"}</span>
         <button data-testid="send-btn" onClick={() => props.onSend("test message")}>Send</button>
         <button data-testid="stop-btn" onClick={() => props.onStop()}>Stop</button>
+        {props.onApprovePlan && (
+          <button data-testid="approve-plan-btn" onClick={props.onApprovePlan}>Approve Plan</button>
+        )}
+        {props.onCopyPlan && (
+          <button data-testid="copy-plan-btn" onClick={props.onCopyPlan}>Copy Plan</button>
+        )}
+        {props.onRespondToPermission && (
+          <>
+            <button data-testid="permission-approve-btn" onClick={() => props.onRespondToPermission(true)}>Allow</button>
+            <button data-testid="permission-deny-btn" onClick={() => props.onRespondToPermission(false)}>Deny</button>
+          </>
+        )}
+        {props.onLinkWorkspaces && (
+          <button data-testid="link-workspaces-btn" onClick={props.onLinkWorkspaces}>Link Workspaces</button>
+        )}
+        {props.onLinkIssue && (
+          <button data-testid="link-issue-btn" onClick={props.onLinkIssue}>Link Issue</button>
+        )}
       </div>
     );
   },
+}));
+
+vi.mock("../workspace/LinkWorkspaceDialog", () => ({
+  LinkWorkspaceDialog: (props: any) => (
+    <div data-testid="link-workspace-dialog">
+      <span data-testid="lwd-workspace-id">{props.workspaceId}</span>
+      <span data-testid="lwd-workspace-name">{props.workspaceName}</span>
+      <button data-testid="lwd-close" onClick={props.onClose}>Close</button>
+    </div>
+  ),
+}));
+
+vi.mock("../workspace/IssuePicker", () => ({
+  IssuePicker: (props: any) => (
+    <div data-testid="issue-picker">
+      <span data-testid="ip-workspace-id">{props.workspaceId}</span>
+      <button data-testid="ip-close" onClick={props.onClose}>Close</button>
+    </div>
+  ),
 }));
 
 vi.mock("../../lib/tauri", () => ({
@@ -62,6 +103,7 @@ vi.mock("../../lib/tauri", () => ({
   listCheckpoints: vi.fn().mockResolvedValue([]),
   revertToCheckpoint: vi.fn().mockResolvedValue(undefined),
   listTodos: vi.fn().mockResolvedValue([]),
+  respondToPermission: vi.fn().mockResolvedValue(undefined),
   listen: vi.fn().mockResolvedValue(() => {}),
   toPersisted: vi.fn().mockImplementation((msg: any) => msg),
   fromPersisted: vi.fn().mockImplementation((msg: any) => msg),
@@ -72,6 +114,7 @@ beforeEach(() => {
   useChatStore.setState({ messages: {}, streamingText: {}, subscriptions: {} });
   useCheckpointStore.setState({ checkpoints: {}, revertedTurnIndex: {}, subscriptions: {} });
   useTodoStore.setState({ todos: {} });
+  useWorkspaceStore.setState({ workspaces: [], archivedWorkspaces: [], activeWorkspaceId: null, activeRepoId: null, loading: false, error: null });
   vi.clearAllMocks();
 });
 
@@ -479,6 +522,34 @@ describe("ChatPanel", () => {
     expect(screen.queryByTestId("chat-toc")).not.toBeInTheDocument();
   });
 
+  it("closes ChatTOC when clicking outside the TOC (mousedown on document)", async () => {
+    useChatStore.setState({
+      messages: {
+        "ws-1": [
+          { id: "m1", role: "user", content: [{ type: "text", text: "A" }], timestamp: 1 },
+          { id: "m2", role: "user", content: [{ type: "text", text: "B" }], timestamp: 2 },
+          { id: "m3", role: "user", content: [{ type: "text", text: "C" }], timestamp: 3 },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    // Open the TOC
+    await user.click(screen.getByTitle("Table of Contents"));
+    expect(screen.getByTestId("chat-toc")).toBeInTheDocument();
+
+    // Simulate a mousedown on document.body (outside TOC and TOC button)
+    // Using fireEvent to dispatch on document.body so the event
+    // bubbles up to the document-level listener with a proper target node
+    act(() => {
+      fireEvent.mouseDown(document.body);
+    });
+
+    // TOC should close
+    expect(screen.queryByTestId("chat-toc")).not.toBeInTheDocument();
+  });
+
   it("closes ChatTOC when onClose callback fires", async () => {
     useChatStore.setState({
       messages: {
@@ -497,5 +568,252 @@ describe("ChatPanel", () => {
 
     await user.click(screen.getByTestId("toc-close"));
     expect(screen.queryByTestId("chat-toc")).not.toBeInTheDocument();
+  });
+
+  // --- handleRespondToPermission ---
+
+  it("handleRespondToPermission approves permission and clears request", async () => {
+    const clearPermSpy = vi.fn();
+    useChatStore.setState({
+      messages: {},
+      streamingText: {},
+      subscriptions: {},
+      permissionRequest: { "ws-1": { toolName: "bash", input: { command: "ls" } } },
+      clearPermissionRequest: clearPermSpy,
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+    await user.click(screen.getByTestId("permission-approve-btn"));
+    expect(respondToPermission).toHaveBeenCalledWith("ws-1", true);
+    expect(clearPermSpy).toHaveBeenCalledWith("ws-1");
+  });
+
+  it("handleRespondToPermission denies permission and clears request", async () => {
+    const clearPermSpy = vi.fn();
+    useChatStore.setState({
+      messages: {},
+      streamingText: {},
+      subscriptions: {},
+      permissionRequest: { "ws-1": { toolName: "bash", input: { command: "rm -rf" } } },
+      clearPermissionRequest: clearPermSpy,
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+    await user.click(screen.getByTestId("permission-deny-btn"));
+    expect(respondToPermission).toHaveBeenCalledWith("ws-1", false);
+    expect(clearPermSpy).toHaveBeenCalledWith("ws-1");
+  });
+
+  it("handleRespondToPermission catches errors", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(respondToPermission).mockRejectedValueOnce(new Error("permission failed"));
+    useChatStore.setState({
+      messages: {},
+      streamingText: {},
+      subscriptions: {},
+      permissionRequest: { "ws-1": { toolName: "bash", input: {} } },
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+    await user.click(screen.getByTestId("permission-approve-btn"));
+    expect(consoleError).toHaveBeenCalledWith("Failed to respond to permission:", expect.any(Error));
+    consoleError.mockRestore();
+  });
+
+  // --- handleApprovePlan ---
+
+  it("handleApprovePlan sends 'yes' via handleSend", async () => {
+    const sendMessageSpy = vi.fn().mockResolvedValue(undefined);
+    const addUserMessageSpy = vi.fn();
+    useAgentStore.setState({
+      agents: {},
+      subscriptions: {},
+      sendMessage: sendMessageSpy,
+    });
+    useChatStore.setState({
+      messages: {},
+      streamingText: {},
+      subscriptions: {},
+      planApproval: { "ws-1": true },
+      addUserMessage: addUserMessageSpy,
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+    expect(screen.getByTestId("composer-plan-approval")).toHaveTextContent("true");
+    await user.click(screen.getByTestId("approve-plan-btn"));
+    expect(addUserMessageSpy).toHaveBeenCalledWith("ws-1", "yes", undefined);
+    expect(sendMessageSpy).toHaveBeenCalledWith("ws-1", "yes", "workspace", undefined, undefined, undefined);
+  });
+
+  // --- handleCopyPlan ---
+
+  it("handleCopyPlan copies plan content to clipboard", async () => {
+    const getPlanContentSpy = vi.fn().mockReturnValue("Step 1: Do this\nStep 2: Do that");
+    useChatStore.setState({
+      messages: {},
+      streamingText: {},
+      subscriptions: {},
+      planApproval: { "ws-1": true },
+      getPlanContent: getPlanContentSpy,
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+    // Spy on the clipboard.writeText that userEvent.setup() installed
+    const writeTextSpy = vi.spyOn(navigator.clipboard, "writeText");
+    await user.click(screen.getByTestId("copy-plan-btn"));
+    await vi.waitFor(() => {
+      expect(writeTextSpy).toHaveBeenCalledWith("Step 1: Do this\nStep 2: Do that");
+    });
+    expect(getPlanContentSpy).toHaveBeenCalledWith("ws-1");
+    writeTextSpy.mockRestore();
+  });
+
+  it("handleCopyPlan does nothing when plan is empty", async () => {
+    const getPlanContentSpy = vi.fn().mockReturnValue("");
+    useChatStore.setState({
+      messages: {},
+      streamingText: {},
+      subscriptions: {},
+      planApproval: { "ws-1": true },
+      getPlanContent: getPlanContentSpy,
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+    const writeTextSpy = vi.spyOn(navigator.clipboard, "writeText");
+    await user.click(screen.getByTestId("copy-plan-btn"));
+    expect(writeTextSpy).not.toHaveBeenCalled();
+    writeTextSpy.mockRestore();
+  });
+
+  it("handleCopyPlan catches clipboard errors", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const getPlanContentSpy = vi.fn().mockReturnValue("some plan");
+    useChatStore.setState({
+      messages: {},
+      streamingText: {},
+      subscriptions: {},
+      getPlanContent: getPlanContentSpy,
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+    // Make clipboard.writeText reject
+    const writeTextSpy = vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("clipboard fail"));
+    await user.click(screen.getByTestId("copy-plan-btn"));
+    await vi.waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith("[ChatPanel] Failed to copy plan to clipboard:", expect.any(Error));
+    });
+    writeTextSpy.mockRestore();
+    consoleError.mockRestore();
+  });
+
+  // --- LinkWorkspaceDialog and IssuePicker ---
+
+  it("shows Link Workspaces and Link Issue buttons for workspace context", () => {
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+    expect(screen.getByTestId("link-workspaces-btn")).toBeInTheDocument();
+    expect(screen.getByTestId("link-issue-btn")).toBeInTheDocument();
+  });
+
+  it("does not show Link Workspaces or Link Issue buttons for repo context", () => {
+    render(<ChatPanel contextId="repo-1" contextType="repo" />);
+    expect(screen.queryByTestId("link-workspaces-btn")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("link-issue-btn")).not.toBeInTheDocument();
+  });
+
+  it("opens LinkWorkspaceDialog when Link Workspaces is clicked (workspace with data)", async () => {
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: "ws-1", repoId: "repo-1", name: "My Workspace", branch: "main", status: "Running" as any, portBase: 3000, autoCommit: false, pinned: false, createdAt: "2024-01-01", archivedAt: null },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    expect(screen.queryByTestId("link-workspace-dialog")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("link-workspaces-btn"));
+    expect(screen.getByTestId("link-workspace-dialog")).toBeInTheDocument();
+    expect(screen.getByTestId("lwd-workspace-id")).toHaveTextContent("ws-1");
+    expect(screen.getByTestId("lwd-workspace-name")).toHaveTextContent("My Workspace");
+  });
+
+  it("closes LinkWorkspaceDialog when onClose fires", async () => {
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: "ws-1", repoId: "repo-1", name: "My Workspace", branch: "main", status: "Running" as any, portBase: 3000, autoCommit: false, pinned: false, createdAt: "2024-01-01", archivedAt: null },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    await user.click(screen.getByTestId("link-workspaces-btn"));
+    expect(screen.getByTestId("link-workspace-dialog")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("lwd-close"));
+    expect(screen.queryByTestId("link-workspace-dialog")).not.toBeInTheDocument();
+  });
+
+  it("does not show LinkWorkspaceDialog when workspace data is missing", async () => {
+    // No workspace in store for ws-1
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    await user.click(screen.getByTestId("link-workspaces-btn"));
+    // The dialog should not render because workspace is null
+    expect(screen.queryByTestId("link-workspace-dialog")).not.toBeInTheDocument();
+  });
+
+  it("opens IssuePicker when Link Issue is clicked", async () => {
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    expect(screen.queryByTestId("issue-picker")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("link-issue-btn"));
+    expect(screen.getByTestId("issue-picker")).toBeInTheDocument();
+    expect(screen.getByTestId("ip-workspace-id")).toHaveTextContent("ws-1");
+  });
+
+  it("closes IssuePicker when onClose fires", async () => {
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    await user.click(screen.getByTestId("link-issue-btn"));
+    expect(screen.getByTestId("issue-picker")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("ip-close"));
+    expect(screen.queryByTestId("issue-picker")).not.toBeInTheDocument();
+  });
+
+  // --- Permission request clearing when agent stops ---
+
+  it("clears stale permission request when agent stops running", () => {
+    const clearPermSpy = vi.fn();
+    useChatStore.setState({
+      messages: {},
+      streamingText: {},
+      subscriptions: {},
+      permissionRequest: { "ws-1": { toolName: "bash", input: {} } },
+      clearPermissionRequest: clearPermSpy,
+    });
+    useAgentStore.setState({
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null } },
+    });
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+    expect(clearPermSpy).toHaveBeenCalledWith("ws-1");
+  });
+
+  it("does not clear permission request while agent is running", () => {
+    const clearPermSpy = vi.fn();
+    useChatStore.setState({
+      messages: {},
+      streamingText: {},
+      subscriptions: {},
+      permissionRequest: { "ws-1": { toolName: "bash", input: {} } },
+      clearPermissionRequest: clearPermSpy,
+    });
+    useAgentStore.setState({
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null } },
+    });
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+    expect(clearPermSpy).not.toHaveBeenCalled();
   });
 });

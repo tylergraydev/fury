@@ -1,9 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 
 import { ChangesPanel } from "./ChangesPanel";
 import { useDiffStore } from "../../stores/diffStore";
 import { useAgentStore } from "../../stores/agentStore";
+import { usePrStore } from "../../stores/prStore";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useChatStore } from "../../stores/chatStore";
 import { useUIStore } from "../../stores/uiStore";
 
 vi.mock("@tauri-apps/api/event", () => ({
@@ -375,5 +378,393 @@ describe("ChangesPanel", () => {
     render(<ChangesPanel context={wsContext} />);
     const btn = screen.getByText("app.ts").closest("button");
     expect(btn).toHaveStyle({ backgroundColor: "var(--bg-surface)" });
+  });
+});
+
+// ─── PrStatusBar sub-component (rendered inside ChangesPanel for workspace context) ──
+describe("PrStatusBar", () => {
+  const wsContext = { id: "ws-1", type: "workspace" as const };
+
+  const mockSubscribe = vi.fn().mockResolvedValue(undefined);
+  const mockUnsubscribe = vi.fn();
+  const mockLoadPrInfo = vi.fn();
+  const mockStartPolling = vi.fn();
+  const mockStopPolling = vi.fn();
+  const mockCreatePr = vi.fn();
+  const mockMergePr = vi.fn();
+  const mockGetFixMessage = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    usePrStore.setState({
+      prInfo: {},
+      loading: {},
+      error: {},
+      reviews: {},
+      reviewComments: {},
+      workflowRuns: {},
+      workflowLoading: {},
+      reviewsLoading: {},
+      subscriptions: {},
+      subscribe: mockSubscribe,
+      unsubscribe: mockUnsubscribe,
+      loadPrInfo: mockLoadPrInfo,
+      startPolling: mockStartPolling,
+      stopPolling: mockStopPolling,
+      createPr: mockCreatePr,
+      mergePr: mockMergePr,
+      getFixMessage: mockGetFixMessage,
+    } as any);
+
+    useWorkspaceStore.setState({
+      workspaces: [{ id: "ws-1", repoId: "r1", name: "test", branch: "feature", status: "Active", portBase: 3000, autoCommit: false, pinned: false, createdAt: "2024-01-01", archivedAt: null }],
+    } as any);
+
+    useChatStore.setState({
+      messages: {},
+      streamingText: {},
+      subscriptions: {},
+      sessionStats: {},
+      planApproval: {},
+      permissionRequest: {},
+      addUserMessage: vi.fn(),
+    } as any);
+
+    useAgentStore.setState({
+      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null } },
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+    } as any);
+
+    // Set up empty diff so "No changes" path shows PrStatusBar
+    useDiffStore.setState({
+      diffResults: { "ws-1": { files: [], totalAdditions: 0, totalDeletions: 0 } },
+      selectedFile: {},
+      fileDiffs: {},
+      loading: {},
+      error: {},
+      loadDiff: vi.fn(),
+      loadRepoDiff: vi.fn(),
+      refresh: vi.fn(),
+      refreshRepo: vi.fn(),
+      selectFile: vi.fn(),
+      selectRepoFile: vi.fn(),
+    });
+  });
+
+  it("renders Create PR button when no PR exists", () => {
+    usePrStore.setState({ prInfo: { "ws-1": { workspaceId: "ws-1", prNumber: null, prUrl: null, title: null, state: null, checks: [], mergeable: null } } } as any);
+    render(<ChangesPanel context={wsContext} />);
+    expect(screen.getByText("Create PR")).toBeInTheDocument();
+  });
+
+  it("clicking Create PR calls createPr and switches to checks tab", async () => {
+    usePrStore.setState({ prInfo: { "ws-1": { workspaceId: "ws-1", prNumber: null, prUrl: null, title: null, state: null, checks: [], mergeable: null } } } as any);
+    mockCreatePr.mockResolvedValue({ prNumber: 1, prUrl: "https://github.com/test/repo/pull/1", title: "feature", state: "OPEN", checks: [], mergeable: null });
+    const mockSetRightSidebarTab = vi.fn();
+    useUIStore.setState({ setRightSidebarTab: mockSetRightSidebarTab } as any);
+
+    render(<ChangesPanel context={wsContext} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Create PR"));
+    });
+
+    expect(mockCreatePr).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      title: "feature",
+      body: "",
+    });
+    expect(mockSetRightSidebarTab).toHaveBeenCalledWith("checks");
+  });
+
+  it("shows 'Checking...' when PR has pending checks", () => {
+    usePrStore.setState({
+      prInfo: {
+        "ws-1": {
+          workspaceId: "ws-1",
+          prNumber: 42,
+          prUrl: "https://github.com/test/repo/pull/42",
+          title: "PR",
+          state: "OPEN",
+          checks: [{ name: "CI", status: "IN_PROGRESS", conclusion: null, detailsUrl: null, description: null }],
+          mergeable: null,
+        },
+      },
+    } as any);
+    render(<ChangesPanel context={wsContext} />);
+    expect(screen.getByText("Checking...")).toBeInTheDocument();
+  });
+
+  it("shows 'Fix Errors' button when checks are failing", () => {
+    usePrStore.setState({
+      prInfo: {
+        "ws-1": {
+          workspaceId: "ws-1",
+          prNumber: 42,
+          prUrl: null,
+          title: "PR",
+          state: "OPEN",
+          checks: [{ name: "CI", status: "COMPLETED", conclusion: "FAILURE", detailsUrl: null, description: null }],
+          mergeable: null,
+        },
+      },
+    } as any);
+    render(<ChangesPanel context={wsContext} />);
+    expect(screen.getByText("Fix Errors")).toBeInTheDocument();
+  });
+
+  it("shows Merge button when all checks pass", () => {
+    usePrStore.setState({
+      prInfo: {
+        "ws-1": {
+          workspaceId: "ws-1",
+          prNumber: 42,
+          prUrl: null,
+          title: "PR",
+          state: "OPEN",
+          checks: [{ name: "CI", status: "COMPLETED", conclusion: "SUCCESS", detailsUrl: null, description: null }],
+          mergeable: "MERGEABLE",
+        },
+      },
+    } as any);
+    render(<ChangesPanel context={wsContext} />);
+    expect(screen.getByText("Merge")).toBeInTheDocument();
+  });
+
+  it("clicking Merge calls mergePr", async () => {
+    mockMergePr.mockResolvedValue({ success: true, message: "Merged", mergeMethod: "squash" });
+    usePrStore.setState({
+      prInfo: {
+        "ws-1": {
+          workspaceId: "ws-1",
+          prNumber: 42,
+          prUrl: null,
+          title: "PR",
+          state: "OPEN",
+          checks: [{ name: "CI", status: "COMPLETED", conclusion: "SUCCESS", detailsUrl: null, description: null }],
+          mergeable: "MERGEABLE",
+        },
+      },
+    } as any);
+    render(<ChangesPanel context={wsContext} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Merge"));
+    });
+    expect(mockMergePr).toHaveBeenCalledWith("ws-1", "squash");
+  });
+
+  it("shows PR link with number when prUrl exists", () => {
+    usePrStore.setState({
+      prInfo: {
+        "ws-1": {
+          workspaceId: "ws-1",
+          prNumber: 42,
+          prUrl: "https://github.com/test/repo/pull/42",
+          title: "PR",
+          state: "OPEN",
+          checks: [],
+          mergeable: null,
+        },
+      },
+    } as any);
+    render(<ChangesPanel context={wsContext} />);
+    expect(screen.getByText(/PR #42/)).toBeInTheDocument();
+  });
+
+  it("shows PR error when prError is set", () => {
+    usePrStore.setState({
+      prInfo: { "ws-1": { workspaceId: "ws-1", prNumber: 42, prUrl: null, title: "PR", state: "OPEN", checks: [], mergeable: null } },
+      error: { "ws-1": "GitHub API rate limited" },
+    } as any);
+    render(<ChangesPanel context={wsContext} />);
+    expect(screen.getByText("GitHub API rate limited")).toBeInTheDocument();
+  });
+
+  it("clicking Fix Errors sends fix message to agent", async () => {
+    mockGetFixMessage.mockResolvedValue("Fix the CI: test failure in foo.test.ts");
+    const mockSendMessage = vi.fn().mockResolvedValue(undefined);
+    const mockAddUserMessage = vi.fn();
+
+    useAgentStore.setState({
+      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null } },
+      sendMessage: mockSendMessage,
+    } as any);
+    useChatStore.setState({ addUserMessage: mockAddUserMessage } as any);
+
+    usePrStore.setState({
+      prInfo: {
+        "ws-1": {
+          workspaceId: "ws-1",
+          prNumber: 42,
+          prUrl: null,
+          title: "PR",
+          state: "OPEN",
+          checks: [{ name: "CI", status: "COMPLETED", conclusion: "FAILURE", detailsUrl: null, description: null }],
+          mergeable: null,
+        },
+      },
+    } as any);
+
+    render(<ChangesPanel context={wsContext} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Fix Errors"));
+    });
+
+    expect(mockGetFixMessage).toHaveBeenCalledWith("ws-1");
+    expect(mockAddUserMessage).toHaveBeenCalledWith("ws-1", "Fix the CI: test failure in foo.test.ts");
+    expect(mockSendMessage).toHaveBeenCalledWith("ws-1", "Fix the CI: test failure in foo.test.ts", "workspace");
+  });
+
+  it("handleFix is a no-op when agent is running", async () => {
+    useAgentStore.setState({
+      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Running", startedAt: null } },
+    } as any);
+
+    usePrStore.setState({
+      prInfo: {
+        "ws-1": {
+          workspaceId: "ws-1",
+          prNumber: 42,
+          prUrl: null,
+          title: "PR",
+          state: "OPEN",
+          checks: [{ name: "CI", status: "COMPLETED", conclusion: "FAILURE", detailsUrl: null, description: null }],
+          mergeable: null,
+        },
+      },
+    } as any);
+
+    render(<ChangesPanel context={wsContext} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Fix Errors"));
+    });
+
+    expect(mockGetFixMessage).not.toHaveBeenCalled();
+  });
+
+  it("does not render PrStatusBar for repo context", () => {
+    const repoContext = { id: "repo-1", type: "repo" as const };
+    useDiffStore.setState({
+      diffResults: { "repo-1": { files: [], totalAdditions: 0, totalDeletions: 0 } },
+      loadRepoDiff: vi.fn(),
+    });
+    render(<ChangesPanel context={repoContext} />);
+    // PrStatusBar is only rendered for workspace context
+    expect(screen.queryByText("Create PR")).not.toBeInTheDocument();
+  });
+
+  it("starts polling when PR has pending checks", () => {
+    usePrStore.setState({
+      prInfo: {
+        "ws-1": {
+          workspaceId: "ws-1",
+          prNumber: 42,
+          prUrl: null,
+          title: "PR",
+          state: "OPEN",
+          checks: [{ name: "CI", status: "IN_PROGRESS", conclusion: null, detailsUrl: null, description: null }],
+          mergeable: null,
+        },
+      },
+    } as any);
+    render(<ChangesPanel context={wsContext} />);
+    expect(mockStartPolling).toHaveBeenCalledWith("ws-1");
+  });
+
+  it("handleFix returns early when getFixMessage says no failing checks", async () => {
+    mockGetFixMessage.mockResolvedValue("No failing checks found.");
+    const mockSendMessage = vi.fn().mockResolvedValue(undefined);
+    const mockAddUserMessage = vi.fn();
+    useAgentStore.setState({
+      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null } },
+      sendMessage: mockSendMessage,
+    } as any);
+    useChatStore.setState({ addUserMessage: mockAddUserMessage } as any);
+    usePrStore.setState({
+      prInfo: {
+        "ws-1": {
+          workspaceId: "ws-1",
+          prNumber: 42,
+          prUrl: null,
+          title: "PR",
+          state: "OPEN",
+          checks: [{ name: "CI", status: "COMPLETED", conclusion: "FAILURE", detailsUrl: null, description: null }],
+          mergeable: null,
+        },
+      },
+    } as any);
+    render(<ChangesPanel context={wsContext} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Fix Errors"));
+    });
+    expect(mockGetFixMessage).toHaveBeenCalledWith("ws-1");
+    expect(mockAddUserMessage).not.toHaveBeenCalled();
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it("handleCreatePr logs error on failure", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockCreatePr.mockRejectedValue(new Error("create failed"));
+    usePrStore.setState({
+      prInfo: { "ws-1": { workspaceId: "ws-1", prNumber: null, prUrl: null, title: null, state: null, checks: [], mergeable: null } },
+    } as any);
+    render(<ChangesPanel context={wsContext} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Create PR"));
+    });
+    expect(consoleError).toHaveBeenCalledWith("[ChangesPanel] Failed to create PR:", expect.any(Error));
+    consoleError.mockRestore();
+  });
+
+  it("handleFix logs error on failure", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockGetFixMessage.mockRejectedValue(new Error("fix failed"));
+    useAgentStore.setState({
+      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null } },
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+    } as any);
+    usePrStore.setState({
+      prInfo: {
+        "ws-1": {
+          workspaceId: "ws-1",
+          prNumber: 42,
+          prUrl: null,
+          title: "PR",
+          state: "OPEN",
+          checks: [{ name: "CI", status: "COMPLETED", conclusion: "FAILURE", detailsUrl: null, description: null }],
+          mergeable: null,
+        },
+      },
+    } as any);
+    render(<ChangesPanel context={wsContext} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Fix Errors"));
+    });
+    expect(consoleError).toHaveBeenCalledWith("[ChangesPanel] Failed to generate fix:", expect.any(Error));
+    consoleError.mockRestore();
+  });
+
+  it("handleMerge logs error on failure", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockMergePr.mockRejectedValue(new Error("merge failed"));
+    usePrStore.setState({
+      prInfo: {
+        "ws-1": {
+          workspaceId: "ws-1",
+          prNumber: 42,
+          prUrl: null,
+          title: "PR",
+          state: "OPEN",
+          checks: [{ name: "CI", status: "COMPLETED", conclusion: "SUCCESS", detailsUrl: null, description: null }],
+          mergeable: "MERGEABLE",
+        },
+      },
+    } as any);
+    render(<ChangesPanel context={wsContext} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Merge"));
+    });
+    expect(consoleError).toHaveBeenCalledWith("[ChangesPanel] Failed to merge PR:", expect.any(Error));
+    consoleError.mockRestore();
   });
 });

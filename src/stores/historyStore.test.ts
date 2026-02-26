@@ -38,6 +38,29 @@ describe("historyStore - loadGitLog", () => {
   });
 });
 
+describe("historyStore - loadGitLog inflight dedup", () => {
+  it("deduplicates concurrent calls", async () => {
+    let resolve: (v: any) => void;
+    vi.mocked(getGitLog).mockImplementation(
+      () => new Promise((r) => { resolve = r; }),
+    );
+    const p1 = useHistoryStore.getState().loadGitLog("ws-1");
+    const p2 = useHistoryStore.getState().loadGitLog("ws-1");
+    resolve!([makeEntry()]);
+    await Promise.all([p1, p2]);
+    expect(getGitLog).toHaveBeenCalledTimes(1);
+  });
+
+  it("suppresses error when cached data exists", async () => {
+    vi.mocked(getGitLog).mockResolvedValue([makeEntry()] as any);
+    await useHistoryStore.getState().loadGitLog("ws-1");
+
+    vi.mocked(getGitLog).mockRejectedValue(new Error("net"));
+    await useHistoryStore.getState().loadGitLog("ws-1");
+    expect(useHistoryStore.getState().error["ws-1"]).toBeNull();
+  });
+});
+
 describe("historyStore - getGitLog", () => {
   it("returns log for a known workspace", () => {
     const log = [makeEntry()];

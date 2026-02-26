@@ -34,6 +34,7 @@ export function startFrameMonitor() {
   };
 
   rafHandle = requestAnimationFrame(tick);
+  /* v8 ignore next 3 -- flushInterval is always null when rafHandle is null */
   if (!flushInterval) {
     flushInterval = setInterval(flushFrameBuffer, 2000);
   }

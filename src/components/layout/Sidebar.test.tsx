@@ -934,4 +934,34 @@ describe("Sidebar", () => {
       expect(branchDiv.style.backgroundColor).not.toBe("var(--bg-surface)");
     });
   });
+
+  describe("Pin workspace", () => {
+    it("calls pinWs when pin button is clicked", async () => {
+      const pinWs = vi.fn().mockResolvedValue(undefined);
+      useRepositoryStore.setState({ repositories: [makeRepo()] });
+      useWorkspaceStore.setState({
+        workspaces: [makeWorkspace({ pinned: false })],
+        pinWs,
+      } as any);
+      render(<Sidebar />);
+      const pinBtn = screen.getByTestId("pin-icon").closest("button")!;
+      fireEvent.click(pinBtn);
+      expect(pinWs).toHaveBeenCalledWith("ws-1", true);
+    });
+
+    it("sorts pinned workspaces before unpinned", () => {
+      useRepositoryStore.setState({ repositories: [makeRepo()] });
+      useWorkspaceStore.setState({
+        workspaces: [
+          makeWorkspace({ id: "ws-1", name: "Unpinned", pinned: false }),
+          makeWorkspace({ id: "ws-2", name: "Pinned", pinned: true }),
+        ],
+      });
+      render(<Sidebar />);
+      // Pinned workspace should appear before unpinned
+      const items = screen.getAllByText(/Pinned|Unpinned/);
+      expect(items[0].textContent).toBe("Pinned");
+      expect(items[1].textContent).toBe("Unpinned");
+    });
+  });
 });

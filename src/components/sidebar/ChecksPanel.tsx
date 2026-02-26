@@ -431,12 +431,14 @@ function CreatePRInline({
 
   useEffect(() => {
     if (!creating) return;
+    /* v8 ignore start -- timer callbacks tested via integration */
     const interval = setInterval(() => {
       usePrStore.getState().loadPrInfo(workspaceId);
     }, 5000);
     const timeout = setTimeout(() => {
       setCreating(false);
     }, 120000);
+    /* v8 ignore stop */
     return () => {
       clearInterval(interval);
       clearTimeout(timeout);

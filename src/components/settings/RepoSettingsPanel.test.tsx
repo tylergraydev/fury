@@ -471,4 +471,49 @@ describe("RepoSettingsPanel", () => {
     // Should not have added the env var
     expect(screen.queryByText("SOME_KEY")).not.toBeInTheDocument();
   });
+
+  it("sets worktreeBasePath when value is entered", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    const worktreeInput = screen.getByPlaceholderText("Default: .worktrees/ (inside repo)");
+    fireEvent.change(worktreeInput, { target: { value: "/custom/path" } });
+    expect(worktreeInput).toHaveValue("/custom/path");
+
+    // Save and verify
+    fireEvent.click(screen.getByText("Save"));
+    await waitFor(() => {
+      expect(mockUpdateRepoSettings).toHaveBeenCalledWith("r1", expect.objectContaining({
+        worktreeBasePath: "/custom/path",
+      }));
+    });
+  });
+
+  it("sets worktreeBasePath to null when cleared", async () => {
+    mockGetRepoSettings.mockResolvedValueOnce({
+      setupScript: null,
+      runScript: null,
+      archiveScript: null,
+      runScriptMode: "nonconcurrent",
+      envVars: {},
+      worktreeBasePath: "/existing/path",
+    });
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      const worktreeInput = screen.getByPlaceholderText("Default: .worktrees/ (inside repo)");
+      expect(worktreeInput).toHaveValue("/existing/path");
+    });
+
+    const worktreeInput = screen.getByPlaceholderText("Default: .worktrees/ (inside repo)");
+    fireEvent.change(worktreeInput, { target: { value: "" } });
+
+    fireEvent.click(screen.getByText("Save"));
+    await waitFor(() => {
+      expect(mockUpdateRepoSettings).toHaveBeenCalledWith("r1", expect.objectContaining({
+        worktreeBasePath: null,
+      }));
+    });
+  });
 });

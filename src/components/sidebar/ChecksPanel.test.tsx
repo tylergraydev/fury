@@ -1019,4 +1019,477 @@ describe("ChecksPanel", () => {
       expect(screen.getByText("src/bar.ts")).toBeInTheDocument();
     });
   });
+
+  // === WorkflowRunRow ===
+
+  describe("WorkflowRunRow", () => {
+    const run = {
+      id: 100,
+      name: "ci-100",
+      workflowName: "CI",
+      status: "completed",
+      conclusion: "success",
+      event: "push",
+      createdAt: "2024-01-01T00:00:00Z",
+    };
+
+    const failedRun = {
+      ...run,
+      id: 101,
+      name: "ci-101",
+      conclusion: "failure",
+    };
+
+    function setupWithRuns(runs = [run]) {
+      setupOpenPr();
+      mockGetWorkflowRuns.mockResolvedValue(runs);
+      usePrStore.setState({
+        workflowRuns: { "ws-1": runs as any },
+      });
+    }
+
+    it("renders workflow run with name and conclusion", async () => {
+      setupWithRuns();
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+        expect(screen.getByText("success")).toBeInTheDocument();
+      });
+    });
+
+    it("expands to show jobs on click", async () => {
+      const jobs = [
+        { id: 1, name: "build", status: "completed", conclusion: "success", steps: [] },
+        { id: 2, name: "test", status: "completed", conclusion: "success", steps: [] },
+      ];
+      mockGetRunJobs.mockResolvedValue(jobs);
+      setupWithRuns();
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("build")).toBeInTheDocument();
+        expect(screen.getByText("test")).toBeInTheDocument();
+      });
+    });
+
+    it("shows Loading jobs... while fetching", async () => {
+      mockGetRunJobs.mockReturnValue(new Promise(() => {}));
+      setupWithRuns();
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("Loading jobs...")).toBeInTheDocument();
+      });
+    });
+
+    it("shows job steps when present", async () => {
+      const jobs = [
+        {
+          id: 1,
+          name: "build",
+          status: "completed",
+          conclusion: "success",
+          steps: [
+            { name: "Checkout", status: "completed", conclusion: "success" },
+            { name: "Install", status: "completed", conclusion: "success" },
+          ],
+        },
+      ];
+      mockGetRunJobs.mockResolvedValue(jobs);
+      setupWithRuns();
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("Checkout")).toBeInTheDocument();
+        expect(screen.getByText("Install")).toBeInTheDocument();
+      });
+    });
+
+    it("shows View Logs button and loads logs on click", async () => {
+      mockGetRunJobs.mockResolvedValue([]);
+      mockGetRunLogs.mockResolvedValue({ logs: "Build output here", truncated: false });
+      setupWithRuns();
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("View Logs")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("View Logs"));
+      await waitFor(() => {
+        expect(screen.getByText("Build output here")).toBeInTheDocument();
+      });
+      expect(mockGetRunLogs).toHaveBeenCalledWith("ws-1", 100, false);
+    });
+
+    it("shows truncation warning when logs are truncated", async () => {
+      mockGetRunJobs.mockResolvedValue([]);
+      mockGetRunLogs.mockResolvedValue({ logs: "partial logs", truncated: true });
+      setupWithRuns();
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("View Logs")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("View Logs"));
+      await waitFor(() => {
+        expect(screen.getByText(/Truncated/)).toBeInTheDocument();
+      });
+    });
+
+    it("shows Failed Logs button for failed runs", async () => {
+      mockGetRunJobs.mockResolvedValue([]);
+      setupWithRuns([failedRun]);
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("Failed Logs")).toBeInTheDocument();
+      });
+    });
+
+    it("calls rerunWorkflow on Re-run click", async () => {
+      mockGetRunJobs.mockResolvedValue([]);
+      setupWithRuns();
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("Re-run")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("Re-run"));
+      await waitFor(() => {
+        expect(mockRerunWorkflow).toHaveBeenCalledWith("ws-1", 100, false);
+      });
+    });
+
+    it("shows Re-run Failed button for failed runs", async () => {
+      mockGetRunJobs.mockResolvedValue([]);
+      setupWithRuns([failedRun]);
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("Re-run Failed")).toBeInTheDocument();
+      });
+    });
+
+    it("strips ANSI codes from log output", async () => {
+      mockGetRunJobs.mockResolvedValue([]);
+      mockGetRunLogs.mockResolvedValue({
+        logs: "\x1b[32mSuccess\x1b[0m normal text",
+        truncated: false,
+      });
+      setupWithRuns();
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("View Logs")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("View Logs"));
+      await waitFor(() => {
+        expect(screen.getByText("Success normal text")).toBeInTheDocument();
+      });
+    });
+
+    it("shows error in logs when fetch fails", async () => {
+      mockGetRunJobs.mockResolvedValue([]);
+      mockGetRunLogs.mockRejectedValue(new Error("network error"));
+      setupWithRuns();
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("View Logs")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("View Logs"));
+      await waitFor(() => {
+        expect(screen.getByText(/Failed to load logs/)).toBeInTheDocument();
+      });
+    });
+
+    it("clicks Re-run Failed to rerun only failed jobs", async () => {
+      mockGetRunJobs.mockResolvedValue([]);
+      setupWithRuns([failedRun]);
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("Re-run Failed")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("Re-run Failed"));
+      expect(mockRerunWorkflow).toHaveBeenCalledWith("ws-1", 101, true);
+    });
+
+    it("shows Loading logs... while logs are loading", async () => {
+      mockGetRunJobs.mockResolvedValue([]);
+      mockGetRunLogs.mockReturnValue(new Promise(() => {}));
+      setupWithRuns();
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("View Logs")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("View Logs"));
+      await waitFor(() => {
+        expect(screen.getByText("Loading logs...")).toBeInTheDocument();
+      });
+    });
+
+    it("closes log viewer when X button clicked", async () => {
+      mockGetRunJobs.mockResolvedValue([]);
+      mockGetRunLogs.mockResolvedValue({ logs: "log output", truncated: false });
+      setupWithRuns();
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("View Logs")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("View Logs"));
+      await waitFor(() => {
+        expect(screen.getByText("log output")).toBeInTheDocument();
+      });
+      // Find the close button in the log viewer (the X button near "Logs" label)
+      const logsLabel = screen.getByText("Logs");
+      expect(logsLabel.parentElement).toBeTruthy();
+      const closeBtn = logsLabel.parentElement!.querySelector("button")!;
+      fireEvent.click(closeBtn);
+      // Log viewer should be closed
+      await waitFor(() => {
+        expect(screen.queryByText("log output")).not.toBeInTheDocument();
+      });
+    });
+
+    it("shows truncated warning for truncated logs", async () => {
+      mockGetRunJobs.mockResolvedValue([]);
+      mockGetRunLogs.mockResolvedValue({ logs: "partial", truncated: true });
+      setupWithRuns();
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("View Logs")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("View Logs"));
+      await waitFor(() => {
+        expect(screen.getByText(/Truncated/)).toBeInTheDocument();
+      });
+    });
+
+    it("clicks Failed Logs button and loads only failed logs", async () => {
+      mockGetRunJobs.mockResolvedValue([]);
+      mockGetRunLogs.mockResolvedValue({ logs: "Error: test failed", truncated: false });
+      setupWithRuns([failedRun]);
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("Failed Logs")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("Failed Logs"));
+      await waitFor(() => {
+        expect(screen.getByText("Error: test failed")).toBeInTheDocument();
+      });
+      expect(mockGetRunLogs).toHaveBeenCalledWith("ws-1", 101, true);
+    });
+
+    it("logs error when rerunWorkflow rejects", async () => {
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      mockRerunWorkflow.mockRejectedValueOnce(new Error("rerun failed"));
+      setupWithRuns();
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("Re-run")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("Re-run"));
+      await waitFor(() => {
+        expect(consoleSpy).toHaveBeenCalledWith(
+          "[WorkflowRunRow] Failed to rerun:",
+          expect.any(Error),
+        );
+      });
+      consoleSpy.mockRestore();
+    });
+
+    it("Actions Refresh button calls loadWorkflowRuns", async () => {
+      const mockLoadWorkflowRuns = vi.fn();
+      setupWithRuns();
+      usePrStore.setState({ loadWorkflowRuns: mockLoadWorkflowRuns } as any);
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("Actions (1)")).toBeInTheDocument();
+      });
+      // Click Refresh
+      const refreshBtns = screen.getAllByText("Refresh");
+      const actionsRefresh = refreshBtns[refreshBtns.length - 1];
+      fireEvent.click(actionsRefresh);
+      expect(mockLoadWorkflowRuns).toHaveBeenCalledWith("ws-1");
+    });
+
+    it("renders in-progress workflow run with muted status color", async () => {
+      const inProgressRun = {
+        ...run,
+        id: 102,
+        name: "ci-102",
+        status: "in_progress",
+        conclusion: null,
+      };
+      setupWithRuns([inProgressRun as any]);
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+    });
+
+    it("renders jobs with failure and skipped conclusions", async () => {
+      const jobs = [
+        {
+          id: 1,
+          name: "build",
+          status: "completed",
+          conclusion: "failure",
+          steps: [],
+        },
+        {
+          id: 2,
+          name: "deploy",
+          status: "completed",
+          conclusion: "skipped",
+          steps: [],
+        },
+      ];
+      mockGetRunJobs.mockResolvedValue(jobs);
+      setupWithRuns();
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("build")).toBeInTheDocument();
+        expect(screen.getByText("deploy")).toBeInTheDocument();
+      });
+    });
+
+    it("renders cancelled workflow run hitting runStatusColor fallback (line 47)", async () => {
+      const cancelledRun = {
+        ...run,
+        id: 103,
+        name: "ci-103",
+        status: "completed",
+        conclusion: "cancelled",
+      };
+      setupWithRuns([cancelledRun as any]);
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+        expect(screen.getByText("cancelled")).toBeInTheDocument();
+      });
+    });
+
+    it("renders job with null conclusion hitting jobStatusColor fallback (line 58)", async () => {
+      const jobs = [
+        {
+          id: 10,
+          name: "in-progress-job",
+          status: "in_progress",
+          conclusion: null,
+          steps: [],
+        },
+      ];
+      mockGetRunJobs.mockResolvedValue(jobs);
+      setupWithRuns();
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("in-progress-job")).toBeInTheDocument();
+        expect(screen.getByText("in_progress")).toBeInTheDocument();
+      });
+    });
+
+    it("renders job with cancelled conclusion hitting jobStatusColor fallback (line 58)", async () => {
+      const jobs = [
+        {
+          id: 11,
+          name: "cancelled-job",
+          status: "completed",
+          conclusion: "cancelled",
+          steps: [],
+        },
+      ];
+      mockGetRunJobs.mockResolvedValue(jobs);
+      setupWithRuns();
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("cancelled-job")).toBeInTheDocument();
+        expect(screen.getByText("cancelled")).toBeInTheDocument();
+      });
+    });
+
+    it("logs error when getRunJobs rejects", async () => {
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      mockGetRunJobs.mockRejectedValueOnce(new Error("jobs fetch failed"));
+      setupWithRuns();
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(consoleSpy).toHaveBeenCalledWith(
+          "[WorkflowRunRow] Failed to load jobs:",
+          expect.any(Error),
+        );
+      });
+      consoleSpy.mockRestore();
+    });
+  });
 });

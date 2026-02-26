@@ -205,10 +205,12 @@ export function fromPersisted(msg: PersistedChatMessage): ChatMessage {
 }
 
 // Updater
+/* v8 ignore start -- dynamic import tested via autoUpdate.test.ts */
 export async function checkForUpdate() {
   const { check } = await import("@tauri-apps/plugin-updater");
   return check();
 }
+/* v8 ignore stop */
 
 // Chat persistence commands
 export async function saveChatMessage(
