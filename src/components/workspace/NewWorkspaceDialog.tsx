@@ -16,9 +16,11 @@ import {
   type PrListItem,
   type IssueListItem,
   type LinearIssue,
+  type WorkspaceTemplate,
 } from "../../lib/tauri";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useAgentStore } from "../../stores/agentStore";
+import { useWorkspaceTemplateStore } from "../../stores/workspaceTemplateStore";
 
 interface Props {
   repoId: string;
@@ -26,7 +28,7 @@ interface Props {
   onClose: () => void;
 }
 
-type WorkspaceMode = "branch" | "pr" | "issue" | "linear";
+type WorkspaceMode = "branch" | "pr" | "issue" | "linear" | "template";
 
 function generateName(text: string): string {
   return text
@@ -43,6 +45,7 @@ const MODES: { key: WorkspaceMode; label: string }[] = [
   { key: "pr", label: "From PR" },
   { key: "issue", label: "From Issue" },
   { key: "linear", label: "From Linear" },
+  { key: "template", label: "From Template" },
 ];
 
 export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
@@ -81,6 +84,10 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
   const [selectedLinearIssue, setSelectedLinearIssue] =
     useState<LinearIssue | null>(null);
   const [linearError, setLinearError] = useState<string | null>(null);
+
+  // Template mode state
+  const { templates, loadTemplates, loading: loadingTemplates } = useWorkspaceTemplateStore();
+  const [selectedTemplate, setSelectedTemplate] = useState<WorkspaceTemplate | null>(null);
 
   useEffect(() => {
     setLoadingBranches(true);
@@ -133,6 +140,13 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
     }
   }, [mode, repoId]);
 
+  // Load templates when switching to template mode
+  useEffect(() => {
+    if (mode === "template" && templates.length === 0 && !loadingTemplates) {
+      loadTemplates(repoId);
+    }
+  }, [mode, repoId]);
+
   // Debounced Linear search
   useEffect(() => {
     if (mode !== "linear" || !linearSearch.trim()) {
@@ -178,9 +192,16 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
     );
   };
 
+  const handleSelectTemplate = (template: WorkspaceTemplate) => {
+    setSelectedTemplate(template);
+    setAutoCommit(template.autoCommit);
+  };
+
   const handleCreate = async () => {
     if (mode === "pr") {
       if (!selectedPr || !worktreeName.trim()) return;
+    } else if (mode === "template") {
+      if (!selectedTemplate || !worktreeName.trim() || !baseBranch.trim()) return;
     } else {
       if (!worktreeName.trim() || !baseBranch.trim()) return;
     }
@@ -203,6 +224,7 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
               branchName: worktreeName.trim(),
               baseBranch: baseBranch.trim(),
               autoCommit,
+              sparseDirs: selectedTemplate?.sparseDirs ?? undefined,
             },
       );
       if (taskDescription.trim()) {
@@ -231,6 +253,7 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
     if (!worktreeName.trim()) return false;
     if (mode === "pr") return !!selectedPr;
     if (mode === "linear") return !!selectedLinearIssue && !!baseBranch.trim();
+    if (mode === "template") return !!selectedTemplate && !!baseBranch.trim();
     return !!baseBranch.trim();
   })();
 
@@ -614,6 +637,68 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
                           .filter(Boolean)
                           .join(" · ")}
                       </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Template selector */}
+        {mode === "template" && (
+          <div className="mb-4">
+            <div
+              className="max-h-40 overflow-y-auto rounded-lg"
+              style={{ border: "1px solid var(--border)" }}
+            >
+              {loadingTemplates ? (
+                <div
+                  className="px-3 py-4 text-center text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Loading templates...
+                </div>
+              ) : templates.length === 0 ? (
+                <div
+                  className="px-3 py-4 text-center text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  No templates saved yet. Create one from Repo Settings.
+                </div>
+              ) : (
+                templates.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => handleSelectTemplate(t)}
+                    className="flex w-full items-start gap-2 px-3 py-2 text-left transition-colors"
+                    style={{
+                      backgroundColor:
+                        selectedTemplate?.id === t.id
+                          ? "var(--bg-hover)"
+                          : "transparent",
+                      borderBottom: "1px solid var(--border)",
+                    }}
+                  >
+                    <Sparkles
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                      style={{ color: "var(--accent)" }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className="truncate text-xs font-medium"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        {t.name}
+                      </div>
+                      {t.description && (
+                        <div
+                          className="truncate text-[11px]"
+                          style={{ color: "var(--text-muted)" }}
+                        >
+                          {t.description}
+                        </div>
+                      )}
                     </div>
                   </button>
                 ))

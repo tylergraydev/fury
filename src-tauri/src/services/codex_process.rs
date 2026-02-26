@@ -133,14 +133,11 @@ pub async fn spawn_and_stream(
         .stderr(std::process::Stdio::piped());
 
     #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        unsafe {
-            cmd.pre_exec(|| {
-                libc::setpgid(0, 0);
-                Ok(())
-            });
-        }
+    unsafe {
+        cmd.pre_exec(|| {
+            libc::setpgid(0, 0);
+            Ok(())
+        });
     }
 
     #[cfg(windows)]

@@ -49,6 +49,7 @@ pub struct CopilotSignInResult {
     pub user: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CopilotAuthStatus {
     pub status: String,
@@ -136,14 +137,11 @@ pub async fn start(root_uri: &str) -> Result<(CopilotLspHandle, Child), AppError
 
     // Set process group for clean teardown
     #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        unsafe {
-            cmd.pre_exec(|| {
-                libc::setpgid(0, 0);
-                Ok(())
-            });
-        }
+    unsafe {
+        cmd.pre_exec(|| {
+            libc::setpgid(0, 0);
+            Ok(())
+        });
     }
     #[cfg(windows)]
     {

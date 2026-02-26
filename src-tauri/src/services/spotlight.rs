@@ -65,21 +65,11 @@ pub fn start_spotlight(
             }
         },
     )
-    .map_err(|e| {
-        AppError::IoError(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            e.to_string(),
-        ))
-    })?;
+    .map_err(|e| AppError::IoError(std::io::Error::other(e.to_string())))?;
 
     debouncer
         .watch(&worktree_path, RecursiveMode::Recursive)
-        .map_err(|e| {
-            AppError::IoError(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                e.to_string(),
-            ))
-        })?;
+        .map_err(|e| AppError::IoError(std::io::Error::other(e.to_string())))?;
 
     // Spawn a thread to wait for stop signal and drop debouncer
     let handle = SpotlightHandle {

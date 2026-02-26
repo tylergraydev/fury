@@ -1,50 +1,70 @@
 import { useEffect, useState } from "react";
-import {
-  type RepoSettings,
-  getRepoSettings,
-  updateRepoSettings,
-} from "../../lib/tauri";
-import { WorkspaceTemplateDialog } from "../workspace/WorkspaceTemplateDialog";
+import { X } from "lucide-react";
+import { getRepoSettings, type RepoSettings } from "../../lib/tauri";
 import { useWorkspaceTemplateStore } from "../../stores/workspaceTemplateStore";
 
-interface RepoSettingsPanelProps {
+interface Props {
   repoId: string;
-  repoName: string;
   onClose: () => void;
 }
 
-export function RepoSettingsPanel({
-  repoId,
-  repoName,
-  onClose,
-}: RepoSettingsPanelProps) {
-  const [settings, setSettings] = useState<RepoSettings>({
-    setupScript: null,
-    runScript: null,
-    archiveScript: null,
-    runScriptMode: "nonconcurrent",
-    envVars: {},
-    worktreeBasePath: null,
-  });
+export function WorkspaceTemplateDialog({ repoId, onClose }: Props) {
+  const { createTemplate } = useWorkspaceTemplateStore();
+
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [setupScript, setSetupScript] = useState("");
+  const [runScript, setRunScript] = useState("");
+  const [archiveScript, setArchiveScript] = useState("");
+  const [runScriptMode, setRunScriptMode] = useState<
+    "nonconcurrent" | "concurrent"
+  >("nonconcurrent");
+  const [envVars, setEnvVars] = useState<Record<string, string>>({});
+  const [sparseDirs, setSparseDirs] = useState("");
+  const [autoCommit, setAutoCommit] = useState(true);
   const [newEnvKey, setNewEnvKey] = useState("");
   const [newEnvValue, setNewEnvValue] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
-  const { templates, loadTemplates, deleteTemplate } = useWorkspaceTemplateStore();
 
+  // Pre-fill from current repo settings
   useEffect(() => {
     getRepoSettings(repoId)
-      .then(setSettings)
-      .catch((e) => setError(String(e)));
-    loadTemplates(repoId);
+      .then((s: RepoSettings) => {
+        setSetupScript(s.setupScript ?? "");
+        setRunScript(s.runScript ?? "");
+        setArchiveScript(s.archiveScript ?? "");
+        setRunScriptMode(s.runScriptMode);
+        setEnvVars(s.envVars);
+      })
+      .catch(() => {});
   }, [repoId]);
 
   const handleSave = async () => {
+    if (!name.trim()) {
+      setError("Template name is required");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      await updateRepoSettings(repoId, settings);
+      await createTemplate({
+        repoId,
+        name: name.trim(),
+        description: description.trim() || undefined,
+        setupScript: setupScript.trim() || undefined,
+        runScript: runScript.trim() || undefined,
+        archiveScript: archiveScript.trim() || undefined,
+        runScriptMode,
+        envVars: Object.keys(envVars).length > 0 ? envVars : undefined,
+        sparseDirs: sparseDirs.trim()
+          ? sparseDirs
+              .split(",")
+              .map((d) => d.trim())
+              .filter(Boolean)
+          : undefined,
+        autoCommit,
+      });
       onClose();
     } catch (e) {
       setError(String(e));
@@ -55,18 +75,15 @@ export function RepoSettingsPanel({
 
   const addEnvVar = () => {
     if (!newEnvKey.trim()) return;
-    setSettings((s) => ({
-      ...s,
-      envVars: { ...s.envVars, [newEnvKey.trim()]: newEnvValue },
-    }));
+    setEnvVars((v) => ({ ...v, [newEnvKey.trim()]: newEnvValue }));
     setNewEnvKey("");
     setNewEnvValue("");
   };
 
   const removeEnvVar = (key: string) => {
-    setSettings((s) => {
-      const { [key]: _, ...rest } = s.envVars;
-      return { ...s, envVars: rest };
+    setEnvVars((v) => {
+      const { [key]: _, ...rest } = v;
+      return rest;
     });
   };
 
@@ -92,14 +109,13 @@ export function RepoSettingsPanel({
             className="text-sm font-semibold"
             style={{ color: "var(--text-primary)" }}
           >
-            Settings: {repoName}
+            Save as Template
           </h2>
           <button
             onClick={onClose}
-            className="text-sm"
             style={{ color: "var(--text-muted)" }}
           >
-            x
+            <X size={14} />
           </button>
         </div>
 
@@ -111,72 +127,79 @@ export function RepoSettingsPanel({
             </div>
           )}
 
-          {/* Worktree location */}
+          {/* Name */}
           <div>
             <label
               className="mb-1 block text-xs font-medium"
               style={{ color: "var(--text-secondary)" }}
             >
-              Worktree Location
+              Template Name *
             </label>
             <input
-              value={settings.worktreeBasePath ?? ""}
-              onChange={(e) =>
-                setSettings((s) => ({
-                  ...s,
-                  worktreeBasePath: e.target.value || null,
-                }))
-              }
-              placeholder="Default: .worktrees/ (inside repo)"
-              className="w-full rounded px-2 py-1.5 font-mono text-xs"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. frontend-feature"
+              className="w-full rounded px-2 py-1.5 text-xs"
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border)",
+              }}
+              autoFocus
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label
+              className="mb-1 block text-xs font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Description
+            </label>
+            <input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Optional description"
+              className="w-full rounded px-2 py-1.5 text-xs"
               style={{
                 backgroundColor: "var(--bg-surface)",
                 color: "var(--text-primary)",
                 border: "1px solid var(--border)",
               }}
             />
-            <p
-              className="mt-1 text-xs"
-              style={{ color: "var(--text-muted)" }}
-            >
-              Base directory for worktrees (repo name is appended
-              automatically). Leave empty to use the default (next to the
-              repo).
-            </p>
           </div>
 
           {/* Scripts */}
-          {(["setup", "run", "archive"] as const).map((kind) => {
-            const field = `${kind}Script` as keyof RepoSettings;
-            return (
-              <div key={kind}>
-                <label
-                  className="mb-1 block text-xs font-medium"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  {kind.charAt(0).toUpperCase() + kind.slice(1)} Script
-                </label>
-                <textarea
-                  value={(settings[field] as string | null) ?? ""}
-                  onChange={(e) =>
-                    setSettings((s) => ({
-                      ...s,
-                      [field]: e.target.value || null,
-                    }))
-                  }
-                  placeholder={`e.g. npm install`}
-                  rows={2}
-                  className="w-full rounded px-2 py-1.5 font-mono text-xs"
-                  style={{
-                    backgroundColor: "var(--bg-surface)",
-                    color: "var(--text-primary)",
-                    border: "1px solid var(--border)",
-                    resize: "vertical",
-                  }}
-                />
-              </div>
-            );
-          })}
+          {(
+            [
+              ["setup", setupScript, setSetupScript],
+              ["run", runScript, setRunScript],
+              ["archive", archiveScript, setArchiveScript],
+            ] as const
+          ).map(([kind, value, setter]) => (
+            <div key={kind}>
+              <label
+                className="mb-1 block text-xs font-medium"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                {kind.charAt(0).toUpperCase() + kind.slice(1)} Script
+              </label>
+              <textarea
+                value={value}
+                onChange={(e) => setter(e.target.value)}
+                placeholder={`e.g. npm install`}
+                rows={2}
+                className="w-full rounded px-2 py-1.5 font-mono text-xs"
+                style={{
+                  backgroundColor: "var(--bg-surface)",
+                  color: "var(--text-primary)",
+                  border: "1px solid var(--border)",
+                  resize: "vertical",
+                }}
+              />
+            </div>
+          ))}
 
           {/* Run script mode */}
           <div>
@@ -196,10 +219,8 @@ export function RepoSettingsPanel({
                   <input
                     type="radio"
                     name="runScriptMode"
-                    checked={settings.runScriptMode === mode}
-                    onChange={() =>
-                      setSettings((s) => ({ ...s, runScriptMode: mode }))
-                    }
+                    checked={runScriptMode === mode}
+                    onChange={() => setRunScriptMode(mode)}
                   />
                   {mode === "nonconcurrent"
                     ? "Nonconcurrent (kill previous)"
@@ -209,6 +230,40 @@ export function RepoSettingsPanel({
             </div>
           </div>
 
+          {/* Sparse dirs */}
+          <div>
+            <label
+              className="mb-1 block text-xs font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Sparse Checkout Directories
+            </label>
+            <input
+              value={sparseDirs}
+              onChange={(e) => setSparseDirs(e.target.value)}
+              placeholder="src, tests (comma-separated)"
+              className="w-full rounded px-2 py-1.5 font-mono text-xs"
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border)",
+              }}
+            />
+          </div>
+
+          {/* Auto-commit */}
+          <label
+            className="flex items-center gap-1.5 text-xs"
+            style={{ color: "var(--text-primary)" }}
+          >
+            <input
+              type="checkbox"
+              checked={autoCommit}
+              onChange={(e) => setAutoCommit(e.target.checked)}
+            />
+            Auto-commit enabled
+          </label>
+
           {/* Environment variables */}
           <div>
             <label
@@ -217,7 +272,7 @@ export function RepoSettingsPanel({
             >
               Environment Variables
             </label>
-            {Object.entries(settings.envVars).map(([key, value]) => (
+            {Object.entries(envVars).map(([key, value]) => (
               <div key={key} className="mb-1 flex items-center gap-1 text-xs">
                 <span
                   className="rounded px-1.5 py-0.5 font-mono"
@@ -239,7 +294,7 @@ export function RepoSettingsPanel({
                   onClick={() => removeEnvVar(key)}
                   style={{ color: "var(--error)" }}
                 >
-                  x
+                  <X size={12} />
                 </button>
               </div>
             ))}
@@ -280,65 +335,6 @@ export function RepoSettingsPanel({
               </button>
             </div>
           </div>
-
-          {/* Workspace Templates */}
-          <div>
-            <label
-              className="mb-1 block text-xs font-medium"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Workspace Templates
-            </label>
-            {templates.length > 0 && (
-              <div className="mb-2 space-y-1">
-                {templates.map((t) => (
-                  <div
-                    key={t.id}
-                    className="flex items-center justify-between rounded px-2 py-1.5"
-                    style={{
-                      backgroundColor: "var(--bg-surface)",
-                      border: "1px solid var(--border)",
-                    }}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div
-                        className="text-xs font-medium truncate"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        {t.name}
-                      </div>
-                      {t.description && (
-                        <div
-                          className="text-[11px] truncate"
-                          style={{ color: "var(--text-muted)" }}
-                        >
-                          {t.description}
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => deleteTemplate(t.id)}
-                      className="ml-2 text-xs"
-                      style={{ color: "var(--error)" }}
-                    >
-                      x
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <button
-              onClick={() => setShowTemplateDialog(true)}
-              className="rounded px-2 py-1 text-xs"
-              style={{
-                backgroundColor: "var(--bg-surface)",
-                color: "var(--text-secondary)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              Save Current Settings as Template
-            </button>
-          </div>
         </div>
 
         {/* Footer */}
@@ -358,27 +354,18 @@ export function RepoSettingsPanel({
           </button>
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || !name.trim()}
             className="rounded px-3 py-1.5 text-xs"
             style={{
               backgroundColor: "var(--accent)",
               color: "var(--bg-primary)",
-              opacity: saving ? 0.5 : 1,
+              opacity: saving || !name.trim() ? 0.5 : 1,
             }}
           >
-            {saving ? "Saving..." : "Save"}
+            {saving ? "Saving..." : "Save Template"}
           </button>
         </div>
       </div>
-      {showTemplateDialog && (
-        <WorkspaceTemplateDialog
-          repoId={repoId}
-          onClose={() => {
-            setShowTemplateDialog(false);
-            loadTemplates(repoId);
-          }}
-        />
-      )}
     </div>
   );
 }

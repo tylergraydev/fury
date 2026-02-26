@@ -165,6 +165,11 @@ pub fn run() {
             commands::mcp::update_app_settings,
             commands::mcp::detect_cursorrules,
             commands::mcp::import_cursorrules,
+            // Workspace template commands
+            commands::workspace_template::create_workspace_template,
+            commands::workspace_template::list_workspace_templates,
+            commands::workspace_template::update_workspace_template,
+            commands::workspace_template::delete_workspace_template,
             // Performance monitor commands
             commands::perf::push_ipc_metrics,
             commands::perf::push_frame_metrics,

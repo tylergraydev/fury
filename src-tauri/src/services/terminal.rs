@@ -10,6 +10,7 @@ use crate::platform;
 
 pub struct TerminalSession {
     pub id: Uuid,
+    #[allow(dead_code)]
     pub workspace_id: Uuid,
     pub master: Box<dyn MasterPty + Send>,
     pub writer: Box<dyn Write + Send>,

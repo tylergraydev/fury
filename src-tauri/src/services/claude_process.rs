@@ -230,6 +230,7 @@ fn is_known_skippable_line(line: &str) -> bool {
 ///
 /// Returns the child process handle. The session_id will be emitted
 /// via events as it's parsed from the stream.
+#[allow(clippy::too_many_arguments)]
 pub async fn spawn_and_stream(
     workspace_id: Uuid,
     message: &str,
@@ -283,14 +284,11 @@ pub async fn spawn_and_stream(
 
     // Set process group on Unix for clean teardown
     #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        unsafe {
-            cmd.pre_exec(|| {
-                libc::setpgid(0, 0);
-                Ok(())
-            });
-        }
+    unsafe {
+        cmd.pre_exec(|| {
+            libc::setpgid(0, 0);
+            Ok(())
+        });
     }
 
     // Set CREATE_NEW_PROCESS_GROUP on Windows
@@ -438,6 +436,7 @@ pub async fn write_message(stdin: &mut ChildStdin, message: &str) -> Result<(), 
 /// Unlike `spawn_and_stream`, this spawns without `-p` so the process stays
 /// alive between turns. Messages are written to stdin via `write_message`.
 /// Returns `(Child, ChildStdin)` — the caller keeps the ChildStdin for future writes.
+#[allow(clippy::too_many_arguments)]
 pub async fn spawn_persistent(
     workspace_id: Uuid,
     session_id: Option<&str>,
@@ -477,14 +476,11 @@ pub async fn spawn_persistent(
 
     // Persistent mode always has stdin piped (messages written to it), so setpgid is safe
     #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        unsafe {
-            cmd.pre_exec(|| {
-                libc::setpgid(0, 0);
-                Ok(())
-            });
-        }
+    unsafe {
+        cmd.pre_exec(|| {
+            libc::setpgid(0, 0);
+            Ok(())
+        });
     }
 
     #[cfg(windows)]
