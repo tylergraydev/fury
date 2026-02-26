@@ -89,6 +89,13 @@ pub fn run() {
             commands::merge::cross_worktree_diff,
             commands::merge::get_cross_worktree_file_diff,
             commands::merge::push_workspace,
+            // Stash commands
+            commands::stash::list_stashes,
+            commands::stash::create_stash,
+            commands::stash::apply_stash,
+            commands::stash::pop_stash,
+            commands::stash::drop_stash,
+            commands::stash::show_stash,
             // Script commands
             commands::script::run_script,
             commands::script::stop_script,

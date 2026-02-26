@@ -1297,3 +1297,71 @@ export async function getCrossWorktreeFileDiff(
     filePath,
   });
 }
+
+// Stash types
+export interface StashEntry {
+  index: number;
+  message: string;
+  branch: string;
+  timestamp: string;
+}
+
+export interface StashFileStat {
+  path: string;
+  additions: number;
+  deletions: number;
+}
+
+export interface StashDetail {
+  index: number;
+  message: string;
+  files: StashFileStat[];
+  patch: string;
+}
+
+// Stash commands
+export async function listStashes(
+  workspaceId: string,
+): Promise<StashEntry[]> {
+  return invoke<StashEntry[]>("list_stashes", { workspaceId });
+}
+
+export async function createStash(
+  workspaceId: string,
+  message?: string,
+  includeUntracked?: boolean,
+): Promise<StashEntry> {
+  return invoke<StashEntry>("create_stash", {
+    workspaceId,
+    message,
+    includeUntracked,
+  });
+}
+
+export async function applyStash(
+  workspaceId: string,
+  index: number,
+): Promise<void> {
+  return invoke("apply_stash", { workspaceId, index });
+}
+
+export async function popStash(
+  workspaceId: string,
+  index: number,
+): Promise<void> {
+  return invoke("pop_stash", { workspaceId, index });
+}
+
+export async function dropStash(
+  workspaceId: string,
+  index: number,
+): Promise<void> {
+  return invoke("drop_stash", { workspaceId, index });
+}
+
+export async function showStash(
+  workspaceId: string,
+  index: number,
+): Promise<StashDetail> {
+  return invoke<StashDetail>("show_stash", { workspaceId, index });
+}

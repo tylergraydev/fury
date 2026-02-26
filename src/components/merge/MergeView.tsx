@@ -1,9 +1,11 @@
 import { useEffect } from "react";
-import { GitMerge, RefreshCw, GitCompare, AlertCircle } from "lucide-react";
+import { GitMerge, RefreshCw, GitCompare, AlertCircle, Archive } from "lucide-react";
 import { useMergeStore, type MergeSection } from "../../stores/mergeStore";
+import { useStashStore } from "../../stores/stashStore";
 import { BranchSyncSection } from "./BranchSyncSection";
 import { WorktreeCompareSection } from "./WorktreeCompareSection";
 import { ConflictSection } from "./ConflictSection";
+import { StashSection } from "./StashSection";
 
 interface Props {
   workspaceId: string;
@@ -13,6 +15,7 @@ const SECTIONS: { id: MergeSection; label: string }[] = [
   { id: "sync", label: "Sync" },
   { id: "compare", label: "Compare" },
   { id: "conflicts", label: "Conflicts" },
+  { id: "stash", label: "Stash" },
 ];
 
 export function MergeView({ workspaceId }: Props) {
@@ -22,10 +25,14 @@ export function MergeView({ workspaceId }: Props) {
   const conflictCount = useMergeStore(
     (s) => (s.conflictedFiles[workspaceId] ?? []).length,
   );
+  const stashCount = useStashStore(
+    (s) => (s.stashes[workspaceId] ?? []).length,
+  );
 
   // Load conflicts on mount to detect pre-existing state
   useEffect(() => {
     useMergeStore.getState().loadConflictedFiles(workspaceId);
+    useStashStore.getState().loadStashes(workspaceId);
   }, [workspaceId]);
 
   return (
@@ -68,6 +75,7 @@ export function MergeView({ workspaceId }: Props) {
               {section.id === "conflicts" && (
                 <AlertCircle className="h-3 w-3" />
               )}
+              {section.id === "stash" && <Archive className="h-3 w-3" />}
               {section.label}
               {section.id === "conflicts" && conflictCount > 0 && (
                 <span
@@ -78,6 +86,17 @@ export function MergeView({ workspaceId }: Props) {
                   }}
                 >
                   {conflictCount}
+                </span>
+              )}
+              {section.id === "stash" && stashCount > 0 && (
+                <span
+                  className="rounded-full px-1.5 text-[10px] font-medium"
+                  style={{
+                    backgroundColor: "var(--accent-purple)",
+                    color: "var(--bg-primary)",
+                  }}
+                >
+                  {stashCount}
                 </span>
               )}
             </button>
@@ -95,6 +114,9 @@ export function MergeView({ workspaceId }: Props) {
         )}
         {activeSection === "conflicts" && (
           <ConflictSection workspaceId={workspaceId} />
+        )}
+        {activeSection === "stash" && (
+          <StashSection workspaceId={workspaceId} />
         )}
       </div>
     </div>

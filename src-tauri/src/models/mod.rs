@@ -9,5 +9,6 @@ pub mod pr;
 pub mod repository;
 pub mod settings;
 pub mod slash_command;
+pub mod stash;
 pub mod todo;
 pub mod workspace;

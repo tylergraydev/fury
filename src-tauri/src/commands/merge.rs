@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 /// Helper to resolve a workspace or repo ID to (worktree_path, branch, default_branch, repo_path).
 /// Checks workspaces first; falls back to repositories so callers work in both contexts.
-fn resolve_workspace(
+pub(crate) fn resolve_workspace(
     state: &State<'_, AppState>,
     workspace_id: &str,
 ) -> Result<(std::path::PathBuf, String, String, std::path::PathBuf), AppError> {

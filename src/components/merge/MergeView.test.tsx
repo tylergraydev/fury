@@ -2,12 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MergeView, MergeViewWrapper } from "./MergeView";
 import { useMergeStore } from "../../stores/mergeStore";
+import { useStashStore } from "../../stores/stashStore";
 
 vi.mock("lucide-react", () => ({
   GitMerge: () => <span data-testid="merge-icon" />,
   RefreshCw: () => <span data-testid="refresh-icon" />,
   GitCompare: () => <span data-testid="compare-icon" />,
   AlertCircle: () => <span data-testid="alert-icon" />,
+  Archive: () => <span data-testid="archive-icon" />,
 }));
 
 vi.mock("./BranchSyncSection", () => ({
@@ -19,10 +21,14 @@ vi.mock("./WorktreeCompareSection", () => ({
 vi.mock("./ConflictSection", () => ({
   ConflictSection: () => <div data-testid="conflict-section">Conflict Section</div>,
 }));
+vi.mock("./StashSection", () => ({
+  StashSection: () => <div data-testid="stash-section">Stash Section</div>,
+}));
 
 vi.mock("../../lib/tauri", () => ({
   loadConflictedFiles: vi.fn().mockResolvedValue([]),
   loadBranchStatus: vi.fn().mockResolvedValue(null),
+  listStashes: vi.fn().mockResolvedValue([]),
   listen: vi.fn().mockResolvedValue(() => {}),
 }));
 
@@ -31,6 +37,11 @@ beforeEach(() => {
     activeSection: {},
     conflictedFiles: {},
     branchStatus: {},
+    loading: {},
+    error: {},
+  });
+  useStashStore.setState({
+    stashes: {},
     loading: {},
     error: {},
   });
@@ -43,6 +54,7 @@ describe("MergeView", () => {
     expect(screen.getByText("Sync")).toBeInTheDocument();
     expect(screen.getByText("Compare")).toBeInTheDocument();
     expect(screen.getByText("Conflicts")).toBeInTheDocument();
+    expect(screen.getByText("Stash")).toBeInTheDocument();
   });
 
   it("shows BranchSyncSection by default", () => {
@@ -62,6 +74,12 @@ describe("MergeView", () => {
     expect(screen.getByTestId("conflict-section")).toBeInTheDocument();
   });
 
+  it("switches to Stash section on click", () => {
+    render(<MergeView workspaceId="ws-1" />);
+    fireEvent.click(screen.getByText("Stash"));
+    expect(screen.getByTestId("stash-section")).toBeInTheDocument();
+  });
+
   it("shows conflict count badge when conflicts exist", () => {
     useMergeStore.setState({
       conflictedFiles: { "ws-1": [{ path: "file1.ts", conflictType: "BothModified" }, { path: "file2.ts", conflictType: "BothModified" }] },
@@ -76,6 +94,31 @@ describe("MergeView", () => {
     });
     render(<MergeView workspaceId="ws-1" />);
     // There should be no badge number
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+  });
+
+  it("shows stash count badge when stashes exist", () => {
+    useStashStore.setState({
+      stashes: {
+        "ws-1": [
+          { index: 0, message: "s1", branch: "main", timestamp: "" },
+          { index: 1, message: "s2", branch: "main", timestamp: "" },
+          { index: 2, message: "s3", branch: "main", timestamp: "" },
+        ],
+      },
+    });
+    render(<MergeView workspaceId="ws-1" />);
+    expect(screen.getByText("3")).toBeInTheDocument();
+  });
+
+  it("does not show stash badge when count is 0", () => {
+    useStashStore.setState({
+      stashes: { "ws-1": [] },
+    });
+    useMergeStore.setState({
+      conflictedFiles: { "ws-1": [] },
+    });
+    render(<MergeView workspaceId="ws-1" />);
     expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 });

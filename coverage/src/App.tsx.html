@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">98.47% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>127/127</span>
+                <span class='fraction'>129/131</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">93.82% </span>
+                <span class="strong">92.68% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>76/81</span>
+                <span class='fraction'>76/82</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">98.27% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>112/112</span>
+                <span class='fraction'>114/116</span>
             </div>
         
             
@@ -412,7 +412,19 @@
 <a name='L347'></a><a href='#L347'>347</a>
 <a name='L348'></a><a href='#L348'>348</a>
 <a name='L349'></a><a href='#L349'>349</a>
-<a name='L350'></a><a href='#L350'>350</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L350'></a><a href='#L350'>350</a>
+<a name='L351'></a><a href='#L351'>351</a>
+<a name='L352'></a><a href='#L352'>352</a>
+<a name='L353'></a><a href='#L353'>353</a>
+<a name='L354'></a><a href='#L354'>354</a>
+<a name='L355'></a><a href='#L355'>355</a>
+<a name='L356'></a><a href='#L356'>356</a>
+<a name='L357'></a><a href='#L357'>357</a>
+<a name='L358'></a><a href='#L358'>358</a>
+<a name='L359'></a><a href='#L359'>359</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -529,6 +541,8 @@
 <span class="cline-any cline-yes">45x</span>
 <span class="cline-any cline-yes">45x</span>
 <span class="cline-any cline-yes">45x</span>
+<span class="cline-any cline-yes">45x</span>
+<span class="cline-any cline-yes">45x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -607,6 +621,9 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -761,6 +778,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { useCallback, useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Sidebar } from "./components/layout/Sidebar";
@@ -790,6 +808,9 @@ import { useAutoUpdate } from "./lib/autoUpdate";
 import { applyTheme } from "./lib/themes";
 import { startIpcFlush, stopIpcFlush } from "./lib/ipcInstrumentation";
 import { startFrameMonitor, stopFrameMonitor } from "./lib/frameMonitor";
+import { NotificationPanel } from "./components/notifications/NotificationPanel";
+import { useNotificationStore } from "./stores/notificationStore";
+import { initNotificationListeners } from "./lib/notificationListeners";
 import "./App.css";
 &nbsp;
 export type SidebarContext =
@@ -871,13 +892,15 @@ function App() {
       .catch((e) =&gt; console.error("Failed to load app settings:", e));
   }, []);
 &nbsp;
-  // Start perf instrumentation — always on, backend gates storage via its enabled flag
+  // Start perf instrumentation and notification listeners
   useEffect(() =&gt; {
     startIpcFlush();
     startFrameMonitor();
+    const cleanupNotifications = initNotificationListeners();
     return () =&gt; {
       stopIpcFlush();
       stopFrameMonitor();
+      cleanupNotifications();
     };
   }, []);
 &nbsp;
@@ -956,6 +979,9 @@ function App() {
         ui.setRightSidebarTab("checks");
         ui.ensureRightSidebarVisible();
         break;
+<span class="branch-10 cbranch-no" title="branch not covered" >      case "toggle-notifications":</span>
+<span class="cstat-no" title="statement not covered" >        useNotificationStore.getState().togglePanel();</span>
+<span class="cstat-no" title="statement not covered" >        break;</span>
       case "new-workspace":
         setShowPalette(true);
         break;
@@ -1104,6 +1130,7 @@ function App() {
         mode={paletteMode}
       /&gt;
 &nbsp;
+      &lt;NotificationPanel /&gt;
       &lt;ToastContainer /&gt;
     &lt;/div&gt;
   );
@@ -1117,7 +1144,7 @@ export default App;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-02-26T02:48:28.856Z
+                at 2026-02-26T14:10:47.426Z
             </div>
         <script src="../prettify.js"></script>
         <script>

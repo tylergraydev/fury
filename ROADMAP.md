@@ -19,7 +19,7 @@ When the agent suggests code changes in chat, add one-click "Apply" buttons to a
 Run multiple AI agents in the same workspace simultaneously. The `agent_teams` experimental flag already exists but isn't shipped.
 
 ### 4. Git Stash Management
-**Status:** Planned
+**Status:** Done
 UI for stashing and unstashing changes, viewing stash contents. Currently requires dropping to terminal.
 
 ### 5. Notification Center

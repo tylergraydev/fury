@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">97.64% </span>
+                <span class="strong">94.5% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>83/85</span>
+                <span class='fraction'>86/91</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">88.7% </span>
+                <span class="strong">80.26% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>55/62</span>
+                <span class='fraction'>61/76</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>16/16</span>
+                <span class='fraction'>17/17</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">96.51% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>81/81</span>
+                <span class='fraction'>83/86</span>
             </div>
         
             
@@ -320,7 +320,18 @@
 <a name='L255'></a><a href='#L255'>255</a>
 <a name='L256'></a><a href='#L256'>256</a>
 <a name='L257'></a><a href='#L257'>257</a>
-<a name='L258'></a><a href='#L258'>258</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L258'></a><a href='#L258'>258</a>
+<a name='L259'></a><a href='#L259'>259</a>
+<a name='L260'></a><a href='#L260'>260</a>
+<a name='L261'></a><a href='#L261'>261</a>
+<a name='L262'></a><a href='#L262'>262</a>
+<a name='L263'></a><a href='#L263'>263</a>
+<a name='L264'></a><a href='#L264'>264</a>
+<a name='L265'></a><a href='#L265'>265</a>
+<a name='L266'></a><a href='#L266'>266</a>
+<a name='L267'></a><a href='#L267'>267</a>
+<a name='L268'></a><a href='#L268'>268</a>
+<a name='L269'></a><a href='#L269'>269</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -442,11 +453,22 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">21x</span>
 <span class="cline-any cline-yes">21x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">21x</span>
 <span class="cline-any cline-yes">18x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">21x</span>
+<span class="cline-any cline-yes">18x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">21x</span>
@@ -691,6 +713,7 @@ interface Props {
   streamingText: string;
   agentStatus: AgentStatus;
   onRetry?: () =&gt; void;
+  highlightMessageId?: string | null;
 }
 &nbsp;
 export function MessageList({
@@ -698,6 +721,7 @@ export function MessageList({
   streamingText,
   agentStatus,
   onRetry,
+  highlightMessageId,
 }: Props) {
   const bottomRef = useRef&lt;HTMLDivElement&gt;(null);
   const [expandedTurns, setExpandedTurns] = useState&lt;Set&lt;string&gt;&gt;(new Set());
@@ -705,6 +729,15 @@ export function MessageList({
   useEffect(() =&gt; {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText]);
+&nbsp;
+  // Scroll to highlighted message from search
+  useEffect(() =&gt; {
+    <span class="missing-if-branch" title="else path not taken" >E</span>if (!highlightMessageId) return;
+    const el = <span class="cstat-no" title="statement not covered" >document.querySelector(`[data-message-id="${highlightMessageId}"]`);</span>
+<span class="cstat-no" title="statement not covered" >    if (el) {</span>
+<span class="cstat-no" title="statement not covered" >      el.scrollIntoView({ behavior: "smooth", block: "center" });</span>
+    }
+  }, [highlightMessageId]);
 &nbsp;
   const isRunning = agentStatus === "Running";
   const isAgentActive = agentStatus === "Running" || agentStatus === "Stopping";
@@ -737,7 +770,7 @@ export function MessageList({
     &lt;div className="flex-1 overflow-y-auto px-6 py-5"&gt;
       {/* Render any orphaned messages before the first user message */}
       {orphans.map((msg) =&gt; (
-        &lt;div key={msg.id}&gt;
+        &lt;div key={msg.id} data-message-id={msg.id} className={highlightMessageId === msg.id ? <span class="branch-0 cbranch-no" title="branch not covered" >"search-highlight" : "</span>"}&gt;
           &lt;MessageBubble message={msg} /&gt;
         &lt;/div&gt;
       ))}
@@ -756,7 +789,7 @@ export function MessageList({
 &nbsp;
         // User message — always visible
         elements.push(
-          &lt;div key={turn.userMessage.id}&gt;
+          &lt;div key={turn.userMessage.id} data-message-id={turn.userMessage.id} className={highlightMessageId === turn.userMessage.id ? <span class="branch-0 cbranch-no" title="branch not covered" >"search-highlight" : "</span>"}&gt;
             &lt;MessageBubble message={turn.userMessage} /&gt;
           &lt;/div&gt;,
         );
@@ -778,7 +811,7 @@ export function MessageList({
             // Show all responses when expanded
             for (const msg of turn.responses) {
               elements.push(
-                &lt;div key={msg.id}&gt;
+                &lt;div key={msg.id} data-message-id={msg.id} className={highlightMessageId === msg.id ? <span class="branch-0 cbranch-no" title="branch not covered" >"search-highlight" : "</span>"}&gt;
                   &lt;MessageBubble message={msg} onRetry={msg.role === "system" ? <span class="branch-0 cbranch-no" title="branch not covered" >onRetry : u</span>ndefined} /&gt;
                 &lt;/div&gt;,
               );
@@ -793,7 +826,7 @@ export function MessageList({
                 ),
               };
               elements.push(
-                &lt;div key={stats.finalTextMessage.id}&gt;
+                &lt;div key={stats.finalTextMessage.id} data-message-id={stats.finalTextMessage.id} className={highlightMessageId === stats.finalTextMessage.id ? <span class="branch-0 cbranch-no" title="branch not covered" >"search-highlight" : "</span>"}&gt;
                   &lt;MessageBubble message={textOnly} /&gt;
                 &lt;/div&gt;,
               );
@@ -803,7 +836,7 @@ export function MessageList({
           // Active turn, no tool calls, or has system messages — render all responses normally
           for (const msg of turn.responses) {
             elements.push(
-              &lt;div key={msg.id}&gt;
+              &lt;div key={msg.id} data-message-id={msg.id} className={highlightMessageId === msg.id ? <span class="branch-0 cbranch-no" title="branch not covered" >"search-highlight" : "</span>"}&gt;
                 &lt;MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} /&gt;
               &lt;/div&gt;,
             );
@@ -841,7 +874,7 @@ export function MessageList({
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-02-26T02:48:28.856Z
+                at 2026-02-26T14:10:47.426Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>
