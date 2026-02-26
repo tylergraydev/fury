@@ -24,7 +24,7 @@ beforeEach(() => {
   ) => {
     if (ms === 5_000) {
       capturedCb = fn;
-      return 999 as unknown as NodeJS.Timeout;
+      return 999 as unknown as ReturnType<typeof setTimeout>;
     }
     return _realSetTimeout(fn, ms ?? 0);
   }) as typeof setTimeout);

@@ -54,6 +54,7 @@ describe("DiffPanel", () => {
       selectedFile: { ctx1: "src/foo.ts" },
       fileDiffs: {
         "ctx1:src/foo.ts": {
+          path: "src/foo.ts",
           original: "old code",
           modified: "new code",
           language: "typescript",
@@ -69,6 +70,7 @@ describe("DiffPanel", () => {
       selectedFile: { ctx1: "src/foo.ts" },
       fileDiffs: {
         "ctx1:src/foo.ts": {
+          path: "src/foo.ts",
           original: "old",
           modified: "new",
           language: "typescript",

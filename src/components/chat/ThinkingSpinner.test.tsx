@@ -48,7 +48,7 @@ describe("ThinkingSpinner", () => {
 
   it("cleans up interval on unmount", () => {
     const { unmount } = render(<ThinkingSpinner />);
-    const clearIntervalSpy = vi.spyOn(global, "clearInterval");
+    const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
     unmount();
     expect(clearIntervalSpy).toHaveBeenCalled();
   });
