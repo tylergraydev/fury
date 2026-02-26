@@ -4,7 +4,7 @@ test.describe("Landing Page", () => {
   test("renders header with Fury branding", async ({ appPage }) => {
     await expect(appPage.getByText("Fury", { exact: true })).toBeVisible();
     await expect(
-      appPage.getByText("Multi-workspace conductor for Claude Code"),
+      appPage.getByText("Multi-workspace orchestrator for Claude Code"),
     ).toBeVisible();
   });
 

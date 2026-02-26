@@ -32,23 +32,23 @@ pub fn build_env_vars(
     let mut env = HashMap::new();
 
     env.insert(
-        "CONDUCTOR_WORKSPACE_NAME".to_string(),
+        "FURY_WORKSPACE_NAME".to_string(),
         workspace.name.clone(),
     );
     env.insert(
-        "CONDUCTOR_WORKSPACE_PATH".to_string(),
+        "FURY_WORKSPACE_PATH".to_string(),
         workspace.worktree_path.to_string_lossy().to_string(),
     );
     env.insert(
-        "CONDUCTOR_ROOT_PATH".to_string(),
+        "FURY_ROOT_PATH".to_string(),
         repo.path.to_string_lossy().to_string(),
     );
     env.insert(
-        "CONDUCTOR_DEFAULT_BRANCH".to_string(),
+        "FURY_DEFAULT_BRANCH".to_string(),
         repo.default_branch.clone(),
     );
     env.insert(
-        "CONDUCTOR_PORT".to_string(),
+        "FURY_PORT".to_string(),
         workspace.port_base.to_string(),
     );
 
@@ -67,11 +67,11 @@ pub fn build_repo_env_vars(
     let mut env = HashMap::new();
 
     env.insert(
-        "CONDUCTOR_ROOT_PATH".to_string(),
+        "FURY_ROOT_PATH".to_string(),
         repo.path.to_string_lossy().to_string(),
     );
     env.insert(
-        "CONDUCTOR_DEFAULT_BRANCH".to_string(),
+        "FURY_DEFAULT_BRANCH".to_string(),
         repo.default_branch.clone(),
     );
 

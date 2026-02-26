@@ -23,6 +23,8 @@ pub struct AppSettings {
     pub copilot: CopilotSettings,
     #[serde(default)]
     pub linear: LinearSettings,
+    #[serde(default)]
+    pub claude_context: ClaudeContextSettings,
 }
 
 impl Default for AppSettings {
@@ -36,6 +38,7 @@ impl Default for AppSettings {
             experimental: ExperimentalSettings::default(),
             copilot: CopilotSettings::default(),
             linear: LinearSettings::default(),
+            claude_context: ClaudeContextSettings::default(),
         }
     }
 }
@@ -103,6 +106,15 @@ pub struct LinearSettings {
     pub api_key: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeContextSettings {
+    pub enabled: bool,
+    pub openai_api_key: Option<String>,
+    pub zilliz_uri: Option<String>,
+    pub zilliz_token: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -120,6 +132,8 @@ mod tests {
         assert!(!s.experimental.agent_teams);
         assert!(!s.copilot.enabled);
         assert!(s.linear.api_key.is_none());
+        assert!(!s.claude_context.enabled);
+        assert!(s.claude_context.openai_api_key.is_none());
     }
 
     #[test]

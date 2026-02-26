@@ -2,14 +2,14 @@ use std::sync::Arc;
 
 use crate::error::AppError;
 use crate::models::repository::{RepoSettings, RunScriptMode};
-use crate::services::{claude_process, conductor_json, script_runner};
+use crate::services::{claude_process, fury_json, script_runner};
 use crate::state::AppState;
 use tauri::{Emitter, State};
 use uuid::Uuid;
 
 use script_runner::{ScriptExitEvent, ScriptKind};
 
-/// Resolve the effective repo settings by merging DB + conductor.json.
+/// Resolve the effective repo settings by merging DB + fury.json.
 pub(crate) fn resolve_settings(state: &AppState, repo_id: &Uuid) -> Result<RepoSettings, AppError> {
     let db_settings = {
         let db = state.db.lock().unwrap();
@@ -25,8 +25,8 @@ pub(crate) fn resolve_settings(state: &AppState, repo_id: &Uuid) -> Result<RepoS
         repo.path.clone()
     };
 
-    let cj = conductor_json::load_conductor_json(&repo_path).unwrap_or(None);
-    Ok(conductor_json::merge_settings(&db_settings, cj.as_ref()))
+    let cj = fury_json::load_fury_json(&repo_path).unwrap_or(None);
+    Ok(fury_json::merge_settings(&db_settings, cj.as_ref()))
 }
 
 #[tauri::command]
@@ -75,7 +75,7 @@ pub async fn run_script(
         }
     }
 
-    // Build env vars: CONDUCTOR_* + provider vars + repo-specific env vars
+    // Build env vars: FURY_* + provider vars + repo-specific env vars
     let env_vars = {
         let workspaces = state.workspaces.lock().unwrap();
         let ws = workspaces

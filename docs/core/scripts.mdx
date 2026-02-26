@@ -19,9 +19,9 @@ Scripts automate common workspace operations like installing dependencies, start
 
 Go to **Settings** for a repository to configure scripts. These are stored in Fury's local database.
 
-### Via conductor.json
+### Via fury.json
 
-Commit a `conductor.json` file to your repo root to share scripts with your team:
+Commit a `fury.json` file to your repo root to share scripts with your team:
 
 ```json
 {
@@ -33,11 +33,11 @@ Commit a `conductor.json` file to your repo root to share scripts with your team
 }
 ```
 
-See [conductor.json](/core/conductor-json) for full details.
+See [fury.json](/core/fury-json) for full details.
 
 ### Precedence
 
-Settings configured in Fury's UI take precedence over `conductor.json`. The JSON file provides defaults that are used when no local setting exists.
+Settings configured in Fury's UI take precedence over `fury.json`. The JSON file provides defaults that are used when no local setting exists.
 
 ## Run script modes
 
@@ -46,7 +46,7 @@ Settings configured in Fury's UI take precedence over `conductor.json`. The JSON
 | **Nonconcurrent** (default) | Run script starts after setup finishes |
 | **Concurrent** | Run script starts alongside setup |
 
-Configure the mode in repository settings or in `conductor.json`:
+Configure the mode in repository settings or in `fury.json`:
 
 ```json
 {
@@ -61,9 +61,9 @@ Scripts have access to these environment variables automatically:
 
 | Variable | Description |
 |----------|-------------|
-| `CONDUCTOR_WORKSPACE_NAME` | Name of the current workspace |
-| `CONDUCTOR_WORKSPACE_PATH` | Absolute path to the worktree |
-| `CONDUCTOR_ROOT_PATH` | Absolute path to the main repo |
-| `CONDUCTOR_DEFAULT_BRANCH` | Repository's default branch |
+| `FURY_WORKSPACE_NAME` | Name of the current workspace |
+| `FURY_WORKSPACE_PATH` | Absolute path to the worktree |
+| `FURY_ROOT_PATH` | Absolute path to the main repo |
+| `FURY_DEFAULT_BRANCH` | Repository's default branch |
 
 You can also configure custom environment variables per-repository in Settings. See [environment variables](/tips/environment-variables).

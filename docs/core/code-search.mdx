@@ -1,0 +1,77 @@
+---
+title: Code Search
+description: Semantic code search across your repositories with claude-context
+---
+
+Fury integrates with [claude-context](https://github.com/zilliztech/claude-context) to give your agent semantic code search. Instead of relying on keyword matching, the agent can search your codebase by meaning — finding relevant functions, patterns, and implementations even when the exact terms don't match.
+
+Repositories are automatically indexed when added to Fury.
+
+## Requirements
+
+Code Search requires three credentials:
+
+| Credential | Where to get it |
+|------------|----------------|
+| **OpenAI API key** | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) — used for generating code embeddings |
+| **Milvus Address** | [cloud.zilliz.com](https://cloud.zilliz.com) — free tier available. Create a cluster and copy the Public Endpoint |
+| **Milvus Token** | Same Zilliz Cloud dashboard — generate a Personal API Key for your cluster |
+
+## Setup
+
+1. Go to **Settings > Code Search**
+2. Check **Enable Semantic Code Search**
+3. Enter your OpenAI API key, Milvus Address, and Milvus Token
+4. Click **Save**
+
+When you save with the feature enabled, Fury automatically registers `claude-context` as a user-level [MCP server](/core/mcp) so all agent sessions can use it. Repositories added after enabling will be indexed automatically. To index existing repositories, use the **Re-index** button in the status list below.
+
+## How indexing works
+
+Indexing runs automatically when you add a repository (via add, clone, or init). The process:
+
+1. Spawns the claude-context MCP server
+2. Calls `index_codebase` with your repository path
+3. Splits code into chunks and generates vector embeddings via OpenAI
+4. Stores embeddings in your Zilliz Cloud cluster
+
+Indexing happens in the background — you can continue using Fury while it runs.
+
+## Checking indexing status
+
+The **Settings > Code Search** panel shows each repository's indexing status:
+
+| Status | Meaning |
+|--------|---------|
+| **Not indexed** (gray) | Repository hasn't been indexed yet |
+| **Indexing...** (blue) | Indexing is in progress |
+| **Indexed** (green) | Ready for semantic search |
+| **Error** (red) | Indexing failed — check credentials and try again |
+
+Click **Re-index** next to any repository to trigger a fresh index.
+
+## What the agent can do
+
+Once a repository is indexed, the agent gains a `search_code` tool that accepts natural language queries. For example:
+
+- "Find functions that handle authentication"
+- "Where is the database connection configured?"
+- "Show me error handling patterns in this codebase"
+
+The search uses hybrid retrieval (BM25 keyword matching + dense vector similarity) for comprehensive results.
+
+## Disabling Code Search
+
+1. Go to **Settings > Code Search**
+2. Uncheck **Enable Semantic Code Search**
+3. Click **Save**
+
+This removes the `claude-context` MCP server from your configuration. Your credentials are preserved in settings so you can re-enable later without re-entering them.
+
+## Troubleshooting
+
+**Indexing fails immediately** — Verify all three credentials are correct. The OpenAI API key needs access to the embeddings API. The Milvus Address should be the full `https://` endpoint from your Zilliz Cloud cluster.
+
+**Indexing takes a long time** — Large repositories take longer to index. The process chunks all source files and generates embeddings for each chunk. This is a one-time cost per repository.
+
+**Agent doesn't use search_code** — Verify the MCP server is registered by checking **Settings > MCP Servers** for a `claude-context` entry. If missing, toggle Code Search off and on again in settings.

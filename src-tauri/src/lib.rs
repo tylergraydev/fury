@@ -143,6 +143,10 @@ pub fn run() {
             commands::copilot::copilot_did_change,
             commands::copilot::copilot_did_close,
             commands::copilot::copilot_complete,
+            // Claude Context commands
+            commands::claude_context::index_repository,
+            commands::claude_context::get_indexing_status,
+            commands::claude_context::list_indexing_statuses,
             // MCP + Settings commands
             commands::mcp::list_mcp_servers,
             commands::mcp::add_mcp_server,

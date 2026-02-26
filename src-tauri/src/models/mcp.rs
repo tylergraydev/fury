@@ -62,6 +62,25 @@ pub struct CursorRulesImportResult {
     pub claude_md_path: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum IndexingState {
+    NotIndexed,
+    Indexing,
+    Indexed,
+    Error,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexingStatus {
+    pub repo_id: String,
+    pub repo_path: String,
+    pub status: IndexingState,
+    pub error: Option<String>,
+    pub last_indexed_at: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

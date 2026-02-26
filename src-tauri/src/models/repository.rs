@@ -35,16 +35,16 @@ pub enum RunScriptMode {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-pub struct ConductorJson {
+pub struct FuryJson {
     #[serde(default)]
-    pub scripts: ConductorScripts,
+    pub scripts: FuryScripts,
     #[serde(default)]
     pub run_script_mode: Option<RunScriptMode>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-pub struct ConductorScripts {
+pub struct FuryScripts {
     pub setup: Option<String>,
     pub run: Option<String>,
     pub archive: Option<String>,
@@ -75,7 +75,7 @@ mod tests {
     }
 
     #[test]
-    fn test_conductor_json_serde() {
+    fn test_fury_json_serde() {
         let json = r#"{
             "scripts": {
                 "setup": "npm install",
@@ -84,7 +84,7 @@ mod tests {
             },
             "runScriptMode": "concurrent"
         }"#;
-        let cj: ConductorJson = serde_json::from_str(json).unwrap();
+        let cj: FuryJson = serde_json::from_str(json).unwrap();
         assert_eq!(cj.scripts.setup.as_deref(), Some("npm install"));
         assert_eq!(cj.scripts.run.as_deref(), Some("npm start"));
         assert!(cj.scripts.archive.is_none());

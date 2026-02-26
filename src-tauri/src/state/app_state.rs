@@ -1,5 +1,6 @@
 use crate::db::Database;
 use crate::models::agent::AgentInfo;
+use crate::models::mcp::IndexingStatus;
 use crate::models::repository::Repository;
 use crate::models::settings::AppSettings;
 use crate::models::workspace::Workspace;
@@ -44,6 +45,8 @@ pub struct AppState {
     pub copilot: Arc<Mutex<Option<(CopilotLspHandle, Child)>>>,
     /// Performance metrics — shared with the HTTP perf server
     pub perf_metrics: Arc<Mutex<PerfMetrics>>,
+    /// Claude Context indexing status per repo — keyed by repo UUID
+    pub indexing_status: Arc<Mutex<HashMap<Uuid, IndexingStatus>>>,
 }
 
 impl AppState {
@@ -63,6 +66,7 @@ impl AppState {
             spotlight_watchers: Arc::new(Mutex::new(HashMap::new())),
             copilot: Arc::new(Mutex::new(None)),
             perf_metrics: Arc::new(Mutex::new(PerfMetrics::new())),
+            indexing_status: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -86,6 +90,7 @@ mod tests {
         assert!(state.agent_stdins.lock().unwrap().is_empty());
         assert!(state.copilot.lock().unwrap().is_none());
         assert!(state.db.lock().unwrap().is_none());
+        assert!(state.indexing_status.lock().unwrap().is_empty());
     }
 
     #[test]

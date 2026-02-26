@@ -82,7 +82,7 @@ function Header({ onOpenSettings }: { onOpenSettings?: () => void }) {
           Fury
         </h1>
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          Multi-workspace conductor for Claude Code
+          Multi-workspace orchestrator for Claude Code
         </p>
       </div>
       {onOpenSettings && (

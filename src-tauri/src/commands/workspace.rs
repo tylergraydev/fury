@@ -42,10 +42,7 @@ pub fn create_workspace(
         }
         _ => repo
             .path
-            .parent()
-            .unwrap_or(&repo.path)
-            .join(".conductor-worktrees")
-            .join(&repo.name),
+            .join(".worktrees"),
     };
 
     // Fetch remote branch if requested (needed for PR branches that don't exist locally).

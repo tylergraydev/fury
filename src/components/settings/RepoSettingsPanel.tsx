@@ -122,7 +122,7 @@ export function RepoSettingsPanel({
                   worktreeBasePath: e.target.value || null,
                 }))
               }
-              placeholder="Default: ../.conductor-worktrees/<repo-name>"
+              placeholder="Default: .worktrees/ (inside repo)"
               className="w-full rounded px-2 py-1.5 font-mono text-xs"
               style={{
                 backgroundColor: "var(--bg-surface)",

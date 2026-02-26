@@ -937,6 +937,23 @@ export interface LinearSettings {
   apiKey: string | null;
 }
 
+export interface ClaudeContextSettings {
+  enabled: boolean;
+  openaiApiKey: string | null;
+  zillizUri: string | null;
+  zillizToken: string | null;
+}
+
+export type IndexingState = "not_indexed" | "indexing" | "indexed" | "error";
+
+export interface IndexingStatus {
+  repoId: string;
+  repoPath: string;
+  status: IndexingState;
+  error: string | null;
+  lastIndexedAt: string | null;
+}
+
 export interface AppSettings {
   agentType: AgentType;
   theme: "blend" | "midnight" | "github";
@@ -946,6 +963,7 @@ export interface AppSettings {
   experimental: ExperimentalSettings;
   copilot: CopilotSettings;
   linear: LinearSettings;
+  claudeContext: ClaudeContextSettings;
 }
 
 // MCP commands
@@ -984,6 +1002,21 @@ export async function updateAppSettings(
   settings: AppSettings,
 ): Promise<void> {
   return invoke("update_app_settings", { settings });
+}
+
+// Claude Context indexing commands
+export async function indexRepository(repoId: string): Promise<void> {
+  return invoke("index_repository", { repoId });
+}
+
+export async function getIndexingStatus(
+  repoId: string,
+): Promise<IndexingStatus> {
+  return invoke<IndexingStatus>("get_indexing_status", { repoId });
+}
+
+export async function listIndexingStatuses(): Promise<IndexingStatus[]> {
+  return invoke<IndexingStatus[]>("list_indexing_statuses");
 }
 
 // Sparse checkout commands
