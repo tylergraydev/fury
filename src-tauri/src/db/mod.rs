@@ -7,6 +7,7 @@ use crate::models::linear::WorkspaceIssue;
 use crate::models::prompt::Prompt;
 use crate::models::repository::{RepoSettings, Repository, RunScriptMode};
 use crate::models::settings::AppSettings;
+use crate::models::test_runner::{TestFramework, TestRunnerConfig};
 use crate::models::todo::TodoItem;
 use crate::models::workspace::{Workspace, WorkspaceStatus};
 use crate::models::workspace_template::WorkspaceTemplate;
@@ -346,6 +347,58 @@ impl Database {
                 mode_str,
                 env_json,
                 settings.worktree_base_path,
+            ],
+        )?;
+        Ok(())
+    }
+
+    // Test runner config operations
+
+    pub fn get_test_runner_config(&self, repo_id: &Uuid) -> Result<TestRunnerConfig, AppError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT test_framework, test_command, test_file_command, test_working_dir
+             FROM repository_settings WHERE repo_id = ?1",
+        )?;
+        let result = stmt.query_row(rusqlite::params![repo_id.to_string()], |row| {
+            let fw_str: Option<String> = row.get(0)?;
+            Ok(TestRunnerConfig {
+                framework: fw_str.and_then(|s| {
+                    serde_json::from_str::<TestFramework>(&format!("\"{}\"", s)).ok()
+                }),
+                test_command: row.get(1)?,
+                test_file_command: row.get(2)?,
+                working_dir: row.get(3)?,
+            })
+        });
+        match result {
+            Ok(config) => Ok(config),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(TestRunnerConfig::default()),
+            Err(e) => Err(AppError::DbError(e.to_string())),
+        }
+    }
+
+    pub fn save_test_runner_config(
+        &self,
+        repo_id: &Uuid,
+        config: &TestRunnerConfig,
+    ) -> Result<(), AppError> {
+        let fw_str = config.framework.as_ref().map(|f| {
+            let json = serde_json::to_string(f).unwrap_or_default();
+            json.trim_matches('"').to_string()
+        });
+        // Ensure a row exists in repository_settings before updating
+        self.conn.execute(
+            "INSERT OR IGNORE INTO repository_settings (repo_id) VALUES (?1)",
+            rusqlite::params![repo_id.to_string()],
+        )?;
+        self.conn.execute(
+            "UPDATE repository_settings SET test_framework = ?2, test_command = ?3, test_file_command = ?4, test_working_dir = ?5 WHERE repo_id = ?1",
+            rusqlite::params![
+                repo_id.to_string(),
+                fw_str,
+                config.test_command,
+                config.test_file_command,
+                config.working_dir,
             ],
         )?;
         Ok(())

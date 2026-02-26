@@ -14,6 +14,7 @@ pub mod script;
 pub mod slash_command;
 pub mod stash;
 pub mod terminal;
+pub mod test_runner;
 pub mod todo;
 pub mod workspace;
 pub mod workspace_template;

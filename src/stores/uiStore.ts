@@ -1,9 +1,9 @@
 import { create } from "zustand";
-import { applyTheme, type ThemeName } from "../lib/themes";
+import { applyTheme } from "../lib/themes";
 
 export type RightSidebarTab = "files" | "changes" | "checks";
 export type BottomTab = "setup" | "terminal" | "run";
-export type ViewType = "chat" | "settings" | "merge" | "history" | "diff" | "team";
+export type ViewType = "chat" | "settings" | "merge" | "history" | "diff" | "team" | "tests";
 
 export interface ViewTab {
   id: string;
@@ -19,11 +19,12 @@ const VIEW_LABELS: Record<ViewType, string> = {
   history: "History",
   diff: "Changes",
   team: "Team",
+  tests: "Tests",
 };
 
 interface UIStore {
-  theme: ThemeName;
-  setTheme: (name: ThemeName) => void;
+  theme: string;
+  setTheme: (name: string) => void;
   rightSidebarTab: RightSidebarTab;
   setRightSidebarTab: (tab: RightSidebarTab) => void;
   rightSidebarVisible: boolean;

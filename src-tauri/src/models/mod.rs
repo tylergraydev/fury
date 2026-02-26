@@ -11,6 +11,7 @@ pub mod repository;
 pub mod settings;
 pub mod slash_command;
 pub mod stash;
+pub mod test_runner;
 pub mod todo;
 pub mod workspace;
 pub mod workspace_template;
