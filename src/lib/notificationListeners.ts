@@ -15,7 +15,7 @@ export function initNotificationListeners(): () => void {
   const unsubs: (() => void)[] = [];
 
   // 1. Agent completes: Running -> Idle
-  let prevAgentStatuses: Record<string, AgentStatus> = {};
+  const prevAgentStatuses: Record<string, AgentStatus> = {};
   unsubs.push(
     useAgentStore.subscribe((state) => {
       for (const [wsId, info] of Object.entries(state.agents)) {
@@ -36,8 +36,8 @@ export function initNotificationListeners(): () => void {
   );
 
   // 2. PR checks complete (all pass or any fail) + PR merged
-  let prevCheckStates: Record<string, string> = {};
-  let prevPrStates: Record<string, string | null | undefined> = {};
+  const prevCheckStates: Record<string, string> = {};
+  const prevPrStates: Record<string, string | null | undefined> = {};
   unsubs.push(
     usePrStore.subscribe((state) => {
       for (const [wsId, info] of Object.entries(state.prInfo)) {
@@ -95,7 +95,7 @@ export function initNotificationListeners(): () => void {
   );
 
   // 3. Script/build exits with error
-  let prevExitCodes: Record<string, number | null> = {};
+  const prevExitCodes: Record<string, number | null> = {};
   unsubs.push(
     useScriptStore.subscribe((state) => {
       for (const [k, code] of Object.entries(state.exitCodes)) {
@@ -117,7 +117,7 @@ export function initNotificationListeners(): () => void {
   );
 
   // 4. Merge conflicts detected
-  let prevConflictCounts: Record<string, number> = {};
+  const prevConflictCounts: Record<string, number> = {};
   unsubs.push(
     useMergeStore.subscribe((state) => {
       for (const [wsId, files] of Object.entries(state.conflictedFiles)) {
