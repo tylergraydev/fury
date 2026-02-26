@@ -231,6 +231,26 @@ export async function clearChatMessages(
   return invoke("clear_chat_messages", { workspaceId });
 }
 
+// Chat search types
+export interface ChatMessageSearchResult {
+  messageId: string;
+  workspaceId: string;
+  workspaceName: string;
+  role: string;
+  matchedText: string;
+  timestamp: string;
+}
+
+export async function searchChatMessages(
+  query: string,
+  workspaceId?: string,
+): Promise<ChatMessageSearchResult[]> {
+  return invoke<ChatMessageSearchResult[]>("search_chat_messages", {
+    query,
+    workspaceId,
+  });
+}
+
 // Agent commands
 export async function sendMessage(request: SendMessageRequest): Promise<void> {
   return invoke("send_message", { request });

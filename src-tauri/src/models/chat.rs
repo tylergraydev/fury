@@ -62,6 +62,17 @@ pub enum ContentBlock {
     },
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatMessageSearchResult {
+    pub message_id: String,
+    pub workspace_id: String,
+    pub workspace_name: String,
+    pub role: String,
+    pub matched_text: String,
+    pub timestamp: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

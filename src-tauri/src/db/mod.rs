@@ -1,7 +1,7 @@
 mod migrations;
 
 use crate::error::AppError;
-use crate::models::chat::{ChatMessage, ContentBlock, MessageRole};
+use crate::models::chat::{ChatMessage, ChatMessageSearchResult, ContentBlock, MessageRole};
 use crate::models::checkpoint::Checkpoint;
 use crate::models::linear::WorkspaceIssue;
 use crate::models::repository::{RepoSettings, Repository, RunScriptMode};
@@ -658,6 +658,65 @@ impl Database {
         Ok(())
     }
 
+    pub fn search_chat_messages(
+        &self,
+        query: &str,
+        workspace_id: Option<&Uuid>,
+    ) -> Result<Vec<ChatMessageSearchResult>, AppError> {
+        let pattern = format!("%{}%", query);
+        let (sql, params): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(ws_id) =
+            workspace_id
+        {
+            (
+                "SELECT cm.id, cm.workspace_id, w.name, cm.role, cm.content, cm.display_text, cm.timestamp
+                 FROM chat_messages cm
+                 JOIN workspaces w ON cm.workspace_id = w.id
+                 WHERE cm.workspace_id = ?1
+                   AND (cm.content LIKE ?2 OR cm.display_text LIKE ?2)
+                 ORDER BY cm.timestamp DESC
+                 LIMIT 50",
+                vec![
+                    Box::new(ws_id.to_string()) as Box<dyn rusqlite::types::ToSql>,
+                    Box::new(pattern.clone()),
+                ],
+            )
+        } else {
+            (
+                "SELECT cm.id, cm.workspace_id, w.name, cm.role, cm.content, cm.display_text, cm.timestamp
+                 FROM chat_messages cm
+                 JOIN workspaces w ON cm.workspace_id = w.id
+                 WHERE cm.content LIKE ?1 OR cm.display_text LIKE ?1
+                 ORDER BY cm.timestamp DESC
+                 LIMIT 50",
+                vec![Box::new(pattern.clone()) as Box<dyn rusqlite::types::ToSql>],
+            )
+        };
+
+        let mut stmt = self.conn.prepare(sql)?;
+        let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+            params.iter().map(|p| p.as_ref()).collect();
+        let results = stmt
+            .query_map(params_refs.as_slice(), |row| {
+                let content_json: String = row.get(4)?;
+                let display_text: Option<String> = row.get(5)?;
+
+                // Extract matched text from content blocks
+                let matched = extract_matched_text(&content_json, &display_text, query);
+
+                Ok(ChatMessageSearchResult {
+                    message_id: row.get(0)?,
+                    workspace_id: row.get(1)?,
+                    workspace_name: row.get(2)?,
+                    role: row.get(3)?,
+                    matched_text: matched,
+                    timestamp: row.get(6)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(results)
+    }
+
     // Workspace issue links
 
     pub fn link_workspace_issue(
@@ -709,6 +768,56 @@ impl Database {
             .filter_map(|r| r.ok())
             .collect();
         Ok(issues)
+    }
+}
+
+/// Extract a text snippet from chat message content that matches the search query.
+fn extract_matched_text(content_json: &str, display_text: &Option<String>, query: &str) -> String {
+    let query_lower = query.to_lowercase();
+
+    // Check display_text first
+    if let Some(dt) = display_text {
+        if dt.to_lowercase().contains(&query_lower) {
+            return snippet(dt, &query_lower);
+        }
+    }
+
+    // Parse content blocks and search text blocks
+    if let Ok(blocks) = serde_json::from_str::<Vec<ContentBlock>>(content_json) {
+        for block in &blocks {
+            if let ContentBlock::Text { text } = block {
+                if text.to_lowercase().contains(&query_lower) {
+                    return snippet(text, &query_lower);
+                }
+            }
+        }
+    }
+
+    // Fallback: raw substring match on JSON
+    snippet(content_json, &query_lower)
+}
+
+/// Return a short snippet around the first occurrence of `query_lower` in `text`.
+fn snippet(text: &str, query_lower: &str) -> String {
+    let text_lower = text.to_lowercase();
+    let max_len = 120;
+    if let Some(pos) = text_lower.find(query_lower) {
+        let start = pos.saturating_sub(40);
+        let end = (pos + query_lower.len() + 40).min(text.len());
+        // Align to char boundaries
+        let start = text.floor_char_boundary(start);
+        let end = text.ceil_char_boundary(end);
+        let mut s = String::new();
+        if start > 0 {
+            s.push_str("...");
+        }
+        s.push_str(&text[start..end]);
+        if end < text.len() {
+            s.push_str("...");
+        }
+        s
+    } else {
+        text.chars().take(max_len).collect()
     }
 }
 
