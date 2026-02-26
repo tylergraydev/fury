@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { applyTheme, type ThemeName } from "../lib/themes";
+import { applyTheme } from "../lib/themes";
 
 export type RightSidebarTab = "files" | "changes" | "checks";
 export type BottomTab = "setup" | "terminal" | "run";
@@ -22,8 +22,8 @@ const VIEW_LABELS: Record<ViewType, string> = {
 };
 
 interface UIStore {
-  theme: ThemeName;
-  setTheme: (name: ThemeName) => void;
+  theme: string;
+  setTheme: (name: string) => void;
   rightSidebarTab: RightSidebarTab;
   setRightSidebarTab: (tab: RightSidebarTab) => void;
   rightSidebarVisible: boolean;
