@@ -155,6 +155,12 @@ export function CommandPalette({
                 >
                   Toggle Notifications
                 </PaletteItem>
+                <PaletteItem
+                  onSelect={() => run("view-team")}
+                  shortcut={shortcutFor("view-team")}
+                >
+                  Open Team View
+                </PaletteItem>
               </CommandGroup>
 
               <CommandSeparator style={{ height: 1, backgroundColor: "var(--border)", margin: "4px 0" }} />

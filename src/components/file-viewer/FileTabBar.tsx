@@ -1,4 +1,4 @@
-import { X, Settings, GitMerge, History, FileDiff } from "lucide-react";
+import { X, Settings, GitMerge, History, FileDiff, Users } from "lucide-react";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
 import { useUIStore } from "../../stores/uiStore";
 
@@ -7,6 +7,7 @@ const VIEW_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   merge: GitMerge,
   history: History,
   diff: FileDiff,
+  team: Users,
 };
 
 export function FileTabBar() {

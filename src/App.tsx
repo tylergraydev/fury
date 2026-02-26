@@ -13,6 +13,7 @@ import { CommandPalette, type PaletteMode } from "./components/CommandPalette";
 import { LandingPage } from "./components/landing/LandingPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DiffPanel } from "./components/diff/DiffPanel";
+import { TeamView } from "./components/team/TeamView";
 import { useWorkspaceStore } from "./stores/workspaceStore";
 import { useRepositoryStore } from "./stores/repositoryStore";
 import { useUIStore } from "./stores/uiStore";
@@ -77,6 +78,11 @@ function MainPanel() {
       {viewType === "diff" && (
         <div className="flex-1 overflow-hidden">
           <DiffPanel contextId={contextId} />
+        </div>
+      )}
+      {viewType === "team" && (
+        <div className="flex-1 overflow-hidden">
+          <TeamView />
         </div>
       )}
     </div>
@@ -200,6 +206,9 @@ function App() {
         break;
       case "toggle-notifications":
         useNotificationStore.getState().togglePanel();
+        break;
+      case "view-team":
+        ui.openViewTab("team");
         break;
       case "new-workspace":
         setShowPalette(true);
