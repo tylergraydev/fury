@@ -153,5 +153,12 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
     )
     .map_err(|e| AppError::DbError(e.to_string()))?;
 
+    // Test runner config columns on repository_settings (idempotent)
+    let _ = conn.execute_batch("ALTER TABLE repository_settings ADD COLUMN test_framework TEXT;");
+    let _ = conn.execute_batch("ALTER TABLE repository_settings ADD COLUMN test_command TEXT;");
+    let _ =
+        conn.execute_batch("ALTER TABLE repository_settings ADD COLUMN test_file_command TEXT;");
+    let _ = conn.execute_batch("ALTER TABLE repository_settings ADD COLUMN test_working_dir TEXT;");
+
     Ok(())
 }

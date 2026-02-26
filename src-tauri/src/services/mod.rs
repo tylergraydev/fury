@@ -15,6 +15,7 @@ pub mod port_allocator;
 pub mod spotlight;
 pub mod stash;
 pub mod script_runner;
+pub mod test_runner;
 pub mod slash_commands;
 pub mod terminal;
 pub mod worktree;

@@ -14,6 +14,7 @@ import { LandingPage } from "./components/landing/LandingPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DiffPanel } from "./components/diff/DiffPanel";
 import { TeamView } from "./components/team/TeamView";
+import { TestRunnerPanel } from "./components/test-runner/TestRunnerPanel";
 import { useWorkspaceStore } from "./stores/workspaceStore";
 import { useRepositoryStore } from "./stores/repositoryStore";
 import { useUIStore } from "./stores/uiStore";
@@ -83,6 +84,11 @@ function MainPanel() {
       {viewType === "team" && (
         <div className="flex-1 overflow-hidden">
           <TeamView />
+        </div>
+      )}
+      {viewType === "tests" && (
+        <div className="flex-1 overflow-hidden">
+          <TestRunnerPanel contextId={contextId} contextType={contextType} />
         </div>
       )}
     </div>
@@ -215,6 +221,9 @@ function App() {
         break;
       case "view-team":
         ui.openViewTab("team");
+        break;
+      case "view-tests":
+        ui.openViewTab("tests");
         break;
       case "new-workspace":
         setShowPalette(true);
