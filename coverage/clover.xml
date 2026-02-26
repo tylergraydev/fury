@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<coverage generated="1772115047463" clover="3.2.0">
-  <project timestamp="1772115047463" name="All files">
-    <metrics statements="4220" coveredstatements="4114" conditionals="3398" coveredconditionals="3237" methods="1649" coveredmethods="1610" elements="9267" coveredelements="8961" complexity="0" loc="4220" ncloc="4220" packages="19" files="81" classes="81"/>
+<coverage generated="1772117091900" clover="3.2.0">
+  <project timestamp="1772117091900" name="All files">
+    <metrics statements="4292" coveredstatements="4186" conditionals="3466" coveredconditionals="3302" methods="1663" coveredmethods="1624" elements="9421" coveredelements="9112" complexity="0" loc="4292" ncloc="4292" packages="19" files="83" classes="83"/>
     <package name="src">
       <metrics statements="116" coveredstatements="114" conditionals="82" coveredconditionals="76" methods="31" coveredmethods="31"/>
-      <file name="App.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/App.tsx">
+      <file name="App.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/App.tsx">
         <metrics statements="116" coveredstatements="114" conditionals="82" coveredconditionals="76" methods="31" coveredmethods="31"/>
         <line num="40" count="118" type="stmt"/>
         <line num="41" count="363" type="stmt"/>
@@ -126,7 +126,7 @@
     </package>
     <package name="src.components">
       <metrics statements="57" coveredstatements="56" conditionals="56" coveredconditionals="55" methods="39" coveredmethods="38"/>
-      <file name="CommandPalette.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/CommandPalette.tsx">
+      <file name="CommandPalette.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/CommandPalette.tsx">
         <metrics statements="35" coveredstatements="34" conditionals="28" coveredconditionals="27" methods="26" coveredmethods="25"/>
         <line num="31" count="40" type="stmt"/>
         <line num="32" count="40" type="stmt"/>
@@ -164,7 +164,7 @@
         <line num="231" count="1" type="stmt"/>
         <line num="284" count="370" type="stmt"/>
       </file>
-      <file name="ErrorBoundary.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/ErrorBoundary.tsx">
+      <file name="ErrorBoundary.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/ErrorBoundary.tsx">
         <metrics statements="9" coveredstatements="9" conditionals="10" coveredconditionals="10" methods="5" coveredmethods="5"/>
         <line num="16" count="11" type="stmt"/>
         <line num="19" count="12" type="stmt"/>
@@ -176,7 +176,7 @@
         <line num="49" count="1" type="stmt"/>
         <line num="62" count="14" type="stmt"/>
       </file>
-      <file name="Toast.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/Toast.tsx">
+      <file name="Toast.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/Toast.tsx">
         <metrics statements="11" coveredstatements="11" conditionals="4" coveredconditionals="4" methods="6" coveredmethods="6"/>
         <line num="4" count="2" type="stmt"/>
         <line num="10" count="2" type="stmt"/>
@@ -190,90 +190,90 @@
         <line num="46" count="1" type="stmt"/>
         <line num="58" count="1" type="stmt"/>
       </file>
-      <file name="UpdateBanner.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/UpdateBanner.tsx">
+      <file name="UpdateBanner.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/UpdateBanner.tsx">
         <metrics statements="2" coveredstatements="2" conditionals="14" coveredconditionals="14" methods="2" coveredmethods="2"/>
         <line num="21" count="13" type="stmt"/>
         <line num="42" count="1" type="stmt"/>
       </file>
     </package>
     <package name="src.components.chat">
-      <metrics statements="781" coveredstatements="725" conditionals="756" coveredconditionals="679" methods="214" coveredmethods="194"/>
-      <file name="ChatPanel.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/chat/ChatPanel.tsx">
+      <metrics statements="812" coveredstatements="756" conditionals="782" coveredconditionals="704" methods="222" coveredmethods="202"/>
+      <file name="ChatPanel.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/chat/ChatPanel.tsx">
         <metrics statements="113" coveredstatements="102" conditionals="79" coveredconditionals="65" methods="39" coveredmethods="32"/>
         <line num="18" count="1" type="stmt"/>
-        <line num="26" count="56" type="stmt"/>
-        <line num="27" count="190" type="cond" truecount="2" falsecount="0"/>
-        <line num="29" count="56" type="stmt"/>
-        <line num="30" count="179" type="cond" truecount="2" falsecount="0"/>
-        <line num="32" count="56" type="stmt"/>
-        <line num="33" count="179" type="cond" truecount="2" falsecount="0"/>
-        <line num="35" count="56" type="stmt"/>
-        <line num="36" count="179" type="cond" truecount="2" falsecount="0"/>
-        <line num="38" count="56" type="stmt"/>
-        <line num="39" count="179" type="cond" truecount="2" falsecount="0"/>
-        <line num="43" count="56" type="stmt"/>
-        <line num="44" count="56" type="stmt"/>
-        <line num="45" count="56" type="stmt"/>
-        <line num="46" count="56" type="stmt"/>
-        <line num="47" count="56" type="stmt"/>
-        <line num="48" count="56" type="stmt"/>
-        <line num="49" count="56" type="stmt"/>
-        <line num="50" count="56" type="stmt"/>
-        <line num="51" count="168" type="cond" truecount="2" falsecount="0"/>
-        <line num="55" count="56" type="stmt"/>
-        <line num="56" count="41" type="stmt"/>
-        <line num="57" count="41" type="stmt"/>
-        <line num="58" count="41" type="stmt"/>
-        <line num="60" count="41" type="stmt"/>
-        <line num="61" count="41" type="stmt"/>
-        <line num="62" count="41" type="stmt"/>
-        <line num="64" count="41" type="cond" truecount="2" falsecount="0"/>
-        <line num="65" count="38" type="stmt"/>
-        <line num="66" count="38" type="stmt"/>
-        <line num="67" count="38" type="stmt"/>
-        <line num="73" count="41" type="stmt"/>
-        <line num="74" count="41" type="cond" truecount="2" falsecount="0"/>
-        <line num="75" count="38" type="stmt"/>
-        <line num="81" count="56" type="stmt"/>
-        <line num="82" count="42" type="cond" truecount="4" falsecount="0"/>
+        <line num="26" count="57" type="stmt"/>
+        <line num="27" count="195" type="cond" truecount="2" falsecount="0"/>
+        <line num="29" count="57" type="stmt"/>
+        <line num="30" count="183" type="cond" truecount="2" falsecount="0"/>
+        <line num="32" count="57" type="stmt"/>
+        <line num="33" count="183" type="cond" truecount="2" falsecount="0"/>
+        <line num="35" count="57" type="stmt"/>
+        <line num="36" count="183" type="cond" truecount="2" falsecount="0"/>
+        <line num="38" count="57" type="stmt"/>
+        <line num="39" count="183" type="cond" truecount="2" falsecount="0"/>
+        <line num="43" count="57" type="stmt"/>
+        <line num="44" count="57" type="stmt"/>
+        <line num="45" count="57" type="stmt"/>
+        <line num="46" count="57" type="stmt"/>
+        <line num="47" count="57" type="stmt"/>
+        <line num="48" count="57" type="stmt"/>
+        <line num="49" count="57" type="stmt"/>
+        <line num="50" count="57" type="stmt"/>
+        <line num="51" count="171" type="cond" truecount="2" falsecount="0"/>
+        <line num="55" count="57" type="stmt"/>
+        <line num="56" count="42" type="stmt"/>
+        <line num="57" count="42" type="stmt"/>
+        <line num="58" count="42" type="stmt"/>
+        <line num="60" count="42" type="stmt"/>
+        <line num="61" count="42" type="stmt"/>
+        <line num="62" count="42" type="stmt"/>
+        <line num="64" count="42" type="cond" truecount="2" falsecount="0"/>
+        <line num="65" count="39" type="stmt"/>
+        <line num="66" count="39" type="stmt"/>
+        <line num="67" count="39" type="stmt"/>
+        <line num="73" count="42" type="stmt"/>
+        <line num="74" count="42" type="cond" truecount="2" falsecount="0"/>
+        <line num="75" count="39" type="stmt"/>
+        <line num="81" count="57" type="stmt"/>
+        <line num="82" count="43" type="cond" truecount="4" falsecount="0"/>
         <line num="83" count="14" type="stmt"/>
-        <line num="87" count="56" type="stmt"/>
-        <line num="88" count="56" type="stmt"/>
-        <line num="89" count="56" type="stmt"/>
-        <line num="90" count="56" type="stmt"/>
-        <line num="92" count="56" type="stmt"/>
-        <line num="93" count="56" type="stmt"/>
-        <line num="96" count="56" type="stmt"/>
-        <line num="97" count="48" type="cond" truecount="2" falsecount="0"/>
+        <line num="87" count="57" type="stmt"/>
+        <line num="88" count="57" type="stmt"/>
+        <line num="89" count="57" type="stmt"/>
+        <line num="90" count="57" type="stmt"/>
+        <line num="92" count="57" type="stmt"/>
+        <line num="93" count="57" type="stmt"/>
+        <line num="96" count="57" type="stmt"/>
+        <line num="97" count="49" type="cond" truecount="2" falsecount="0"/>
         <line num="98" count="4" type="stmt"/>
         <line num="99" count="3" type="cond" truecount="2" falsecount="0"/>
         <line num="103" count="2" type="stmt"/>
         <line num="105" count="1" type="stmt"/>
         <line num="107" count="4" type="stmt"/>
         <line num="108" count="4" type="stmt"/>
-        <line num="112" count="56" type="stmt"/>
-        <line num="113" count="41" type="cond" truecount="1" falsecount="1"/>
+        <line num="112" count="57" type="stmt"/>
+        <line num="113" count="42" type="cond" truecount="1" falsecount="1"/>
         <line num="114" count="0" type="stmt"/>
         <line num="115" count="0" type="cond" truecount="0" falsecount="2"/>
         <line num="119" count="0" type="stmt"/>
         <line num="121" count="0" type="stmt"/>
         <line num="123" count="0" type="stmt"/>
         <line num="124" count="0" type="stmt"/>
-        <line num="127" count="56" type="stmt"/>
+        <line num="127" count="57" type="stmt"/>
         <line num="128" count="0" type="stmt"/>
         <line num="130" count="0" type="stmt"/>
-        <line num="133" count="56" type="stmt"/>
+        <line num="133" count="57" type="stmt"/>
         <line num="135" count="4" type="cond" truecount="1" falsecount="1"/>
         <line num="136" count="4" type="cond" truecount="1" falsecount="1"/>
         <line num="137" count="4" type="stmt"/>
         <line num="138" count="4" type="stmt"/>
         <line num="139" count="4" type="stmt"/>
         <line num="143" count="1" type="stmt"/>
-        <line num="149" count="56" type="stmt"/>
+        <line num="149" count="57" type="stmt"/>
         <line num="150" count="2" type="stmt"/>
         <line num="151" count="2" type="stmt"/>
         <line num="153" count="1" type="stmt"/>
-        <line num="157" count="56" type="stmt"/>
+        <line num="157" count="57" type="stmt"/>
         <line num="158" count="7" type="cond" truecount="4" falsecount="0"/>
         <line num="160" count="5" type="stmt"/>
         <line num="161" count="7" type="stmt"/>
@@ -289,32 +289,32 @@
         <line num="173" count="7" type="stmt"/>
         <line num="174" count="7" type="stmt"/>
         <line num="178" count="1" type="stmt"/>
-        <line num="182" count="56" type="stmt"/>
+        <line num="182" count="57" type="stmt"/>
         <line num="183" count="1" type="stmt"/>
-        <line num="186" count="56" type="stmt"/>
+        <line num="186" count="57" type="stmt"/>
         <line num="187" count="3" type="stmt"/>
         <line num="188" count="3" type="cond" truecount="2" falsecount="0"/>
         <line num="189" count="2" type="stmt"/>
         <line num="190" count="2" type="stmt"/>
         <line num="192" count="1" type="stmt"/>
-        <line num="196" count="56" type="stmt"/>
+        <line num="196" count="57" type="stmt"/>
         <line num="197" count="3" type="stmt"/>
         <line num="198" count="3" type="stmt"/>
         <line num="199" count="2" type="stmt"/>
         <line num="201" count="1" type="stmt"/>
-        <line num="205" count="56" type="stmt"/>
-        <line num="219" count="0" type="stmt"/>
-        <line num="220" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="235" count="5" type="stmt"/>
-        <line num="236" count="5" type="cond" truecount="2" falsecount="0"/>
-        <line num="251" count="1" type="stmt"/>
-        <line num="258" count="0" type="stmt"/>
-        <line num="279" count="3" type="cond" truecount="2" falsecount="0"/>
-        <line num="280" count="2" type="cond" truecount="2" falsecount="0"/>
-        <line num="287" count="1" type="stmt"/>
-        <line num="293" count="1" type="stmt"/>
+        <line num="205" count="57" type="stmt"/>
+        <line num="221" count="0" type="stmt"/>
+        <line num="222" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="237" count="5" type="stmt"/>
+        <line num="238" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="253" count="1" type="stmt"/>
+        <line num="260" count="0" type="stmt"/>
+        <line num="281" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="282" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="289" count="1" type="stmt"/>
+        <line num="295" count="1" type="stmt"/>
       </file>
-      <file name="ChatSearch.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/chat/ChatSearch.tsx">
+      <file name="ChatSearch.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/chat/ChatSearch.tsx">
         <metrics statements="42" coveredstatements="0" conditionals="26" coveredconditionals="0" methods="12" coveredmethods="0"/>
         <line num="13" count="0" type="stmt"/>
         <line num="14" count="0" type="stmt"/>
@@ -359,7 +359,7 @@
         <line num="159" count="0" type="stmt"/>
         <line num="161" count="0" type="stmt"/>
       </file>
-      <file name="ChatTOC.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/chat/ChatTOC.tsx">
+      <file name="ChatTOC.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/chat/ChatTOC.tsx">
         <metrics statements="12" coveredstatements="12" conditionals="8" coveredconditionals="8" methods="6" coveredmethods="6"/>
         <line num="11" count="11" type="stmt"/>
         <line num="12" count="2" type="stmt"/>
@@ -374,7 +374,34 @@
         <line num="69" count="14" type="stmt"/>
         <line num="72" count="2" type="stmt"/>
       </file>
-      <file name="Composer.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/chat/Composer.tsx">
+      <file name="CodeBlockToolbar.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/chat/CodeBlockToolbar.tsx">
+        <metrics statements="24" coveredstatements="24" conditionals="18" coveredconditionals="17" methods="6" coveredmethods="6"/>
+        <line num="22" count="29" type="stmt"/>
+        <line num="23" count="29" type="stmt"/>
+        <line num="25" count="29" type="stmt"/>
+        <line num="26" count="3" type="stmt"/>
+        <line num="27" count="3" type="stmt"/>
+        <line num="28" count="2" type="stmt"/>
+        <line num="29" count="2" type="stmt"/>
+        <line num="30" count="2" type="stmt"/>
+        <line num="32" count="1" type="stmt"/>
+        <line num="36" count="29" type="stmt"/>
+        <line num="37" count="6" type="cond" truecount="3" falsecount="1"/>
+        <line num="39" count="6" type="stmt"/>
+        <line num="40" count="6" type="stmt"/>
+        <line num="41" count="6" type="cond" truecount="2" falsecount="0"/>
+        <line num="42" count="5" type="stmt"/>
+        <line num="44" count="1" type="stmt"/>
+        <line num="46" count="4" type="stmt"/>
+        <line num="49" count="4" type="stmt"/>
+        <line num="52" count="4" type="stmt"/>
+        <line num="53" count="4" type="stmt"/>
+        <line num="55" count="2" type="stmt"/>
+        <line num="58" count="2" type="stmt"/>
+        <line num="59" count="2" type="stmt"/>
+        <line num="63" count="29" type="stmt"/>
+      </file>
+      <file name="Composer.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/chat/Composer.tsx">
         <metrics statements="296" coveredstatements="296" conditionals="288" coveredconditionals="280" methods="76" coveredmethods="75"/>
         <line num="23" count="11" type="stmt"/>
         <line num="33" count="1" type="stmt"/>
@@ -673,32 +700,39 @@
         <line num="993" count="1" type="stmt"/>
         <line num="1004" count="1" type="stmt"/>
       </file>
-      <file name="MarkdownContent.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/chat/MarkdownContent.tsx">
-        <metrics statements="22" coveredstatements="22" conditionals="4" coveredconditionals="3" methods="19" coveredmethods="19"/>
-        <line num="15" count="14" type="stmt"/>
-        <line num="28" count="14" type="cond" truecount="1" falsecount="1"/>
-        <line num="32" count="1" type="stmt"/>
-        <line num="34" count="1" type="stmt"/>
+      <file name="MarkdownContent.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/chat/MarkdownContent.tsx">
+        <metrics statements="29" coveredstatements="29" conditionals="12" coveredconditionals="11" methods="21" coveredmethods="21"/>
+        <line num="19" count="20" type="stmt"/>
+        <line num="32" count="20" type="cond" truecount="1" falsecount="1"/>
+        <line num="37" count="1" type="stmt"/>
         <line num="39" count="1" type="stmt"/>
         <line num="44" count="1" type="stmt"/>
-        <line num="49" count="8" type="stmt"/>
-        <line num="52" count="1" type="stmt"/>
-        <line num="63" count="1" type="stmt"/>
-        <line num="66" count="1" type="stmt"/>
-        <line num="68" count="4" type="stmt"/>
-        <line num="70" count="2" type="stmt"/>
-        <line num="82" count="1" type="stmt"/>
-        <line num="94" count="1" type="stmt"/>
-        <line num="105" count="1" type="stmt"/>
-        <line num="112" count="2" type="stmt"/>
-        <line num="123" count="2" type="stmt"/>
-        <line num="131" count="1" type="stmt"/>
-        <line num="134" count="1" type="stmt"/>
-        <line num="138" count="1" type="stmt"/>
-        <line num="142" count="15" type="cond" truecount="2" falsecount="0"/>
-        <line num="144" count="14" type="stmt"/>
+        <line num="49" count="1" type="stmt"/>
+        <line num="54" count="11" type="stmt"/>
+        <line num="57" count="1" type="stmt"/>
+        <line num="68" count="1" type="stmt"/>
+        <line num="71" count="1" type="stmt"/>
+        <line num="73" count="4" type="stmt"/>
+        <line num="75" count="1" type="stmt"/>
+        <line num="86" count="1" type="stmt"/>
+        <line num="93" count="2" type="stmt"/>
+        <line num="104" count="2" type="stmt"/>
+        <line num="112" count="1" type="stmt"/>
+        <line num="115" count="1" type="stmt"/>
+        <line num="119" count="1" type="stmt"/>
+        <line num="127" count="20" type="cond" truecount="2" falsecount="0"/>
+        <line num="129" count="20" type="stmt"/>
+        <line num="134" count="9" type="cond" truecount="2" falsecount="0"/>
+        <line num="135" count="6" type="stmt"/>
+        <line num="142" count="3" type="stmt"/>
+        <line num="157" count="6" type="cond" truecount="2" falsecount="0"/>
+        <line num="161" count="6" type="stmt"/>
+        <line num="186" count="21" type="cond" truecount="2" falsecount="0"/>
+        <line num="188" count="20" type="stmt"/>
+        <line num="189" count="20" type="stmt"/>
+        <line num="193" count="20" type="stmt"/>
       </file>
-      <file name="MessageBubble.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/chat/MessageBubble.tsx">
+      <file name="MessageBubble.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/chat/MessageBubble.tsx">
         <metrics statements="199" coveredstatements="199" conditionals="273" coveredconditionals="260" methods="39" coveredmethods="39"/>
         <line num="37" count="9" type="stmt"/>
         <line num="38" count="9" type="stmt"/>
@@ -722,22 +756,22 @@
         <line num="74" count="6" type="cond" truecount="2" falsecount="0"/>
         <line num="75" count="4" type="stmt"/>
         <line num="80" count="2" type="stmt"/>
-        <line num="105" count="103" type="stmt"/>
-        <line num="106" count="103" type="stmt"/>
-        <line num="107" count="103" type="stmt"/>
-        <line num="109" count="103" type="stmt"/>
-        <line num="110" count="179" type="cond" truecount="2" falsecount="0"/>
-        <line num="111" count="31" type="stmt"/>
-        <line num="112" count="31" type="stmt"/>
-        <line num="116" count="103" type="stmt"/>
-        <line num="117" count="135" type="cond" truecount="2" falsecount="0"/>
+        <line num="105" count="104" type="stmt"/>
+        <line num="106" count="104" type="stmt"/>
+        <line num="107" count="104" type="stmt"/>
+        <line num="109" count="104" type="stmt"/>
+        <line num="110" count="180" type="cond" truecount="2" falsecount="0"/>
+        <line num="111" count="32" type="stmt"/>
+        <line num="112" count="32" type="stmt"/>
+        <line num="116" count="104" type="stmt"/>
+        <line num="117" count="137" type="cond" truecount="2" falsecount="0"/>
         <line num="118" count="75" type="stmt"/>
         <line num="119" count="75" type="stmt"/>
-        <line num="123" count="103" type="stmt"/>
-        <line num="124" count="118" type="cond" truecount="3" falsecount="0"/>
-        <line num="126" count="32" type="stmt"/>
-        <line num="127" count="32" type="stmt"/>
-        <line num="128" count="32" type="stmt"/>
+        <line num="123" count="104" type="stmt"/>
+        <line num="124" count="119" type="cond" truecount="3" falsecount="0"/>
+        <line num="126" count="33" type="stmt"/>
+        <line num="127" count="33" type="stmt"/>
+        <line num="128" count="33" type="stmt"/>
         <line num="130" count="76" type="stmt"/>
         <line num="131" count="76" type="stmt"/>
         <line num="135" count="76" type="stmt"/>
@@ -745,9 +779,9 @@
         <line num="139" count="10" type="cond" truecount="2" falsecount="0"/>
         <line num="140" count="9" type="stmt"/>
         <line num="142" count="10" type="stmt"/>
-        <line num="147" count="103" type="stmt"/>
-        <line num="148" count="103" type="stmt"/>
-        <line num="149" count="103" type="stmt"/>
+        <line num="147" count="104" type="stmt"/>
+        <line num="148" count="104" type="stmt"/>
+        <line num="149" count="104" type="stmt"/>
         <line num="155" count="202" type="stmt"/>
         <line num="157" count="202" type="cond" truecount="4" falsecount="0"/>
         <line num="158" count="198" type="cond" truecount="4" falsecount="0"/>
@@ -849,90 +883,90 @@
         <line num="403" count="3" type="stmt"/>
         <line num="404" count="3" type="stmt"/>
         <line num="426" count="7" type="stmt"/>
-        <line num="454" count="103" type="stmt"/>
-        <line num="455" count="103" type="stmt"/>
-        <line num="456" count="103" type="stmt"/>
-        <line num="459" count="103" type="cond" truecount="2" falsecount="0"/>
-        <line num="461" count="9" type="stmt"/>
-        <line num="462" count="10" type="stmt"/>
+        <line num="456" count="104" type="stmt"/>
+        <line num="457" count="104" type="stmt"/>
+        <line num="458" count="104" type="stmt"/>
+        <line num="461" count="104" type="cond" truecount="2" falsecount="0"/>
         <line num="463" count="9" type="stmt"/>
+        <line num="464" count="10" type="stmt"/>
         <line num="465" count="9" type="stmt"/>
         <line num="467" count="9" type="stmt"/>
-        <line num="477" count="6" type="stmt"/>
-        <line num="478" count="4" type="stmt"/>
-        <line num="481" count="6" type="stmt"/>
-        <line num="482" count="2" type="stmt"/>
-        <line num="503" count="94" type="cond" truecount="2" falsecount="0"/>
-        <line num="504" count="8" type="stmt"/>
-        <line num="505" count="9" type="stmt"/>
+        <line num="469" count="9" type="stmt"/>
+        <line num="479" count="6" type="stmt"/>
+        <line num="480" count="4" type="stmt"/>
+        <line num="483" count="6" type="stmt"/>
+        <line num="484" count="2" type="stmt"/>
+        <line num="505" count="95" type="cond" truecount="2" falsecount="0"/>
         <line num="506" count="8" type="stmt"/>
-        <line num="508" count="8" type="cond" truecount="3" falsecount="0"/>
-        <line num="512" count="8" type="stmt"/>
-        <line num="523" count="9" type="cond" truecount="2" falsecount="0"/>
-        <line num="525" count="8" type="stmt"/>
-        <line num="546" count="86" type="stmt"/>
-        <line num="549" count="87" type="cond" truecount="2" falsecount="0"/>
-        <line num="551" count="15" type="stmt"/>
-        <line num="566" count="9" type="stmt"/>
-        <line num="568" count="9" type="cond" truecount="2" falsecount="0"/>
-        <line num="569" count="2" type="stmt"/>
-        <line num="571" count="9" type="cond" truecount="4" falsecount="0"/>
-        <line num="572" count="4" type="cond" truecount="2" falsecount="0"/>
-        <line num="573" count="4" type="cond" truecount="2" falsecount="0"/>
-        <line num="574" count="4" type="stmt"/>
-        <line num="576" count="9" type="cond" truecount="4" falsecount="0"/>
-        <line num="577" count="2" type="stmt"/>
-        <line num="579" count="9" type="cond" truecount="2" falsecount="0"/>
-        <line num="580" count="2" type="stmt"/>
-        <line num="583" count="9" type="cond" truecount="2" falsecount="0"/>
-        <line num="585" count="7" type="stmt"/>
-        <line num="591" count="10" type="stmt"/>
-        <line num="601" count="73" type="stmt"/>
-        <line num="604" count="74" type="stmt"/>
-        <line num="611" count="101" type="stmt"/>
-        <line num="612" count="101" type="stmt"/>
+        <line num="507" count="9" type="stmt"/>
+        <line num="508" count="8" type="stmt"/>
+        <line num="510" count="8" type="cond" truecount="3" falsecount="0"/>
+        <line num="514" count="8" type="stmt"/>
+        <line num="525" count="9" type="cond" truecount="2" falsecount="0"/>
+        <line num="527" count="8" type="stmt"/>
+        <line num="548" count="87" type="stmt"/>
+        <line num="551" count="88" type="cond" truecount="2" falsecount="0"/>
+        <line num="553" count="16" type="stmt"/>
+        <line num="568" count="9" type="stmt"/>
+        <line num="570" count="9" type="cond" truecount="2" falsecount="0"/>
+        <line num="571" count="2" type="stmt"/>
+        <line num="573" count="9" type="cond" truecount="4" falsecount="0"/>
+        <line num="574" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="575" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="576" count="4" type="stmt"/>
+        <line num="578" count="9" type="cond" truecount="4" falsecount="0"/>
+        <line num="579" count="2" type="stmt"/>
+        <line num="581" count="9" type="cond" truecount="2" falsecount="0"/>
+        <line num="582" count="2" type="stmt"/>
+        <line num="585" count="9" type="cond" truecount="2" falsecount="0"/>
+        <line num="587" count="7" type="stmt"/>
+        <line num="593" count="10" type="stmt"/>
+        <line num="603" count="73" type="stmt"/>
+        <line num="606" count="74" type="stmt"/>
         <line num="613" count="101" type="stmt"/>
         <line num="614" count="101" type="stmt"/>
         <line num="615" count="101" type="stmt"/>
+        <line num="616" count="101" type="stmt"/>
         <line num="617" count="101" type="stmt"/>
-        <line num="620" count="13" type="stmt"/>
-        <line num="621" count="13" type="stmt"/>
-        <line num="622" count="1" type="stmt"/>
-        <line num="641" count="54" type="stmt"/>
+        <line num="619" count="101" type="stmt"/>
+        <line num="622" count="13" type="stmt"/>
+        <line num="623" count="13" type="stmt"/>
+        <line num="624" count="1" type="stmt"/>
+        <line num="643" count="54" type="stmt"/>
       </file>
-      <file name="MessageList.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/chat/MessageList.tsx">
+      <file name="MessageList.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/chat/MessageList.tsx">
         <metrics statements="86" coveredstatements="83" conditionals="76" coveredconditionals="61" methods="17" coveredmethods="17"/>
-        <line num="16" count="22" type="stmt"/>
-        <line num="17" count="22" type="stmt"/>
-        <line num="18" count="22" type="stmt"/>
-        <line num="20" count="22" type="stmt"/>
-        <line num="21" count="55" type="cond" truecount="2" falsecount="0"/>
-        <line num="22" count="29" type="cond" truecount="2" falsecount="0"/>
+        <line num="16" count="24" type="stmt"/>
+        <line num="17" count="24" type="stmt"/>
+        <line num="18" count="24" type="stmt"/>
+        <line num="20" count="24" type="stmt"/>
+        <line num="21" count="57" type="cond" truecount="2" falsecount="0"/>
+        <line num="22" count="30" type="cond" truecount="2" falsecount="0"/>
         <line num="23" count="10" type="stmt"/>
-        <line num="25" count="29" type="stmt"/>
-        <line num="26" count="26" type="cond" truecount="2" falsecount="0"/>
-        <line num="27" count="22" type="stmt"/>
+        <line num="25" count="30" type="stmt"/>
+        <line num="26" count="27" type="cond" truecount="2" falsecount="0"/>
+        <line num="27" count="23" type="stmt"/>
         <line num="29" count="4" type="stmt"/>
-        <line num="33" count="22" type="cond" truecount="2" falsecount="0"/>
-        <line num="34" count="19" type="stmt"/>
-        <line num="37" count="22" type="stmt"/>
-        <line num="41" count="31" type="stmt"/>
-        <line num="42" count="31" type="stmt"/>
-        <line num="43" count="31" type="stmt"/>
-        <line num="44" count="31" type="stmt"/>
-        <line num="46" count="31" type="stmt"/>
-        <line num="47" count="26" type="cond" truecount="2" falsecount="0"/>
+        <line num="33" count="24" type="cond" truecount="2" falsecount="0"/>
+        <line num="34" count="20" type="stmt"/>
+        <line num="37" count="24" type="stmt"/>
+        <line num="41" count="32" type="stmt"/>
+        <line num="42" count="32" type="stmt"/>
+        <line num="43" count="32" type="stmt"/>
+        <line num="44" count="32" type="stmt"/>
+        <line num="46" count="32" type="stmt"/>
+        <line num="47" count="27" type="cond" truecount="2" falsecount="0"/>
         <line num="48" count="2" type="stmt"/>
         <line num="49" count="2" type="stmt"/>
-        <line num="51" count="24" type="cond" truecount="1" falsecount="1"/>
-        <line num="53" count="24" type="stmt"/>
-        <line num="54" count="38" type="cond" truecount="2" falsecount="0"/>
-        <line num="56" count="38" type="stmt"/>
-        <line num="58" count="24" type="stmt"/>
-        <line num="59" count="24" type="cond" truecount="1" falsecount="1"/>
-        <line num="60" count="24" type="stmt"/>
-        <line num="61" count="24" type="stmt"/>
-        <line num="65" count="31" type="stmt"/>
+        <line num="51" count="25" type="cond" truecount="1" falsecount="1"/>
+        <line num="53" count="25" type="stmt"/>
+        <line num="54" count="39" type="cond" truecount="2" falsecount="0"/>
+        <line num="56" count="39" type="stmt"/>
+        <line num="58" count="25" type="stmt"/>
+        <line num="59" count="25" type="cond" truecount="1" falsecount="1"/>
+        <line num="60" count="25" type="stmt"/>
+        <line num="61" count="25" type="stmt"/>
+        <line num="65" count="32" type="stmt"/>
         <line num="81" count="11" type="stmt"/>
         <line num="82" count="11" type="stmt"/>
         <line num="83" count="11" type="cond" truecount="1" falsecount="1"/>
@@ -943,53 +977,53 @@
         <line num="92" count="11" type="stmt"/>
         <line num="95" count="1" type="stmt"/>
         <line num="96" count="1" type="stmt"/>
-        <line num="125" count="21" type="stmt"/>
-        <line num="126" count="21" type="stmt"/>
-        <line num="128" count="21" type="stmt"/>
-        <line num="129" count="18" type="stmt"/>
-        <line num="133" count="21" type="stmt"/>
-        <line num="134" count="18" type="cond" truecount="1" falsecount="1"/>
-        <line num="135" count="0" type="stmt"/>
-        <line num="136" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="137" count="0" type="stmt"/>
-        <line num="141" count="21" type="stmt"/>
-        <line num="142" count="21" type="cond" truecount="2" falsecount="0"/>
-        <line num="144" count="21" type="stmt"/>
-        <line num="145" count="3" type="stmt"/>
-        <line num="146" count="3" type="stmt"/>
-        <line num="147" count="3" type="cond" truecount="2" falsecount="0"/>
-        <line num="148" count="1" type="stmt"/>
-        <line num="150" count="2" type="stmt"/>
-        <line num="152" count="3" type="stmt"/>
-        <line num="156" count="21" type="stmt"/>
-        <line num="158" count="21" type="cond" truecount="4" falsecount="0"/>
-        <line num="159" count="1" type="stmt"/>
-        <line num="168" count="20" type="stmt"/>
-        <line num="172" count="2" type="cond" truecount="1" falsecount="1"/>
-        <line num="178" count="31" type="stmt"/>
-        <line num="179" count="31" type="cond" truecount="2" falsecount="0"/>
-        <line num="180" count="31" type="stmt"/>
-        <line num="183" count="31" type="cond" truecount="3" falsecount="0"/>
-        <line num="184" count="31" type="stmt"/>
-        <line num="185" count="31" type="stmt"/>
-        <line num="187" count="31" type="stmt"/>
-        <line num="190" count="31" type="stmt"/>
-        <line num="196" count="31" type="cond" truecount="2" falsecount="0"/>
-        <line num="198" count="9" type="cond" truecount="1" falsecount="1"/>
-        <line num="199" count="9" type="stmt"/>
-        <line num="205" count="3" type="stmt"/>
-        <line num="209" count="9" type="cond" truecount="2" falsecount="0"/>
-        <line num="211" count="2" type="stmt"/>
-        <line num="212" count="4" type="stmt"/>
-        <line num="220" count="7" type="cond" truecount="1" falsecount="1"/>
-        <line num="221" count="7" type="stmt"/>
-        <line num="224" count="11" type="cond" truecount="2" falsecount="0"/>
-        <line num="227" count="7" type="stmt"/>
-        <line num="236" count="22" type="stmt"/>
-        <line num="237" count="9" type="stmt"/>
-        <line num="245" count="31" type="stmt"/>
+        <line num="129" count="23" type="stmt"/>
+        <line num="130" count="23" type="stmt"/>
+        <line num="132" count="23" type="stmt"/>
+        <line num="133" count="20" type="stmt"/>
+        <line num="137" count="23" type="stmt"/>
+        <line num="138" count="20" type="cond" truecount="1" falsecount="1"/>
+        <line num="139" count="0" type="stmt"/>
+        <line num="140" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="141" count="0" type="stmt"/>
+        <line num="145" count="23" type="stmt"/>
+        <line num="146" count="23" type="cond" truecount="2" falsecount="0"/>
+        <line num="148" count="23" type="stmt"/>
+        <line num="149" count="3" type="stmt"/>
+        <line num="150" count="3" type="stmt"/>
+        <line num="151" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="152" count="1" type="stmt"/>
+        <line num="154" count="2" type="stmt"/>
+        <line num="156" count="3" type="stmt"/>
+        <line num="160" count="23" type="stmt"/>
+        <line num="162" count="23" type="cond" truecount="4" falsecount="0"/>
+        <line num="163" count="1" type="stmt"/>
+        <line num="172" count="22" type="stmt"/>
+        <line num="176" count="2" type="cond" truecount="1" falsecount="1"/>
+        <line num="182" count="32" type="stmt"/>
+        <line num="183" count="32" type="cond" truecount="2" falsecount="0"/>
+        <line num="184" count="32" type="stmt"/>
+        <line num="187" count="32" type="cond" truecount="3" falsecount="0"/>
+        <line num="188" count="32" type="stmt"/>
+        <line num="189" count="32" type="stmt"/>
+        <line num="191" count="32" type="stmt"/>
+        <line num="194" count="32" type="stmt"/>
+        <line num="200" count="32" type="cond" truecount="2" falsecount="0"/>
+        <line num="202" count="9" type="cond" truecount="1" falsecount="1"/>
+        <line num="203" count="9" type="stmt"/>
+        <line num="209" count="3" type="stmt"/>
+        <line num="213" count="9" type="cond" truecount="2" falsecount="0"/>
+        <line num="215" count="2" type="stmt"/>
+        <line num="216" count="4" type="stmt"/>
+        <line num="224" count="7" type="cond" truecount="1" falsecount="1"/>
+        <line num="225" count="7" type="stmt"/>
+        <line num="228" count="11" type="cond" truecount="2" falsecount="0"/>
+        <line num="231" count="7" type="stmt"/>
+        <line num="240" count="23" type="stmt"/>
+        <line num="241" count="10" type="stmt"/>
+        <line num="249" count="32" type="stmt"/>
       </file>
-      <file name="ThinkingSpinner.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/chat/ThinkingSpinner.tsx">
+      <file name="ThinkingSpinner.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/chat/ThinkingSpinner.tsx">
         <metrics statements="11" coveredstatements="11" conditionals="2" coveredconditionals="2" methods="6" coveredmethods="6"/>
         <line num="4" count="6" type="stmt"/>
         <line num="5" count="6" type="cond" truecount="2" falsecount="0"/>
@@ -1006,7 +1040,7 @@
     </package>
     <package name="src.components.diff">
       <metrics statements="40" coveredstatements="40" conditionals="68" coveredconditionals="68" methods="16" coveredmethods="16"/>
-      <file name="DiffPanel.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/diff/DiffPanel.tsx">
+      <file name="DiffPanel.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/diff/DiffPanel.tsx">
         <metrics statements="8" coveredstatements="8" conditionals="12" coveredconditionals="12" methods="3" coveredmethods="3"/>
         <line num="10" count="4" type="stmt"/>
         <line num="11" count="12" type="cond" truecount="2" falsecount="0"/>
@@ -1017,7 +1051,7 @@
         <line num="21" count="2" type="stmt"/>
         <line num="31" count="2" type="stmt"/>
       </file>
-      <file name="DiffViewer.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/diff/DiffViewer.tsx">
+      <file name="DiffViewer.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/diff/DiffViewer.tsx">
         <metrics statements="32" coveredstatements="32" conditionals="56" coveredconditionals="56" methods="13" coveredmethods="13"/>
         <line num="13" count="16" type="cond" truecount="2" falsecount="0"/>
         <line num="14" count="14" type="cond" truecount="2" falsecount="0"/>
@@ -1055,7 +1089,7 @@
     </package>
     <package name="src.components.file-viewer">
       <metrics statements="49" coveredstatements="49" conditionals="44" coveredconditionals="44" methods="28" coveredmethods="28"/>
-      <file name="FileTabBar.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/file-viewer/FileTabBar.tsx">
+      <file name="FileTabBar.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/file-viewer/FileTabBar.tsx">
         <metrics statements="36" coveredstatements="36" conditionals="32" coveredconditionals="32" methods="24" coveredmethods="24"/>
         <line num="5" count="1" type="stmt"/>
         <line num="13" count="72" type="stmt"/>
@@ -1094,7 +1128,7 @@
         <line num="145" count="1" type="stmt"/>
         <line num="146" count="1" type="stmt"/>
       </file>
-      <file name="FileViewerPanel.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/file-viewer/FileViewerPanel.tsx">
+      <file name="FileViewerPanel.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/file-viewer/FileViewerPanel.tsx">
         <metrics statements="13" coveredstatements="13" conditionals="12" coveredconditionals="12" methods="4" coveredmethods="4"/>
         <line num="16" count="33" type="stmt"/>
         <line num="18" count="11" type="stmt"/>
@@ -1113,7 +1147,7 @@
     </package>
     <package name="src.components.history">
       <metrics statements="63" coveredstatements="63" conditionals="82" coveredconditionals="82" methods="21" coveredmethods="21"/>
-      <file name="HistoryView.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/history/HistoryView.tsx">
+      <file name="HistoryView.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/history/HistoryView.tsx">
         <metrics statements="63" coveredstatements="63" conditionals="82" coveredconditionals="82" methods="21" coveredmethods="21"/>
         <line num="19" count="1" type="stmt"/>
         <line num="20" count="1" type="stmt"/>
@@ -1182,7 +1216,7 @@
     </package>
     <package name="src.components.icons">
       <metrics statements="37" coveredstatements="37" conditionals="4" coveredconditionals="4" methods="30" coveredmethods="30"/>
-      <file name="FileIcons.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/icons/FileIcons.tsx">
+      <file name="FileIcons.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/icons/FileIcons.tsx">
         <metrics statements="37" coveredstatements="37" conditionals="4" coveredconditionals="4" methods="30" coveredmethods="30"/>
         <line num="3" count="1" type="stmt"/>
         <line num="12" count="1" type="stmt"/>
@@ -1225,7 +1259,7 @@
     </package>
     <package name="src.components.landing">
       <metrics statements="142" coveredstatements="142" conditionals="89" coveredconditionals="89" methods="45" coveredmethods="45"/>
-      <file name="CloneRepoDialog.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/landing/CloneRepoDialog.tsx">
+      <file name="CloneRepoDialog.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/landing/CloneRepoDialog.tsx">
         <metrics statements="31" coveredstatements="31" conditionals="16" coveredconditionals="16" methods="7" coveredmethods="7"/>
         <line num="12" count="43" type="stmt"/>
         <line num="13" count="43" type="stmt"/>
@@ -1259,7 +1293,7 @@
         <line num="124" count="7" type="stmt"/>
         <line num="144" count="5" type="stmt"/>
       </file>
-      <file name="LandingPage.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/landing/LandingPage.tsx">
+      <file name="LandingPage.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/landing/LandingPage.tsx">
         <metrics statements="81" coveredstatements="81" conditionals="55" coveredconditionals="55" methods="29" coveredmethods="29"/>
         <line num="27" count="51" type="stmt"/>
         <line num="28" count="51" type="stmt"/>
@@ -1343,7 +1377,7 @@
         <line num="501" count="24" type="stmt"/>
         <line num="511" count="72" type="stmt"/>
       </file>
-      <file name="NewProjectDialog.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/landing/NewProjectDialog.tsx">
+      <file name="NewProjectDialog.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/landing/NewProjectDialog.tsx">
         <metrics statements="30" coveredstatements="30" conditionals="18" coveredconditionals="18" methods="9" coveredmethods="9"/>
         <line num="13" count="48" type="stmt"/>
         <line num="23" count="48" type="stmt"/>
@@ -1379,7 +1413,7 @@
     </package>
     <package name="src.components.layout">
       <metrics statements="161" coveredstatements="161" conditionals="195" coveredconditionals="192" methods="69" coveredmethods="69"/>
-      <file name="RightSidebar.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/layout/RightSidebar.tsx">
+      <file name="RightSidebar.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/layout/RightSidebar.tsx">
         <metrics statements="53" coveredstatements="53" conditionals="76" coveredconditionals="75" methods="23" coveredmethods="23"/>
         <line num="31" count="1" type="stmt"/>
         <line num="37" count="1" type="stmt"/>
@@ -1435,7 +1469,7 @@
         <line num="280" count="7" type="stmt"/>
         <line num="281" count="7" type="cond" truecount="2" falsecount="0"/>
       </file>
-      <file name="Sidebar.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/layout/Sidebar.tsx">
+      <file name="Sidebar.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/layout/Sidebar.tsx">
         <metrics statements="101" coveredstatements="101" conditionals="99" coveredconditionals="97" methods="43" coveredmethods="43"/>
         <line num="26" count="90" type="stmt"/>
         <line num="27" count="90" type="stmt"/>
@@ -1539,7 +1573,7 @@
         <line num="562" count="2" type="stmt"/>
         <line num="566" count="10" type="stmt"/>
       </file>
-      <file name="TopBar.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/layout/TopBar.tsx">
+      <file name="TopBar.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/layout/TopBar.tsx">
         <metrics statements="7" coveredstatements="7" conditionals="20" coveredconditionals="20" methods="3" coveredmethods="3"/>
         <line num="13" count="21" type="stmt"/>
         <line num="14" count="7" type="stmt"/>
@@ -1552,7 +1586,7 @@
     </package>
     <package name="src.components.merge">
       <metrics statements="169" coveredstatements="168" conditionals="242" coveredconditionals="237" methods="75" coveredmethods="75"/>
-      <file name="BranchSyncSection.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/merge/BranchSyncSection.tsx">
+      <file name="BranchSyncSection.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/merge/BranchSyncSection.tsx">
         <metrics statements="14" coveredstatements="14" conditionals="38" coveredconditionals="38" methods="8" coveredmethods="8"/>
         <line num="15" count="31" type="stmt"/>
         <line num="16" count="110" type="cond" truecount="2" falsecount="0"/>
@@ -1569,7 +1603,7 @@
         <line num="37" count="2" type="stmt"/>
         <line num="43" count="31" type="stmt"/>
       </file>
-      <file name="ConflictResolver.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/merge/ConflictResolver.tsx">
+      <file name="ConflictResolver.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/merge/ConflictResolver.tsx">
         <metrics statements="14" coveredstatements="14" conditionals="4" coveredconditionals="4" methods="6" coveredmethods="6"/>
         <line num="18" count="13" type="stmt"/>
         <line num="20" count="13" type="stmt"/>
@@ -1586,7 +1620,7 @@
         <line num="101" count="52" type="stmt"/>
         <line num="103" count="3" type="stmt"/>
       </file>
-      <file name="ConflictSection.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/merge/ConflictSection.tsx">
+      <file name="ConflictSection.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/merge/ConflictSection.tsx">
         <metrics statements="27" coveredstatements="27" conditionals="34" coveredconditionals="34" methods="12" coveredmethods="12"/>
         <line num="10" count="1" type="stmt"/>
         <line num="17" count="18" type="cond" truecount="6" falsecount="0"/>
@@ -1616,7 +1650,7 @@
         <line num="156" count="18" type="stmt"/>
         <line num="159" count="1" type="stmt"/>
       </file>
-      <file name="MergeView.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/merge/MergeView.tsx">
+      <file name="MergeView.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/merge/MergeView.tsx">
         <metrics statements="15" coveredstatements="15" conditionals="32" coveredconditionals="32" methods="8" coveredmethods="8"/>
         <line num="14" count="1" type="stmt"/>
         <line num="22" count="13" type="stmt"/>
@@ -1634,7 +1668,7 @@
         <line num="57" count="3" type="stmt"/>
         <line num="128" count="1" type="stmt"/>
       </file>
-      <file name="StashSection.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/merge/StashSection.tsx">
+      <file name="StashSection.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/merge/StashSection.tsx">
         <metrics statements="59" coveredstatements="58" conditionals="60" coveredconditionals="55" methods="24" coveredmethods="24"/>
         <line num="15" count="1" type="stmt"/>
         <line num="22" count="56" type="stmt"/>
@@ -1696,7 +1730,7 @@
         <line num="282" count="2" type="stmt"/>
         <line num="306" count="2" type="stmt"/>
       </file>
-      <file name="WorktreeCompareSection.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/merge/WorktreeCompareSection.tsx">
+      <file name="WorktreeCompareSection.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/merge/WorktreeCompareSection.tsx">
         <metrics statements="40" coveredstatements="40" conditionals="74" coveredconditionals="74" methods="17" coveredmethods="17"/>
         <line num="15" count="15" type="cond" truecount="2" falsecount="0"/>
         <line num="16" count="13" type="cond" truecount="2" falsecount="0"/>
@@ -1742,7 +1776,7 @@
     </package>
     <package name="src.components.notes">
       <metrics statements="68" coveredstatements="68" conditionals="53" coveredconditionals="53" methods="29" coveredmethods="29"/>
-      <file name="NotesPanel.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/notes/NotesPanel.tsx">
+      <file name="NotesPanel.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/notes/NotesPanel.tsx">
         <metrics statements="68" coveredstatements="68" conditionals="53" coveredconditionals="53" methods="29" coveredmethods="29"/>
         <line num="9" count="1" type="stmt"/>
         <line num="12" count="81" type="cond" truecount="2" falsecount="0"/>
@@ -1816,13 +1850,13 @@
     </package>
     <package name="src.components.notifications">
       <metrics statements="58" coveredstatements="12" conditionals="37" coveredconditionals="4" methods="21" coveredmethods="8"/>
-      <file name="NotificationBell.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/notifications/NotificationBell.tsx">
+      <file name="NotificationBell.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/notifications/NotificationBell.tsx">
         <metrics statements="3" coveredstatements="3" conditionals="4" coveredconditionals="1" methods="3" coveredmethods="3"/>
         <line num="5" count="27" type="stmt"/>
         <line num="6" count="27" type="stmt"/>
         <line num="8" count="9" type="stmt"/>
       </file>
-      <file name="NotificationPanel.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/notifications/NotificationPanel.tsx">
+      <file name="NotificationPanel.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/notifications/NotificationPanel.tsx">
         <metrics statements="55" coveredstatements="9" conditionals="33" coveredconditionals="3" methods="18" coveredmethods="5"/>
         <line num="18" count="1" type="stmt"/>
         <line num="27" count="1" type="stmt"/>
@@ -1883,7 +1917,7 @@
     </package>
     <package name="src.components.pr">
       <metrics statements="66" coveredstatements="66" conditionals="106" coveredconditionals="106" methods="31" coveredmethods="31"/>
-      <file name="PRPanel.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/pr/PRPanel.tsx">
+      <file name="PRPanel.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/pr/PRPanel.tsx">
         <metrics statements="66" coveredstatements="66" conditionals="106" coveredconditionals="106" methods="31" coveredmethods="31"/>
         <line num="14" count="623" type="cond" truecount="2" falsecount="0"/>
         <line num="15" count="623" type="cond" truecount="2" falsecount="0"/>
@@ -1955,7 +1989,7 @@
     </package>
     <package name="src.components.settings">
       <metrics statements="369" coveredstatements="369" conditionals="312" coveredconditionals="308" methods="146" coveredmethods="145"/>
-      <file name="AppSettingsPanel.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/settings/AppSettingsPanel.tsx">
+      <file name="AppSettingsPanel.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/settings/AppSettingsPanel.tsx">
         <metrics statements="331" coveredstatements="331" conditionals="290" coveredconditionals="286" methods="124" coveredmethods="123"/>
         <line num="42" count="1" type="stmt"/>
         <line num="52" count="1" type="stmt"/>
@@ -2289,7 +2323,7 @@
         <line num="1917" count="7" type="stmt"/>
         <line num="1925" count="2" type="cond" truecount="2" falsecount="0"/>
       </file>
-      <file name="RepoSettingsPanel.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/settings/RepoSettingsPanel.tsx">
+      <file name="RepoSettingsPanel.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/settings/RepoSettingsPanel.tsx">
         <metrics statements="38" coveredstatements="38" conditionals="22" coveredconditionals="22" methods="22" coveredmethods="22"/>
         <line num="19" count="94" type="stmt"/>
         <line num="27" count="94" type="stmt"/>
@@ -2333,7 +2367,7 @@
     </package>
     <package name="src.components.sidebar">
       <metrics statements="311" coveredstatements="311" conditionals="350" coveredconditionals="334" methods="109" coveredmethods="108"/>
-      <file name="ChangesPanel.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/sidebar/ChangesPanel.tsx">
+      <file name="ChangesPanel.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/sidebar/ChangesPanel.tsx">
         <metrics statements="99" coveredstatements="99" conditionals="112" coveredconditionals="110" methods="31" coveredmethods="30"/>
         <line num="17" count="18" type="cond" truecount="2" falsecount="0"/>
         <line num="18" count="16" type="cond" truecount="2" falsecount="0"/>
@@ -2435,7 +2469,7 @@
         <line num="335" count="18" type="stmt"/>
         <line num="337" count="3" type="stmt"/>
       </file>
-      <file name="ChecksPanel.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/sidebar/ChecksPanel.tsx">
+      <file name="ChecksPanel.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/sidebar/ChecksPanel.tsx">
         <metrics statements="150" coveredstatements="150" conditionals="187" coveredconditionals="178" methods="60" coveredmethods="60"/>
         <line num="21" count="1" type="stmt"/>
         <line num="22" count="1" type="stmt"/>
@@ -2444,15 +2478,15 @@
         <line num="34" count="270" type="cond" truecount="2" falsecount="0"/>
         <line num="38" count="1" type="stmt"/>
         <line num="40" count="9" type="stmt"/>
-        <line num="44" count="132" type="cond" truecount="2" falsecount="0"/>
-        <line num="45" count="28" type="cond" truecount="2" falsecount="0"/>
+        <line num="44" count="134" type="cond" truecount="2" falsecount="0"/>
+        <line num="45" count="27" type="cond" truecount="2" falsecount="0"/>
         <line num="46" count="4" type="cond" truecount="4" falsecount="0"/>
         <line num="47" count="2" type="stmt"/>
-        <line num="51" count="200" type="cond" truecount="2" falsecount="0"/>
-        <line num="55" count="14" type="cond" truecount="2" falsecount="0"/>
-        <line num="56" count="8" type="cond" truecount="2" falsecount="0"/>
-        <line num="57" count="6" type="cond" truecount="2" falsecount="0"/>
-        <line num="58" count="4" type="stmt"/>
+        <line num="51" count="202" type="cond" truecount="2" falsecount="0"/>
+        <line num="55" count="16" type="cond" truecount="2" falsecount="0"/>
+        <line num="56" count="10" type="cond" truecount="2" falsecount="0"/>
+        <line num="57" count="8" type="cond" truecount="2" falsecount="0"/>
+        <line num="58" count="6" type="stmt"/>
         <line num="62" count="137" type="stmt"/>
         <line num="63" count="137" type="stmt"/>
         <line num="64" count="137" type="stmt"/>
@@ -2473,21 +2507,21 @@
         <line num="141" count="64" type="stmt"/>
         <line num="171" count="9" type="cond" truecount="1" falsecount="1"/>
         <line num="177" count="9" type="stmt"/>
-        <line num="213" count="132" type="stmt"/>
-        <line num="214" count="132" type="stmt"/>
-        <line num="215" count="132" type="stmt"/>
-        <line num="216" count="132" type="stmt"/>
-        <line num="217" count="132" type="stmt"/>
-        <line num="218" count="132" type="stmt"/>
-        <line num="220" count="132" type="stmt"/>
-        <line num="221" count="132" type="stmt"/>
-        <line num="223" count="132" type="stmt"/>
-        <line num="224" count="102" type="cond" truecount="5" falsecount="0"/>
-        <line num="225" count="43" type="stmt"/>
-        <line num="226" count="43" type="stmt"/>
+        <line num="213" count="134" type="stmt"/>
+        <line num="214" count="134" type="stmt"/>
+        <line num="215" count="134" type="stmt"/>
+        <line num="216" count="134" type="stmt"/>
+        <line num="217" count="134" type="stmt"/>
+        <line num="218" count="134" type="stmt"/>
+        <line num="220" count="134" type="stmt"/>
+        <line num="221" count="134" type="stmt"/>
+        <line num="223" count="134" type="stmt"/>
+        <line num="224" count="99" type="cond" truecount="5" falsecount="0"/>
+        <line num="225" count="41" type="stmt"/>
+        <line num="226" count="41" type="stmt"/>
         <line num="228" count="1" type="stmt"/>
-        <line num="229" count="42" type="stmt"/>
-        <line num="233" count="132" type="stmt"/>
+        <line num="229" count="40" type="stmt"/>
+        <line num="233" count="134" type="stmt"/>
         <line num="234" count="8" type="stmt"/>
         <line num="235" count="8" type="stmt"/>
         <line num="236" count="8" type="stmt"/>
@@ -2495,7 +2529,7 @@
         <line num="238" count="6" type="stmt"/>
         <line num="240" count="1" type="stmt"/>
         <line num="242" count="7" type="stmt"/>
-        <line num="246" count="132" type="stmt"/>
+        <line num="246" count="134" type="stmt"/>
         <line num="247" count="3" type="stmt"/>
         <line num="248" count="3" type="stmt"/>
         <line num="249" count="3" type="stmt"/>
@@ -2503,8 +2537,8 @@
         <line num="251" count="2" type="stmt"/>
         <line num="253" count="1" type="stmt"/>
         <line num="255" count="3" type="stmt"/>
-        <line num="259" count="132" type="stmt"/>
-        <line num="293" count="7" type="stmt"/>
+        <line num="259" count="134" type="stmt"/>
+        <line num="293" count="8" type="stmt"/>
         <line num="309" count="2" type="stmt"/>
         <line num="333" count="7" type="stmt"/>
         <line num="344" count="1" type="stmt"/>
@@ -2588,7 +2622,7 @@
         <line num="860" count="2" type="stmt"/>
         <line num="873" count="2" type="stmt"/>
       </file>
-      <file name="FileTreePanel.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/sidebar/FileTreePanel.tsx">
+      <file name="FileTreePanel.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/sidebar/FileTreePanel.tsx">
         <metrics statements="62" coveredstatements="62" conditionals="51" coveredconditionals="46" methods="18" coveredmethods="18"/>
         <line num="6" count="1" type="stmt"/>
         <line num="7" count="1" type="stmt"/>
@@ -2656,7 +2690,7 @@
     </package>
     <package name="src.components.terminal">
       <metrics statements="111" coveredstatements="111" conditionals="56" coveredconditionals="56" methods="37" coveredmethods="37"/>
-      <file name="RunPanel.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/terminal/RunPanel.tsx">
+      <file name="RunPanel.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/terminal/RunPanel.tsx">
         <metrics statements="27" coveredstatements="27" conditionals="22" coveredconditionals="22" methods="11" coveredmethods="11"/>
         <line num="5" count="1" type="stmt"/>
         <line num="12" count="17" type="stmt"/>
@@ -2686,7 +2720,7 @@
         <line num="87" count="1" type="stmt"/>
         <line num="134" count="4" type="stmt"/>
       </file>
-      <file name="SetupPanel.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/terminal/SetupPanel.tsx">
+      <file name="SetupPanel.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/terminal/SetupPanel.tsx">
         <metrics statements="27" coveredstatements="27" conditionals="22" coveredconditionals="22" methods="11" coveredmethods="11"/>
         <line num="5" count="1" type="stmt"/>
         <line num="12" count="15" type="stmt"/>
@@ -2716,7 +2750,7 @@
         <line num="87" count="1" type="stmt"/>
         <line num="134" count="4" type="stmt"/>
       </file>
-      <file name="TerminalPanel.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/terminal/TerminalPanel.tsx">
+      <file name="TerminalPanel.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/terminal/TerminalPanel.tsx">
         <metrics statements="25" coveredstatements="25" conditionals="12" coveredconditionals="12" methods="7" coveredmethods="7"/>
         <line num="11" count="23" type="stmt"/>
         <line num="12" count="23" type="stmt"/>
@@ -2744,7 +2778,7 @@
         <line num="61" count="13" type="stmt"/>
         <line num="71" count="9" type="stmt"/>
       </file>
-      <file name="TerminalView.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/terminal/TerminalView.tsx">
+      <file name="TerminalView.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/terminal/TerminalView.tsx">
         <metrics statements="32" coveredstatements="32" conditionals="0" coveredconditionals="0" methods="8" coveredmethods="8"/>
         <line num="16" count="11" type="stmt"/>
         <line num="17" count="11" type="stmt"/>
@@ -2782,7 +2816,7 @@
     </package>
     <package name="src.components.workspace">
       <metrics statements="223" coveredstatements="223" conditionals="196" coveredconditionals="191" methods="81" coveredmethods="81"/>
-      <file name="IssuePicker.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/workspace/IssuePicker.tsx">
+      <file name="IssuePicker.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/workspace/IssuePicker.tsx">
         <metrics statements="41" coveredstatements="41" conditionals="31" coveredconditionals="31" methods="16" coveredmethods="16"/>
         <line num="12" count="36" type="stmt"/>
         <line num="13" count="36" type="stmt"/>
@@ -2826,7 +2860,7 @@
         <line num="233" count="13" type="stmt"/>
         <line num="236" count="3" type="cond" truecount="2" falsecount="0"/>
       </file>
-      <file name="LinkWorkspaceDialog.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/workspace/LinkWorkspaceDialog.tsx">
+      <file name="LinkWorkspaceDialog.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/workspace/LinkWorkspaceDialog.tsx">
         <metrics statements="36" coveredstatements="36" conditionals="26" coveredconditionals="26" methods="15" coveredmethods="15"/>
         <line num="23" count="45" type="stmt"/>
         <line num="24" count="45" type="stmt"/>
@@ -2865,7 +2899,7 @@
         <line num="131" count="48" type="stmt"/>
         <line num="159" count="6" type="cond" truecount="2" falsecount="0"/>
       </file>
-      <file name="NewWorkspaceDialog.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/workspace/NewWorkspaceDialog.tsx">
+      <file name="NewWorkspaceDialog.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/workspace/NewWorkspaceDialog.tsx">
         <metrics statements="123" coveredstatements="123" conditionals="131" coveredconditionals="126" methods="41" coveredmethods="41"/>
         <line num="32" count="2" type="stmt"/>
         <line num="41" count="1" type="stmt"/>
@@ -2991,7 +3025,7 @@
         <line num="681" count="332" type="stmt"/>
         <line num="727" count="3" type="stmt"/>
       </file>
-      <file name="SparseDirsEditor.tsx" path="/Users/tyler/Code/workspaces/fury/surat/src/components/workspace/SparseDirsEditor.tsx">
+      <file name="SparseDirsEditor.tsx" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/components/workspace/SparseDirsEditor.tsx">
         <metrics statements="23" coveredstatements="23" conditionals="8" coveredconditionals="8" methods="9" coveredmethods="9"/>
         <line num="15" count="13" type="stmt"/>
         <line num="16" count="13" type="stmt"/>
@@ -3019,8 +3053,8 @@
       </file>
     </package>
     <package name="src.lib">
-      <metrics statements="388" coveredstatements="388" conditionals="171" coveredconditionals="166" methods="193" coveredmethods="190"/>
-      <file name="autoUpdate.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/lib/autoUpdate.ts">
+      <metrics statements="429" coveredstatements="429" conditionals="213" coveredconditionals="206" methods="199" coveredmethods="196"/>
+      <file name="autoUpdate.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/lib/autoUpdate.ts">
         <metrics statements="24" coveredstatements="24" conditionals="4" coveredconditionals="4" methods="14" coveredmethods="14"/>
         <line num="5" count="2" type="stmt"/>
         <line num="16" count="171" type="stmt"/>
@@ -3047,7 +3081,7 @@
         <line num="64" count="2" type="stmt"/>
         <line num="66" count="1" type="stmt"/>
       </file>
-      <file name="builtinCommands.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/lib/builtinCommands.ts">
+      <file name="builtinCommands.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/lib/builtinCommands.ts">
         <metrics statements="5" coveredstatements="5" conditionals="2" coveredconditionals="2" methods="1" coveredmethods="1"/>
         <line num="11" count="2" type="stmt"/>
         <line num="18" count="4" type="stmt"/>
@@ -3055,7 +3089,51 @@
         <line num="20" count="1" type="stmt"/>
         <line num="21" count="1" type="stmt"/>
       </file>
-      <file name="copilot.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/lib/copilot.ts">
+      <file name="codeBlockFilePath.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/lib/codeBlockFilePath.ts">
+        <metrics statements="41" coveredstatements="41" conditionals="42" coveredconditionals="40" methods="6" coveredmethods="6"/>
+        <line num="17" count="22" type="cond" truecount="2" falsecount="0"/>
+        <line num="18" count="12" type="stmt"/>
+        <line num="19" count="12" type="cond" truecount="2" falsecount="0"/>
+        <line num="20" count="5" type="stmt"/>
+        <line num="21" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="26" count="18" type="cond" truecount="1" falsecount="1"/>
+        <line num="27" count="22" type="stmt"/>
+        <line num="28" count="22" type="cond" truecount="2" falsecount="0"/>
+        <line num="29" count="5" type="stmt"/>
+        <line num="30" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="35" count="14" type="stmt"/>
+        <line num="36" count="14" type="cond" truecount="2" falsecount="0"/>
+        <line num="37" count="3" type="stmt"/>
+        <line num="42" count="3" type="stmt"/>
+        <line num="43" count="4" type="stmt"/>
+        <line num="45" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="46" count="2" type="stmt"/>
+        <line num="50" count="12" type="stmt"/>
+        <line num="58" count="26" type="cond" truecount="4" falsecount="0"/>
+        <line num="60" count="24" type="cond" truecount="2" falsecount="0"/>
+        <line num="62" count="19" type="cond" truecount="2" falsecount="0"/>
+        <line num="64" count="17" type="stmt"/>
+        <line num="75" count="14" type="stmt"/>
+        <line num="79" count="14" type="stmt"/>
+        <line num="80" count="14" type="stmt"/>
+        <line num="81" count="13" type="cond" truecount="2" falsecount="0"/>
+        <line num="84" count="14" type="cond" truecount="2" falsecount="0"/>
+        <line num="86" count="7" type="stmt"/>
+        <line num="90" count="7" type="cond" truecount="2" falsecount="0"/>
+        <line num="91" count="14" type="stmt"/>
+        <line num="92" count="14" type="cond" truecount="2" falsecount="0"/>
+        <line num="93" count="14" type="stmt"/>
+        <line num="95" count="14" type="stmt"/>
+        <line num="100" count="10" type="cond" truecount="2" falsecount="0"/>
+        <line num="101" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="102" count="3" type="cond" truecount="1" falsecount="1"/>
+        <line num="103" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="104" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="105" count="1" type="stmt"/>
+        <line num="106" count="1" type="stmt"/>
+        <line num="108" count="1" type="stmt"/>
+      </file>
+      <file name="copilot.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/lib/copilot.ts">
         <metrics statements="60" coveredstatements="60" conditionals="22" coveredconditionals="22" methods="18" coveredmethods="18"/>
         <line num="42" count="1" type="stmt"/>
         <line num="46" count="1" type="stmt"/>
@@ -3118,7 +3196,7 @@
         <line num="212" count="32" type="stmt"/>
         <line num="213" count="32" type="stmt"/>
       </file>
-      <file name="format.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/lib/format.ts">
+      <file name="format.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/lib/format.ts">
         <metrics statements="12" coveredstatements="12" conditionals="12" coveredconditionals="12" methods="3" coveredmethods="3"/>
         <line num="4" count="9" type="cond" truecount="2" falsecount="0"/>
         <line num="5" count="6" type="stmt"/>
@@ -3133,7 +3211,7 @@
         <line num="20" count="40" type="cond" truecount="2" falsecount="0"/>
         <line num="21" count="36" type="stmt"/>
       </file>
-      <file name="frameMonitor.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/lib/frameMonitor.ts">
+      <file name="frameMonitor.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/lib/frameMonitor.ts">
         <metrics statements="28" coveredstatements="28" conditionals="14" coveredconditionals="13" methods="5" coveredmethods="4"/>
         <line num="8" count="2" type="stmt"/>
         <line num="10" count="2" type="stmt"/>
@@ -3164,7 +3242,7 @@
         <line num="51" count="54" type="stmt"/>
         <line num="53" count="62" type="stmt"/>
       </file>
-      <file name="ipcInstrumentation.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/lib/ipcInstrumentation.ts">
+      <file name="ipcInstrumentation.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/lib/ipcInstrumentation.ts">
         <metrics statements="35" coveredstatements="35" conditionals="12" coveredconditionals="12" methods="12" coveredmethods="10"/>
         <line num="4" count="24" type="stmt"/>
         <line num="42" count="24" type="stmt"/>
@@ -3202,7 +3280,7 @@
         <line num="108" count="1" type="stmt"/>
         <line num="116" count="4" type="stmt"/>
       </file>
-      <file name="keybindings.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/lib/keybindings.ts">
+      <file name="keybindings.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/lib/keybindings.ts">
         <metrics statements="21" coveredstatements="21" conditionals="26" coveredconditionals="26" methods="5" coveredmethods="5"/>
         <line num="4" count="9" type="cond" truecount="2" falsecount="0"/>
         <line num="34" count="9" type="stmt"/>
@@ -3226,7 +3304,7 @@
         <line num="89" count="15" type="stmt"/>
         <line num="90" count="15" type="stmt"/>
       </file>
-      <file name="monacoSetup.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/lib/monacoSetup.ts">
+      <file name="monacoSetup.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/lib/monacoSetup.ts">
         <metrics statements="28" coveredstatements="28" conditionals="18" coveredconditionals="18" methods="2" coveredmethods="2"/>
         <line num="13" count="1" type="stmt"/>
         <line num="16" count="1" type="stmt"/>
@@ -3257,12 +3335,12 @@
         <line num="89" count="1" type="stmt"/>
         <line num="90" count="1" type="stmt"/>
       </file>
-      <file name="monacoTheme.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/lib/monacoTheme.ts">
+      <file name="monacoTheme.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/lib/monacoTheme.ts">
         <metrics statements="2" coveredstatements="2" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="1"/>
         <line num="3" count="2" type="stmt"/>
         <line num="6" count="5" type="stmt"/>
       </file>
-      <file name="notificationListeners.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/lib/notificationListeners.ts">
+      <file name="notificationListeners.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/lib/notificationListeners.ts">
         <metrics statements="49" coveredstatements="49" conditionals="46" coveredconditionals="42" methods="12" coveredmethods="12"/>
         <line num="10" count="14" type="stmt"/>
         <line num="11" count="14" type="cond" truecount="1" falsecount="1"/>
@@ -3314,7 +3392,7 @@
         <line num="135" count="3" type="stmt"/>
         <line num="140" count="232" type="stmt"/>
       </file>
-      <file name="tauri.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/lib/tauri.ts">
+      <file name="tauri.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/lib/tauri.ts">
         <metrics statements="118" coveredstatements="118" conditionals="15" coveredconditionals="15" methods="118" coveredmethods="118"/>
         <line num="44" count="1" type="stmt"/>
         <line num="48" count="1" type="stmt"/>
@@ -3435,7 +3513,7 @@
         <line num="1359" count="1" type="stmt"/>
         <line num="1366" count="1" type="stmt"/>
       </file>
-      <file name="themes.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/lib/themes.ts">
+      <file name="themes.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/lib/themes.ts">
         <metrics statements="6" coveredstatements="6" conditionals="0" coveredconditionals="0" methods="2" coveredmethods="2"/>
         <line num="23" count="7" type="stmt"/>
         <line num="89" count="6" type="stmt"/>
@@ -3447,17 +3525,17 @@
     </package>
     <package name="src.stores">
       <metrics statements="1011" coveredstatements="1011" conditionals="499" coveredconditionals="493" methods="434" coveredmethods="434"/>
-      <file name="agentStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/agentStore.ts">
+      <file name="agentStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/agentStore.ts">
         <metrics statements="28" coveredstatements="28" conditionals="15" coveredconditionals="15" methods="12" coveredmethods="12"/>
         <line num="32" count="15" type="stmt"/>
         <line num="37" count="680" type="cond" truecount="2" falsecount="0"/>
-        <line num="42" count="16" type="cond" truecount="2" falsecount="0"/>
-        <line num="44" count="15" type="stmt"/>
+        <line num="42" count="17" type="cond" truecount="2" falsecount="0"/>
+        <line num="44" count="16" type="stmt"/>
         <line num="47" count="1" type="stmt"/>
         <line num="48" count="1" type="cond" truecount="2" falsecount="0"/>
         <line num="49" count="1" type="stmt"/>
         <line num="50" count="1" type="stmt"/>
-        <line num="63" count="15" type="stmt"/>
+        <line num="63" count="16" type="stmt"/>
         <line num="69" count="2" type="stmt"/>
         <line num="70" count="2" type="cond" truecount="2" falsecount="0"/>
         <line num="71" count="1" type="stmt"/>
@@ -3473,22 +3551,22 @@
         <line num="101" count="2" type="stmt"/>
         <line num="103" count="1" type="stmt"/>
         <line num="104" count="1" type="stmt"/>
-        <line num="109" count="13" type="stmt"/>
-        <line num="110" count="13" type="stmt"/>
-        <line num="111" count="12" type="stmt"/>
+        <line num="109" count="14" type="stmt"/>
+        <line num="110" count="14" type="stmt"/>
+        <line num="111" count="13" type="stmt"/>
         <line num="115" count="1" type="stmt"/>
       </file>
-      <file name="chatStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/chatStore.ts">
+      <file name="chatStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/chatStore.ts">
         <metrics statements="158" coveredstatements="158" conditionals="176" coveredconditionals="170" methods="38" coveredmethods="38"/>
         <line num="53" count="10" type="stmt"/>
-        <line num="62" count="54" type="cond" truecount="2" falsecount="0"/>
-        <line num="65" count="53" type="cond" truecount="2" falsecount="0"/>
-        <line num="66" count="50" type="stmt"/>
-        <line num="69" count="53" type="stmt"/>
+        <line num="62" count="55" type="cond" truecount="2" falsecount="0"/>
+        <line num="65" count="54" type="cond" truecount="2" falsecount="0"/>
+        <line num="66" count="51" type="stmt"/>
+        <line num="69" count="54" type="stmt"/>
         <line num="72" count="50" type="stmt"/>
         <line num="73" count="50" type="stmt"/>
         <line num="74" count="50" type="stmt"/>
-        <line num="78" count="53" type="stmt"/>
+        <line num="78" count="54" type="stmt"/>
         <line num="84" count="2" type="stmt"/>
         <line num="85" count="2" type="cond" truecount="2" falsecount="0"/>
         <line num="86" count="1" type="stmt"/>
@@ -3514,10 +3592,10 @@
         <line num="147" count="6" type="cond" truecount="4" falsecount="0"/>
         <line num="148" count="4" type="stmt"/>
         <line num="152" count="4" type="stmt"/>
-        <line num="156" count="55" type="stmt"/>
-        <line num="157" count="55" type="stmt"/>
-        <line num="158" count="54" type="stmt"/>
-        <line num="159" count="54" type="cond" truecount="2" falsecount="0"/>
+        <line num="156" count="56" type="stmt"/>
+        <line num="157" count="56" type="stmt"/>
+        <line num="158" count="55" type="stmt"/>
+        <line num="159" count="55" type="cond" truecount="2" falsecount="0"/>
         <line num="162" count="4" type="stmt"/>
         <line num="163" count="4" type="stmt"/>
         <line num="164" count="4" type="cond" truecount="2" falsecount="0"/>
@@ -3639,25 +3717,25 @@
         <line num="549" count="9" type="stmt"/>
         <line num="556" count="6" type="stmt"/>
       </file>
-      <file name="checkpointStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/checkpointStore.ts">
+      <file name="checkpointStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/checkpointStore.ts">
         <metrics statements="24" coveredstatements="24" conditionals="12" coveredconditionals="12" methods="16" coveredmethods="16"/>
         <line num="25" count="3" type="stmt"/>
-        <line num="31" count="45" type="cond" truecount="2" falsecount="0"/>
-        <line num="33" count="44" type="stmt"/>
+        <line num="31" count="46" type="cond" truecount="2" falsecount="0"/>
+        <line num="33" count="45" type="stmt"/>
         <line num="36" count="1" type="stmt"/>
-        <line num="48" count="44" type="stmt"/>
+        <line num="48" count="45" type="stmt"/>
         <line num="51" count="2" type="stmt"/>
         <line num="55" count="3" type="stmt"/>
-        <line num="66" count="44" type="stmt"/>
-        <line num="75" count="40" type="stmt"/>
-        <line num="76" count="40" type="cond" truecount="2" falsecount="0"/>
-        <line num="77" count="78" type="stmt"/>
-        <line num="78" count="39" type="stmt"/>
-        <line num="79" count="39" type="stmt"/>
-        <line num="80" count="39" type="stmt"/>
-        <line num="86" count="40" type="stmt"/>
-        <line num="87" count="40" type="stmt"/>
-        <line num="88" count="39" type="stmt"/>
+        <line num="66" count="45" type="stmt"/>
+        <line num="75" count="41" type="stmt"/>
+        <line num="76" count="41" type="cond" truecount="2" falsecount="0"/>
+        <line num="77" count="80" type="stmt"/>
+        <line num="78" count="40" type="stmt"/>
+        <line num="79" count="40" type="stmt"/>
+        <line num="80" count="40" type="stmt"/>
+        <line num="86" count="41" type="stmt"/>
+        <line num="87" count="41" type="stmt"/>
+        <line num="88" count="40" type="stmt"/>
         <line num="92" count="1" type="stmt"/>
         <line num="97" count="2" type="stmt"/>
         <line num="98" count="2" type="stmt"/>
@@ -3666,7 +3744,7 @@
         <line num="106" count="1" type="cond" truecount="2" falsecount="0"/>
         <line num="110" count="1" type="cond" truecount="2" falsecount="0"/>
       </file>
-      <file name="copilotStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/copilotStore.ts">
+      <file name="copilotStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/copilotStore.ts">
         <metrics statements="50" coveredstatements="50" conditionals="21" coveredconditionals="21" methods="10" coveredmethods="10"/>
         <line num="32" count="3" type="stmt"/>
         <line num="34" count="3" type="stmt"/>
@@ -3719,7 +3797,7 @@
         <line num="137" count="6" type="stmt"/>
         <line num="138" count="6" type="stmt"/>
       </file>
-      <file name="diffStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/diffStore.ts">
+      <file name="diffStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/diffStore.ts">
         <metrics statements="47" coveredstatements="47" conditionals="18" coveredconditionals="18" methods="22" coveredmethods="22"/>
         <line num="36" count="6" type="stmt"/>
         <line num="37" count="6" type="stmt"/>
@@ -3769,7 +3847,7 @@
         <line num="160" count="2" type="cond" truecount="2" falsecount="0"/>
         <line num="161" count="1" type="stmt"/>
       </file>
-      <file name="fileTreeStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/fileTreeStore.ts">
+      <file name="fileTreeStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/fileTreeStore.ts">
         <metrics statements="28" coveredstatements="28" conditionals="12" coveredconditionals="12" methods="11" coveredmethods="11"/>
         <line num="17" count="3" type="stmt"/>
         <line num="18" count="3" type="stmt"/>
@@ -3800,7 +3878,7 @@
         <line num="81" count="3" type="stmt"/>
         <line num="83" count="5" type="stmt"/>
       </file>
-      <file name="fileViewerStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/fileViewerStore.ts">
+      <file name="fileViewerStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/fileViewerStore.ts">
         <metrics statements="62" coveredstatements="62" conditionals="49" coveredconditionals="49" methods="36" coveredmethods="36"/>
         <line num="46" count="29" type="stmt"/>
         <line num="50" count="25" type="stmt"/>
@@ -3865,7 +3943,7 @@
         <line num="290" count="2" type="stmt"/>
         <line num="292" count="3" type="cond" truecount="2" falsecount="0"/>
       </file>
-      <file name="historyStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/historyStore.ts">
+      <file name="historyStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/historyStore.ts">
         <metrics statements="12" coveredstatements="12" conditionals="6" coveredconditionals="6" methods="6" coveredmethods="6"/>
         <line num="15" count="2" type="stmt"/>
         <line num="17" count="2" type="stmt"/>
@@ -3880,7 +3958,7 @@
         <line num="44" count="5" type="stmt"/>
         <line num="49" count="2" type="cond" truecount="2" falsecount="0"/>
       </file>
-      <file name="linearStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/linearStore.ts">
+      <file name="linearStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/linearStore.ts">
         <metrics statements="23" coveredstatements="23" conditionals="2" coveredconditionals="2" methods="9" coveredmethods="9"/>
         <line num="29" count="1" type="stmt"/>
         <line num="31" count="1" type="stmt"/>
@@ -3906,7 +3984,7 @@
         <line num="87" count="2" type="stmt"/>
         <line num="88" count="2" type="stmt"/>
       </file>
-      <file name="mergeStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/mergeStore.ts">
+      <file name="mergeStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/mergeStore.ts">
         <metrics statements="109" coveredstatements="109" conditionals="20" coveredconditionals="20" methods="55" coveredmethods="55"/>
         <line num="85" count="9" type="stmt"/>
         <line num="86" count="9" type="stmt"/>
@@ -4018,7 +4096,7 @@
         <line num="421" count="1" type="stmt"/>
         <line num="423" count="2" type="stmt"/>
       </file>
-      <file name="notificationStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/notificationStore.ts">
+      <file name="notificationStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/notificationStore.ts">
         <metrics statements="22" coveredstatements="22" conditionals="2" coveredconditionals="2" methods="19" coveredmethods="19"/>
         <line num="43" count="4" type="stmt"/>
         <line num="44" count="4" type="stmt"/>
@@ -4043,7 +4121,7 @@
         <line num="98" count="3" type="stmt"/>
         <line num="100" count="1" type="stmt"/>
       </file>
-      <file name="prStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/prStore.ts">
+      <file name="prStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/prStore.ts">
         <metrics statements="123" coveredstatements="123" conditionals="59" coveredconditionals="59" methods="48" coveredmethods="48"/>
         <line num="55" count="6" type="stmt"/>
         <line num="56" count="6" type="stmt"/>
@@ -4169,7 +4247,7 @@
         <line num="369" count="2" type="cond" truecount="2" falsecount="0"/>
         <line num="373" count="2" type="cond" truecount="2" falsecount="0"/>
       </file>
-      <file name="repositoryStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/repositoryStore.ts">
+      <file name="repositoryStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/repositoryStore.ts">
         <metrics statements="31" coveredstatements="31" conditionals="0" coveredconditionals="0" methods="7" coveredmethods="7"/>
         <line num="23" count="9" type="stmt"/>
         <line num="29" count="107" type="stmt"/>
@@ -4203,7 +4281,7 @@
         <line num="77" count="2" type="stmt"/>
         <line num="79" count="1" type="stmt"/>
       </file>
-      <file name="scriptStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/scriptStore.ts">
+      <file name="scriptStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/scriptStore.ts">
         <metrics statements="37" coveredstatements="37" conditionals="16" coveredconditionals="16" methods="23" coveredmethods="23"/>
         <line num="31" count="18" type="stmt"/>
         <line num="34" count="5" type="stmt"/>
@@ -4243,7 +4321,7 @@
         <line num="153" count="1" type="cond" truecount="2" falsecount="0"/>
         <line num="157" count="1" type="cond" truecount="2" falsecount="0"/>
       </file>
-      <file name="settingsStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/settingsStore.ts">
+      <file name="settingsStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/settingsStore.ts">
         <metrics statements="41" coveredstatements="41" conditionals="0" coveredconditionals="0" methods="8" coveredmethods="8"/>
         <line num="33" count="3" type="stmt"/>
         <line num="41" count="5" type="stmt"/>
@@ -4287,7 +4365,7 @@
         <line num="110" count="1" type="stmt"/>
         <line num="111" count="1" type="stmt"/>
       </file>
-      <file name="slashCommandStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/slashCommandStore.ts">
+      <file name="slashCommandStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/slashCommandStore.ts">
         <metrics statements="17" coveredstatements="17" conditionals="9" coveredconditionals="9" methods="10" coveredmethods="10"/>
         <line num="21" count="11" type="stmt"/>
         <line num="23" count="11" type="stmt"/>
@@ -4307,7 +4385,7 @@
         <line num="66" count="3" type="stmt"/>
         <line num="67" count="4" type="stmt"/>
       </file>
-      <file name="stashStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/stashStore.ts">
+      <file name="stashStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/stashStore.ts">
         <metrics statements="46" coveredstatements="46" conditionals="4" coveredconditionals="4" methods="27" coveredmethods="27"/>
         <line num="34" count="3" type="stmt"/>
         <line num="36" count="3" type="stmt"/>
@@ -4356,7 +4434,7 @@
         <line num="172" count="1" type="stmt"/>
         <line num="179" count="1" type="stmt"/>
       </file>
-      <file name="toastStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/toastStore.ts">
+      <file name="toastStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/toastStore.ts">
         <metrics statements="11" coveredstatements="11" conditionals="5" coveredconditionals="5" methods="9" coveredmethods="9"/>
         <line num="22" count="13" type="stmt"/>
         <line num="24" count="13" type="stmt"/>
@@ -4370,19 +4448,19 @@
         <line num="43" count="2" type="stmt"/>
         <line num="44" count="3" type="stmt"/>
       </file>
-      <file name="todoStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/todoStore.ts">
+      <file name="todoStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/todoStore.ts">
         <metrics statements="53" coveredstatements="53" conditionals="34" coveredconditionals="34" methods="32" coveredmethods="32"/>
         <line num="36" count="6" type="stmt"/>
         <line num="38" count="6" type="stmt"/>
-        <line num="44" count="183" type="cond" truecount="2" falsecount="0"/>
-        <line num="45" count="182" type="stmt"/>
-        <line num="46" count="182" type="stmt"/>
-        <line num="47" count="182" type="stmt"/>
-        <line num="51" count="182" type="stmt"/>
-        <line num="52" count="182" type="stmt"/>
-        <line num="53" count="180" type="stmt"/>
+        <line num="44" count="184" type="cond" truecount="2" falsecount="0"/>
+        <line num="45" count="183" type="stmt"/>
+        <line num="46" count="183" type="stmt"/>
+        <line num="47" count="183" type="stmt"/>
+        <line num="51" count="183" type="stmt"/>
+        <line num="52" count="183" type="stmt"/>
+        <line num="53" count="181" type="stmt"/>
         <line num="58" count="2" type="stmt"/>
-        <line num="65" count="182" type="stmt"/>
+        <line num="65" count="183" type="stmt"/>
         <line num="70" count="2" type="stmt"/>
         <line num="71" count="2" type="stmt"/>
         <line num="72" count="1" type="stmt"/>
@@ -4426,7 +4504,7 @@
         <line num="195" count="2" type="stmt"/>
         <line num="199" count="4" type="cond" truecount="2" falsecount="0"/>
       </file>
-      <file name="uiStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/uiStore.ts">
+      <file name="uiStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/uiStore.ts">
         <metrics statements="37" coveredstatements="37" conditionals="21" coveredconditionals="21" methods="18" coveredmethods="18"/>
         <line num="15" count="8" type="stmt"/>
         <line num="41" count="8" type="stmt"/>
@@ -4466,7 +4544,7 @@
         <line num="109" count="1" type="stmt"/>
         <line num="111" count="2" type="cond" truecount="2" falsecount="0"/>
       </file>
-      <file name="workspaceStore.ts" path="/Users/tyler/Code/workspaces/fury/surat/src/stores/workspaceStore.ts">
+      <file name="workspaceStore.ts" path="/Users/tyler/Code/workspaces/fury/sao-paulo/src/stores/workspaceStore.ts">
         <metrics statements="52" coveredstatements="52" conditionals="18" coveredconditionals="18" methods="18" coveredmethods="18"/>
         <line num="35" count="18" type="stmt"/>
         <line num="44" count="107" type="stmt"/>

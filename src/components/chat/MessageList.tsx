@@ -113,6 +113,8 @@ interface Props {
   agentStatus: AgentStatus;
   onRetry?: () => void;
   highlightMessageId?: string | null;
+  contextId?: string;
+  contextType?: "workspace" | "repo";
 }
 
 export function MessageList({
@@ -121,6 +123,8 @@ export function MessageList({
   agentStatus,
   onRetry,
   highlightMessageId,
+  contextId,
+  contextType,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [expandedTurns, setExpandedTurns] = useState<Set<string>>(new Set());
@@ -170,7 +174,7 @@ export function MessageList({
       {/* Render any orphaned messages before the first user message */}
       {orphans.map((msg) => (
         <div key={msg.id} data-message-id={msg.id} className={highlightMessageId === msg.id ? "search-highlight" : ""}>
-          <MessageBubble message={msg} />
+          <MessageBubble message={msg} contextId={contextId} contextType={contextType} />
         </div>
       ))}
 
@@ -189,7 +193,7 @@ export function MessageList({
         // User message — always visible
         elements.push(
           <div key={turn.userMessage.id} data-message-id={turn.userMessage.id} className={highlightMessageId === turn.userMessage.id ? "search-highlight" : ""}>
-            <MessageBubble message={turn.userMessage} />
+            <MessageBubble message={turn.userMessage} contextId={contextId} contextType={contextType} />
           </div>,
         );
 
@@ -211,7 +215,7 @@ export function MessageList({
             for (const msg of turn.responses) {
               elements.push(
                 <div key={msg.id} data-message-id={msg.id} className={highlightMessageId === msg.id ? "search-highlight" : ""}>
-                  <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} />
+                  <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} contextId={contextId} contextType={contextType} />
                 </div>,
               );
             }
@@ -226,7 +230,7 @@ export function MessageList({
               };
               elements.push(
                 <div key={stats.finalTextMessage.id} data-message-id={stats.finalTextMessage.id} className={highlightMessageId === stats.finalTextMessage.id ? "search-highlight" : ""}>
-                  <MessageBubble message={textOnly} />
+                  <MessageBubble message={textOnly} contextId={contextId} contextType={contextType} />
                 </div>,
               );
             }
@@ -236,7 +240,7 @@ export function MessageList({
           for (const msg of turn.responses) {
             elements.push(
               <div key={msg.id} data-message-id={msg.id} className={highlightMessageId === msg.id ? "search-highlight" : ""}>
-                <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} />
+                <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} contextId={contextId} contextType={contextType} />
               </div>,
             );
           }
@@ -251,7 +255,7 @@ export function MessageList({
           className="mb-3 text-[15px] break-words"
           style={{ color: "var(--text-primary)" }}
         >
-          <MarkdownContent content={streamingText} />
+          <MarkdownContent content={streamingText} contextId={contextId} contextType={contextType} />
           <span
             className="inline-block h-4 w-1 animate-pulse"
             style={{ backgroundColor: "var(--accent)" }}

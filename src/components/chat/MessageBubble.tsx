@@ -448,9 +448,11 @@ function formatToolDetail(normalized: string, input: unknown, result: { content:
 interface Props {
   message: ChatMessage;
   onRetry?: () => void;
+  contextId?: string;
+  contextType?: "workspace" | "repo";
 }
 
-export function MessageBubble({ message, onRetry }: Props) {
+export function MessageBubble({ message, onRetry, contextId, contextType }: Props) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
   const groups = groupContentBlocks(message.content);
@@ -549,7 +551,7 @@ export function MessageBubble({ message, onRetry }: Props) {
         group.kind === "text" ? (
           group.blocks.map((block, j) => (
             <div key={`${i}-${j}`} className="mb-1 break-words">
-              <MarkdownContent content={block.text} />
+              <MarkdownContent content={block.text} contextId={contextId} contextType={contextType} />
             </div>
           ))
         ) : (

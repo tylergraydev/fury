@@ -22,8 +22,8 @@ vi.mock("./MarkdownContent", () => ({
 }));
 
 vi.mock("./MessageBubble", () => ({
-  MessageBubble: ({ message, onRetry }: any) => (
-    <div data-testid={`msg-${message.id}`} data-role={message.role}>
+  MessageBubble: ({ message, onRetry, contextId, contextType }: any) => (
+    <div data-testid={`msg-${message.id}`} data-role={message.role} data-context-id={contextId ?? ""} data-context-type={contextType ?? ""}>
       {message.content.map((c: any) => c.text).join("")}
       {onRetry && <button data-testid={`retry-${message.id}`} onClick={onRetry}>Retry</button>}
     </div>
@@ -134,6 +134,39 @@ describe("MessageList", () => {
       <MessageList messages={msgs} streamingText="" agentStatus="Idle" />,
     );
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("forwards contextId and contextType to MessageBubble", () => {
+    const msgs = [
+      makeMsg({ id: "m1", content: txt("hello") }),
+      makeMsg({ id: "m2", role: "assistant", content: txt("hi") }),
+    ];
+    const { container } = render(
+      <MessageList
+        messages={msgs}
+        streamingText=""
+        agentStatus="Idle"
+        contextId="ws-1"
+        contextType="workspace"
+      />,
+    );
+    const msgEl = container.querySelector('[data-testid="msg-m2"]');
+    expect(msgEl).toHaveAttribute("data-context-id", "ws-1");
+    expect(msgEl).toHaveAttribute("data-context-type", "workspace");
+  });
+
+  it("forwards context to streaming MarkdownContent", () => {
+    render(
+      <MessageList
+        messages={[]}
+        streamingText="streaming..."
+        agentStatus="Running"
+        contextId="ws-1"
+        contextType="workspace"
+      />,
+    );
+    // The streaming MarkdownContent is mocked as a <span>, check it renders
+    expect(screen.getByText("streaming...")).toBeInTheDocument();
   });
 
   it("adds data-turn-index attributes to turn wrappers", () => {

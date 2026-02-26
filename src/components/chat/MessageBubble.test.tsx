@@ -29,7 +29,9 @@ vi.mock("lucide-react", () => ({
 
 // Mock MarkdownContent
 vi.mock("./MarkdownContent", () => ({
-  MarkdownContent: ({ content }: { content: string }) => <span>{content}</span>,
+  MarkdownContent: ({ content, contextId, contextType }: { content: string; contextId?: string; contextType?: string }) => (
+    <span data-context-id={contextId ?? ""} data-context-type={contextType ?? ""}>{content}</span>
+  ),
 }));
 
 // Mock readFileBase64
@@ -1724,6 +1726,24 @@ describe("MessageBubble", () => {
       />,
     );
     expect(screen.getByText("Run the tests")).toBeInTheDocument();
+  });
+
+  // --- Context forwarding ---
+
+  it("forwards contextId and contextType to MarkdownContent for assistant messages", () => {
+    const { container } = render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [{ type: "text", text: "response" }],
+        })}
+        contextId="ws-123"
+        contextType="workspace"
+      />,
+    );
+    const span = container.querySelector("[data-context-id='ws-123']");
+    expect(span).toBeInTheDocument();
+    expect(span).toHaveAttribute("data-context-type", "workspace");
   });
 
   // --- Multiple attachments ---
