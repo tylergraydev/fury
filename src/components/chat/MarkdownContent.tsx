@@ -183,12 +183,12 @@ function buildComponents(
 }
 
 export function MarkdownContent({ content, contextId, contextType }: Props) {
-  if (!content) return null;
-
   const components = useMemo(
     () => buildComponents(content, contextId, contextType),
     [content, contextId, contextType],
   );
+
+  if (!content) return null;
 
   return (
     <MarkdownErrorBoundary
