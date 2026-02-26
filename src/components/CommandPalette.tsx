@@ -149,6 +149,12 @@ export function CommandPalette({
                 <PaletteItem onSelect={() => run("view-history")}>
                   Open History
                 </PaletteItem>
+                <PaletteItem
+                  onSelect={() => run("toggle-notifications")}
+                  shortcut={shortcutFor("toggle-notifications")}
+                >
+                  Toggle Notifications
+                </PaletteItem>
               </CommandGroup>
 
               <CommandSeparator style={{ height: 1, backgroundColor: "var(--border)", margin: "4px 0" }} />

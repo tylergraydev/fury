@@ -7,7 +7,7 @@ Feature suggestions and priorities for future development.
 ## Tier 1 — High Impact
 
 ### 1. Conversation Search
-**Status:** Up Next
+**Status:** Done
 Full-text search across all chat history within a workspace or across all workspaces. Chat history is already in SQLite — needs FTS indexing and a search UI.
 
 ### 2. Inline Code Actions from Chat
@@ -23,7 +23,7 @@ Run multiple AI agents in the same workspace simultaneously. The `agent_teams` e
 UI for stashing and unstashing changes, viewing stash contents. Currently requires dropping to terminal.
 
 ### 5. Notification Center
-**Status:** Planned
+**Status:** Done
 Centralized notification panel for PR check completions, agent task completions, build failures, merge conflicts across workspaces.
 
 ---

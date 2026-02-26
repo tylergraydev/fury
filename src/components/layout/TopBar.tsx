@@ -2,6 +2,7 @@ import { ChevronRight, GitBranch } from "lucide-react";
 import type { Repository, WorkspaceInfo } from "../../lib/tauri";
 import { isMac } from "../../lib/keybindings";
 import { useAgentStore } from "../../stores/agentStore";
+import { NotificationBell } from "../notifications/NotificationBell";
 
 interface Props {
   activeWs: WorkspaceInfo | undefined;
@@ -83,6 +84,8 @@ export function TopBar({ activeWs, activeRepo }: Props) {
           <span className="font-semibold">Fury</span>
         </>
       )}
+      <div className="flex-1" />
+      <NotificationBell />
     </div>
   );
 }

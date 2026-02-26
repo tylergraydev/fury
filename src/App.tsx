@@ -27,6 +27,9 @@ import { useAutoUpdate } from "./lib/autoUpdate";
 import { applyTheme } from "./lib/themes";
 import { startIpcFlush, stopIpcFlush } from "./lib/ipcInstrumentation";
 import { startFrameMonitor, stopFrameMonitor } from "./lib/frameMonitor";
+import { NotificationPanel } from "./components/notifications/NotificationPanel";
+import { useNotificationStore } from "./stores/notificationStore";
+import { initNotificationListeners } from "./lib/notificationListeners";
 import "./App.css";
 
 export type SidebarContext =
@@ -108,13 +111,15 @@ function App() {
       .catch((e) => console.error("Failed to load app settings:", e));
   }, []);
 
-  // Start perf instrumentation — always on, backend gates storage via its enabled flag
+  // Start perf instrumentation and notification listeners
   useEffect(() => {
     startIpcFlush();
     startFrameMonitor();
+    const cleanupNotifications = initNotificationListeners();
     return () => {
       stopIpcFlush();
       stopFrameMonitor();
+      cleanupNotifications();
     };
   }, []);
 
@@ -192,6 +197,9 @@ function App() {
       case "right-sidebar-checks":
         ui.setRightSidebarTab("checks");
         ui.ensureRightSidebarVisible();
+        break;
+      case "toggle-notifications":
+        useNotificationStore.getState().togglePanel();
         break;
       case "new-workspace":
         setShowPalette(true);
@@ -341,6 +349,7 @@ function App() {
         mode={paletteMode}
       />
 
+      <NotificationPanel />
       <ToastContainer />
     </div>
   );
