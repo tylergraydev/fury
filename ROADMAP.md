@@ -11,11 +11,11 @@ Feature suggestions and priorities for future development.
 Full-text search across all chat history within a workspace or across all workspaces. Chat history is already in SQLite — needs FTS indexing and a search UI.
 
 ### 2. Inline Code Actions from Chat
-**Status:** Planned
+**Status:** Done
 When the agent suggests code changes in chat, add one-click "Apply" buttons to apply diffs directly to files without copy-pasting.
 
 ### 3. Multi-Agent Orchestration
-**Status:** Planned
+**Status:** Done
 Run multiple AI agents in the same workspace simultaneously. The `agent_teams` experimental flag already exists but isn't shipped.
 
 ### 4. Git Stash Management

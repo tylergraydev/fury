@@ -25,7 +25,13 @@ interface AgentStore {
     disableThinking?: boolean,
     disablePlanMode?: boolean,
   ) => Promise<void>;
+  broadcastMessage: (
+    workspaceIds: string[],
+    message: string,
+    model?: string,
+  ) => Promise<{ succeeded: string[]; failed: { workspaceId: string; error: string }[] }>;
   stopAgent: (workspaceId: string) => Promise<void>;
+  stopAllAgents: (workspaceIds: string[]) => Promise<void>;
   fetchStatus: (workspaceId: string) => Promise<void>;
 }
 
@@ -96,6 +102,28 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     }
   },
 
+  broadcastMessage: async (
+    workspaceIds: string[],
+    message: string,
+    model?: string,
+  ) => {
+    const succeeded: string[] = [];
+    const failed: { workspaceId: string; error: string }[] = [];
+    const results = await Promise.allSettled(
+      workspaceIds.map((id) =>
+        sendMessageCmd({ workspaceId: id, message, model: model || undefined }),
+      ),
+    );
+    results.forEach((result, i) => {
+      if (result.status === "fulfilled") {
+        succeeded.push(workspaceIds[i]);
+      } else {
+        failed.push({ workspaceId: workspaceIds[i], error: String(result.reason) });
+      }
+    });
+    return { succeeded, failed };
+  },
+
   stopAgent: async (workspaceId: string) => {
     try {
       await stopAgentCmd(workspaceId);
@@ -103,6 +131,10 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       console.error(`[agentStore] Failed to stop agent:`, e);
       throw e;
     }
+  },
+
+  stopAllAgents: async (workspaceIds: string[]) => {
+    await Promise.allSettled(workspaceIds.map((id) => stopAgentCmd(id)));
   },
 
   fetchStatus: async (workspaceId: string) => {

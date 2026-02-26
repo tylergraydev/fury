@@ -14,6 +14,7 @@ vi.mock("lucide-react", () => ({
   GitMerge: ({ className }: { className?: string }) => <span className={className} data-testid="merge-icon" />,
   History: ({ className }: { className?: string }) => <span className={className} data-testid="history-icon" />,
   FileDiff: ({ className }: { className?: string }) => <span className={className} data-testid="diff-icon" />,
+  Users: ({ className }: { className?: string }) => <span className={className} data-testid="team-icon" />,
 }));
 
 import { FileTabBar } from "./FileTabBar";

@@ -147,6 +147,63 @@ describe("agentStore - stopAgent", () => {
   });
 });
 
+describe("agentStore - broadcastMessage", () => {
+  it("sends messages to all workspace IDs", async () => {
+    vi.mocked(sendMessageCmd).mockResolvedValue(undefined);
+    const result = await useAgentStore.getState().broadcastMessage(
+      ["ws-1", "ws-2"],
+      "build the feature",
+    );
+    expect(sendMessageCmd).toHaveBeenCalledTimes(2);
+    expect(sendMessageCmd).toHaveBeenCalledWith({ workspaceId: "ws-1", message: "build the feature" });
+    expect(sendMessageCmd).toHaveBeenCalledWith({ workspaceId: "ws-2", message: "build the feature" });
+    expect(result.succeeded).toEqual(["ws-1", "ws-2"]);
+    expect(result.failed).toEqual([]);
+  });
+
+  it("collects failures for rejected sends", async () => {
+    vi.mocked(sendMessageCmd)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("Agent is already processing a message"));
+    const result = await useAgentStore.getState().broadcastMessage(
+      ["ws-1", "ws-2"],
+      "hello",
+    );
+    expect(result.succeeded).toEqual(["ws-1"]);
+    expect(result.failed).toEqual([
+      { workspaceId: "ws-2", error: "Error: Agent is already processing a message" },
+    ]);
+  });
+
+  it("passes model when provided", async () => {
+    vi.mocked(sendMessageCmd).mockResolvedValue(undefined);
+    await useAgentStore.getState().broadcastMessage(["ws-1"], "hello", "opus");
+    expect(sendMessageCmd).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      message: "hello",
+      model: "opus",
+    });
+  });
+});
+
+describe("agentStore - stopAllAgents", () => {
+  it("calls stopAgent for all workspace IDs", async () => {
+    vi.mocked(stopAgentCmd).mockResolvedValue(undefined);
+    await useAgentStore.getState().stopAllAgents(["ws-1", "ws-2"]);
+    expect(stopAgentCmd).toHaveBeenCalledTimes(2);
+    expect(stopAgentCmd).toHaveBeenCalledWith("ws-1");
+    expect(stopAgentCmd).toHaveBeenCalledWith("ws-2");
+  });
+
+  it("does not throw when some stop calls fail", async () => {
+    vi.mocked(stopAgentCmd)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("already stopped"));
+    await useAgentStore.getState().stopAllAgents(["ws-1", "ws-2"]);
+    // Should not throw
+  });
+});
+
 describe("agentStore - fetchStatus", () => {
   it("fetches and stores agent info", async () => {
     const info = {
