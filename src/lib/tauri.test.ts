@@ -117,6 +117,34 @@ import {
   continueMerge,
   crossWorktreeDiff,
   getCrossWorktreeFileDiff,
+  // Permission commands
+  respondToPermission,
+  // File content reading (additional)
+  readFileBase64,
+  // PR review commands
+  getPrReviews,
+  getPrReviewComments,
+  // Workflow commands
+  getWorkflowRuns,
+  getRunJobs,
+  getRunLogs,
+  rerunWorkflow,
+  // Claude Context indexing commands
+  indexRepository,
+  getIndexingStatus,
+  listIndexingStatuses,
+  // Workspace pinning
+  setWorkspacePinned,
+  // PR/Issue list commands
+  listRepoPrs,
+  listRepoIssues,
+  getPrDetails,
+  getIssueDetails,
+  // Linear commands
+  searchLinearIssues,
+  linkIssueToWorkspace,
+  unlinkIssueFromWorkspace,
+  getWorkspaceIssues,
 } from "./tauri";
 import type { ChatMessage, PersistedChatMessage } from "./tauri";
 
@@ -1079,5 +1107,254 @@ describe("Merge/branch commands", () => {
       filePath: "shared.ts",
     });
     expect(result).toEqual(fileDiff);
+  });
+});
+
+// ─── Permission commands ────────────────────────────────────────────────────
+
+describe("Permission commands", () => {
+  it("respondToPermission calls invoke with respond_to_permission", async () => {
+    await respondToPermission("w1", true);
+    expect(invoke).toHaveBeenCalledWith("respond_to_permission", { workspaceId: "w1", approved: true });
+  });
+
+  it("respondToPermission passes approved=false", async () => {
+    await respondToPermission("w1", false);
+    expect(invoke).toHaveBeenCalledWith("respond_to_permission", { workspaceId: "w1", approved: false });
+  });
+});
+
+// ─── File content reading (additional) ──────────────────────────────────────
+
+describe("File content reading (additional)", () => {
+  it("readFileBase64 calls invoke with read_file_base64", async () => {
+    (invoke as any).mockResolvedValueOnce("base64data==");
+    const result = await readFileBase64("/path/to/image.png");
+    expect(invoke).toHaveBeenCalledWith("read_file_base64", { filePath: "/path/to/image.png" });
+    expect(result).toBe("base64data==");
+  });
+});
+
+// ─── PR review commands ─────────────────────────────────────────────────────
+
+describe("PR review commands", () => {
+  it("getPrReviews calls invoke with get_pr_reviews", async () => {
+    const reviews = [{ id: 1, author: "bob", state: "APPROVED", body: "LGTM", submittedAt: "2024-01-01" }];
+    (invoke as any).mockResolvedValueOnce(reviews);
+    const result = await getPrReviews("w1");
+    expect(invoke).toHaveBeenCalledWith("get_pr_reviews", { workspaceId: "w1" });
+    expect(result).toEqual(reviews);
+  });
+
+  it("getPrReviewComments calls invoke with get_pr_review_comments", async () => {
+    const comments = [{ id: 1, author: "bob", body: "Fix this", createdAt: "2024-01-01", path: "src/a.ts", line: 10 }];
+    (invoke as any).mockResolvedValueOnce(comments);
+    const result = await getPrReviewComments("w1");
+    expect(invoke).toHaveBeenCalledWith("get_pr_review_comments", { workspaceId: "w1" });
+    expect(result).toEqual(comments);
+  });
+});
+
+// ─── Workflow commands ──────────────────────────────────────────────────────
+
+describe("Workflow commands", () => {
+  it("getWorkflowRuns calls invoke with get_workflow_runs", async () => {
+    const runs = [{ id: 1, name: "CI", workflowName: "ci.yml", status: "completed", conclusion: "success", event: "push", createdAt: "2024-01-01" }];
+    (invoke as any).mockResolvedValueOnce(runs);
+    const result = await getWorkflowRuns("w1");
+    expect(invoke).toHaveBeenCalledWith("get_workflow_runs", { workspaceId: "w1" });
+    expect(result).toEqual(runs);
+  });
+
+  it("getRunJobs calls invoke with get_run_jobs", async () => {
+    const jobs = [{ id: 1, name: "build", status: "completed", conclusion: "success", steps: [] }];
+    (invoke as any).mockResolvedValueOnce(jobs);
+    const result = await getRunJobs("w1", 123);
+    expect(invoke).toHaveBeenCalledWith("get_run_jobs", { workspaceId: "w1", runId: 123 });
+    expect(result).toEqual(jobs);
+  });
+
+  it("getRunLogs calls invoke with get_run_logs", async () => {
+    const logs = { logs: "build output...", truncated: false };
+    (invoke as any).mockResolvedValueOnce(logs);
+    const result = await getRunLogs("w1", 123, true);
+    expect(invoke).toHaveBeenCalledWith("get_run_logs", { workspaceId: "w1", runId: 123, failedOnly: true });
+    expect(result).toEqual(logs);
+  });
+
+  it("rerunWorkflow calls invoke with rerun_workflow", async () => {
+    await rerunWorkflow("w1", 123, false);
+    expect(invoke).toHaveBeenCalledWith("rerun_workflow", { workspaceId: "w1", runId: 123, failedOnly: false });
+  });
+});
+
+// ─── Claude Context indexing commands ───────────────────────────────────────
+
+describe("Claude Context indexing commands", () => {
+  it("indexRepository calls invoke with index_repository", async () => {
+    await indexRepository("r1");
+    expect(invoke).toHaveBeenCalledWith("index_repository", { repoId: "r1" });
+  });
+
+  it("getIndexingStatus calls invoke with get_indexing_status", async () => {
+    const status = { repoId: "r1", repoPath: "/path", status: "indexed" as const, error: null, lastIndexedAt: "2024-01-01" };
+    (invoke as any).mockResolvedValueOnce(status);
+    const result = await getIndexingStatus("r1");
+    expect(invoke).toHaveBeenCalledWith("get_indexing_status", { repoId: "r1" });
+    expect(result).toEqual(status);
+  });
+
+  it("listIndexingStatuses calls invoke with list_indexing_statuses", async () => {
+    (invoke as any).mockResolvedValueOnce([]);
+    const result = await listIndexingStatuses();
+    expect(invoke).toHaveBeenCalledWith("list_indexing_statuses");
+    expect(result).toEqual([]);
+  });
+});
+
+// ─── Workspace pinning commands ─────────────────────────────────────────────
+
+describe("Workspace pinning commands", () => {
+  it("setWorkspacePinned calls invoke with set_workspace_pinned", async () => {
+    await setWorkspacePinned("w1", true);
+    expect(invoke).toHaveBeenCalledWith("set_workspace_pinned", { workspaceId: "w1", pinned: true });
+  });
+
+  it("setWorkspacePinned calls invoke with pinned=false", async () => {
+    await setWorkspacePinned("w1", false);
+    expect(invoke).toHaveBeenCalledWith("set_workspace_pinned", { workspaceId: "w1", pinned: false });
+  });
+});
+
+// ─── PR/Issue list commands ─────────────────────────────────────────────────
+
+describe("PR/Issue list commands", () => {
+  it("listRepoPrs calls invoke with list_repo_prs", async () => {
+    const prs = [{ number: 1, title: "PR 1", headBranch: "feature", baseBranch: "main", state: "open", author: "bob", url: "https://github.com/test/repo/pull/1" }];
+    (invoke as any).mockResolvedValueOnce(prs);
+    const result = await listRepoPrs("r1");
+    expect(invoke).toHaveBeenCalledWith("list_repo_prs", { repoId: "r1" });
+    expect(result).toEqual(prs);
+  });
+
+  it("listRepoIssues calls invoke with list_repo_issues", async () => {
+    const issues = [{ number: 1, title: "Bug", body: "Fix it", state: "open", labels: ["bug"] }];
+    (invoke as any).mockResolvedValueOnce(issues);
+    const result = await listRepoIssues("r1");
+    expect(invoke).toHaveBeenCalledWith("list_repo_issues", { repoId: "r1" });
+    expect(result).toEqual(issues);
+  });
+
+  it("getPrDetails calls invoke with get_pr_details", async () => {
+    const detail = { number: 1, title: "PR 1", headBranch: "feature", baseBranch: "main", body: "Details", state: "open", url: "https://github.com/test/repo/pull/1" };
+    (invoke as any).mockResolvedValueOnce(detail);
+    const result = await getPrDetails("r1", 1);
+    expect(invoke).toHaveBeenCalledWith("get_pr_details", { repoId: "r1", prNumber: 1 });
+    expect(result).toEqual(detail);
+  });
+
+  it("getIssueDetails calls invoke with get_issue_details", async () => {
+    const detail = { number: 42, title: "Bug", body: "Something broke", state: "open", labels: ["bug"] };
+    (invoke as any).mockResolvedValueOnce(detail);
+    const result = await getIssueDetails("r1", 42);
+    expect(invoke).toHaveBeenCalledWith("get_issue_details", { repoId: "r1", issueNumber: 42 });
+    expect(result).toEqual(detail);
+  });
+});
+
+// ─── Linear commands ────────────────────────────────────────────────────────
+
+describe("Linear commands", () => {
+  it("searchLinearIssues calls invoke with search_linear_issues", async () => {
+    const issues = [{ id: "i1", identifier: "ENG-1", title: "Bug", url: "u", stateName: null, priority: null, teamName: null, description: null }];
+    (invoke as any).mockResolvedValueOnce(issues);
+    const result = await searchLinearIssues("bug fix");
+    expect(invoke).toHaveBeenCalledWith("search_linear_issues", { query: "bug fix" });
+    expect(result).toEqual(issues);
+  });
+
+  it("linkIssueToWorkspace calls invoke with link_issue_to_workspace", async () => {
+    const request = { workspaceId: "w1", issueId: "i1", identifier: "ENG-1", title: "Bug", url: "u" };
+    await linkIssueToWorkspace(request);
+    expect(invoke).toHaveBeenCalledWith("link_issue_to_workspace", { request });
+  });
+
+  it("unlinkIssueFromWorkspace calls invoke with unlink_issue_from_workspace", async () => {
+    const request = { workspaceId: "w1", issueId: "i1" };
+    await unlinkIssueFromWorkspace(request);
+    expect(invoke).toHaveBeenCalledWith("unlink_issue_from_workspace", { request });
+  });
+
+  it("getWorkspaceIssues calls invoke with get_workspace_issues", async () => {
+    const issues = [{ issueId: "i1", workspaceId: "w1", identifier: "ENG-1", title: "Bug", url: "u", linkedAt: "2024-01-01" }];
+    (invoke as any).mockResolvedValueOnce(issues);
+    const result = await getWorkspaceIssues("w1");
+    expect(invoke).toHaveBeenCalledWith("get_workspace_issues", { workspaceId: "w1" });
+    expect(result).toEqual(issues);
+  });
+});
+
+// ─── toPersisted/fromPersisted with optional fields ─────────────────────────
+
+describe("toPersisted/fromPersisted with optional fields", () => {
+  it("toPersisted includes displayText when present", () => {
+    const msg: ChatMessage = {
+      id: "msg-dt",
+      role: "assistant",
+      content: [{ type: "text", text: "hi" }],
+      timestamp: 1704067200000,
+      displayText: "Hello!",
+    };
+    const result = toPersisted(msg, "ws-1");
+    expect(result.displayText).toBe("Hello!");
+  });
+
+  it("toPersisted omits displayText when not present", () => {
+    const msg: ChatMessage = {
+      id: "msg-nd",
+      role: "user",
+      content: [{ type: "text", text: "hi" }],
+      timestamp: 1704067200000,
+    };
+    const result = toPersisted(msg, "ws-1");
+    expect(result).not.toHaveProperty("displayText");
+  });
+
+  it("toPersisted includes metadata when present", () => {
+    const msg: ChatMessage = {
+      id: "msg-m",
+      role: "assistant",
+      content: [{ type: "text", text: "done" }],
+      timestamp: 1704067200000,
+      metadata: { totalCostUsd: 0.01, inputTokens: 100, outputTokens: 50 },
+    };
+    const result = toPersisted(msg, "ws-1");
+    expect(result.metadata).toEqual({ totalCostUsd: 0.01, inputTokens: 100, outputTokens: 50 });
+  });
+
+  it("fromPersisted includes displayText when present", () => {
+    const persisted: PersistedChatMessage = {
+      id: "msg-dt",
+      workspaceId: "ws-1",
+      role: "assistant",
+      content: [],
+      timestamp: "2024-01-01T00:00:00.000Z",
+      displayText: "Hello!",
+    };
+    const result = fromPersisted(persisted);
+    expect(result.displayText).toBe("Hello!");
+  });
+
+  it("fromPersisted includes metadata when present", () => {
+    const persisted: PersistedChatMessage = {
+      id: "msg-m",
+      workspaceId: "ws-1",
+      role: "assistant",
+      content: [],
+      timestamp: "2024-01-01T00:00:00.000Z",
+      metadata: { durationMs: 1000 },
+    };
+    const result = fromPersisted(persisted);
+    expect(result.metadata).toEqual({ durationMs: 1000 });
   });
 });

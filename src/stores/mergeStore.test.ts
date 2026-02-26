@@ -80,6 +80,20 @@ describe("mergeStore - loadBranchStatus", () => {
   });
 });
 
+describe("mergeStore - loadBranchStatus inflight dedup", () => {
+  it("deduplicates concurrent calls", async () => {
+    let resolve: (v: any) => void;
+    vi.mocked(getBranchStatus).mockImplementation(
+      () => new Promise((r) => { resolve = r; }),
+    );
+    const p1 = useMergeStore.getState().loadBranchStatus("ws-1");
+    const p2 = useMergeStore.getState().loadBranchStatus("ws-1");
+    resolve!(makeStatus());
+    await Promise.all([p1, p2]);
+    expect(getBranchStatus).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("mergeStore - fetchUpstream", () => {
   it("fetches and reloads branch status", async () => {
     const status = makeStatus({ behind: 2 });
@@ -265,6 +279,35 @@ describe("mergeStore - cross-worktree comparison", () => {
   });
 });
 
+describe("mergeStore - loadComparisonDiff inflight dedup", () => {
+  it("deduplicates concurrent calls", async () => {
+    let resolve: (v: any) => void;
+    useMergeStore.setState({ comparisonTarget: { "ws-1": "ws-2" } });
+    vi.mocked(crossWorktreeDiff).mockImplementation(
+      () => new Promise((r) => { resolve = r; }),
+    );
+    const p1 = useMergeStore.getState().loadComparisonDiff("ws-1");
+    const p2 = useMergeStore.getState().loadComparisonDiff("ws-1");
+    resolve!({ files: [] });
+    await Promise.all([p1, p2]);
+    expect(crossWorktreeDiff).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("mergeStore - loadConflictedFiles inflight dedup", () => {
+  it("deduplicates concurrent calls", async () => {
+    let resolve: (v: any) => void;
+    vi.mocked(getConflictedFiles).mockImplementation(
+      () => new Promise((r) => { resolve = r; }),
+    );
+    const p1 = useMergeStore.getState().loadConflictedFiles("ws-1");
+    const p2 = useMergeStore.getState().loadConflictedFiles("ws-1");
+    resolve!([]);
+    await Promise.all([p1, p2]);
+    expect(getConflictedFiles).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("mergeStore - conflicts", () => {
   it("loadConflictedFiles stores files", async () => {
     const files = [{ path: "a.ts", conflictType: "BothModified" }];
@@ -411,6 +454,12 @@ describe("mergeStore - setActiveSection", () => {
 });
 
 describe("mergeStore - syncBranch", () => {
+  it("is a no-op when already syncing", async () => {
+    useMergeStore.setState({ syncing: { "ws-1": true } });
+    await useMergeStore.getState().syncBranch("ws-1");
+    expect(fetchUpstream).not.toHaveBeenCalled();
+  });
+
   it("syncs successfully: fetch → pull → push → refresh status", async () => {
     const pullResult = {
       success: true,

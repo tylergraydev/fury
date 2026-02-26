@@ -57,6 +57,20 @@ describe("fileTreeStore - loadFiles", () => {
   });
 });
 
+describe("fileTreeStore - loadFiles inflight dedup", () => {
+  it("deduplicates concurrent calls", async () => {
+    let resolve: (v: any) => void;
+    vi.mocked(listWorkspaceFiles).mockImplementation(
+      () => new Promise((r) => { resolve = r; }),
+    );
+    const p1 = useFileTreeStore.getState().loadFiles("ws-1");
+    const p2 = useFileTreeStore.getState().loadFiles("ws-1");
+    resolve!(["a.ts"]);
+    await Promise.all([p1, p2]);
+    expect(listWorkspaceFiles).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("fileTreeStore - loadRepoFiles", () => {
   it("loads repo files", async () => {
     const files = ["Cargo.toml", "src/main.rs"];
@@ -72,6 +86,29 @@ describe("fileTreeStore - loadRepoFiles", () => {
     expect(useFileTreeStore.getState().error["repo-1"]).toBe(
       "Error: repo fail",
     );
+  });
+});
+
+describe("fileTreeStore - loadRepoFiles inflight dedup", () => {
+  it("deduplicates concurrent calls", async () => {
+    let resolve: (v: any) => void;
+    vi.mocked(listRepoFiles).mockImplementation(
+      () => new Promise((r) => { resolve = r; }),
+    );
+    const p1 = useFileTreeStore.getState().loadRepoFiles("repo-1");
+    const p2 = useFileTreeStore.getState().loadRepoFiles("repo-1");
+    resolve!(["main.rs"]);
+    await Promise.all([p1, p2]);
+    expect(listRepoFiles).toHaveBeenCalledTimes(1);
+  });
+
+  it("suppresses error when cached data exists", async () => {
+    vi.mocked(listRepoFiles).mockResolvedValue(["main.rs"]);
+    await useFileTreeStore.getState().loadRepoFiles("repo-1");
+
+    vi.mocked(listRepoFiles).mockRejectedValue(new Error("net"));
+    await useFileTreeStore.getState().loadRepoFiles("repo-1");
+    expect(useFileTreeStore.getState().error["repo-1"]).toBeNull();
   });
 });
 

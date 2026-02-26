@@ -411,6 +411,27 @@ describe("App", () => {
       });
       initSpy.mockRestore();
     });
+
+    it("initializes copilot when settings are already loaded on re-run", async () => {
+      mockGetAppSettings.mockResolvedValue({ copilot: { enabled: true } });
+      // Render WITHOUT context first so copilot effect returns early
+      // while settings effect runs and sets settingsRef.current
+      render(<App />);
+      // Flush microtasks so settingsRef.current is set via getAppSettings().then()
+      await act(async () => {
+        for (let i = 0; i < 10; i++) await Promise.resolve();
+      });
+      const initSpy = vi.spyOn(useCopilotStore.getState(), "initialize").mockImplementation(async () => {});
+      // NOW add workspace context - copilot effect runs with settingsRef.current already set
+      act(() => {
+        setWorkspaceContext();
+      });
+      await act(async () => {
+        for (let i = 0; i < 10; i++) await Promise.resolve();
+      });
+      expect(initSpy).toHaveBeenCalledWith("file:///path");
+      initSpy.mockRestore();
+    });
   });
 
   // --- handleAction keyboard shortcuts ---
@@ -538,6 +559,18 @@ describe("App", () => {
       expect(screen.getByTestId("command-palette")).toBeInTheDocument();
     });
 
+    it("search-workspaces loads archived workspaces and opens palette in workspace-search mode", () => {
+      setWorkspaceContext();
+      const loadArchivedSpy = vi.spyOn(useWorkspaceStore.getState(), "loadArchivedWorkspaces").mockImplementation(async () => {});
+      render(<App />);
+      act(() => {
+        capturedHandler?.("search-workspaces");
+      });
+      expect(loadArchivedSpy).toHaveBeenCalled();
+      expect(screen.getByTestId("command-palette")).toBeInTheDocument();
+      loadArchivedSpy.mockRestore();
+    });
+
     it("save-file calls saveActiveFile", () => {
       setWorkspaceContext();
       const saveSpy = vi.spyOn(useFileViewerStore.getState(), "saveActiveFile").mockImplementation(async () => {});
@@ -577,6 +610,24 @@ describe("App", () => {
       expect(screen.getByTestId("command-palette")).toBeInTheDocument();
       act(() => {
         capturedHandler?.("escape");
+      });
+      expect(screen.queryByTestId("command-palette")).not.toBeInTheDocument();
+    });
+  });
+
+  // --- handlePaletteOpenChange ---
+  describe("handlePaletteOpenChange", () => {
+    it("closes palette and resets mode to default when onOpenChange(false) is called", () => {
+      setWorkspaceContext();
+      render(<App />);
+      // Open the palette
+      act(() => {
+        capturedHandler?.("toggle-palette");
+      });
+      expect(screen.getByTestId("command-palette")).toBeInTheDocument();
+      // Click the palette mock element which calls onOpenChange(false)
+      act(() => {
+        screen.getByTestId("command-palette").click();
       });
       expect(screen.queryByTestId("command-palette")).not.toBeInTheDocument();
     });

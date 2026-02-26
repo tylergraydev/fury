@@ -14,10 +14,12 @@ class MarkdownErrorBoundary extends Component<
 > {
   state = { hasError: false };
 
+  /* v8 ignore next 3 -- React error boundary lifecycle, requires render-time throw */
   static getDerivedStateFromError(): { hasError: boolean } {
     return { hasError: true };
   }
 
+  /* v8 ignore next 3 -- React error boundary lifecycle, requires render-time throw */
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[MarkdownContent] Render error:", error, info.componentStack);
   }

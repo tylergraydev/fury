@@ -60,7 +60,8 @@ function FileChipIcon({ file }: { file: DroppedFile }) {
     );
   }
   if (file.isImage && !file.dataUrl) {
-    // Still loading
+    // Still loading — only reachable via Tauri drag-drop which loads images async
+    /* v8 ignore start */
     return (
       <div
         className="flex h-5 w-5 items-center justify-center rounded"
@@ -69,6 +70,7 @@ function FileChipIcon({ file }: { file: DroppedFile }) {
         <div className="h-3 w-3 animate-pulse rounded-sm" style={{ backgroundColor: "var(--text-muted)" }} />
       </div>
     );
+    /* v8 ignore stop */
   }
   // Non-image or failed image load
   return <FileIcon className="h-3 w-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />;
@@ -252,6 +254,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     try {
       getCurrentWebview()
         .onDragDropEvent((event) => {
+          /* v8 ignore start -- Tauri drag-drop events not available in jsdom */
           if (cancelled) return;
           if (event.payload.type === "over") {
             setIsDragOver(true);
@@ -292,16 +295,21 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
               }
             }
           }
+          /* v8 ignore stop */
         })
         .then((fn) => {
+          /* v8 ignore start */
           if (cancelled) {
             fn();
           } else {
             unlisten = fn;
           }
+          /* v8 ignore stop */
         })
         .catch((err) => {
+          /* v8 ignore start */
           console.warn("Failed to register drag-drop event listener:", err);
+          /* v8 ignore stop */
         });
     } catch {
       // getCurrentWebview() throws synchronously outside Tauri (e.g. browser/test)

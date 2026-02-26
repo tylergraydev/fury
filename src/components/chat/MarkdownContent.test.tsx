@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MarkdownContent } from "./MarkdownContent";
 
@@ -55,5 +55,46 @@ describe("MarkdownContent", () => {
   it("renders empty content without crashing", () => {
     const { container } = render(<MarkdownContent content="" />);
     expect(container.innerHTML).toBe("");
+  });
+
+  it("renders h1 headings", () => {
+    const { container } = render(<MarkdownContent content="# Main Title" />);
+    const h1 = container.querySelector("h1");
+    expect(h1).toBeInTheDocument();
+    expect(h1).toHaveTextContent("Main Title");
+  });
+
+  it("renders h2 headings", () => {
+    const { container } = render(<MarkdownContent content="## Section Title" />);
+    const h2 = container.querySelector("h2");
+    expect(h2).toBeInTheDocument();
+    expect(h2).toHaveTextContent("Section Title");
+  });
+
+  it("renders h3 headings", () => {
+    const { container } = render(<MarkdownContent content="### Heading Three" />);
+    const h3 = container.querySelector("h3");
+    expect(h3).toBeInTheDocument();
+    expect(h3).toHaveTextContent("Heading Three");
+  });
+
+  it("renders ordered lists", () => {
+    const content = "1. first\n2. second";
+    const { container } = render(<MarkdownContent content={content} />);
+    expect(container.querySelector("ol")).toBeInTheDocument();
+    expect(container.querySelectorAll("li")).toHaveLength(2);
+  });
+
+  it("renders horizontal rules", () => {
+    const content = "above\n\n---\n\nbelow";
+    const { container } = render(<MarkdownContent content={content} />);
+    expect(container.querySelector("hr")).toBeInTheDocument();
+  });
+
+  it("renders emphasis (em)", () => {
+    const { container } = render(<MarkdownContent content="*italic text*" />);
+    const em = container.querySelector("em");
+    expect(em).toBeInTheDocument();
+    expect(em).toHaveTextContent("italic text");
   });
 });

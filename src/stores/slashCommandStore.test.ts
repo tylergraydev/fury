@@ -88,3 +88,13 @@ describe("slashCommandStore - findMatching", () => {
     expect(result).toEqual([]);
   });
 });
+
+describe("slashCommandStore - addDiscoveredSkills", () => {
+  it("stores discovered skills for a context", () => {
+    const skills = [
+      { name: "commit", source: "plugin" as const, description: "Create commit", content: "/commit" },
+    ];
+    useSlashCommandStore.getState().addDiscoveredSkills("ctx-1", skills as any);
+    expect(useSlashCommandStore.getState().discoveredSkills["ctx-1"]).toEqual(skills);
+  });
+});

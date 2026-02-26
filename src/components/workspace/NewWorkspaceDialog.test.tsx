@@ -10,12 +10,22 @@ vi.mock("lucide-react", () => ({
   GitFork: () => <span data-testid="fork-icon" />,
   MessageSquare: () => <span data-testid="msg-icon" />,
   ChevronDown: () => <span data-testid="chevron-icon" />,
+  GitPullRequest: () => <span data-testid="pr-icon" />,
+  CircleDot: () => <span data-testid="circle-dot" />,
+  Search: () => <span data-testid="search-icon" />,
 }));
 
 const mockListBranches = vi.fn();
 
+const mockListRepoPrs = vi.fn();
+const mockListRepoIssues = vi.fn();
+const mockSearchLinearIssues = vi.fn();
+
 vi.mock("../../lib/tauri", () => ({
   listBranches: (...args: unknown[]) => mockListBranches(...args),
+  listRepoPrs: (...args: unknown[]) => mockListRepoPrs(...args),
+  listRepoIssues: (...args: unknown[]) => mockListRepoIssues(...args),
+  searchLinearIssues: (...args: unknown[]) => mockSearchLinearIssues(...args),
   createWorkspace: vi.fn().mockResolvedValue({
     id: "ws-new",
     name: "test",
@@ -33,6 +43,12 @@ const mockSendMsg = vi.fn();
 beforeEach(() => {
   mockListBranches.mockReset();
   mockListBranches.mockResolvedValue(["main", "dev", "feature-x"]);
+  mockListRepoPrs.mockReset();
+  mockListRepoPrs.mockResolvedValue([]);
+  mockListRepoIssues.mockReset();
+  mockListRepoIssues.mockResolvedValue([]);
+  mockSearchLinearIssues.mockReset();
+  mockSearchLinearIssues.mockResolvedValue([]);
   mockCreateWs.mockReset();
   mockCreateWs.mockResolvedValue({
     id: "ws-new",
@@ -402,5 +418,297 @@ describe("NewWorkspaceDialog", () => {
     // Select should be disabled during loading
     const select = screen.getByRole("combobox");
     expect(select).toBeDisabled();
+  });
+});
+
+describe("PR mode", () => {
+  const PRs = [
+    {
+      number: 42,
+      title: "Add login",
+      headBranch: "feat/login",
+      baseBranch: "main",
+      author: "alice",
+      state: "open",
+    },
+    {
+      number: 43,
+      title: "Fix logout",
+      headBranch: "fix/logout",
+      baseBranch: "main",
+      author: "bob",
+      state: "open",
+    },
+  ];
+
+  async function switchToPrMode() {
+    render(
+      <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={vi.fn()} />,
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("combobox")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByText("From PR"));
+  }
+
+  it("loads PRs when switching to PR mode", async () => {
+    mockListRepoPrs.mockResolvedValue(PRs);
+    await switchToPrMode();
+    await waitFor(() => {
+      expect(mockListRepoPrs).toHaveBeenCalledWith("r1");
+    });
+  });
+
+  it("shows loading state", async () => {
+    mockListRepoPrs.mockReturnValue(new Promise(() => {}));
+    await switchToPrMode();
+    expect(screen.getByText("Loading pull requests...")).toBeInTheDocument();
+  });
+
+  it("shows error when PR fetch fails", async () => {
+    mockListRepoPrs.mockRejectedValue(new Error("network error"));
+    await switchToPrMode();
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Failed to load pull requests/),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows 'No open pull requests' when list is empty", async () => {
+    mockListRepoPrs.mockResolvedValue([]);
+    await switchToPrMode();
+    await waitFor(() => {
+      expect(screen.getByText("No open pull requests")).toBeInTheDocument();
+    });
+  });
+
+  it("renders PR list with number and title", async () => {
+    mockListRepoPrs.mockResolvedValue(PRs);
+    await switchToPrMode();
+    await waitFor(() => {
+      expect(screen.getByText("#42")).toBeInTheDocument();
+      expect(screen.getByText("Add login")).toBeInTheDocument();
+    });
+  });
+
+  it("filters PRs by search text", async () => {
+    mockListRepoPrs.mockResolvedValue(PRs);
+    await switchToPrMode();
+    await waitFor(() => {
+      expect(screen.getByText("Add login")).toBeInTheDocument();
+    });
+    const searchInput = screen.getByPlaceholderText("Search pull requests...");
+    fireEvent.change(searchInput, { target: { value: "logout" } });
+    expect(screen.queryByText("Add login")).not.toBeInTheDocument();
+    expect(screen.getByText("Fix logout")).toBeInTheDocument();
+  });
+
+  it("shows 'No matching pull requests' when filter has no results", async () => {
+    mockListRepoPrs.mockResolvedValue(PRs);
+    await switchToPrMode();
+    await waitFor(() => {
+      expect(screen.getByText("Add login")).toBeInTheDocument();
+    });
+    const searchInput = screen.getByPlaceholderText("Search pull requests...");
+    fireEvent.change(searchInput, { target: { value: "zzz" } });
+    expect(
+      screen.getByText("No matching pull requests"),
+    ).toBeInTheDocument();
+  });
+
+  it("selects PR and populates worktree name and base branch", async () => {
+    mockListRepoPrs.mockResolvedValue(PRs);
+    await switchToPrMode();
+    await waitFor(() => {
+      expect(screen.getByText("Add login")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Add login").closest("button")!);
+    const nameInput = screen.getByPlaceholderText("feature-auth");
+    expect(nameInput).toHaveValue("feat/login");
+  });
+
+  it("creates workspace with fetchRemoteBranch for PR mode", async () => {
+    mockListRepoPrs.mockResolvedValue(PRs);
+    const onClose = vi.fn();
+    render(
+      <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={onClose} />,
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("combobox")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByText("From PR"));
+    await waitFor(() => {
+      expect(screen.getByText("Add login")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Add login").closest("button")!);
+    fireEvent.click(screen.getByText("Create & Start Chat"));
+    await waitFor(() => {
+      expect(mockCreateWs).toHaveBeenCalledWith(
+        expect.objectContaining({ fetchRemoteBranch: true }),
+      );
+    });
+  });
+});
+
+describe("Issue mode", () => {
+  const ISSUES = [
+    {
+      number: 10,
+      title: "Login bug",
+      body: "Users can't login",
+      labels: ["bug", "urgent"],
+      state: "open",
+    },
+    {
+      number: 11,
+      title: "Add dark mode",
+      body: "",
+      labels: [],
+      state: "open",
+    },
+  ];
+
+  async function switchToIssueMode() {
+    render(
+      <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={vi.fn()} />,
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("combobox")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByText("From Issue"));
+  }
+
+  it("loads issues when switching to issue mode", async () => {
+    mockListRepoIssues.mockResolvedValue(ISSUES);
+    await switchToIssueMode();
+    await waitFor(() => {
+      expect(mockListRepoIssues).toHaveBeenCalledWith("r1");
+    });
+  });
+
+  it("shows loading state", async () => {
+    mockListRepoIssues.mockReturnValue(new Promise(() => {}));
+    await switchToIssueMode();
+    expect(screen.getByText("Loading issues...")).toBeInTheDocument();
+  });
+
+  it("shows error on failure", async () => {
+    mockListRepoIssues.mockRejectedValue(new Error("fail"));
+    await switchToIssueMode();
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to load issues/)).toBeInTheDocument();
+    });
+  });
+
+  it("shows 'No open issues' when list is empty", async () => {
+    mockListRepoIssues.mockResolvedValue([]);
+    await switchToIssueMode();
+    await waitFor(() => {
+      expect(screen.getByText("No open issues")).toBeInTheDocument();
+    });
+  });
+
+  it("renders issues with number, title, and labels", async () => {
+    mockListRepoIssues.mockResolvedValue(ISSUES);
+    await switchToIssueMode();
+    await waitFor(() => {
+      expect(screen.getByText("#10")).toBeInTheDocument();
+      expect(screen.getByText("Login bug")).toBeInTheDocument();
+      expect(screen.getByText("bug")).toBeInTheDocument();
+      expect(screen.getByText("urgent")).toBeInTheDocument();
+    });
+  });
+
+  it("filters issues by search text", async () => {
+    mockListRepoIssues.mockResolvedValue(ISSUES);
+    await switchToIssueMode();
+    await waitFor(() => {
+      expect(screen.getByText("Login bug")).toBeInTheDocument();
+    });
+    const searchInput = screen.getByPlaceholderText("Search issues...");
+    fireEvent.change(searchInput, { target: { value: "dark" } });
+    expect(screen.queryByText("Login bug")).not.toBeInTheDocument();
+    expect(screen.getByText("Add dark mode")).toBeInTheDocument();
+  });
+
+  it("selects issue and populates worktree name", async () => {
+    mockListRepoIssues.mockResolvedValue(ISSUES);
+    await switchToIssueMode();
+    await waitFor(() => {
+      expect(screen.getByText("Login bug")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Login bug").closest("button")!);
+    const nameInput = screen.getByPlaceholderText("feature-auth");
+    expect(nameInput).toHaveValue("issue-10-login-bug");
+  });
+});
+
+describe("Linear mode", () => {
+  const LINEAR_ISSUES = [
+    {
+      id: "lin1",
+      identifier: "ENG-42",
+      title: "Fix auth flow",
+      url: "https://linear.app/lin1",
+      teamName: "Engineering",
+      stateName: "In Progress",
+      description: "Auth is broken",
+    },
+  ];
+
+  it("shows 'Type to search Linear issues' initially", async () => {
+    render(
+      <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={vi.fn()} />,
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("combobox")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByText("From Linear"));
+    expect(
+      screen.getByText("Type to search Linear issues"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows search results and allows selection", async () => {
+    mockSearchLinearIssues.mockResolvedValue(LINEAR_ISSUES);
+    render(
+      <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={vi.fn()} />,
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("combobox")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByText("From Linear"));
+    const input = screen.getByPlaceholderText("Search Linear issues...");
+    fireEvent.change(input, { target: { value: "auth" } });
+    // Search fires after debounce and resolves
+    await waitFor(() => {
+      expect(screen.getByText("ENG-42")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Fix auth flow")).toBeInTheDocument();
+    expect(
+      screen.getByText("Engineering · In Progress"),
+    ).toBeInTheDocument();
+
+    // Select and check worktree name
+    fireEvent.click(screen.getByText("Fix auth flow").closest("button")!);
+    const nameInput = screen.getByPlaceholderText("feature-auth");
+    expect(nameInput).toHaveValue("eng-42-fix-auth-flow");
+  });
+
+  it("shows error when search fails", async () => {
+    mockSearchLinearIssues.mockRejectedValue(new Error("API error"));
+    render(
+      <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={vi.fn()} />,
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("combobox")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByText("From Linear"));
+    const input = screen.getByPlaceholderText("Search Linear issues...");
+    fireEvent.change(input, { target: { value: "test" } });
+    await waitFor(() => {
+      expect(screen.getByText(/API error/)).toBeInTheDocument();
+    });
   });
 });

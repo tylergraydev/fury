@@ -8,6 +8,7 @@ vi.mock("../lib/tauri", () => ({
   listArchivedWorkspaces: vi.fn(),
   restoreWorkspace: vi.fn(),
   renameWorkspace: vi.fn(),
+  setWorkspacePinned: vi.fn(),
 }));
 
 import { useWorkspaceStore } from "./workspaceStore";
@@ -19,6 +20,7 @@ import {
   listArchivedWorkspaces,
   restoreWorkspace,
   renameWorkspace,
+  setWorkspacePinned,
 } from "../lib/tauri";
 import type { WorkspaceInfo } from "../lib/tauri";
 
@@ -338,5 +340,42 @@ describe("workspaceStore - renameWs", () => {
     ).rejects.toThrow("rename fail");
 
     expect(useWorkspaceStore.getState().error).toBe("Error: rename fail");
+  });
+});
+
+describe("workspaceStore - pinWs", () => {
+  it("pins a workspace and updates the list", async () => {
+    const ws = makeWs({ id: "ws-1", pinned: false });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(setWorkspacePinned).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().pinWs("ws-1", true);
+
+    expect(setWorkspacePinned).toHaveBeenCalledWith("ws-1", true);
+    expect(useWorkspaceStore.getState().workspaces[0].pinned).toBe(true);
+  });
+
+  it("leaves other workspaces unchanged", async () => {
+    const ws1 = makeWs({ id: "ws-1", pinned: false });
+    const ws2 = makeWs({ id: "ws-2", pinned: false });
+    useWorkspaceStore.setState({ workspaces: [ws1, ws2] });
+    vi.mocked(setWorkspacePinned).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().pinWs("ws-1", true);
+
+    expect(useWorkspaceStore.getState().workspaces[0].pinned).toBe(true);
+    expect(useWorkspaceStore.getState().workspaces[1].pinned).toBe(false);
+  });
+
+  it("sets error and throws on failure", async () => {
+    const ws = makeWs({ id: "ws-1" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(setWorkspacePinned).mockRejectedValue(new Error("pin fail"));
+
+    await expect(
+      useWorkspaceStore.getState().pinWs("ws-1", true),
+    ).rejects.toThrow("pin fail");
+
+    expect(useWorkspaceStore.getState().error).toBe("Error: pin fail");
   });
 });

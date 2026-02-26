@@ -72,6 +72,29 @@ describe("todoStore - loadTodos", () => {
   });
 });
 
+describe("todoStore - loadTodos inflight dedup", () => {
+  it("deduplicates concurrent calls", async () => {
+    let resolve: (v: any) => void;
+    vi.mocked(listTodos).mockImplementation(
+      () => new Promise((r) => { resolve = r; }),
+    );
+    const p1 = useTodoStore.getState().loadTodos("ws-1");
+    const p2 = useTodoStore.getState().loadTodos("ws-1");
+    resolve!([]);
+    await Promise.all([p1, p2]);
+    expect(listTodos).toHaveBeenCalledTimes(1);
+  });
+
+  it("suppresses error when cached data exists", async () => {
+    vi.mocked(listTodos).mockResolvedValue([makeTodo()] as any);
+    await useTodoStore.getState().loadTodos("ws-1");
+
+    vi.mocked(listTodos).mockRejectedValue(new Error("net"));
+    await useTodoStore.getState().loadTodos("ws-1");
+    expect(useTodoStore.getState().error["ws-1"]).toBeNull();
+  });
+});
+
 describe("todoStore - addTodo", () => {
   it("adds a todo to the list", async () => {
     const item = makeTodo({ id: "new" });

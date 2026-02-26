@@ -111,6 +111,53 @@ describe("diffStore - selectRepoFile", () => {
   });
 });
 
+describe("diffStore - loadDiff inflight dedup", () => {
+  it("deduplicates concurrent calls", async () => {
+    let resolve: (v: any) => void;
+    vi.mocked(getDiff).mockImplementation(
+      () => new Promise((r) => { resolve = r; }),
+    );
+    const p1 = useDiffStore.getState().loadDiff("ws-1");
+    const p2 = useDiffStore.getState().loadDiff("ws-1");
+    resolve!({ files: [] });
+    await Promise.all([p1, p2]);
+    expect(getDiff).toHaveBeenCalledTimes(1);
+  });
+
+  it("suppresses error when cached data exists", async () => {
+    vi.mocked(getDiff).mockResolvedValue({ files: ["a.ts"] } as any);
+    await useDiffStore.getState().loadDiff("ws-1");
+    expect(useDiffStore.getState().diffResults["ws-1"]).toBeTruthy();
+
+    vi.mocked(getDiff).mockRejectedValue(new Error("net"));
+    await useDiffStore.getState().loadDiff("ws-1");
+    expect(useDiffStore.getState().error["ws-1"]).toBeNull();
+  });
+});
+
+describe("diffStore - loadRepoDiff inflight dedup", () => {
+  it("deduplicates concurrent calls", async () => {
+    let resolve: (v: any) => void;
+    vi.mocked(getRepoDiff).mockImplementation(
+      () => new Promise((r) => { resolve = r; }),
+    );
+    const p1 = useDiffStore.getState().loadRepoDiff("repo-1");
+    const p2 = useDiffStore.getState().loadRepoDiff("repo-1");
+    resolve!({ files: [] });
+    await Promise.all([p1, p2]);
+    expect(getRepoDiff).toHaveBeenCalledTimes(1);
+  });
+
+  it("suppresses error when cached data exists", async () => {
+    vi.mocked(getRepoDiff).mockResolvedValue({ files: ["a.rs"] } as any);
+    await useDiffStore.getState().loadRepoDiff("repo-1");
+
+    vi.mocked(getRepoDiff).mockRejectedValue(new Error("net"));
+    await useDiffStore.getState().loadRepoDiff("repo-1");
+    expect(useDiffStore.getState().error["repo-1"]).toBeNull();
+  });
+});
+
 describe("diffStore - getters", () => {
   it("getDiffResult returns null for unknown context", () => {
     expect(useDiffStore.getState().getDiffResult("unknown")).toBeNull();

@@ -21,6 +21,8 @@ const mockImportCursorrules = vi.fn().mockResolvedValue({
   claudeMdPath: "/repo/CLAUDE.md",
 });
 const mockCheckForUpdate = vi.fn();
+const mockIndexRepository = vi.fn().mockResolvedValue(undefined);
+const mockListIndexingStatuses = vi.fn().mockResolvedValue([]);
 
 vi.mock("../../lib/tauri", () => ({
   loadSettings: vi.fn().mockResolvedValue({
@@ -54,6 +56,8 @@ vi.mock("../../lib/tauri", () => ({
   listMcpServers: vi.fn().mockResolvedValue([]),
   checkCursorConfig: vi.fn().mockResolvedValue(false),
   checkForUpdate: (...args: unknown[]) => mockCheckForUpdate(...args),
+  indexRepository: (...args: unknown[]) => mockIndexRepository(...args),
+  listIndexingStatuses: (...args: unknown[]) => mockListIndexingStatuses(...args),
 }));
 
 vi.mock("../../lib/keybindings", () => ({
@@ -143,6 +147,8 @@ beforeEach(() => {
     claudeMdPath: "/repo/CLAUDE.md",
   });
   mockCheckForUpdate.mockResolvedValue(null);
+  mockIndexRepository.mockResolvedValue(undefined);
+  mockListIndexingStatuses.mockResolvedValue([]);
 });
 
 describe("AppSettingsPanel", () => {
@@ -608,6 +614,56 @@ describe("ProviderTab", () => {
       expect(screen.getByText("GOOGLE_APPLICATION_CREDENTIALS")).toBeInTheDocument();
       expect(screen.getByText("GOOGLE_PROJECT_ID")).toBeInTheDocument();
     });
+  });
+
+  it("changes agent type when Agent select changes", async () => {
+    goToProviderTab();
+    const agentSelect = await screen.findByDisplayValue("Claude Code");
+    fireEvent.change(agentSelect, { target: { value: "codex_cli" } });
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Codex CLI")).toBeInTheDocument();
+    });
+  });
+
+  it("changes OPENAI_API_KEY value when typing", async () => {
+    useSettingsStore.setState({
+      appSettings: {
+        ...fullSettings,
+        agentType: "codex_cli" as const,
+        provider: { providerType: "Anthropic" as const, envVars: {} },
+      },
+    });
+    render(<AppSettingsPanel />);
+    fireEvent.click(screen.getByText("Provider"));
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Enter OPENAI_API_KEY")).toBeInTheDocument();
+    });
+    const input = screen.getByPlaceholderText("Enter OPENAI_API_KEY");
+    fireEvent.change(input, { target: { value: "sk-test-key" } });
+    expect(input).toHaveValue("sk-test-key");
+  });
+
+  it("toggles OPENAI_API_KEY visibility for Codex CLI agent", async () => {
+    useSettingsStore.setState({
+      appSettings: {
+        ...fullSettings,
+        agentType: "codex_cli" as const,
+        provider: { providerType: "Anthropic" as const, envVars: {} },
+      },
+    });
+    render(<AppSettingsPanel />);
+    fireEvent.click(screen.getByText("Provider"));
+    await waitFor(() => {
+      expect(screen.getByText("OPENAI_API_KEY")).toBeInTheDocument();
+    });
+    const input = screen.getByPlaceholderText("Enter OPENAI_API_KEY");
+    expect(input).toHaveAttribute("type", "password");
+    // Find the Show button next to the OPENAI_API_KEY input
+    const showButtons = screen.getAllByText("Show");
+    // The first Show button in the codex_cli section is for the OPENAI_API_KEY
+    fireEvent.click(showButtons[0]);
+    expect(input).toHaveAttribute("type", "text");
+    expect(screen.getByText("Hide")).toBeInTheDocument();
   });
 });
 
@@ -1886,6 +1942,285 @@ describe("ExperimentalTab", () => {
       expect(checkboxes[0]).not.toBeDisabled();
     });
   });
+
+  it("toggles Performance Mode", async () => {
+    const saveSettings = vi.fn().mockResolvedValue(undefined);
+    useSettingsStore.setState({ appSettings: fullSettings, saveSettings });
+    goToExperimentalTab();
+    const checkboxes = screen.getAllByRole("checkbox");
+    // Third checkbox is Performance Mode
+    await act(async () => {
+      fireEvent.click(checkboxes[2]);
+    });
+    expect(saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        experimental: expect.objectContaining({ persistentProcesses: true }),
+      }),
+    );
+  });
+
+  it("toggles Safe Mode", async () => {
+    const saveSettings = vi.fn().mockResolvedValue(undefined);
+    useSettingsStore.setState({ appSettings: fullSettings, saveSettings });
+    goToExperimentalTab();
+    const checkboxes = screen.getAllByRole("checkbox");
+    // Fourth checkbox is Safe Mode
+    await act(async () => {
+      fireEvent.click(checkboxes[3]);
+    });
+    expect(saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        experimental: expect.objectContaining({ safeMode: true }),
+      }),
+    );
+  });
+
+  it("disables Performance Mode for Codex CLI", () => {
+    useSettingsStore.setState({
+      appSettings: { ...fullSettings, agentType: "codex_cli" as const },
+    });
+    goToExperimentalTab();
+    const checkboxes = screen.getAllByRole("checkbox");
+    // Third checkbox (Performance Mode) should be disabled for codex_cli
+    expect(checkboxes[2]).toBeDisabled();
+    expect(screen.getByText("(Not available with Codex CLI)")).toBeInTheDocument();
+  });
+});
+
+describe("CodeSearchTab", () => {
+  const goToCodeSearchTab = () => {
+    render(<AppSettingsPanel />);
+    fireEvent.click(screen.getByText("Code Search"));
+  };
+
+  it("shows Loading when settings not loaded", () => {
+    useSettingsStore.setState({
+      appSettings: null,
+      loadSettings: vi.fn().mockResolvedValue(undefined),
+    });
+    render(<AppSettingsPanel />);
+    fireEvent.click(screen.getByText("Code Search"));
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
+  });
+
+  it("shows enable toggle", () => {
+    goToCodeSearchTab();
+    expect(screen.getByText("Enable Semantic Code Search")).toBeInTheDocument();
+  });
+
+  it("toggles the enable checkbox", () => {
+    useSettingsStore.setState({ appSettings: fullSettings });
+    goToCodeSearchTab();
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).not.toBeChecked();
+    fireEvent.click(checkbox);
+    // After click, it should be checked (local state toggle)
+    expect(checkbox).toBeChecked();
+  });
+
+  it("shows credential fields", () => {
+    goToCodeSearchTab();
+    expect(screen.getByText("OPENAI_API_KEY")).toBeInTheDocument();
+    expect(screen.getByText("MILVUS_ADDRESS")).toBeInTheDocument();
+    expect(screen.getByText("MILVUS_TOKEN")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("sk-...")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("https://...")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Enter token")).toBeInTheDocument();
+  });
+
+  it("credential fields are password-masked by default", () => {
+    goToCodeSearchTab();
+    const inputs = screen.getAllByPlaceholderText(/sk-|https:\/\/|Enter token/);
+    inputs.forEach((input) => {
+      expect(input).toHaveAttribute("type", "password");
+    });
+  });
+
+  it("toggles credential visibility with Show/Hide buttons", () => {
+    goToCodeSearchTab();
+    const showButtons = screen.getAllByText("Show");
+    expect(showButtons.length).toBe(3);
+    // Click first Show button
+    fireEvent.click(showButtons[0]);
+    const skInput = screen.getByPlaceholderText("sk-...");
+    expect(skInput).toHaveAttribute("type", "text");
+    // Now it should say "Hide"
+    expect(screen.getByText("Hide")).toBeInTheDocument();
+  });
+
+  it("updates credential values on input change", () => {
+    goToCodeSearchTab();
+    // First toggle Show so we can see the value
+    const showButtons = screen.getAllByText("Show");
+    fireEvent.click(showButtons[0]);
+    const skInput = screen.getByPlaceholderText("sk-...");
+    fireEvent.change(skInput, { target: { value: "sk-test-key" } });
+    expect(skInput).toHaveValue("sk-test-key");
+  });
+
+  it("clears credential to null on empty input", () => {
+    useSettingsStore.setState({
+      appSettings: {
+        ...fullSettings,
+        claudeContext: { enabled: true, openaiApiKey: "sk-old", zillizUri: null, zillizToken: null },
+      },
+    });
+    goToCodeSearchTab();
+    const showButtons = screen.getAllByText("Show");
+    fireEvent.click(showButtons[0]);
+    const skInput = screen.getByPlaceholderText("sk-...");
+    expect(skInput).toHaveValue("sk-old");
+    fireEvent.change(skInput, { target: { value: "" } });
+    expect(skInput).toHaveValue("");
+  });
+
+  it("saves settings on Save click", async () => {
+    const saveSettings = vi.fn().mockResolvedValue(undefined);
+    useSettingsStore.setState({ appSettings: fullSettings, saveSettings });
+    goToCodeSearchTab();
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save"));
+    });
+    expect(saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        claudeContext: expect.objectContaining({ enabled: false }),
+      }),
+    );
+  });
+
+  it("shows Saving... while saving", async () => {
+    let resolverFn: () => void;
+    const saveSettings = vi.fn().mockImplementation(
+      () => new Promise<void>((resolve) => { resolverFn = resolve; }),
+    );
+    useSettingsStore.setState({ appSettings: fullSettings, saveSettings });
+    goToCodeSearchTab();
+    fireEvent.click(screen.getByText("Save"));
+    await waitFor(() => {
+      expect(screen.getByText("Saving...")).toBeInTheDocument();
+    });
+    await act(async () => {
+      resolverFn!();
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Save")).toBeInTheDocument();
+    });
+  });
+
+  it("shows error when save fails", async () => {
+    const saveSettings = vi.fn().mockRejectedValue(new Error("Save failed"));
+    useSettingsStore.setState({ appSettings: fullSettings, saveSettings });
+    goToCodeSearchTab();
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save"));
+    });
+    expect(screen.getByText(/Save failed/)).toBeInTheDocument();
+  });
+
+  it("Cancel closes settings", () => {
+    const closeViewTab = vi.fn();
+    useUIStore.setState({ closeViewTab } as any);
+    goToCodeSearchTab();
+    fireEvent.click(screen.getByText("Cancel"));
+    expect(closeViewTab).toHaveBeenCalledWith("settings");
+  });
+
+  it("shows repository indexing status when repos exist", async () => {
+    mockListIndexingStatuses.mockResolvedValue([
+      { repoId: "r1", status: "indexed", lastIndexedAt: "2024-06-01T00:00:00Z", error: null },
+    ]);
+    useRepositoryStore.setState({
+      repositories: [{ id: "r1", name: "my-repo", path: "/path", defaultBranch: "main", currentBranch: "main" }],
+    } as any);
+    goToCodeSearchTab();
+    expect(screen.getByText("Repository Indexing Status")).toBeInTheDocument();
+    expect(screen.getByText("my-repo")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Indexed")).toBeInTheDocument();
+    });
+  });
+
+  it("shows Not indexed for repos without status", () => {
+    mockListIndexingStatuses.mockResolvedValue([]);
+    useRepositoryStore.setState({
+      repositories: [{ id: "r1", name: "my-repo", path: "/path", defaultBranch: "main", currentBranch: "main" }],
+    } as any);
+    goToCodeSearchTab();
+    expect(screen.getByText("Not indexed")).toBeInTheDocument();
+  });
+
+  it("shows Error status and error message for errored repos", async () => {
+    mockListIndexingStatuses.mockResolvedValue([
+      { repoId: "r1", status: "error", lastIndexedAt: null, error: "Failed to connect" },
+    ]);
+    useRepositoryStore.setState({
+      repositories: [{ id: "r1", name: "my-repo", path: "/path", defaultBranch: "main", currentBranch: "main" }],
+    } as any);
+    goToCodeSearchTab();
+    await waitFor(() => {
+      expect(screen.getByText("Error")).toBeInTheDocument();
+      expect(screen.getByText("Failed to connect")).toBeInTheDocument();
+    });
+  });
+
+  it("shows Indexing... status", async () => {
+    mockListIndexingStatuses.mockResolvedValue([
+      { repoId: "r1", status: "indexing", lastIndexedAt: null, error: null },
+    ]);
+    useRepositoryStore.setState({
+      repositories: [{ id: "r1", name: "my-repo", path: "/path", defaultBranch: "main", currentBranch: "main" }],
+    } as any);
+    goToCodeSearchTab();
+    await waitFor(() => {
+      // Both the status label and the re-index button say "Indexing..."
+      const indexingTexts = screen.getAllByText("Indexing...");
+      expect(indexingTexts.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("calls indexRepository on Re-index click", async () => {
+    mockListIndexingStatuses.mockResolvedValue([
+      { repoId: "r1", status: "indexed", lastIndexedAt: null, error: null },
+    ]);
+    useRepositoryStore.setState({
+      repositories: [{ id: "r1", name: "my-repo", path: "/path", defaultBranch: "main", currentBranch: "main" }],
+    } as any);
+    goToCodeSearchTab();
+    await waitFor(() => {
+      expect(screen.getByText("Re-index")).toBeInTheDocument();
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Re-index"));
+    });
+    expect(mockIndexRepository).toHaveBeenCalledWith("r1");
+  });
+
+  it("shows last indexed date when available", async () => {
+    mockListIndexingStatuses.mockResolvedValue([
+      { repoId: "r1", status: "indexed", lastIndexedAt: "2024-06-01T00:00:00Z", error: null },
+    ]);
+    useRepositoryStore.setState({
+      repositories: [{ id: "r1", name: "my-repo", path: "/path", defaultBranch: "main", currentBranch: "main" }],
+    } as any);
+    goToCodeSearchTab();
+    await waitFor(() => {
+      expect(screen.getByText("Indexed")).toBeInTheDocument();
+    });
+    // Should show the formatted date (locale-dependent format)
+    expect(screen.getByText(/\d+\/\d+\/2024/)).toBeInTheDocument();
+  });
+
+  it("does not show Repository Indexing Status when no repos", () => {
+    goToCodeSearchTab();
+    expect(screen.queryByText("Repository Indexing Status")).not.toBeInTheDocument();
+  });
+
+  it("shows helper text", () => {
+    goToCodeSearchTab();
+    expect(
+      screen.getByText(/Repositories are automatically indexed when added/),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("UpdatesTab", () => {
@@ -1977,5 +2312,150 @@ describe("UpdatesTab", () => {
     expect(
       screen.getByText(/Updates are downloaded from GitHub Releases/),
     ).toBeInTheDocument();
+  });
+});
+
+describe("LinearTab", () => {
+  function goToLinearTab() {
+    render(<AppSettingsPanel />);
+    fireEvent.click(screen.getByText("Linear"));
+  }
+
+  it("shows Linear API Key label", async () => {
+    goToLinearTab();
+    await waitFor(() => {
+      expect(screen.getByText("Linear API Key")).toBeInTheDocument();
+    });
+  });
+
+  it("shows API key input with placeholder", async () => {
+    goToLinearTab();
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("lin_api_...")).toBeInTheDocument();
+    });
+  });
+
+  it("shows helper text about creating a personal API key", async () => {
+    goToLinearTab();
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Create a personal API key/),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("toggles password visibility", async () => {
+    goToLinearTab();
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("lin_api_...")).toBeInTheDocument();
+    });
+    const input = screen.getByPlaceholderText("lin_api_...");
+    expect(input).toHaveAttribute("type", "password");
+    fireEvent.click(screen.getByText("Show"));
+    expect(input).toHaveAttribute("type", "text");
+    fireEvent.click(screen.getByText("Hide"));
+    expect(input).toHaveAttribute("type", "password");
+  });
+
+  it("types in API key input", async () => {
+    goToLinearTab();
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("lin_api_...")).toBeInTheDocument();
+    });
+    const input = screen.getByPlaceholderText("lin_api_...");
+    fireEvent.change(input, { target: { value: "lin_api_test_key" } });
+    expect(input).toHaveValue("lin_api_test_key");
+  });
+
+  it("saves API key and closes settings", async () => {
+    const mockSave = vi.fn().mockResolvedValue(undefined);
+    useSettingsStore.setState({ appSettings: fullSettings, saveSettings: mockSave });
+    goToLinearTab();
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("lin_api_...")).toBeInTheDocument();
+    });
+    const input = screen.getByPlaceholderText("lin_api_...");
+    fireEvent.change(input, { target: { value: "lin_api_key123" } });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save"));
+    });
+    expect(mockSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        linear: { apiKey: "lin_api_key123" },
+      }),
+    );
+  });
+
+  it("saves null when API key is empty", async () => {
+    const mockSave = vi.fn().mockResolvedValue(undefined);
+    useSettingsStore.setState({ appSettings: fullSettings, saveSettings: mockSave });
+    goToLinearTab();
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("lin_api_...")).toBeInTheDocument();
+    });
+    // Don't type anything, just save
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save"));
+    });
+    expect(mockSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        linear: { apiKey: null },
+      }),
+    );
+  });
+
+  it("shows Cancel button that closes settings", async () => {
+    goToLinearTab();
+    await waitFor(() => {
+      expect(screen.getByText("Cancel")).toBeInTheDocument();
+    });
+  });
+
+  it("shows error when save fails", async () => {
+    const mockSave = vi.fn().mockRejectedValue(new Error("Network error"));
+    useSettingsStore.setState({ appSettings: fullSettings, saveSettings: mockSave });
+    goToLinearTab();
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("lin_api_...")).toBeInTheDocument();
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save"));
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/Network error/)).toBeInTheDocument();
+    });
+  });
+
+  it("shows Loading... when appSettings is null", async () => {
+    useSettingsStore.setState({ appSettings: null });
+    goToLinearTab();
+    await waitFor(() => {
+      expect(screen.getByText("Loading...")).toBeInTheDocument();
+    });
+  });
+
+  it("clicking Cancel closes settings view tab", async () => {
+    const mockCloseViewTab = vi.fn();
+    useUIStore.setState({ closeViewTab: mockCloseViewTab } as any);
+    goToLinearTab();
+    await waitFor(() => {
+      expect(screen.getByText("Cancel")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Cancel"));
+    expect(mockCloseViewTab).toHaveBeenCalledWith("settings");
+  });
+
+  it("populates API key input from saved appSettings", async () => {
+    useSettingsStore.setState({
+      appSettings: {
+        ...fullSettings,
+        linear: { apiKey: "lin_api_saved_key" },
+      },
+    });
+    goToLinearTab();
+    await waitFor(() => {
+      const input = screen.getByPlaceholderText("lin_api_...");
+      expect(input).toHaveValue("lin_api_saved_key");
+    });
   });
 });

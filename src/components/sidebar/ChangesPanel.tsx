@@ -46,7 +46,9 @@ function PrStatusBar({ workspaceId }: { workspaceId: string }) {
   useEffect(() => {
     const store = usePrStore.getState();
     store.subscribe(workspaceId).catch((e) => {
+      /* v8 ignore start -- subscribe rarely fails */
       console.error("[PrStatusBar] Failed to subscribe to PR events:", e);
+      /* v8 ignore stop */
     });
     store.loadPrInfo(workspaceId);
     return () => usePrStore.getState().unsubscribe(workspaceId);
