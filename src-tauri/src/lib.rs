@@ -57,6 +57,7 @@ pub fn run() {
             commands::chat::save_chat_message,
             commands::chat::list_chat_messages,
             commands::chat::clear_chat_messages,
+            commands::chat::search_chat_messages,
             // Checkpoint commands
             commands::checkpoint::list_checkpoints,
             commands::checkpoint::revert_to_checkpoint,

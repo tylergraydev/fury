@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::models::chat::ChatMessage;
+use crate::models::chat::{ChatMessage, ChatMessageSearchResult};
 use crate::state::AppState;
 use tauri::State;
 use uuid::Uuid;
@@ -52,4 +52,29 @@ pub fn clear_chat_messages(
         .ok_or(AppError::DbError("DB not initialized".into()))?;
     db.clear_chat_messages(&ws_id)?;
     Ok(())
+}
+
+#[tauri::command]
+pub fn search_chat_messages(
+    state: State<'_, AppState>,
+    query: String,
+    workspace_id: Option<String>,
+) -> Result<Vec<ChatMessageSearchResult>, AppError> {
+    if query.trim().is_empty() {
+        return Ok(vec![]);
+    }
+    let ws_id = workspace_id
+        .map(|id| {
+            id.parse::<Uuid>()
+                .map_err(|_| AppError::DbError("Invalid workspace ID".into()))
+        })
+        .transpose()?;
+    let db_lock = state
+        .db
+        .lock()
+        .map_err(|_| AppError::DbError("Failed to acquire database lock".into()))?;
+    let db = db_lock
+        .as_ref()
+        .ok_or(AppError::DbError("DB not initialized".into()))?;
+    db.search_chat_messages(&query, ws_id.as_ref())
 }

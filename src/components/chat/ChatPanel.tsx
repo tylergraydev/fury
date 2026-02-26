@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { List } from "lucide-react";
+import { List, Search } from "lucide-react";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useCheckpointStore } from "../../stores/checkpointStore";
@@ -9,6 +9,7 @@ import { respondToPermission } from "../../lib/tauri";
 import { MessageList, segmentTurns } from "./MessageList";
 import { Composer } from "./Composer";
 import { ChatTOC } from "./ChatTOC";
+import { ChatSearch } from "./ChatSearch";
 import { LinkWorkspaceDialog } from "../workspace/LinkWorkspaceDialog";
 import { IssuePicker } from "../workspace/IssuePicker";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -42,6 +43,8 @@ export function ChatPanel({ contextId, contextType }: Props) {
   const [thinkingEnabled, setThinkingEnabled] = useState(true);
   const [planEnabled, setPlanEnabled] = useState(true);
   const [showTOC, setShowTOC] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
   const [showLinkWorkspaceDialog, setShowLinkWorkspaceDialog] = useState(false);
   const [showIssuePicker, setShowIssuePicker] = useState(false);
   const workspace = useWorkspaceStore(
@@ -83,6 +86,8 @@ export function ChatPanel({ contextId, contextType }: Props) {
 
   const tocRef = useRef<HTMLDivElement>(null);
   const tocButtonRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
 
   const { turns } = useMemo(() => segmentTurns(messages), [messages]);
   const showTOCButton = turns.length >= 3;
@@ -102,6 +107,28 @@ export function ChatPanel({ contextId, contextType }: Props) {
     document.addEventListener("mousedown", handleMouseDown);
     return () => document.removeEventListener("mousedown", handleMouseDown);
   }, [showTOC]);
+
+  // Dismiss search on outside click
+  useEffect(() => {
+    if (!showSearch) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (
+        searchRef.current?.contains(e.target as Node) ||
+        searchButtonRef.current?.contains(e.target as Node)
+      ) {
+        return;
+      }
+      setShowSearch(false);
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [showSearch]);
+
+  const handleSearchNavigate = useCallback((messageId: string) => {
+    setHighlightMessageId(messageId);
+    // Clear highlight after animation
+    setTimeout(() => setHighlightMessageId(null), 2000);
+  }, []);
 
   const handleSend = useCallback(
     async (message: string, model?: string, displayText?: string) => {
@@ -183,24 +210,54 @@ export function ChatPanel({ contextId, contextType }: Props) {
           streamingText={streamingText}
           agentStatus={agentStatus}
           onRetry={handleRetry}
+          highlightMessageId={highlightMessageId}
         />
-        {showTOCButton && (
+        <div className="absolute right-3 top-3 z-20 flex gap-1">
           <button
-            ref={tocButtonRef}
-            onClick={() => setShowTOC((prev) => !prev)}
-            className="absolute right-3 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-hover)]"
-            style={{
-              color: showTOC ? "var(--accent)" : "var(--text-muted)",
-              backgroundColor: showTOC ? "var(--bg-surface)" : "transparent",
+            ref={searchButtonRef}
+            onClick={() => {
+              setShowSearch((prev) => !prev);
+              if (!showSearch) setShowTOC(false);
             }}
-            title="Table of Contents"
+            className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-hover)]"
+            style={{
+              color: showSearch ? "var(--accent)" : "var(--text-muted)",
+              backgroundColor: showSearch ? "var(--bg-surface)" : "transparent",
+            }}
+            title="Search messages"
           >
-            <List className="h-4 w-4" />
+            <Search className="h-4 w-4" />
           </button>
-        )}
+          {showTOCButton && (
+            <button
+              ref={tocButtonRef}
+              onClick={() => {
+                setShowTOC((prev) => !prev);
+                if (!showTOC) setShowSearch(false);
+              }}
+              className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-hover)]"
+              style={{
+                color: showTOC ? "var(--accent)" : "var(--text-muted)",
+                backgroundColor: showTOC ? "var(--bg-surface)" : "transparent",
+              }}
+              title="Table of Contents"
+            >
+              <List className="h-4 w-4" />
+            </button>
+          )}
+        </div>
         {showTOC && (
           <div ref={tocRef}>
             <ChatTOC turns={turns} onClose={() => setShowTOC(false)} />
+          </div>
+        )}
+        {showSearch && (
+          <div ref={searchRef}>
+            <ChatSearch
+              contextId={contextId}
+              onClose={() => setShowSearch(false)}
+              onNavigate={handleSearchNavigate}
+            />
           </div>
         )}
       </div>

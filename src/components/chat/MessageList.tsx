@@ -112,6 +112,7 @@ interface Props {
   streamingText: string;
   agentStatus: AgentStatus;
   onRetry?: () => void;
+  highlightMessageId?: string | null;
 }
 
 export function MessageList({
@@ -119,6 +120,7 @@ export function MessageList({
   streamingText,
   agentStatus,
   onRetry,
+  highlightMessageId,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [expandedTurns, setExpandedTurns] = useState<Set<string>>(new Set());
@@ -126,6 +128,15 @@ export function MessageList({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText]);
+
+  // Scroll to highlighted message from search
+  useEffect(() => {
+    if (!highlightMessageId) return;
+    const el = document.querySelector(`[data-message-id="${highlightMessageId}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightMessageId]);
 
   const isRunning = agentStatus === "Running";
   const isAgentActive = agentStatus === "Running" || agentStatus === "Stopping";
@@ -158,7 +169,7 @@ export function MessageList({
     <div className="flex-1 overflow-y-auto px-6 py-5">
       {/* Render any orphaned messages before the first user message */}
       {orphans.map((msg) => (
-        <div key={msg.id}>
+        <div key={msg.id} data-message-id={msg.id} className={highlightMessageId === msg.id ? "search-highlight" : ""}>
           <MessageBubble message={msg} />
         </div>
       ))}
@@ -177,7 +188,7 @@ export function MessageList({
 
         // User message — always visible
         elements.push(
-          <div key={turn.userMessage.id}>
+          <div key={turn.userMessage.id} data-message-id={turn.userMessage.id} className={highlightMessageId === turn.userMessage.id ? "search-highlight" : ""}>
             <MessageBubble message={turn.userMessage} />
           </div>,
         );
@@ -199,7 +210,7 @@ export function MessageList({
             // Show all responses when expanded
             for (const msg of turn.responses) {
               elements.push(
-                <div key={msg.id}>
+                <div key={msg.id} data-message-id={msg.id} className={highlightMessageId === msg.id ? "search-highlight" : ""}>
                   <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} />
                 </div>,
               );
@@ -214,7 +225,7 @@ export function MessageList({
                 ),
               };
               elements.push(
-                <div key={stats.finalTextMessage.id}>
+                <div key={stats.finalTextMessage.id} data-message-id={stats.finalTextMessage.id} className={highlightMessageId === stats.finalTextMessage.id ? "search-highlight" : ""}>
                   <MessageBubble message={textOnly} />
                 </div>,
               );
@@ -224,7 +235,7 @@ export function MessageList({
           // Active turn, no tool calls, or has system messages — render all responses normally
           for (const msg of turn.responses) {
             elements.push(
-              <div key={msg.id}>
+              <div key={msg.id} data-message-id={msg.id} className={highlightMessageId === msg.id ? "search-highlight" : ""}>
                 <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} />
               </div>,
             );

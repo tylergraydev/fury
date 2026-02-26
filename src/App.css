@@ -214,3 +214,21 @@ body,
 .markdown-content > :last-child {
   margin-bottom: 0;
 }
+
+/* Search highlight animation */
+@keyframes search-highlight-pulse {
+  0% {
+    background-color: transparent;
+  }
+  20% {
+    background-color: color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.search-highlight {
+  animation: search-highlight-pulse 2s ease-out;
+  border-radius: 6px;
+}
