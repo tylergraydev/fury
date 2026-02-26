@@ -16,7 +16,7 @@ import { useChatStore } from "../../stores/chatStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 
 const defaultSettings = {
-  agentType: "ClaudeCode" as const,
+  agentType: "claude_code" as const,
   theme: "blend" as const,
   provider: { providerType: "Anthropic" as const, envVars: {} },
   systemPromptAdditions: null,
