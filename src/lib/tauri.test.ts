@@ -145,6 +145,15 @@ import {
   linkIssueToWorkspace,
   unlinkIssueFromWorkspace,
   getWorkspaceIssues,
+  // Chat search commands
+  searchChatMessages,
+  // Stash commands
+  listStashes,
+  createStash,
+  applyStash,
+  popStash,
+  dropStash,
+  showStash,
 } from "./tauri";
 import type { ChatMessage, PersistedChatMessage } from "./tauri";
 
@@ -1291,6 +1300,74 @@ describe("Linear commands", () => {
     const result = await getWorkspaceIssues("w1");
     expect(invoke).toHaveBeenCalledWith("get_workspace_issues", { workspaceId: "w1" });
     expect(result).toEqual(issues);
+  });
+});
+
+// ─── Chat search commands ───────────────────────────────────────────────────
+
+describe("Chat search commands", () => {
+  it("searchChatMessages calls invoke with search_chat_messages", async () => {
+    const results = [{ messageId: "m1", workspaceId: "w1", workspaceName: "ws", role: "user" as const, matchedText: "hello", timestamp: "2024-01-01" }];
+    (invoke as any).mockResolvedValueOnce(results);
+    const result = await searchChatMessages("hello", "w1");
+    expect(invoke).toHaveBeenCalledWith("search_chat_messages", { query: "hello", workspaceId: "w1" });
+    expect(result).toEqual(results);
+  });
+
+  it("searchChatMessages calls invoke without workspaceId when not specified", async () => {
+    (invoke as any).mockResolvedValueOnce([]);
+    await searchChatMessages("test");
+    expect(invoke).toHaveBeenCalledWith("search_chat_messages", { query: "test", workspaceId: undefined });
+  });
+});
+
+// ─── Stash commands ─────────────────────────────────────────────────────────
+
+describe("Stash commands", () => {
+  it("listStashes calls invoke with list_stashes", async () => {
+    const stashes = [{ index: 0, message: "wip", branch: "main", timestamp: "2024-01-01T00:00:00Z" }];
+    (invoke as any).mockResolvedValueOnce(stashes);
+    const result = await listStashes("w1");
+    expect(invoke).toHaveBeenCalledWith("list_stashes", { workspaceId: "w1" });
+    expect(result).toEqual(stashes);
+  });
+
+  it("createStash calls invoke with create_stash", async () => {
+    const entry = { index: 0, message: "my stash", branch: "main", timestamp: "2024-01-01T00:00:00Z" };
+    (invoke as any).mockResolvedValueOnce(entry);
+    const result = await createStash("w1", "my stash", true);
+    expect(invoke).toHaveBeenCalledWith("create_stash", { workspaceId: "w1", message: "my stash", includeUntracked: true });
+    expect(result).toEqual(entry);
+  });
+
+  it("createStash calls invoke without optional params", async () => {
+    const entry = { index: 0, message: "", branch: "main", timestamp: "2024-01-01T00:00:00Z" };
+    (invoke as any).mockResolvedValueOnce(entry);
+    await createStash("w1");
+    expect(invoke).toHaveBeenCalledWith("create_stash", { workspaceId: "w1", message: undefined, includeUntracked: undefined });
+  });
+
+  it("applyStash calls invoke with apply_stash", async () => {
+    await applyStash("w1", 0);
+    expect(invoke).toHaveBeenCalledWith("apply_stash", { workspaceId: "w1", index: 0 });
+  });
+
+  it("popStash calls invoke with pop_stash", async () => {
+    await popStash("w1", 1);
+    expect(invoke).toHaveBeenCalledWith("pop_stash", { workspaceId: "w1", index: 1 });
+  });
+
+  it("dropStash calls invoke with drop_stash", async () => {
+    await dropStash("w1", 2);
+    expect(invoke).toHaveBeenCalledWith("drop_stash", { workspaceId: "w1", index: 2 });
+  });
+
+  it("showStash calls invoke with show_stash", async () => {
+    const detail = { index: 0, message: "stash", files: [{ path: "a.ts", additions: 5, deletions: 2 }], patch: "diff..." };
+    (invoke as any).mockResolvedValueOnce(detail);
+    const result = await showStash("w1", 0);
+    expect(invoke).toHaveBeenCalledWith("show_stash", { workspaceId: "w1", index: 0 });
+    expect(result).toEqual(detail);
   });
 });
 

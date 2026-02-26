@@ -21,7 +21,7 @@ import {
 } from "../lib/tauri";
 import { useToastStore } from "./toastStore";
 
-export type MergeSection = "sync" | "compare" | "conflicts";
+export type MergeSection = "sync" | "compare" | "conflicts" | "stash";
 
 interface MergeStore {
   // Branch status
