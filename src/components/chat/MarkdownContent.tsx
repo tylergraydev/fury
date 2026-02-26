@@ -1,10 +1,14 @@
-import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Component, type ErrorInfo, type ReactNode, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
+import { extractCodeBlockInfo } from "../../lib/codeBlockFilePath";
+import { CodeBlockToolbar } from "./CodeBlockToolbar";
 
 interface Props {
   content: string;
+  contextId?: string;
+  contextType?: "workspace" | "repo";
 }
 
 /** Falls back to plain text when markdown parsing throws. */
@@ -29,7 +33,8 @@ class MarkdownErrorBoundary extends Component<
   }
 }
 
-const components: Components = {
+/** Shared renderers that don't need context. */
+const staticComponents: Partial<Components> = {
   h1: ({ children }) => (
     <h1 className="mb-3 mt-4 text-xl font-bold" style={{ color: "var(--text-primary)" }}>
       {children}
@@ -66,30 +71,6 @@ const components: Components = {
     <ol className="mb-2 ml-4 list-decimal space-y-1">{children}</ol>
   ),
   li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-  code: ({ children, ...props }) => (
-    <code
-      className="rounded px-1.5 py-0.5 font-mono text-[13px]"
-      style={{
-        backgroundColor: "var(--bg-surface)",
-        color: "var(--accent-purple)",
-      }}
-      {...props}
-    >
-      {children}
-    </code>
-  ),
-  pre: ({ children }) => (
-    <pre
-      className="mb-2 overflow-x-auto rounded-md px-4 py-3 font-mono text-[13px]"
-      style={{
-        backgroundColor: "var(--bg-surface)",
-        color: "var(--text-secondary)",
-        border: "1px solid var(--border)",
-      }}
-    >
-      {children}
-    </pre>
-  ),
   blockquote: ({ children }) => (
     <blockquote
       className="my-2 pl-4"
@@ -138,7 +119,75 @@ const components: Components = {
   em: ({ children }) => <em>{children}</em>,
 };
 
-export function MarkdownContent({ content }: Props) {
+function buildComponents(
+  content: string,
+  contextId?: string,
+  contextType?: "workspace" | "repo",
+): Components {
+  const showToolbar = Boolean(contextId && contextType);
+
+  return {
+    ...staticComponents,
+
+    code: ({ children, className, ...props }) => {
+      // Fenced code blocks have className like "language-xxx"
+      if (className) {
+        return (
+          <code className={className} {...props}>
+            {children}
+          </code>
+        );
+      }
+      // Inline code
+      return (
+        <code
+          className="rounded px-1.5 py-0.5 font-mono text-[13px]"
+          style={{
+            backgroundColor: "var(--bg-surface)",
+            color: "var(--accent-purple)",
+          }}
+          {...props}
+        >
+          {children}
+        </code>
+      );
+    },
+
+    pre: ({ children }) => {
+      const { codeText, filePath } = showToolbar
+        ? extractCodeBlockInfo(children, content)
+        : { codeText: "", filePath: null };
+
+      return (
+        <pre
+          className="group relative mb-2 overflow-x-auto rounded-md px-4 py-3 font-mono text-[13px]"
+          style={{
+            backgroundColor: "var(--bg-surface)",
+            color: "var(--text-secondary)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          {children}
+          {showToolbar && (
+            <CodeBlockToolbar
+              code={codeText}
+              filePath={filePath}
+              contextId={contextId!}
+              contextType={contextType!}
+            />
+          )}
+        </pre>
+      );
+    },
+  };
+}
+
+export function MarkdownContent({ content, contextId, contextType }: Props) {
+  const components = useMemo(
+    () => buildComponents(content, contextId, contextType),
+    [content, contextId, contextType],
+  );
+
   if (!content) return null;
 
   return (

@@ -211,6 +211,8 @@ export function ChatPanel({ contextId, contextType }: Props) {
           agentStatus={agentStatus}
           onRetry={handleRetry}
           highlightMessageId={highlightMessageId}
+          contextId={contextId}
+          contextType={contextType}
         />
         <div className="absolute right-3 top-3 z-20 flex gap-1">
           <button

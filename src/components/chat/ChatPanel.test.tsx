@@ -18,6 +18,8 @@ vi.mock("./MessageList", () => ({
         <span data-testid="msg-count">{props.messages.length}</span>
         <span data-testid="streaming">{props.streamingText}</span>
         <span data-testid="agent-status">{typeof props.agentStatus === "string" ? props.agentStatus : "Error"}</span>
+        <span data-testid="ml-context-id">{props.contextId ?? ""}</span>
+        <span data-testid="ml-context-type">{props.contextType ?? ""}</span>
         {props.onRetry && (
           <button data-testid="retry-btn" onClick={props.onRetry}>Retry</button>
         )}
@@ -123,6 +125,12 @@ describe("ChatPanel", () => {
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     expect(screen.getByTestId("message-list")).toBeInTheDocument();
     expect(screen.getByTestId("composer")).toBeInTheDocument();
+  });
+
+  it("passes contextId and contextType to MessageList", () => {
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+    expect(screen.getByTestId("ml-context-id")).toHaveTextContent("ws-1");
+    expect(screen.getByTestId("ml-context-type")).toHaveTextContent("workspace");
   });
 
   it("passes contextId to Composer", () => {
