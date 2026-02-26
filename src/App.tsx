@@ -14,6 +14,7 @@ import { LandingPage } from "./components/landing/LandingPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DiffPanel } from "./components/diff/DiffPanel";
 import { TeamView } from "./components/team/TeamView";
+import { TestRunnerPanel } from "./components/test-runner/TestRunnerPanel";
 import { useWorkspaceStore } from "./stores/workspaceStore";
 import { useRepositoryStore } from "./stores/repositoryStore";
 import { useUIStore } from "./stores/uiStore";
@@ -25,7 +26,7 @@ import { useCopilotStore } from "./stores/copilotStore";
 import { ToastContainer } from "./components/Toast";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { useAutoUpdate } from "./lib/autoUpdate";
-import { applyTheme } from "./lib/themes";
+import { applyTheme, registerCustomTheme, type ThemeVars } from "./lib/themes";
 import { startIpcFlush, stopIpcFlush } from "./lib/ipcInstrumentation";
 import { startFrameMonitor, stopFrameMonitor } from "./lib/frameMonitor";
 import { NotificationPanel } from "./components/notifications/NotificationPanel";
@@ -89,6 +90,11 @@ function MainPanel() {
           <TeamView />
         </div>
       )}
+      {viewType === "tests" && (
+        <div className="flex-1 overflow-hidden">
+          <TestRunnerPanel contextId={contextId} contextType={contextType} />
+        </div>
+      )}
     </div>
   );
 }
@@ -114,6 +120,12 @@ function App() {
     getAppSettings()
       .then((settings) => {
         settingsRef.current = { copilotEnabled: !!settings.copilot?.enabled };
+        // Register custom themes before applying
+        if (settings.customThemes) {
+          for (const ct of settings.customThemes) {
+            registerCustomTheme(ct.id, ct.vars as unknown as ThemeVars);
+          }
+        }
         if (settings.theme) {
           useUIStore.getState().setTheme(settings.theme);
         }
@@ -217,6 +229,9 @@ function App() {
         break;
       case "view-team":
         ui.openViewTab("team");
+        break;
+      case "view-tests":
+        ui.openViewTab("tests");
         break;
       case "new-workspace":
         setShowPalette(true);

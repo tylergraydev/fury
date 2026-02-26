@@ -176,6 +176,17 @@ pub fn run() {
             commands::workspace_template::list_workspace_templates,
             commands::workspace_template::update_workspace_template,
             commands::workspace_template::delete_workspace_template,
+            // Prompt library commands
+            commands::prompt::create_prompt,
+            commands::prompt::list_prompts,
+            commands::prompt::update_prompt,
+            commands::prompt::delete_prompt,
+            // Test runner commands
+            commands::test_runner::detect_test_framework,
+            commands::test_runner::get_test_runner_config,
+            commands::test_runner::save_test_runner_config,
+            commands::test_runner::run_tests,
+            commands::test_runner::stop_tests,
             // Performance monitor commands
             commands::perf::push_ipc_metrics,
             commands::perf::push_frame_metrics,

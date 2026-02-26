@@ -976,9 +976,17 @@ export interface IndexingStatus {
   lastIndexedAt: string | null;
 }
 
+export interface CustomTheme {
+  id: string;
+  name: string;
+  vars: Record<string, string>;
+  baseTheme?: string;
+  createdAt: string;
+}
+
 export interface AppSettings {
   agentType: AgentType;
-  theme: "blend" | "midnight" | "github";
+  theme: string;
   provider: ProviderConfig;
   systemPromptAdditions: string | null;
   analyticsEnabled: boolean;
@@ -986,6 +994,7 @@ export interface AppSettings {
   copilot: CopilotSettings;
   linear: LinearSettings;
   claudeContext: ClaudeContextSettings;
+  customThemes?: CustomTheme[];
 }
 
 // MCP commands
@@ -1499,4 +1508,128 @@ export async function toggleBookmark(
     filePath,
     lineNumber,
   });
+}
+
+// Prompt library types
+export interface Prompt {
+  id: string;
+  name: string;
+  content: string;
+  description: string | null;
+  category: string | null;
+  tags: string[];
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePromptRequest {
+  name: string;
+  content: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
+}
+
+export interface UpdatePromptRequest {
+  name?: string;
+  content?: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
+}
+
+// Prompt library commands
+export async function createPrompt(
+  request: CreatePromptRequest,
+): Promise<Prompt> {
+  return invoke<Prompt>("create_prompt", { request });
+}
+
+export async function listPrompts(): Promise<Prompt[]> {
+  return invoke<Prompt[]>("list_prompts");
+}
+
+export async function updatePrompt(
+  promptId: string,
+  request: UpdatePromptRequest,
+): Promise<Prompt> {
+  return invoke<Prompt>("update_prompt", { promptId, request });
+}
+
+export async function deletePrompt(promptId: string): Promise<void> {
+  return invoke("delete_prompt", { promptId });
+}
+
+// Test runner types
+export type TestFramework = "vitest" | "jest" | "pytest" | "cargotest" | "gotest" | "custom";
+export type TestStatus = "passed" | "failed" | "skipped" | "running" | "pending";
+
+export interface TestRunnerConfig {
+  framework: TestFramework | null;
+  testCommand: string | null;
+  testFileCommand: string | null;
+  workingDir: string | null;
+}
+
+export interface TestResult {
+  name: string;
+  suite: string;
+  status: TestStatus;
+  durationMs: number | null;
+  failureMessage: string | null;
+}
+
+export interface TestSuite {
+  name: string;
+  tests: TestResult[];
+  status: TestStatus;
+  durationMs: number | null;
+}
+
+export interface TestRunSummary {
+  total: number;
+  passed: number;
+  failed: number;
+  skipped: number;
+  durationMs: number;
+  suites: TestSuite[];
+}
+
+export type TestRunEvent =
+  | { type: "suiteUpdate"; suite: TestSuite }
+  | { type: "runComplete"; summary: TestRunSummary }
+  | { type: "outputLine"; line: string; stream: string }
+  | { type: "error"; message: string };
+
+// Test runner commands
+export async function detectTestFramework(
+  repoId: string,
+): Promise<TestRunnerConfig> {
+  return invoke<TestRunnerConfig>("detect_test_framework", { repoId });
+}
+
+export async function getTestRunnerConfig(
+  repoId: string,
+): Promise<TestRunnerConfig> {
+  return invoke<TestRunnerConfig>("get_test_runner_config", { repoId });
+}
+
+export async function saveTestRunnerConfig(
+  repoId: string,
+  config: TestRunnerConfig,
+): Promise<void> {
+  return invoke("save_test_runner_config", { repoId, config });
+}
+
+export async function runTests(
+  contextId: string,
+  contextType: string,
+  fileFilter?: string,
+): Promise<void> {
+  return invoke("run_tests", { contextId, contextType, fileFilter });
+}
+
+export async function stopTests(contextId: string): Promise<void> {
+  return invoke("stop_tests", { contextId });
 }

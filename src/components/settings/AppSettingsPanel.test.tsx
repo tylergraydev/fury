@@ -95,6 +95,9 @@ vi.mock("lucide-react", () => ({
   FolderOpen: () => <span data-testid="folder-icon" />,
   CircleDot: () => <span data-testid="circle-dot-icon" />,
   Search: () => <span data-testid="search-icon" />,
+  Copy: () => <span data-testid="copy-icon" />,
+  Pencil: () => <span data-testid="pencil-icon" />,
+  Upload: () => <span data-testid="upload-icon" />,
 }));
 
 const fullSettings = {
@@ -110,6 +113,7 @@ const fullSettings = {
   copilot: { enabled: false },
   linear: { apiKey: null },
   claudeContext: { enabled: false, openaiApiKey: null, zillizUri: null, zillizToken: null },
+  customThemes: [],
 };
 
 beforeEach(() => {

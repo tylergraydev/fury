@@ -47,6 +47,8 @@ pub struct AppState {
     pub perf_metrics: Arc<Mutex<PerfMetrics>>,
     /// Claude Context indexing status per repo — keyed by repo UUID
     pub indexing_status: Arc<Mutex<HashMap<Uuid, IndexingStatus>>>,
+    /// Test runner process PIDs — keyed by "test:{context_id}"
+    pub test_processes: Arc<Mutex<HashMap<String, u32>>>,
 }
 
 impl AppState {
@@ -67,6 +69,7 @@ impl AppState {
             copilot: Arc::new(Mutex::new(None)),
             perf_metrics: Arc::new(Mutex::new(PerfMetrics::new())),
             indexing_status: Arc::new(Mutex::new(HashMap::new())),
+            test_processes: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -91,6 +94,7 @@ mod tests {
         assert!(state.copilot.lock().unwrap().is_none());
         assert!(state.db.lock().unwrap().is_none());
         assert!(state.indexing_status.lock().unwrap().is_empty());
+        assert!(state.test_processes.lock().unwrap().is_empty());
     }
 
     #[test]

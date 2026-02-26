@@ -31,9 +31,11 @@ Centralized notification panel for PR check completions, agent task completions,
 ## Tier 2 — Medium Impact
 
 ### 6. Workspace Templates
+**Status:** Done
 Save a workspace configuration (scripts, env vars, MCP servers, sparse checkout dirs) as a reusable template.
 
 ### 7. Custom Theme Editor
+**Status:** Done
 Let users create and share custom color themes beyond the 3 built-in options. The theming system already uses CSS variables.
 
 ### 8. Agent Prompt Library

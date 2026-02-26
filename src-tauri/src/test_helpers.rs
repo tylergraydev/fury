@@ -2,6 +2,7 @@ use crate::db::Database;
 use crate::models::bookmark::FileBookmark;
 use crate::models::chat::{ChatMessage, ContentBlock, MessageRole};
 use crate::models::checkpoint::Checkpoint;
+use crate::models::prompt::Prompt;
 use crate::models::repository::{RepoSettings, Repository};
 use crate::models::settings::AppSettings;
 use crate::models::todo::TodoItem;
@@ -160,6 +161,21 @@ pub fn test_bookmark(repo_id: Uuid) -> FileBookmark {
         line_number: 42,
         note: Some("Important function".to_string()),
         color: Some("blue".to_string()),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    }
+}
+
+/// Create a dummy Prompt for testing.
+pub fn test_prompt() -> Prompt {
+    Prompt {
+        id: Uuid::new_v4(),
+        name: "test-prompt".to_string(),
+        content: "Review the {{file}} for {{issue_type}} issues".to_string(),
+        description: Some("A test prompt".to_string()),
+        category: Some("Code Review".to_string()),
+        tags: vec!["review".to_string(), "quality".to_string()],
+        sort_order: 0,
         created_at: Utc::now(),
         updated_at: Utc::now(),
     }
