@@ -26,6 +26,7 @@ export interface FileTab {
 interface FileViewerStore {
   tabs: FileTab[];
   activeTabId: string | null;
+  revealLine: { tabId: string; line: number } | null;
 
   openFile: (
     contextId: string,
@@ -40,6 +41,8 @@ interface FileViewerStore {
   closeAllTabs: () => void;
   updateContent: (tabId: string, newContent: string) => void;
   saveActiveFile: (formatOnSave?: boolean) => Promise<void>;
+  setRevealLine: (tabId: string, line: number) => void;
+  clearRevealLine: () => void;
 }
 
 function tabId(contextId: string, filePath: string): string {
@@ -128,6 +131,7 @@ async function fetchContent(
 export const useFileViewerStore = create<FileViewerStore>((set, get) => ({
   tabs: [],
   activeTabId: null,
+  revealLine: null,
 
   openFile: async (contextId, contextType, filePath, pin = false) => {
     const id = tabId(contextId, filePath);
@@ -296,4 +300,7 @@ export const useFileViewerStore = create<FileViewerStore>((set, get) => ({
       }));
     }
   },
+
+  setRevealLine: (tabId, line) => set({ revealLine: { tabId, line } }),
+  clearRevealLine: () => set({ revealLine: null }),
 }));

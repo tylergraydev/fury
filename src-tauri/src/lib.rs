@@ -165,6 +165,12 @@ pub fn run() {
             commands::mcp::update_app_settings,
             commands::mcp::detect_cursorrules,
             commands::mcp::import_cursorrules,
+            // Bookmark commands
+            commands::bookmark::create_bookmark,
+            commands::bookmark::list_bookmarks,
+            commands::bookmark::update_bookmark,
+            commands::bookmark::delete_bookmark,
+            commands::bookmark::toggle_bookmark,
             // Workspace template commands
             commands::workspace_template::create_workspace_template,
             commands::workspace_template::list_workspace_templates,
