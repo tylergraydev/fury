@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { applyTheme, type ThemeName } from "../lib/themes";
 
-export type RightSidebarTab = "files" | "changes" | "checks";
+export type RightSidebarTab = "files" | "changes" | "checks" | "bookmarks";
 export type BottomTab = "setup" | "terminal" | "run";
 export type ViewType = "chat" | "settings" | "merge" | "history" | "diff" | "team";
 

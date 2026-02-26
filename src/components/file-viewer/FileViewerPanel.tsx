@@ -1,8 +1,10 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import Editor from "@monaco-editor/react";
+import type * as Monaco from "monaco-editor";
 import { MONACO_THEME, configureMonacoTheme } from "../../lib/monacoTheme";
 import type { FileTab } from "../../stores/fileViewerStore";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
+import { useBookmarkStore } from "../../stores/bookmarkStore";
 import {
   notifyDocumentOpened,
   notifyDocumentChanged,
@@ -10,10 +12,28 @@ import {
 
 interface Props {
   tab: FileTab;
+  repoId: string | null;
 }
 
-export function FileViewerPanel({ tab }: Props) {
+function bookmarkGlyphClass(color: string | null): string {
+  if (!color || color === "blue") return "bookmark-glyph";
+  return `bookmark-glyph bookmark-${color}`;
+}
+
+const EMPTY_BOOKMARKS: import("../../lib/tauri").FileBookmark[] = [];
+
+export function FileViewerPanel({ tab, repoId }: Props) {
   const updateContent = useFileViewerStore((s) => s.updateContent);
+  const revealLine = useFileViewerStore((s) => s.revealLine);
+  const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
+  const decorationsRef =
+    useRef<Monaco.editor.IEditorDecorationsCollection | null>(null);
+  const monacoRef = useRef<typeof Monaco | null>(null);
+
+  const allBookmarks = useBookmarkStore((s) =>
+    repoId ? s.bookmarks[repoId] ?? EMPTY_BOOKMARKS : EMPTY_BOOKMARKS,
+  );
+  const fileBookmarks = allBookmarks.filter((b) => b.filePath === tab.filePath);
 
   const handleChange = useCallback(
     (value: string | undefined) => {
@@ -25,10 +45,95 @@ export function FileViewerPanel({ tab }: Props) {
     [tab.id, tab.filePath, updateContent],
   );
 
-  const handleMount = useCallback(() => {
-    const content = tab.editedContent ?? tab.content ?? "";
-    notifyDocumentOpened(tab.filePath, tab.language, content);
-  }, [tab.filePath, tab.language, tab.content, tab.editedContent]);
+  const handleMount = useCallback(
+    (editor: Monaco.editor.IStandaloneCodeEditor, monaco: typeof Monaco) => {
+      editorRef.current = editor;
+      monacoRef.current = monaco;
+
+      const content = tab.editedContent ?? tab.content ?? "";
+      notifyDocumentOpened(tab.filePath, tab.language, content);
+
+      // Gutter click handler for toggling bookmarks
+      editor.onMouseDown((e) => {
+        if (!repoId) return;
+        const target = e.target;
+        if (
+          target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN &&
+          target.position
+        ) {
+          useBookmarkStore
+            .getState()
+            .toggleBookmark(repoId, tab.filePath, target.position.lineNumber);
+        }
+      });
+
+      // Context menu action for adding bookmark with note
+      editor.addAction({
+        id: "bookmark-add-with-note",
+        label: "Add Bookmark with Note...",
+        contextMenuGroupId: "bookmarks",
+        contextMenuOrder: 1,
+        run: (ed) => {
+          if (!repoId) return;
+          const position = ed.getPosition();
+          if (!position) return;
+          const existing = useBookmarkStore
+            .getState()
+            .getBookmarksForFile(repoId, tab.filePath)
+            .find((b) => b.lineNumber === position.lineNumber);
+          useBookmarkStore.getState().setEditingBookmark({
+            repoId,
+            filePath: tab.filePath,
+            lineNumber: position.lineNumber,
+            existing,
+          });
+        },
+      });
+    },
+    [tab.filePath, tab.language, tab.content, tab.editedContent, repoId],
+  );
+
+  // Apply bookmark decorations whenever bookmarks change
+  useEffect(() => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!editor || !monaco) return;
+
+    // Clear previous decorations
+    if (decorationsRef.current) {
+      decorationsRef.current.clear();
+    }
+
+    const decorations: Monaco.editor.IModelDeltaDecoration[] =
+      fileBookmarks.map((bm) => ({
+        range: new monaco.Range(bm.lineNumber, 1, bm.lineNumber, 1),
+        options: {
+          isWholeLine: true,
+          glyphMarginClassName: bookmarkGlyphClass(bm.color),
+          glyphMarginHoverMessage: {
+            value: bm.note || "Bookmark",
+          },
+        },
+      }));
+
+    decorationsRef.current = editor.createDecorationsCollection(decorations);
+  }, [fileBookmarks]);
+
+  // Handle revealLine from bookmarks panel
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || !revealLine || revealLine.tabId !== tab.id) return;
+    editor.revealLineInCenter(revealLine.line);
+    editor.setPosition({ lineNumber: revealLine.line, column: 1 });
+    useFileViewerStore.getState().clearRevealLine();
+  }, [revealLine, tab.id]);
+
+  // Load bookmarks for the current repo on mount
+  useEffect(() => {
+    if (repoId) {
+      useBookmarkStore.getState().loadBookmarks(repoId);
+    }
+  }, [repoId]);
 
   if (tab.loading) {
     return (
@@ -64,6 +169,7 @@ export function FileViewerPanel({ tab }: Props) {
         scrollBeyondLastLine: false,
         lineNumbers: "on",
         renderLineHighlight: "line",
+        glyphMargin: true,
         folding: true,
         wordWrap: "off",
         tabSize: 2,

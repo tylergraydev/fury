@@ -15,6 +15,7 @@ import { useDiffStore } from "../../stores/diffStore";
 import { FileTreePanel } from "../sidebar/FileTreePanel";
 import { ChangesPanel } from "../sidebar/ChangesPanel";
 import { ChecksPanel } from "../sidebar/ChecksPanel";
+import { BookmarksPanel } from "../sidebar/BookmarksPanel";
 import { TerminalPanel } from "../terminal/TerminalPanel";
 import { RunPanel } from "../terminal/RunPanel";
 import { SetupPanel } from "../terminal/SetupPanel";
@@ -32,11 +33,13 @@ const ALL_TABS: { key: RightSidebarTab; label: string }[] = [
   { key: "files", label: "All files" },
   { key: "changes", label: "Changes" },
   { key: "checks", label: "Checks" },
+  { key: "bookmarks", label: "Bookmarks" },
 ];
 
 const REPO_TABS: { key: RightSidebarTab; label: string }[] = [
   { key: "files", label: "All files" },
   { key: "changes", label: "Changes" },
+  { key: "bookmarks", label: "Bookmarks" },
 ];
 
 const BOTTOM_TABS: { key: BottomTab; label: string }[] = [
@@ -231,6 +234,13 @@ export function RightSidebar({ context }: Props) {
                 <div data-testid="panel-checks" className="h-full">
                   <ErrorBoundary label="checks" resetKey={context.id}>
                     <ChecksPanel workspaceId={context.id} />
+                  </ErrorBoundary>
+                </div>
+              )}
+              {activeTab === "bookmarks" && (
+                <div data-testid="panel-bookmarks" className="h-full">
+                  <ErrorBoundary label="bookmarks" resetKey={context.id}>
+                    <BookmarksPanel context={context} />
                   </ErrorBoundary>
                 </div>
               )}

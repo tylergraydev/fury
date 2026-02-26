@@ -29,6 +29,7 @@ import { applyTheme } from "./lib/themes";
 import { startIpcFlush, stopIpcFlush } from "./lib/ipcInstrumentation";
 import { startFrameMonitor, stopFrameMonitor } from "./lib/frameMonitor";
 import { NotificationPanel } from "./components/notifications/NotificationPanel";
+import { BookmarkNoteDialog } from "./components/file-viewer/BookmarkNoteDialog";
 import { useNotificationStore } from "./stores/notificationStore";
 import { initNotificationListeners } from "./lib/notificationListeners";
 import "./App.css";
@@ -38,7 +39,7 @@ export type SidebarContext =
   | { type: "repo"; id: string };
 
 function MainPanel() {
-  const { activeWorkspaceId, activeRepoId } = useWorkspaceStore();
+  const { activeWorkspaceId, activeRepoId, workspaces } = useWorkspaceStore();
   const viewTabs = useUIStore((s) => s.viewTabs);
   const activeViewTabId = useUIStore((s) => s.activeViewTabId);
   const fileTabs = useFileViewerStore((s) => s.tabs);
@@ -50,12 +51,15 @@ function MainPanel() {
   const activeViewTab = viewTabs.find((t) => t.id === activeViewTabId);
   const viewType = activeViewTab?.type ?? "chat";
 
+  const activeWs = workspaces.find((w) => w.id === activeWorkspaceId);
+  const repoId = activeWs?.repoId ?? activeRepoId ?? null;
+
   return (
     <div className="flex h-full flex-col">
       {viewType === "chat" && (
         <div className="flex-1 overflow-hidden">
           {activeFileTab ? (
-            <FileViewerPanel tab={activeFileTab} />
+            <FileViewerPanel tab={activeFileTab} repoId={repoId} />
           ) : (
             <ChatPanel contextId={contextId} contextType={contextType} />
           )}
@@ -206,6 +210,10 @@ function App() {
         break;
       case "toggle-notifications":
         useNotificationStore.getState().togglePanel();
+        break;
+      case "right-sidebar-bookmarks":
+        ui.setRightSidebarTab("bookmarks");
+        ui.ensureRightSidebarVisible();
         break;
       case "view-team":
         ui.openViewTab("team");
@@ -359,6 +367,7 @@ function App() {
       />
 
       <NotificationPanel />
+      <BookmarkNoteDialog />
       <ToastContainer />
     </div>
   );

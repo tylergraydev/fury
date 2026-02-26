@@ -232,3 +232,36 @@ body,
   animation: search-highlight-pulse 2s ease-out;
   border-radius: 6px;
 }
+
+/* Bookmark glyph margin decorations */
+.bookmark-glyph {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.bookmark-glyph::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: block;
+  background-color: var(--accent);
+}
+
+.bookmark-glyph.bookmark-green::after {
+  background-color: var(--success);
+}
+
+.bookmark-glyph.bookmark-yellow::after {
+  background-color: var(--warning);
+}
+
+.bookmark-glyph.bookmark-red::after {
+  background-color: var(--error);
+}
+
+.bookmark-glyph.bookmark-purple::after {
+  background-color: var(--accent-purple);
+}

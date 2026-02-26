@@ -1,4 +1,5 @@
 use crate::db::Database;
+use crate::models::bookmark::FileBookmark;
 use crate::models::chat::{ChatMessage, ContentBlock, MessageRole};
 use crate::models::checkpoint::Checkpoint;
 use crate::models::repository::{RepoSettings, Repository};
@@ -148,6 +149,20 @@ pub fn insert_test_repo_and_workspace(db: &Database) -> (Repository, Workspace) 
     db.insert_workspace(&ws)
         .expect("Failed to insert test workspace");
     (repo, ws)
+}
+
+/// Create a dummy FileBookmark for testing.
+pub fn test_bookmark(repo_id: Uuid) -> FileBookmark {
+    FileBookmark {
+        id: Uuid::new_v4(),
+        repo_id,
+        file_path: "src/main.ts".to_string(),
+        line_number: 42,
+        note: Some("Important function".to_string()),
+        color: Some("blue".to_string()),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    }
 }
 
 /// Create a dummy WorkspaceTemplate for testing.

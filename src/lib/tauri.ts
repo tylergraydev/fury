@@ -1436,3 +1436,67 @@ export async function deleteWorkspaceTemplate(
 ): Promise<void> {
   return invoke("delete_workspace_template", { templateId });
 }
+
+// File bookmark types
+export interface FileBookmark {
+  id: string;
+  repoId: string;
+  filePath: string;
+  lineNumber: number;
+  note: string | null;
+  color: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateBookmarkRequest {
+  repoId: string;
+  filePath: string;
+  lineNumber: number;
+  note?: string;
+  color?: string;
+}
+
+export interface UpdateBookmarkRequest {
+  note?: string;
+  color?: string;
+  lineNumber?: number;
+}
+
+// File bookmark commands
+export async function createBookmark(
+  request: CreateBookmarkRequest,
+): Promise<FileBookmark> {
+  return invoke<FileBookmark>("create_bookmark", { request });
+}
+
+export async function listBookmarks(
+  repoId: string,
+): Promise<FileBookmark[]> {
+  return invoke<FileBookmark[]>("list_bookmarks", { repoId });
+}
+
+export async function updateBookmark(
+  bookmarkId: string,
+  request: UpdateBookmarkRequest,
+): Promise<FileBookmark> {
+  return invoke<FileBookmark>("update_bookmark", { bookmarkId, request });
+}
+
+export async function deleteBookmark(
+  bookmarkId: string,
+): Promise<void> {
+  return invoke("delete_bookmark", { bookmarkId });
+}
+
+export async function toggleBookmark(
+  repoId: string,
+  filePath: string,
+  lineNumber: number,
+): Promise<FileBookmark | null> {
+  return invoke<FileBookmark | null>("toggle_bookmark", {
+    repoId,
+    filePath,
+    lineNumber,
+  });
+}

@@ -153,5 +153,25 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
     )
     .map_err(|e| AppError::DbError(e.to_string()))?;
 
+    // File bookmarks table (idempotent)
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS file_bookmarks (
+            id TEXT PRIMARY KEY,
+            repo_id TEXT NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+            file_path TEXT NOT NULL,
+            line_number INTEGER NOT NULL,
+            note TEXT,
+            color TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(repo_id, file_path, line_number)
+        );
+        CREATE INDEX IF NOT EXISTS idx_bookmarks_repo ON file_bookmarks(repo_id);
+        CREATE INDEX IF NOT EXISTS idx_bookmarks_repo_file ON file_bookmarks(repo_id, file_path);
+        ",
+    )
+    .map_err(|e| AppError::DbError(e.to_string()))?;
+
     Ok(())
 }
