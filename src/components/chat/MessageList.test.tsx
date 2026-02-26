@@ -255,11 +255,12 @@ describe("turn collapsing", () => {
       <MessageList messages={msgs} streamingText="" agentStatus="Idle" />,
     );
     const turn0 = container.querySelector('[data-turn-index="0"]');
-    const summaryBtn = turn0?.querySelector("button")!;
+    expect(turn0).toBeTruthy();
+    const summaryBtn = turn0!.querySelector("button")!;
 
     // Before expand: only the user message and final text message visible
     // a1 should NOT be visible (collapsed)
-    expect(turn0?.querySelector('[data-testid="msg-a1"]')).not.toBeInTheDocument();
+    expect(turn0!.querySelector('[data-testid="msg-a1"]')).not.toBeInTheDocument();
     // a2 (final text) should be visible
     expect(turn0?.querySelector('[data-testid="msg-a2"]')).toBeInTheDocument();
 
@@ -395,7 +396,8 @@ describe("turn collapsing", () => {
       <MessageList messages={msgs} streamingText="" agentStatus="Idle" />,
     );
     const turn0 = container.querySelector('[data-turn-index="0"]');
-    const summaryBtn = turn0?.querySelector("button")!;
+    expect(turn0).toBeTruthy();
+    const summaryBtn = turn0!.querySelector("button")!;
     // Before hover: ChevronRight
     expect(summaryBtn.querySelector('[data-testid="chevron-right"]')).toBeInTheDocument();
     // Hover
@@ -439,14 +441,15 @@ describe("turn collapsing", () => {
       <MessageList messages={msgs} streamingText="" agentStatus="Idle" />,
     );
     const turn0 = container.querySelector('[data-turn-index="0"]');
-    const summaryBtn = turn0?.querySelector("button")!;
+    expect(turn0).toBeTruthy();
+    const summaryBtn = turn0!.querySelector("button")!;
 
     // Expand
     fireEvent.click(summaryBtn);
-    expect(turn0?.querySelector('[data-testid="msg-a1"]')).toBeInTheDocument();
+    expect(turn0!.querySelector('[data-testid="msg-a1"]')).toBeInTheDocument();
 
     // Collapse
     fireEvent.click(summaryBtn);
-    expect(turn0?.querySelector('[data-testid="msg-a1"]')).not.toBeInTheDocument();
+    expect(turn0!.querySelector('[data-testid="msg-a1"]')).not.toBeInTheDocument();
   });
 });

@@ -1284,7 +1284,8 @@ describe("ChecksPanel", () => {
       });
       // Find the close button in the log viewer (the X button near "Logs" label)
       const logsLabel = screen.getByText("Logs");
-      const closeBtn = logsLabel.parentElement?.querySelector("button")!;
+      expect(logsLabel.parentElement).toBeTruthy();
+      const closeBtn = logsLabel.parentElement!.querySelector("button")!;
       fireEvent.click(closeBtn);
       // Log viewer should be closed
       await waitFor(() => {
