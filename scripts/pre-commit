@@ -1,11 +1,29 @@
 #!/bin/sh
-# Pre-commit hook: runs TypeScript type checking before each commit.
-# Install: npm run hooks:install
+# Pre-commit hook: runs TypeScript and Rust checks before each commit.
+# Install: npm run hooks:install (runs automatically on npm install)
 
-echo "Running tsc --noEmit..."
-npx tsc --noEmit
-if [ $? -ne 0 ]; then
-  echo ""
-  echo "Commit blocked: TypeScript type errors found. Fix them and try again."
-  exit 1
+# Only run checks relevant to what changed
+STAGED=$(git diff --cached --name-only)
+
+TS_CHANGED=$(echo "$STAGED" | grep -E '\.(ts|tsx)$' || true)
+RS_CHANGED=$(echo "$STAGED" | grep -E '\.(rs)$' || true)
+
+if [ -n "$TS_CHANGED" ]; then
+  echo "Running tsc --noEmit..."
+  npx tsc --noEmit
+  if [ $? -ne 0 ]; then
+    echo ""
+    echo "Commit blocked: TypeScript type errors found. Fix them and try again."
+    exit 1
+  fi
+fi
+
+if [ -n "$RS_CHANGED" ]; then
+  echo "Running cargo clippy..."
+  cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+  if [ $? -ne 0 ]; then
+    echo ""
+    echo "Commit blocked: Rust clippy warnings found. Fix them and try again."
+    exit 1
+  fi
 fi
