@@ -9,6 +9,7 @@ import { useSettingsStore } from "../../stores/settingsStore";
 import { useSlashCommandStore } from "../../stores/slashCommandStore";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
 import { useTodoStore } from "../../stores/todoStore";
+import { usePromptLibraryStore } from "../../stores/promptLibraryStore";
 import { readFileBase64 } from "../../lib/tauri";
 
 vi.mock("../../lib/tauri", async (importOriginal) => {
@@ -16,8 +17,13 @@ vi.mock("../../lib/tauri", async (importOriginal) => {
   return {
     ...actual,
     readFileBase64: vi.fn().mockResolvedValue("data:image/png;base64,abc123"),
+    listPrompts: vi.fn().mockResolvedValue([]),
   };
 });
+
+vi.mock("../prompt-library/PromptLibraryDialog", () => ({
+  PromptLibraryDialog: () => <div data-testid="prompt-library-dialog" />,
+}));
 
 vi.mock("@tauri-apps/api/webview", () => ({
   getCurrentWebview: vi.fn(() => { throw new Error("not in tauri"); }),
@@ -40,6 +46,11 @@ beforeEach(() => {
     toggleDir: vi.fn(),
   });
   useTodoStore.setState({ todos: {} });
+  usePromptLibraryStore.setState({
+    prompts: [],
+    loading: false,
+    error: null,
+  });
 });
 
 const defaultProps = {

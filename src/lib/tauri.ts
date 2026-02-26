@@ -1446,6 +1446,57 @@ export async function deleteWorkspaceTemplate(
   return invoke("delete_workspace_template", { templateId });
 }
 
+// Prompt library types
+export interface Prompt {
+  id: string;
+  name: string;
+  content: string;
+  description: string | null;
+  category: string | null;
+  tags: string[];
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePromptRequest {
+  name: string;
+  content: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
+}
+
+export interface UpdatePromptRequest {
+  name?: string;
+  content?: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
+}
+
+// Prompt library commands
+export async function createPrompt(
+  request: CreatePromptRequest,
+): Promise<Prompt> {
+  return invoke<Prompt>("create_prompt", { request });
+}
+
+export async function listPrompts(): Promise<Prompt[]> {
+  return invoke<Prompt[]>("list_prompts");
+}
+
+export async function updatePrompt(
+  promptId: string,
+  request: UpdatePromptRequest,
+): Promise<Prompt> {
+  return invoke<Prompt>("update_prompt", { promptId, request });
+}
+
+export async function deletePrompt(promptId: string): Promise<void> {
+  return invoke("delete_prompt", { promptId });
+}
+
 // Test runner types
 export type TestFramework = "vitest" | "jest" | "pytest" | "cargotest" | "gotest" | "custom";
 export type TestStatus = "passed" | "failed" | "skipped" | "running" | "pending";

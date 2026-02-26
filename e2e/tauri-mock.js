@@ -390,6 +390,44 @@
       case "get_slash_command_content":
         return null;
 
+      // Prompt library
+      case "list_prompts":
+        return window.__E2E_PROMPTS__ || [];
+      case "create_prompt": {
+        const newPrompt = {
+          id: "prompt-" + Date.now(),
+          name: args.request.name,
+          content: args.request.content,
+          description: args.request.description || null,
+          category: args.request.category || null,
+          tags: args.request.tags || [],
+          sortOrder: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        if (!window.__E2E_PROMPTS__) window.__E2E_PROMPTS__ = [];
+        window.__E2E_PROMPTS__.push(newPrompt);
+        return newPrompt;
+      }
+      case "update_prompt": {
+        const prompts = window.__E2E_PROMPTS__ || [];
+        const idx = prompts.findIndex(function(p) { return p.id === args.promptId; });
+        if (idx >= 0) {
+          if (args.request.name) prompts[idx].name = args.request.name;
+          if (args.request.content) prompts[idx].content = args.request.content;
+          if (args.request.description !== undefined) prompts[idx].description = args.request.description;
+          if (args.request.category !== undefined) prompts[idx].category = args.request.category;
+          prompts[idx].updatedAt = new Date().toISOString();
+          return prompts[idx];
+        }
+        return null;
+      }
+      case "delete_prompt": {
+        const allPrompts = window.__E2E_PROMPTS__ || [];
+        window.__E2E_PROMPTS__ = allPrompts.filter(function(p) { return p.id !== args.promptId; });
+        return;
+      }
+
       // PR
       case "get_pr_info":
         // ws-ui has an existing PR for testing PR status view
