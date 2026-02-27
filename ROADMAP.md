@@ -63,6 +63,7 @@ View two files side-by-side in the file viewer (not just diff — two independen
 Aggregate token usage and cost across sessions, workspaces, and time periods with charts.
 
 ### 13. Snippet Manager
+**Status:** Done
 Save, tag, and search code snippets extracted from agent conversations or files.
 
 ### 14. Image / Screenshot Support in Chat

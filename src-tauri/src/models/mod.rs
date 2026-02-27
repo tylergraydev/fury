@@ -11,6 +11,7 @@ pub mod prompt;
 pub mod repository;
 pub mod settings;
 pub mod slash_command;
+pub mod snippet;
 pub mod stash;
 pub mod test_runner;
 pub mod todo;

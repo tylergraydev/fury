@@ -193,6 +193,25 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
     )
     .map_err(|e| AppError::DbError(e.to_string()))?;
 
+    // Snippet manager table (idempotent)
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS snippets (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            language TEXT,
+            description TEXT,
+            tags TEXT NOT NULL DEFAULT '[]',
+            source TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_snippets_language ON snippets(language);
+        ",
+    )
+    .map_err(|e| AppError::DbError(e.to_string()))?;
+
     // Test runner config columns on repository_settings (idempotent)
     let _ = conn.execute_batch("ALTER TABLE repository_settings ADD COLUMN test_framework TEXT;");
     let _ = conn.execute_batch("ALTER TABLE repository_settings ADD COLUMN test_command TEXT;");

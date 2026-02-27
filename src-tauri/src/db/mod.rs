@@ -10,6 +10,7 @@ use crate::models::linear::WorkspaceIssue;
 use crate::models::prompt::Prompt;
 use crate::models::repository::{RepoSettings, Repository, RunScriptMode};
 use crate::models::settings::AppSettings;
+use crate::models::snippet::Snippet;
 use crate::models::test_runner::{TestFramework, TestRunnerConfig};
 use crate::models::todo::TodoItem;
 use crate::models::workspace::{Workspace, WorkspaceStatus};
@@ -1239,6 +1240,119 @@ impl Database {
         Ok(())
     }
 
+    // --- Snippet Manager ---
+
+    pub fn insert_snippet(&self, snippet: &Snippet) -> Result<(), AppError> {
+        let tags_json = serde_json::to_string(&snippet.tags)?;
+        self.conn.execute(
+            "INSERT INTO snippets (id, title, content, language, description, tags, source, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            rusqlite::params![
+                snippet.id.to_string(),
+                snippet.title,
+                snippet.content,
+                snippet.language,
+                snippet.description,
+                tags_json,
+                snippet.source,
+                snippet.created_at.to_rfc3339(),
+                snippet.updated_at.to_rfc3339(),
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_snippets(&self) -> Result<Vec<Snippet>, AppError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, title, content, language, description, tags, source, created_at, updated_at
+             FROM snippets ORDER BY updated_at DESC",
+        )?;
+        let snippets = stmt
+            .query_map([], |row| {
+                let tags_json: String = row.get(5)?;
+                let id_str: String = row.get(0)?;
+                let created_str: String = row.get(7)?;
+                let updated_str: String = row.get(8)?;
+                Ok(Snippet {
+                    id: Uuid::parse_str(&id_str).unwrap_or_default(),
+                    title: row.get(1)?,
+                    content: row.get(2)?,
+                    language: row.get(3)?,
+                    description: row.get(4)?,
+                    tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+                    source: row.get(6)?,
+                    created_at: DateTime::parse_from_rfc3339(&created_str)
+                        .map(|dt| dt.with_timezone(&Utc))
+                        .unwrap_or_else(|_| Utc::now()),
+                    updated_at: DateTime::parse_from_rfc3339(&updated_str)
+                        .map(|dt| dt.with_timezone(&Utc))
+                        .unwrap_or_else(|_| Utc::now()),
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(snippets)
+    }
+
+    pub fn get_snippet(&self, id: &Uuid) -> Result<Option<Snippet>, AppError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, title, content, language, description, tags, source, created_at, updated_at
+             FROM snippets WHERE id = ?1",
+        )?;
+        let result = stmt.query_row(rusqlite::params![id.to_string()], |row| {
+            let tags_json: String = row.get(5)?;
+            let id_str: String = row.get(0)?;
+            let created_str: String = row.get(7)?;
+            let updated_str: String = row.get(8)?;
+            Ok(Snippet {
+                id: Uuid::parse_str(&id_str).unwrap_or_default(),
+                title: row.get(1)?,
+                content: row.get(2)?,
+                language: row.get(3)?,
+                description: row.get(4)?,
+                tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+                source: row.get(6)?,
+                created_at: DateTime::parse_from_rfc3339(&created_str)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
+                updated_at: DateTime::parse_from_rfc3339(&updated_str)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
+            })
+        });
+        match result {
+            Ok(snippet) => Ok(Some(snippet)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(AppError::DbError(e.to_string())),
+        }
+    }
+
+    pub fn update_snippet(&self, snippet: &Snippet) -> Result<(), AppError> {
+        let tags_json = serde_json::to_string(&snippet.tags)?;
+        self.conn.execute(
+            "UPDATE snippets SET title = ?1, content = ?2, language = ?3, description = ?4, tags = ?5, source = ?6, updated_at = ?7 WHERE id = ?8",
+            rusqlite::params![
+                snippet.title,
+                snippet.content,
+                snippet.language,
+                snippet.description,
+                tags_json,
+                snippet.source,
+                snippet.updated_at.to_rfc3339(),
+                snippet.id.to_string(),
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_snippet(&self, id: &Uuid) -> Result<(), AppError> {
+        self.conn.execute(
+            "DELETE FROM snippets WHERE id = ?1",
+            rusqlite::params![id.to_string()],
+        )?;
+        Ok(())
+    }
+
     pub fn get_usage_data(
         &self,
         workspace_id: Option<&Uuid>,
@@ -2108,6 +2222,62 @@ mod tests {
         db.delete_prompt(&prompt.id).unwrap();
         let prompts = db.list_prompts().unwrap();
         assert!(prompts.is_empty());
+    }
+
+    // --- Snippet Manager ---
+
+    #[test]
+    fn test_insert_and_list_snippets() {
+        let db = test_db();
+        let snippet = test_snippet();
+        db.insert_snippet(&snippet).unwrap();
+        let snippets = db.list_snippets().unwrap();
+        assert_eq!(snippets.len(), 1);
+        assert_eq!(snippets[0].id, snippet.id);
+        assert_eq!(snippets[0].title, "fetch helper");
+        assert_eq!(snippets[0].tags, vec!["http", "utility"]);
+    }
+
+    #[test]
+    fn test_get_snippet() {
+        let db = test_db();
+        let snippet = test_snippet();
+        db.insert_snippet(&snippet).unwrap();
+        let fetched = db.get_snippet(&snippet.id).unwrap().unwrap();
+        assert_eq!(fetched.title, "fetch helper");
+        assert_eq!(fetched.language.as_deref(), Some("typescript"));
+        assert_eq!(fetched.source.as_deref(), Some("chat"));
+    }
+
+    #[test]
+    fn test_get_nonexistent_snippet() {
+        let db = test_db();
+        let result = db.get_snippet(&Uuid::new_v4()).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_update_snippet() {
+        let db = test_db();
+        let mut snippet = test_snippet();
+        db.insert_snippet(&snippet).unwrap();
+        snippet.title = "renamed snippet".to_string();
+        snippet.content = "new content".to_string();
+        snippet.updated_at = Utc::now();
+        db.update_snippet(&snippet).unwrap();
+        let fetched = db.get_snippet(&snippet.id).unwrap().unwrap();
+        assert_eq!(fetched.title, "renamed snippet");
+        assert_eq!(fetched.content, "new content");
+    }
+
+    #[test]
+    fn test_delete_snippet() {
+        let db = test_db();
+        let snippet = test_snippet();
+        db.insert_snippet(&snippet).unwrap();
+        db.delete_snippet(&snippet.id).unwrap();
+        let snippets = db.list_snippets().unwrap();
+        assert!(snippets.is_empty());
     }
 
     // --- Migrations ---
