@@ -5,6 +5,8 @@ vi.mock("../lib/tauri", () => ({
   getFileDiff: vi.fn(),
   getRepoDiff: vi.fn(),
   getRepoFileDiff: vi.fn(),
+  getFilePatch: vi.fn(),
+  getRepoFilePatch: vi.fn(),
 }));
 
 import { useDiffStore } from "./diffStore";
@@ -13,6 +15,8 @@ import {
   getFileDiff,
   getRepoDiff,
   getRepoFileDiff,
+  getFilePatch,
+  getRepoFilePatch,
 } from "../lib/tauri";
 
 beforeEach(() => {
@@ -23,6 +27,8 @@ beforeEach(() => {
       selectedFile: {},
       loading: {},
       error: {},
+      patchPreviews: {},
+      patchLoading: {},
     },
   );
   vi.clearAllMocks();
@@ -205,5 +211,90 @@ describe("diffStore - refreshRepo", () => {
     vi.mocked(getRepoDiff).mockResolvedValue({ files: [] } as any);
     await useDiffStore.getState().refreshRepo("repo-1");
     expect(getRepoFileDiff).not.toHaveBeenCalled();
+  });
+});
+
+describe("diffStore - loadPatchPreview", () => {
+  it("loads and caches patch preview for workspace", async () => {
+    const preview = { path: "a.ts", language: "typescript", patch: "+hello", truncated: false };
+    vi.mocked(getFilePatch).mockResolvedValue(preview as any);
+    await useDiffStore.getState().loadPatchPreview("ws-1", "a.ts", false, "workspace");
+    expect(useDiffStore.getState().patchPreviews["ws-1:a.ts"]).toEqual(preview);
+    expect(useDiffStore.getState().patchLoading["ws-1:a.ts"]).toBe(false);
+  });
+
+  it("returns cached value on second call", async () => {
+    const preview = { path: "a.ts", language: "typescript", patch: "+hello", truncated: false };
+    vi.mocked(getFilePatch).mockResolvedValue(preview as any);
+    await useDiffStore.getState().loadPatchPreview("ws-1", "a.ts", false, "workspace");
+    await useDiffStore.getState().loadPatchPreview("ws-1", "a.ts", false, "workspace");
+    expect(getFilePatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses getRepoFilePatch for repo context", async () => {
+    vi.mocked(getRepoFilePatch).mockResolvedValue({} as any);
+    await useDiffStore.getState().loadPatchPreview("r1", "main.rs", false, "repo");
+    expect(getRepoFilePatch).toHaveBeenCalledWith("r1", "main.rs", false);
+  });
+
+  it("logs error on failure", async () => {
+    vi.mocked(getFilePatch).mockRejectedValue(new Error("patch fail"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await useDiffStore.getState().loadPatchPreview("ws-1", "a.ts", false, "workspace");
+    expect(console.error).toHaveBeenCalled();
+    expect(useDiffStore.getState().patchLoading["ws-1:a.ts"]).toBe(false);
+  });
+});
+
+describe("diffStore - getPatchPreview", () => {
+  it("returns null for unknown key", () => {
+    expect(useDiffStore.getState().getPatchPreview("ws-1", "missing.ts")).toBeNull();
+  });
+
+  it("returns cached preview", () => {
+    const preview = { path: "a.ts", language: "typescript", patch: "+x", truncated: false };
+    useDiffStore.setState({ patchPreviews: { "ws-1:a.ts": preview as any } });
+    expect(useDiffStore.getState().getPatchPreview("ws-1", "a.ts")).toEqual(preview);
+  });
+});
+
+describe("diffStore - clearPatchPreviews", () => {
+  it("removes cached entries for context", () => {
+    useDiffStore.setState({
+      patchPreviews: {
+        "ws-1:a.ts": { path: "a.ts" } as any,
+        "ws-1:b.ts": { path: "b.ts" } as any,
+        "ws-2:c.ts": { path: "c.ts" } as any,
+      },
+      patchLoading: {
+        "ws-1:a.ts": false,
+        "ws-2:c.ts": false,
+      },
+    });
+    useDiffStore.getState().clearPatchPreviews("ws-1");
+    expect(useDiffStore.getState().patchPreviews["ws-1:a.ts"]).toBeUndefined();
+    expect(useDiffStore.getState().patchPreviews["ws-1:b.ts"]).toBeUndefined();
+    expect(useDiffStore.getState().patchPreviews["ws-2:c.ts"]).toBeDefined();
+    expect(useDiffStore.getState().patchLoading["ws-1:a.ts"]).toBeUndefined();
+  });
+});
+
+describe("diffStore - refresh clears patch cache", () => {
+  it("refresh clears patch previews", async () => {
+    vi.mocked(getDiff).mockResolvedValue({ files: [] } as any);
+    useDiffStore.setState({
+      patchPreviews: { "ws-1:a.ts": { path: "a.ts" } as any },
+    });
+    await useDiffStore.getState().refresh("ws-1");
+    expect(useDiffStore.getState().patchPreviews["ws-1:a.ts"]).toBeUndefined();
+  });
+
+  it("refreshRepo clears patch previews", async () => {
+    vi.mocked(getRepoDiff).mockResolvedValue({ files: [] } as any);
+    useDiffStore.setState({
+      patchPreviews: { "repo-1:main.rs": { path: "main.rs" } as any },
+    });
+    await useDiffStore.getState().refreshRepo("repo-1");
+    expect(useDiffStore.getState().patchPreviews["repo-1:main.rs"]).toBeUndefined();
   });
 });

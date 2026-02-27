@@ -2,10 +2,13 @@ import { create } from "zustand";
 import {
   type DiffResult,
   type FileDiffContent,
+  type FilePatchPreview,
   getDiff as getDiffCmd,
   getFileDiff as getFileDiffCmd,
+  getFilePatch as getFilePatchCmd,
   getRepoDiff as getRepoDiffCmd,
   getRepoFileDiff as getRepoFileDiffCmd,
+  getRepoFilePatch as getRepoFilePatchCmd,
 } from "../lib/tauri";
 
 interface DiffStore {
@@ -14,6 +17,8 @@ interface DiffStore {
   selectedFile: Record<string, string | null>;
   loading: Record<string, boolean>;
   error: Record<string, string | null>;
+  patchPreviews: Record<string, FilePatchPreview | null>;
+  patchLoading: Record<string, boolean>;
 
   loadDiff: (workspaceId: string) => Promise<void>;
   loadFileDiff: (workspaceId: string, filePath: string) => Promise<void>;
@@ -29,12 +34,24 @@ interface DiffStore {
   getSelectedFile: (contextId: string) => string | null;
   refresh: (workspaceId: string) => Promise<void>;
   refreshRepo: (repoId: string) => Promise<void>;
+  loadPatchPreview: (
+    contextId: string,
+    filePath: string,
+    isUntracked: boolean,
+    contextType: "workspace" | "repo",
+  ) => Promise<void>;
+  getPatchPreview: (
+    contextId: string,
+    filePath: string,
+  ) => FilePatchPreview | null;
+  clearPatchPreviews: (contextId: string) => void;
 }
 
 // Module-level inflight trackers — prevent duplicate concurrent requests
 // without polluting store state or triggering re-renders.
 const _inflightDiff = new Set<string>();
 const _inflightRepoDiff = new Set<string>();
+const _inflightPatch = new Set<string>();
 
 export const useDiffStore = create<DiffStore>((set, get) => ({
   diffResults: {},
@@ -42,6 +59,8 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
   selectedFile: {},
   loading: {},
   error: {},
+  patchPreviews: {},
+  patchLoading: {},
 
   loadDiff: async (workspaceId: string) => {
     if (_inflightDiff.has(workspaceId)) return;
@@ -147,6 +166,7 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
   },
 
   refresh: async (workspaceId: string) => {
+    get().clearPatchPreviews(workspaceId);
     await get().loadDiff(workspaceId);
     const selected = get().selectedFile[workspaceId];
     if (selected) {
@@ -155,10 +175,54 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
   },
 
   refreshRepo: async (repoId: string) => {
+    get().clearPatchPreviews(repoId);
     await get().loadRepoDiff(repoId);
     const selected = get().selectedFile[repoId];
     if (selected) {
       await get().loadRepoFileDiff(repoId, selected);
     }
+  },
+
+  loadPatchPreview: async (contextId, filePath, isUntracked, contextType) => {
+    const key = `${contextId}:${filePath}`;
+    if (get().patchPreviews[key] || _inflightPatch.has(key)) return;
+    _inflightPatch.add(key);
+    set((state) => ({
+      patchLoading: { ...state.patchLoading, [key]: true },
+    }));
+    try {
+      const result =
+        contextType === "workspace"
+          ? await getFilePatchCmd(contextId, filePath, isUntracked)
+          : await getRepoFilePatchCmd(contextId, filePath, isUntracked);
+      set((state) => ({
+        patchPreviews: { ...state.patchPreviews, [key]: result },
+        patchLoading: { ...state.patchLoading, [key]: false },
+      }));
+    } catch (e) {
+      console.error("Failed to load patch preview:", e);
+      set((state) => ({
+        patchLoading: { ...state.patchLoading, [key]: false },
+      }));
+    } finally {
+      _inflightPatch.delete(key);
+    }
+  },
+
+  getPatchPreview: (contextId, filePath) => {
+    const key = `${contextId}:${filePath}`;
+    return get().patchPreviews[key] ?? null;
+  },
+
+  clearPatchPreviews: (contextId) => {
+    const newPreviews = { ...get().patchPreviews };
+    const newLoading = { ...get().patchLoading };
+    for (const key of Object.keys(newPreviews)) {
+      if (key.startsWith(`${contextId}:`)) {
+        delete newPreviews[key];
+        delete newLoading[key];
+      }
+    }
+    set({ patchPreviews: newPreviews, patchLoading: newLoading });
   },
 }));

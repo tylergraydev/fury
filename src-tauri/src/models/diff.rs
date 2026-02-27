@@ -36,6 +36,15 @@ pub struct FileDiffContent {
     pub language: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FilePatchPreview {
+    pub path: String,
+    pub language: String,
+    pub patch: String,
+    pub truncated: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -73,5 +82,21 @@ mod tests {
         let deserialized: DiffResult = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.files.len(), 1);
         assert_eq!(deserialized.total_additions, 10);
+    }
+
+    #[test]
+    fn test_file_patch_preview_serde_roundtrip() {
+        let preview = FilePatchPreview {
+            path: "src/main.rs".to_string(),
+            language: "rust".to_string(),
+            patch: "+fn main() {}\n-old line".to_string(),
+            truncated: true,
+        };
+        let json = serde_json::to_string(&preview).unwrap();
+        let deserialized: FilePatchPreview = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.path, "src/main.rs");
+        assert_eq!(deserialized.language, "rust");
+        assert!(deserialized.truncated);
+        assert!(deserialized.patch.contains("+fn main()"));
     }
 }

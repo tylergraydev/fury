@@ -70,6 +70,8 @@ pub fn run() {
             commands::git::list_repo_files,
             commands::git::get_repo_diff,
             commands::git::get_repo_file_diff,
+            commands::git::get_file_patch,
+            commands::git::get_repo_file_patch,
             commands::git::read_workspace_file,
             commands::git::read_repo_file,
             commands::git::write_workspace_file,

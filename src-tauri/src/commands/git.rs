@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::error::AppError;
-use crate::models::diff::{DiffResult, FileDiffContent};
+use crate::models::diff::{DiffResult, FileDiffContent, FilePatchPreview};
 use crate::platform;
 use crate::services::diff as diff_svc;
 use crate::state::AppState;
@@ -313,6 +313,71 @@ pub fn get_repo_file_diff(
     };
 
     diff_svc::get_file_diff_content(&repo_path, &default_branch, &file_path)
+}
+
+#[tauri::command]
+pub fn get_file_patch(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    file_path: String,
+    is_untracked: Option<bool>,
+) -> Result<FilePatchPreview, AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let (worktree_path, default_branch) = {
+        let workspaces = state
+            .workspaces
+            .lock()
+            .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
+        let ws = workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        let repos = state
+            .repositories
+            .lock()
+            .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
+        let repo = repos
+            .get(&ws.repo_id)
+            .ok_or(AppError::RepoNotFound(ws.repo_id))?;
+        (ws.worktree_path.clone(), repo.default_branch.clone())
+    };
+
+    diff_svc::get_file_patch_preview(
+        &worktree_path,
+        &default_branch,
+        &file_path,
+        is_untracked.unwrap_or(false),
+    )
+}
+
+#[tauri::command]
+pub fn get_repo_file_patch(
+    state: State<'_, AppState>,
+    repo_id: String,
+    file_path: String,
+    is_untracked: Option<bool>,
+) -> Result<FilePatchPreview, AppError> {
+    let id: Uuid = repo_id
+        .parse()
+        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+
+    let (repo_path, default_branch) = {
+        let repos = state
+            .repositories
+            .lock()
+            .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
+        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+        (repo.path.clone(), repo.default_branch.clone())
+    };
+
+    diff_svc::get_file_patch_preview(
+        &repo_path,
+        &default_branch,
+        &file_path,
+        is_untracked.unwrap_or(false),
+    )
 }
 
 #[tauri::command]

@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::models::diff::{DiffResult, FileDiff, FileDiffContent, FileStatus};
+use crate::models::diff::{DiffResult, FileDiff, FileDiffContent, FilePatchPreview, FileStatus};
 use crate::platform;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -191,6 +191,75 @@ fn find_merge_base(worktree_path: &Path, default_branch: &str) -> String {
     }
 }
 
+/// Maximum number of lines to return in a patch preview.
+const MAX_PATCH_PREVIEW_LINES: usize = 50;
+
+/// Get a truncated unified diff patch for a single file, for hover preview.
+pub fn get_file_patch_preview(
+    worktree_path: &Path,
+    default_branch: &str,
+    file_path: &str,
+    is_untracked: bool,
+) -> Result<FilePatchPreview, AppError> {
+    let patch_text = if is_untracked {
+        generate_untracked_patch(worktree_path, file_path)?
+    } else {
+        let merge_base = find_merge_base(worktree_path, default_branch);
+        let output = platform::command("git")
+            .args(["diff", "-U3", &merge_base, "--", file_path])
+            .current_dir(worktree_path)
+            .output()?;
+
+        if output.status.success() {
+            String::from_utf8_lossy(&output.stdout).to_string()
+        } else {
+            String::new()
+        }
+    };
+
+    let lines: Vec<&str> = patch_text.lines().collect();
+    let truncated = lines.len() > MAX_PATCH_PREVIEW_LINES;
+    let patch = if truncated {
+        lines[..MAX_PATCH_PREVIEW_LINES].join("\n")
+    } else {
+        patch_text
+    };
+
+    let language = detect_language(file_path);
+
+    Ok(FilePatchPreview {
+        path: file_path.to_string(),
+        language,
+        patch,
+        truncated,
+    })
+}
+
+/// Generate a synthetic unified diff for an untracked file (all lines are additions).
+fn generate_untracked_patch(worktree_path: &Path, file_path: &str) -> Result<String, AppError> {
+    let full_path = worktree_path.join(file_path);
+    let meta = std::fs::metadata(&full_path).ok();
+
+    if meta.as_ref().map(|m| m.len()).unwrap_or(0) > MAX_UNTRACKED_FILE_SIZE {
+        return Ok("Binary or oversized file".to_string());
+    }
+
+    let content =
+        std::fs::read_to_string(&full_path).unwrap_or_else(|_| "(binary file)".to_string());
+
+    let line_count = content.lines().count();
+    let mut patch = format!(
+        "--- /dev/null\n+++ b/{}\n@@ -0,0 +1,{} @@\n",
+        file_path, line_count
+    );
+    for line in content.lines().take(MAX_PATCH_PREVIEW_LINES) {
+        patch.push('+');
+        patch.push_str(line);
+        patch.push('\n');
+    }
+    Ok(patch)
+}
+
 /// Detect Monaco language ID from file extension.
 pub fn detect_language(file_path: &str) -> String {
     let ext = file_path.rsplit('.').next().unwrap_or("");
@@ -362,5 +431,82 @@ mod tests {
         assert!(content.original.is_empty()); // new file, no original
         assert_eq!(content.modified, "fn main() {}\n");
         assert_eq!(content.language, "rust");
+    }
+
+    #[test]
+    fn test_get_file_patch_preview_new_file() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::process::Command::new("git")
+            .args(["checkout", "-b", "feature"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::fs::write(path.join("new.rs"), "fn main() {}\n").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "new.rs"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "Add new.rs"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        let preview = get_file_patch_preview(&path, "main", "new.rs", false).unwrap();
+        assert_eq!(preview.path, "new.rs");
+        assert_eq!(preview.language, "rust");
+        assert!(preview.patch.contains("+fn main()"));
+        assert!(!preview.truncated);
+    }
+
+    #[test]
+    fn test_get_file_patch_preview_modified_file() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        // Modify the initial README
+        std::process::Command::new("git")
+            .args(["checkout", "-b", "feature"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::fs::write(path.join("README.md"), "# Updated\nnew content\n").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "README.md"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "Update README"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        let preview = get_file_patch_preview(&path, "main", "README.md", false).unwrap();
+        assert!(preview.patch.contains('+'));
+        assert!(preview.patch.contains('-'));
+    }
+
+    #[test]
+    fn test_get_file_patch_preview_untracked() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::fs::write(path.join("untracked.txt"), "line1\nline2\n").unwrap();
+        let preview = get_file_patch_preview(&path, "main", "untracked.txt", true).unwrap();
+        assert!(preview.patch.contains("+line1"));
+        assert!(preview.patch.contains("+line2"));
+        assert!(preview.patch.contains("--- /dev/null"));
+    }
+
+    #[test]
+    fn test_get_file_patch_preview_truncation() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        // Create a file with many lines to trigger truncation
+        let mut content = String::new();
+        for i in 0..100 {
+            content.push_str(&format!("line {}\n", i));
+        }
+        std::fs::write(path.join("big.txt"), &content).unwrap();
+        let preview = get_file_patch_preview(&path, "main", "big.txt", true).unwrap();
+        assert!(preview.truncated);
+        // Patch should be capped at MAX_PATCH_PREVIEW_LINES
+        let line_count = preview.patch.lines().count();
+        assert!(line_count <= MAX_PATCH_PREVIEW_LINES);
     }
 }

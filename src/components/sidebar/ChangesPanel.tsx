@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { useDiffStore } from "../../stores/diffStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -6,8 +6,9 @@ import { usePrStore } from "../../stores/prStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useUIStore } from "../../stores/uiStore";
-import type { FileStatus } from "../../lib/tauri";
+import type { FileDiff, FileStatus } from "../../lib/tauri";
 import type { SidebarContext } from "../../App";
+import { DiffHoverPreview } from "./DiffHoverPreview";
 
 interface Props {
   context: SidebarContext;
@@ -212,6 +213,8 @@ export function ChangesPanel({ context }: Props) {
   const agentStatus = useAgentStore(
     (s) => s.agents[contextId]?.status ?? "Idle",
   );
+  const [hoveredFile, setHoveredFile] = useState<FileDiff | null>(null);
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     const store = useDiffStore.getState();
@@ -335,6 +338,14 @@ export function ChangesPanel({ context }: Props) {
           <button
             key={file.path}
             onClick={() => handleFileClick(file.path)}
+            onMouseEnter={(e) => {
+              setHoveredFile(file);
+              setAnchorEl(e.currentTarget);
+            }}
+            onMouseLeave={() => {
+              setHoveredFile(null);
+              setAnchorEl(null);
+            }}
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-[var(--bg-hover)]"
             style={{
               backgroundColor:
@@ -371,6 +382,14 @@ export function ChangesPanel({ context }: Props) {
           </button>
         ))}
       </div>
+      {hoveredFile && (
+        <DiffHoverPreview
+          file={hoveredFile}
+          contextId={contextId}
+          contextType={context.type}
+          anchorEl={anchorEl}
+        />
+      )}
     </div>
   );
 }
