@@ -731,3 +731,78 @@ pub fn read_file_base64(file_path: String) -> Result<String, AppError> {
     let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
     Ok(format!("data:{};base64,{}", mime, b64))
 }
+
+/// Save base64-encoded image data to a temporary file and return the absolute path.
+/// Used for clipboard paste support in the chat composer.
+#[tauri::command]
+pub fn save_clipboard_image(data: String, mime_type: String) -> Result<String, AppError> {
+    let ext = match mime_type.as_str() {
+        "image/png" => "png",
+        "image/jpeg" => "jpg",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        "image/bmp" => "bmp",
+        "image/svg+xml" => "svg",
+        _ => "png",
+    };
+
+    let tmp_dir = dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("com.fury.app")
+        .join("tmp")
+        .join("clipboard-images");
+    std::fs::create_dir_all(&tmp_dir)?;
+
+    let filename = format!("paste-{}.{}", Uuid::new_v4(), ext);
+    let file_path = tmp_dir.join(&filename);
+
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(&data)
+        .map_err(|e| AppError::GitError(format!("failed to decode base64 image: {}", e)))?;
+
+    const MAX_SIZE: usize = 50 * 1024 * 1024;
+    if bytes.len() > MAX_SIZE {
+        return Err(AppError::GitError(format!(
+            "pasted image too large ({} bytes, max {})",
+            bytes.len(),
+            MAX_SIZE
+        )));
+    }
+
+    std::fs::write(&file_path, &bytes)?;
+
+    Ok(file_path.to_string_lossy().into_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_save_clipboard_image_creates_file() {
+        // Minimal valid 1x1 PNG
+        let png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+        let result = save_clipboard_image(png_b64.to_string(), "image/png".to_string());
+        assert!(result.is_ok());
+        let path = result.unwrap();
+        assert!(path.ends_with(".png"));
+        assert!(std::path::Path::new(&path).exists());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_save_clipboard_image_jpeg_extension() {
+        let png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+        let result = save_clipboard_image(png_b64.to_string(), "image/jpeg".to_string());
+        assert!(result.is_ok());
+        let path = result.unwrap();
+        assert!(path.ends_with(".jpg"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_save_clipboard_image_invalid_base64() {
+        let result = save_clipboard_image("not-valid!!!".to_string(), "image/png".to_string());
+        assert!(result.is_err());
+    }
+}

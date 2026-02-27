@@ -76,6 +76,7 @@ pub fn run() {
             commands::git::write_repo_file,
             commands::git::load_type_definitions,
             commands::git::read_file_base64,
+            commands::git::save_clipboard_image,
             // Merge/branch commands
             commands::merge::get_branch_status,
             commands::merge::fetch_upstream,

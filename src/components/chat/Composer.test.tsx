@@ -10,13 +10,14 @@ import { useSlashCommandStore } from "../../stores/slashCommandStore";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
 import { useTodoStore } from "../../stores/todoStore";
 import { usePromptLibraryStore } from "../../stores/promptLibraryStore";
-import { readFileBase64 } from "../../lib/tauri";
+import { readFileBase64, saveClipboardImage } from "../../lib/tauri";
 
 vi.mock("../../lib/tauri", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/tauri")>();
   return {
     ...actual,
     readFileBase64: vi.fn().mockResolvedValue("data:image/png;base64,abc123"),
+    saveClipboardImage: vi.fn().mockResolvedValue("/tmp/clipboard-images/paste-test.png"),
     listPrompts: vi.fn().mockResolvedValue([]),
   };
 });
@@ -1356,6 +1357,107 @@ describe("Composer", () => {
 
     // Restore default mock behavior (throw) so other tests aren't affected
     mockGetCurrentWebview.mockImplementation(() => { throw new Error("not in tauri"); });
+  });
+
+  describe("clipboard paste", () => {
+    beforeEach(() => {
+      vi.mocked(saveClipboardImage).mockClear();
+      vi.mocked(saveClipboardImage).mockResolvedValue("/tmp/clipboard-images/paste-test.png");
+    });
+
+    it("handles pasting an image from clipboard", async () => {
+      render(<Composer {...defaultProps} />);
+      const textarea = screen.getByRole("textbox");
+
+      const file = new File([new Uint8Array([137, 80, 78, 71])], "screenshot.png", { type: "image/png" });
+      const clipboardData = {
+        items: [{ type: "image/png", getAsFile: () => file }],
+      };
+
+      fireEvent.paste(textarea, { clipboardData });
+
+      await waitFor(() => {
+        expect(vi.mocked(saveClipboardImage)).toHaveBeenCalledWith(
+          expect.any(String),
+          "image/png",
+        );
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("paste-test.png")).toBeInTheDocument();
+      });
+    });
+
+    it("does not intercept paste when clipboard has no images", () => {
+      render(<Composer {...defaultProps} />);
+      const textarea = screen.getByRole("textbox");
+
+      const clipboardData = {
+        items: [{ type: "text/plain", getAsFile: () => null }],
+      };
+
+      fireEvent.paste(textarea, { clipboardData });
+      expect(vi.mocked(saveClipboardImage)).not.toHaveBeenCalled();
+    });
+
+    it("removes placeholder when saveClipboardImage fails", async () => {
+      vi.mocked(saveClipboardImage).mockRejectedValueOnce(new Error("save failed"));
+      render(<Composer {...defaultProps} />);
+      const textarea = screen.getByRole("textbox");
+
+      const file = new File([new Uint8Array([0])], "bad.png", { type: "image/png" });
+      const clipboardData = {
+        items: [{ type: "image/png", getAsFile: () => file }],
+      };
+
+      fireEvent.paste(textarea, { clipboardData });
+
+      await waitFor(() => {
+        expect(vi.mocked(saveClipboardImage)).toHaveBeenCalled();
+      });
+
+      // No file chip should remain after failure
+      await waitFor(() => {
+        expect(screen.queryByText(/paste-/)).not.toBeInTheDocument();
+      });
+    });
+
+    it("sends pasted image with [Attached image: path] marker", async () => {
+      const onSend = vi.fn();
+      render(<Composer {...defaultProps} onSend={onSend} />);
+      const textarea = screen.getByRole("textbox");
+
+      const file = new File([new Uint8Array([137, 80])], "shot.png", { type: "image/png" });
+      const clipboardData = {
+        items: [{ type: "image/png", getAsFile: () => file }],
+      };
+
+      fireEvent.paste(textarea, { clipboardData });
+
+      await waitFor(() => {
+        expect(screen.getByText("paste-test.png")).toBeInTheDocument();
+      });
+
+      // Type a message and send
+      await userEvent.setup().type(textarea, "describe this{Enter}");
+
+      expect(onSend).toHaveBeenCalledWith(
+        expect.stringContaining("[Attached image: /tmp/clipboard-images/paste-test.png]"),
+        undefined,
+        undefined,
+      );
+    });
+  });
+
+  it("Cmd+U opens file dialog", async () => {
+    const mockOpen = vi.mocked(openFileDialog);
+    mockOpen.mockResolvedValueOnce(null);
+    render(<Composer {...defaultProps} />);
+    const textarea = screen.getByRole("textbox");
+    fireEvent.keyDown(textarea, { key: "u", metaKey: true });
+    await waitFor(() => {
+      expect(mockOpen).toHaveBeenCalled();
+    });
   });
 
 });

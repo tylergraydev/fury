@@ -3,7 +3,7 @@ import { Square, Copy, ArrowRightFromLine, Check, ShieldCheck, ShieldX, X, FileT
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { AgentStatus, SlashCommand } from "../../lib/tauri";
-import { readFileBase64 } from "../../lib/tauri";
+import { readFileBase64, saveClipboardImage } from "../../lib/tauri";
 import { formatTokens, formatCost } from "../../lib/format";
 import type { PermissionRequestInfo } from "../../stores/chatStore";
 import { useChatStore } from "../../stores/chatStore";
@@ -391,6 +391,59 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     }
   }, []);
 
+  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of Array.from(items)) {
+      if (!item.type.startsWith("image/")) continue;
+
+      const blob = item.getAsFile();
+      if (!blob) continue;
+
+      e.preventDefault();
+
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          resolve(dataUrl.split(",")[1]);
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+      const mimeType = item.type;
+
+      const ext = mimeType.split("/")[1]?.replace("svg+xml", "svg") ?? "png";
+      const tempName = `paste-${Date.now()}.${ext}`;
+
+      const fileId = `paste-${++fileIdCounter}`;
+      setDroppedFiles((prev) => [...prev, {
+        id: fileId,
+        path: "",
+        name: tempName,
+        isImage: true,
+      }]);
+
+      try {
+        const filePath = await saveClipboardImage(base64Data, mimeType);
+        const dataUrl = `data:${mimeType};base64,${base64Data}`;
+        setDroppedFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileId
+              ? { ...f, path: filePath, name: filePath.split(/[/\\]/).pop() ?? tempName, dataUrl }
+              : f,
+          ),
+        );
+      } catch (err) {
+        console.warn("Failed to save pasted image:", err);
+        setDroppedFiles((prev) => prev.filter((f) => f.id !== fileId));
+      }
+
+      break;
+    }
+  }, []);
+
   const removeDroppedFile = useCallback((index: number) => {
     setDroppedFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
@@ -624,6 +677,13 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     if (e.key === "l" && e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
       e.preventDefault();
       setShowPromptLibrary(true);
+      return;
+    }
+
+    // Cmd+U to add attachment
+    if (e.key === "u" && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      handleAddAttachment();
       return;
     }
 
@@ -913,6 +973,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
               value={text}
               onChange={handleInput}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder={placeholderText}
               disabled={isRunning || isStopping}
               rows={1}
