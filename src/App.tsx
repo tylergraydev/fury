@@ -15,6 +15,8 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DiffPanel } from "./components/diff/DiffPanel";
 import { TeamView } from "./components/team/TeamView";
 import { TestRunnerPanel } from "./components/test-runner/TestRunnerPanel";
+import { SplitEditorLayout } from "./components/file-viewer/SplitEditorLayout";
+import { UsageDashboard } from "./components/usage/UsageDashboard";
 import { useWorkspaceStore } from "./stores/workspaceStore";
 import { useRepositoryStore } from "./stores/repositoryStore";
 import { useUIStore } from "./stores/uiStore";
@@ -46,6 +48,7 @@ function MainPanel() {
   const fileTabs = useFileViewerStore((s) => s.tabs);
   const activeTabId = useFileViewerStore((s) => s.activeTabId);
   const activeFileTab = fileTabs.find((t) => t.id === activeTabId) ?? null;
+  const splitActive = useFileViewerStore((s) => s.splitActive);
 
   const contextId = activeWorkspaceId ?? activeRepoId!;
   const contextType = activeWorkspaceId ? "workspace" : "repo";
@@ -59,7 +62,9 @@ function MainPanel() {
     <div className="flex h-full flex-col">
       {viewType === "chat" && (
         <div className="flex-1 overflow-hidden">
-          {activeFileTab ? (
+          {splitActive ? (
+            <SplitEditorLayout repoId={repoId} contextId={contextId} contextType={contextType} />
+          ) : activeFileTab ? (
             <FileViewerPanel tab={activeFileTab} repoId={repoId} />
           ) : (
             <ChatPanel contextId={contextId} contextType={contextType} />
@@ -93,6 +98,11 @@ function MainPanel() {
       {viewType === "tests" && (
         <div className="flex-1 overflow-hidden">
           <TestRunnerPanel contextId={contextId} contextType={contextType} />
+        </div>
+      )}
+      {viewType === "usage" && (
+        <div className="flex-1 overflow-hidden">
+          <UsageDashboard />
         </div>
       )}
     </div>
@@ -233,6 +243,18 @@ function App() {
       case "view-tests":
         ui.openViewTab("tests");
         break;
+      case "view-usage":
+        ui.openViewTab("usage");
+        break;
+      case "toggle-split-editor": {
+        const fvs = useFileViewerStore.getState();
+        if (fvs.splitActive) {
+          fvs.closeSplit();
+        } else {
+          fvs.splitEditor();
+        }
+        break;
+      }
       case "new-workspace":
         setShowPalette(true);
         break;

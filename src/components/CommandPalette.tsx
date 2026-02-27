@@ -161,6 +161,18 @@ export function CommandPalette({
                 >
                   Open Team View
                 </PaletteItem>
+                <PaletteItem
+                  onSelect={() => run("view-usage")}
+                  shortcut={shortcutFor("view-usage")}
+                >
+                  Open Usage Dashboard
+                </PaletteItem>
+                <PaletteItem
+                  onSelect={() => run("toggle-split-editor")}
+                  shortcut={shortcutFor("toggle-split-editor")}
+                >
+                  Toggle Split Editor
+                </PaletteItem>
               </CommandGroup>
 
               <CommandSeparator style={{ height: 1, backgroundColor: "var(--border)", margin: "4px 0" }} />

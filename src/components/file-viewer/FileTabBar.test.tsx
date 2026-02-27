@@ -15,6 +15,8 @@ vi.mock("lucide-react", () => ({
   History: ({ className }: { className?: string }) => <span className={className} data-testid="history-icon" />,
   FileDiff: ({ className }: { className?: string }) => <span className={className} data-testid="diff-icon" />,
   Users: ({ className }: { className?: string }) => <span className={className} data-testid="team-icon" />,
+  Columns2: ({ className }: { className?: string }) => <span className={className} data-testid="columns-icon" />,
+  BarChart3: ({ className }: { className?: string }) => <span className={className} data-testid="barchart-icon" />,
 }));
 
 import { FileTabBar } from "./FileTabBar";
@@ -299,15 +301,15 @@ describe("FileTabBar", () => {
     expect(screen.getByTestId("history-icon")).toBeInTheDocument();
   });
 
-  it("does not render spacer when no non-chat view tabs", () => {
+  it("renders spacer area even when no non-chat view tabs", () => {
     useUIStore.setState({
       viewTabs: [{ id: "chat", type: "chat", label: "Chat", pinned: true }],
       activeViewTabId: "chat",
     });
     const { container } = render(<FileTabBar />);
-    // No spacer div with flex-1
+    // Spacer div always renders (wraps split toggle area)
     const spacer = container.querySelector(".flex-1");
-    expect(spacer).toBeNull();
+    expect(spacer).toBeInTheDocument();
   });
 
   it("filePath without slash uses full path as name", () => {
@@ -343,5 +345,91 @@ describe("FileTabBar", () => {
     render(<FileTabBar />);
     const mergeSpan = screen.getByText("Merge").closest("span");
     expect(mergeSpan).toHaveStyle({ fontStyle: "italic" });
+  });
+
+  describe("split mode", () => {
+    it("shows L/R badges when split is active", () => {
+      useFileViewerStore.setState({
+        tabs: [
+          makeTab({ id: "tab-1", filePath: "src/left.ts" }),
+          makeTab({ id: "tab-2", filePath: "src/right.ts" }),
+        ],
+        activeTabId: "tab-1",
+        splitActive: true,
+        leftActiveTabId: "tab-1",
+        rightActiveTabId: "tab-2",
+        focusedPane: "left",
+      });
+      render(<FileTabBar />);
+      expect(screen.getByText("L")).toBeInTheDocument();
+      expect(screen.getByText("R")).toBeInTheDocument();
+    });
+
+    it("does not show L/R badges when split is inactive", () => {
+      useFileViewerStore.setState({
+        tabs: [makeTab({ id: "tab-1" }), makeTab({ id: "tab-2", filePath: "src/other.ts" })],
+        activeTabId: "tab-1",
+        splitActive: false,
+      });
+      render(<FileTabBar />);
+      expect(screen.queryByText("L")).not.toBeInTheDocument();
+      expect(screen.queryByText("R")).not.toBeInTheDocument();
+    });
+
+    it("shows split toggle button when 2+ tabs exist", () => {
+      useFileViewerStore.setState({
+        tabs: [
+          makeTab({ id: "tab-1", filePath: "src/main.ts" }),
+          makeTab({ id: "tab-2", filePath: "src/app.tsx" }),
+        ],
+        activeTabId: "tab-1",
+      });
+      render(<FileTabBar />);
+      expect(screen.getByTitle("Split editor")).toBeInTheDocument();
+    });
+
+    it("does not show split toggle with fewer than 2 tabs", () => {
+      useFileViewerStore.setState({
+        tabs: [makeTab({ id: "tab-1" })],
+        activeTabId: "tab-1",
+      });
+      render(<FileTabBar />);
+      expect(screen.queryByTitle("Split editor")).not.toBeInTheDocument();
+      expect(screen.queryByTitle("Close split view")).not.toBeInTheDocument();
+    });
+
+    it("in split mode, clicking a file tab calls setActiveTabInPane", () => {
+      const setActiveTabInPane = vi.fn();
+      const setActiveViewTab = vi.fn();
+      useFileViewerStore.setState({
+        tabs: [
+          makeTab({ id: "tab-1", filePath: "src/main.ts" }),
+          makeTab({ id: "tab-2", filePath: "src/other.ts" }),
+        ],
+        activeTabId: "tab-1",
+        splitActive: true,
+        focusedPane: "left",
+        leftActiveTabId: "tab-1",
+        rightActiveTabId: "tab-2",
+        setActiveTabInPane,
+      });
+      useUIStore.setState({ setActiveViewTab });
+      render(<FileTabBar />);
+      fireEvent.click(screen.getByText("other.ts"));
+      expect(setActiveTabInPane).toHaveBeenCalledWith("left", "tab-2");
+    });
+
+    it("renders usage view tab with BarChart3 icon", () => {
+      useUIStore.setState({
+        viewTabs: [
+          { id: "chat", type: "chat", label: "Chat", pinned: true },
+          { id: "usage-1", type: "usage", label: "Usage", pinned: false },
+        ],
+        activeViewTabId: "chat",
+      });
+      render(<FileTabBar />);
+      expect(screen.getByText("Usage")).toBeInTheDocument();
+      expect(screen.getByTestId("barchart-icon")).toBeInTheDocument();
+    });
   });
 });
