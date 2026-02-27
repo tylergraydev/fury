@@ -35,6 +35,7 @@ import { startFrameMonitor, stopFrameMonitor } from "./lib/frameMonitor";
 import { NotificationPanel } from "./components/notifications/NotificationPanel";
 import { BookmarkNoteDialog } from "./components/file-viewer/BookmarkNoteDialog";
 import { SnippetManagerDialog } from "./components/snippets/SnippetManagerDialog";
+import { WorkspaceExportDialog } from "./components/workspace/WorkspaceExportDialog";
 import { useNotificationStore } from "./stores/notificationStore";
 import { initNotificationListeners } from "./lib/notificationListeners";
 import { initActivityLogListeners } from "./lib/activityLogListeners";
@@ -126,6 +127,7 @@ function App() {
   const [showPalette, setShowPalette] = useState(false);
   const [paletteMode, setPaletteMode] = useState<PaletteMode>("default");
   const [showSnippets, setShowSnippets] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const autoUpdate = useAutoUpdate();
   const settingsRef = useRef<{ copilotEnabled?: boolean } | null>(null);
 
@@ -271,6 +273,9 @@ function App() {
       }
       case "open-snippets":
         setShowSnippets(true);
+        break;
+      case "export-workspace":
+        if (activeWorkspaceId) setShowExport(true);
         break;
       case "new-workspace":
         setShowPalette(true);
@@ -424,6 +429,12 @@ function App() {
       <BookmarkNoteDialog />
       {showSnippets && (
         <SnippetManagerDialog onClose={() => setShowSnippets(false)} />
+      )}
+      {showExport && activeWorkspaceId && (
+        <WorkspaceExportDialog
+          workspaceId={activeWorkspaceId}
+          onClose={() => setShowExport(false)}
+        />
       )}
       <ToastContainer />
     </div>

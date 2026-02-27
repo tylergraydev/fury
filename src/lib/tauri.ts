@@ -1743,3 +1743,20 @@ export async function getUsageData(
 ): Promise<UsageDataPoint[]> {
   return invoke<UsageDataPoint[]>("get_usage_data", { workspaceId, since });
 }
+
+// Export types
+export interface ExportOptions {
+  workspaceId: string;
+  includeChat: boolean;
+  includeTodos: boolean;
+  includeRepoSettings: boolean;
+  includeEnvVars: boolean;
+  includeBookmarks: boolean;
+  includeSnippets: boolean;
+}
+
+export async function exportWorkspace(
+  options: ExportOptions,
+): Promise<string> {
+  return invoke<string>("export_workspace", { options });
+}
