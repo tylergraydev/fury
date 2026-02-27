@@ -385,6 +385,10 @@ export async function readFileBase64(filePath: string): Promise<string> {
   return invoke<string>("read_file_base64", { filePath });
 }
 
+export async function saveClipboardImage(data: string, mimeType: string): Promise<string> {
+  return invoke<string>("save_clipboard_image", { data, mimeType });
+}
+
 // Type definitions for Monaco language services
 export interface TypeDefFile {
   filePath: string;

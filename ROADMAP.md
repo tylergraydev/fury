@@ -67,6 +67,7 @@ Aggregate token usage and cost across sessions, workspaces, and time periods wit
 Save, tag, and search code snippets extracted from agent conversations or files.
 
 ### 14. Image / Screenshot Support in Chat
+**Status:** Done
 Paste or drag-and-drop images into the chat composer to send to vision-capable models.
 
 ### 15. Workspace Activity Log
