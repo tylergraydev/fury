@@ -27,6 +27,7 @@ export type ShortcutAction =
   | "view-usage"
   | "toggle-split-editor"
   | "open-snippets"
+  | "view-activity"
   | "escape";
 
 interface ShortcutDef {
@@ -53,6 +54,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { key: "t", mod: true, shift: true, action: "view-tests", label: "Test Runner" },
   { key: "u", mod: true, shift: true, action: "view-usage", label: "Usage Dashboard" },
   { key: "s", mod: true, shift: true, action: "open-snippets", label: "Snippets" },
+  { key: "a", mod: true, shift: true, action: "view-activity", label: "Activity Log" },
   { key: "\\", mod: true, action: "toggle-split-editor", label: "Split Editor" },
   { key: "f", mod: true, shift: true, action: "search-workspaces", label: "Search Workspaces" },
   { key: "Escape", mod: false, action: "escape", label: "Close" },

@@ -17,6 +17,7 @@ import { TeamView } from "./components/team/TeamView";
 import { TestRunnerPanel } from "./components/test-runner/TestRunnerPanel";
 import { SplitEditorLayout } from "./components/file-viewer/SplitEditorLayout";
 import { UsageDashboard } from "./components/usage/UsageDashboard";
+import { ActivityLogView } from "./components/activity-log/ActivityLogView";
 import { useWorkspaceStore } from "./stores/workspaceStore";
 import { useRepositoryStore } from "./stores/repositoryStore";
 import { useUIStore } from "./stores/uiStore";
@@ -36,6 +37,7 @@ import { BookmarkNoteDialog } from "./components/file-viewer/BookmarkNoteDialog"
 import { SnippetManagerDialog } from "./components/snippets/SnippetManagerDialog";
 import { useNotificationStore } from "./stores/notificationStore";
 import { initNotificationListeners } from "./lib/notificationListeners";
+import { initActivityLogListeners } from "./lib/activityLogListeners";
 import "./App.css";
 
 export type SidebarContext =
@@ -106,6 +108,11 @@ function MainPanel() {
           <UsageDashboard />
         </div>
       )}
+      {viewType === "activity" && (
+        <div className="flex-1 overflow-hidden">
+          <ActivityLogView />
+        </div>
+      )}
     </div>
   );
 }
@@ -150,10 +157,12 @@ function App() {
     startIpcFlush();
     startFrameMonitor();
     const cleanupNotifications = initNotificationListeners();
+    const cleanupActivityLog = initActivityLogListeners();
     return () => {
       stopIpcFlush();
       stopFrameMonitor();
       cleanupNotifications();
+      cleanupActivityLog();
     };
   }, []);
 
@@ -247,6 +256,9 @@ function App() {
         break;
       case "view-usage":
         ui.openViewTab("usage");
+        break;
+      case "view-activity":
+        ui.openViewTab("activity");
         break;
       case "toggle-split-editor": {
         const fvs = useFileViewerStore.getState();
