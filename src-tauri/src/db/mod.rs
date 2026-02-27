@@ -2,7 +2,9 @@ mod migrations;
 
 use crate::error::AppError;
 use crate::models::bookmark::FileBookmark;
-use crate::models::chat::{ChatMessage, ChatMessageSearchResult, ContentBlock, MessageRole};
+use crate::models::chat::{
+    ChatMessage, ChatMessageSearchResult, ContentBlock, MessageRole, UsageDataPoint,
+};
 use crate::models::checkpoint::Checkpoint;
 use crate::models::linear::WorkspaceIssue;
 use crate::models::prompt::Prompt;
@@ -1235,6 +1237,72 @@ impl Database {
             rusqlite::params![id.to_string()],
         )?;
         Ok(())
+    }
+
+    pub fn get_usage_data(
+        &self,
+        workspace_id: Option<&Uuid>,
+        since: Option<&str>,
+    ) -> Result<Vec<UsageDataPoint>, AppError> {
+        let mut sql = String::from(
+            "SELECT
+                cm.workspace_id,
+                w.name AS workspace_name,
+                cm.timestamp,
+                json_extract(cm.metadata, '$.totalCostUsd') AS total_cost_usd,
+                json_extract(cm.metadata, '$.inputTokens') AS input_tokens,
+                json_extract(cm.metadata, '$.outputTokens') AS output_tokens,
+                COALESCE(json_extract(cm.metadata, '$.cacheReadTokens'), 0) AS cache_read_tokens,
+                COALESCE(json_extract(cm.metadata, '$.cacheCreationTokens'), 0) AS cache_creation_tokens,
+                COALESCE(json_extract(cm.metadata, '$.numTurns'), 0) AS num_turns,
+                COALESCE(json_extract(cm.metadata, '$.durationMs'), 0) AS duration_ms
+            FROM chat_messages cm
+            JOIN workspaces w ON cm.workspace_id = w.id
+            WHERE cm.role = 'assistant'
+              AND cm.metadata IS NOT NULL
+              AND json_extract(cm.metadata, '$.totalCostUsd') IS NOT NULL",
+        );
+
+        let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+        let mut param_idx = 1;
+
+        if let Some(ws_id) = workspace_id {
+            sql.push_str(&format!(" AND cm.workspace_id = ?{param_idx}"));
+            params.push(Box::new(ws_id.to_string()));
+            param_idx += 1;
+        }
+
+        if let Some(since_ts) = since {
+            sql.push_str(&format!(" AND cm.timestamp >= ?{param_idx}"));
+            params.push(Box::new(since_ts.to_string()));
+            let _ = param_idx; // suppress unused warning
+        }
+
+        sql.push_str(" ORDER BY cm.timestamp ASC");
+
+        let mut stmt = self.conn.prepare(&sql)?;
+        let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+            params.iter().map(|p| p.as_ref()).collect();
+
+        let results: Vec<UsageDataPoint> = stmt
+            .query_map(params_refs.as_slice(), |row| {
+                Ok(UsageDataPoint {
+                    workspace_id: row.get::<_, String>(0)?,
+                    workspace_name: row.get::<_, String>(1)?,
+                    timestamp: row.get::<_, String>(2)?,
+                    total_cost_usd: row.get::<_, f64>(3).unwrap_or(0.0),
+                    input_tokens: row.get::<_, u64>(4).unwrap_or(0),
+                    output_tokens: row.get::<_, u64>(5).unwrap_or(0),
+                    cache_read_tokens: row.get::<_, u64>(6).unwrap_or(0),
+                    cache_creation_tokens: row.get::<_, u64>(7).unwrap_or(0),
+                    num_turns: row.get::<_, u32>(8).unwrap_or(0),
+                    duration_ms: row.get::<_, u64>(9).unwrap_or(0),
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(results)
     }
 }
 

@@ -44,7 +44,15 @@ function makeTab(overrides: Partial<FileTab> = {}): FileTab {
 }
 
 beforeEach(() => {
-  useFileViewerStore.setState({ tabs: [], activeTabId: null });
+  useFileViewerStore.setState({
+    tabs: [],
+    activeTabId: null,
+    splitActive: false,
+    focusedPane: "left",
+    leftActiveTabId: null,
+    rightActiveTabId: null,
+    revealLine: null,
+  });
   vi.clearAllMocks();
 });
 
@@ -752,5 +760,279 @@ describe("fileViewerStore - closeAllTabs / showChat / setActiveTab", () => {
     });
     useFileViewerStore.getState().setActiveTab(tab2.id);
     expect(useFileViewerStore.getState().activeTabId).toBe("ctx1:b.ts");
+  });
+});
+
+describe("fileViewerStore - split editor", () => {
+  it("splitEditor activates split mode", () => {
+    const tab1 = makeTab({ id: "ctx1:a.ts", filePath: "a.ts" });
+    const tab2 = makeTab({ id: "ctx1:b.ts", filePath: "b.ts" });
+    useFileViewerStore.setState({
+      tabs: [tab1, tab2],
+      activeTabId: tab1.id,
+    });
+
+    useFileViewerStore.getState().splitEditor(tab2.id);
+    const state = useFileViewerStore.getState();
+    expect(state.splitActive).toBe(true);
+    expect(state.leftActiveTabId).toBe("ctx1:a.ts");
+    expect(state.rightActiveTabId).toBe("ctx1:b.ts");
+    expect(state.focusedPane).toBe("right");
+  });
+
+  it("splitEditor without tabId sets right pane to null", () => {
+    const tab1 = makeTab({ id: "ctx1:a.ts", filePath: "a.ts" });
+    useFileViewerStore.setState({
+      tabs: [tab1],
+      activeTabId: tab1.id,
+    });
+
+    useFileViewerStore.getState().splitEditor();
+    const state = useFileViewerStore.getState();
+    expect(state.splitActive).toBe(true);
+    expect(state.leftActiveTabId).toBe("ctx1:a.ts");
+    expect(state.rightActiveTabId).toBeNull();
+  });
+
+  it("splitEditor is a no-op when already split", () => {
+    const tab1 = makeTab({ id: "ctx1:a.ts", filePath: "a.ts" });
+    const tab2 = makeTab({ id: "ctx1:b.ts", filePath: "b.ts" });
+    useFileViewerStore.setState({
+      tabs: [tab1, tab2],
+      activeTabId: tab1.id,
+      splitActive: true,
+      leftActiveTabId: tab1.id,
+      rightActiveTabId: tab2.id,
+      focusedPane: "left",
+    });
+
+    useFileViewerStore.getState().splitEditor("ctx1:b.ts");
+    expect(useFileViewerStore.getState().focusedPane).toBe("left");
+  });
+
+  it("closeSplit exits split mode and keeps focused pane tab", () => {
+    const tab1 = makeTab({ id: "ctx1:a.ts", filePath: "a.ts" });
+    const tab2 = makeTab({ id: "ctx1:b.ts", filePath: "b.ts" });
+    useFileViewerStore.setState({
+      tabs: [tab1, tab2],
+      activeTabId: tab2.id,
+      splitActive: true,
+      leftActiveTabId: tab1.id,
+      rightActiveTabId: tab2.id,
+      focusedPane: "right",
+    });
+
+    useFileViewerStore.getState().closeSplit();
+    const state = useFileViewerStore.getState();
+    expect(state.splitActive).toBe(false);
+    expect(state.activeTabId).toBe("ctx1:b.ts");
+    expect(state.leftActiveTabId).toBeNull();
+    expect(state.rightActiveTabId).toBeNull();
+  });
+
+  it("closeSplit falls back to left tab when focused right has no tab", () => {
+    const tab1 = makeTab({ id: "ctx1:a.ts", filePath: "a.ts" });
+    useFileViewerStore.setState({
+      tabs: [tab1],
+      activeTabId: null,
+      splitActive: true,
+      leftActiveTabId: tab1.id,
+      rightActiveTabId: null,
+      focusedPane: "right",
+    });
+
+    useFileViewerStore.getState().closeSplit();
+    expect(useFileViewerStore.getState().activeTabId).toBe("ctx1:a.ts");
+  });
+
+  it("setFocusedPane updates focusedPane and activeTabId", () => {
+    const tab1 = makeTab({ id: "ctx1:a.ts", filePath: "a.ts" });
+    const tab2 = makeTab({ id: "ctx1:b.ts", filePath: "b.ts" });
+    useFileViewerStore.setState({
+      tabs: [tab1, tab2],
+      splitActive: true,
+      leftActiveTabId: tab1.id,
+      rightActiveTabId: tab2.id,
+      focusedPane: "right",
+      activeTabId: tab2.id,
+    });
+
+    useFileViewerStore.getState().setFocusedPane("left");
+    const state = useFileViewerStore.getState();
+    expect(state.focusedPane).toBe("left");
+    expect(state.activeTabId).toBe("ctx1:a.ts");
+  });
+
+  it("setActiveTabInPane updates the correct pane", () => {
+    const tab1 = makeTab({ id: "ctx1:a.ts", filePath: "a.ts" });
+    const tab2 = makeTab({ id: "ctx1:b.ts", filePath: "b.ts" });
+    const tab3 = makeTab({ id: "ctx1:c.ts", filePath: "c.ts" });
+    useFileViewerStore.setState({
+      tabs: [tab1, tab2, tab3],
+      splitActive: true,
+      leftActiveTabId: tab1.id,
+      rightActiveTabId: tab2.id,
+      focusedPane: "left",
+      activeTabId: tab1.id,
+    });
+
+    useFileViewerStore.getState().setActiveTabInPane("right", tab3.id);
+    const state = useFileViewerStore.getState();
+    expect(state.rightActiveTabId).toBe("ctx1:c.ts");
+    // activeTabId should NOT change since focused pane is "left"
+    expect(state.activeTabId).toBe("ctx1:a.ts");
+  });
+
+  it("setActiveTabInPane updates activeTabId when pane is focused", () => {
+    const tab1 = makeTab({ id: "ctx1:a.ts", filePath: "a.ts" });
+    const tab2 = makeTab({ id: "ctx1:b.ts", filePath: "b.ts" });
+    const tab3 = makeTab({ id: "ctx1:c.ts", filePath: "c.ts" });
+    useFileViewerStore.setState({
+      tabs: [tab1, tab2, tab3],
+      splitActive: true,
+      leftActiveTabId: tab1.id,
+      rightActiveTabId: tab2.id,
+      focusedPane: "left",
+      activeTabId: tab1.id,
+    });
+
+    useFileViewerStore.getState().setActiveTabInPane("left", tab3.id);
+    expect(useFileViewerStore.getState().activeTabId).toBe("ctx1:c.ts");
+    expect(useFileViewerStore.getState().leftActiveTabId).toBe("ctx1:c.ts");
+  });
+
+  it("setActiveTab in split mode routes to focused pane", () => {
+    const tab1 = makeTab({ id: "ctx1:a.ts", filePath: "a.ts" });
+    const tab2 = makeTab({ id: "ctx1:b.ts", filePath: "b.ts" });
+    const tab3 = makeTab({ id: "ctx1:c.ts", filePath: "c.ts" });
+    useFileViewerStore.setState({
+      tabs: [tab1, tab2, tab3],
+      splitActive: true,
+      leftActiveTabId: tab1.id,
+      rightActiveTabId: tab2.id,
+      focusedPane: "right",
+      activeTabId: tab2.id,
+    });
+
+    useFileViewerStore.getState().setActiveTab(tab3.id);
+    expect(useFileViewerStore.getState().rightActiveTabId).toBe("ctx1:c.ts");
+    expect(useFileViewerStore.getState().activeTabId).toBe("ctx1:c.ts");
+  });
+
+  it("closeTab in split mode closes split when right pane empties", () => {
+    const tab1 = makeTab({ id: "ctx1:a.ts", filePath: "a.ts" });
+    const tab2 = makeTab({ id: "ctx1:b.ts", filePath: "b.ts" });
+    useFileViewerStore.setState({
+      tabs: [tab1, tab2],
+      splitActive: true,
+      leftActiveTabId: tab1.id,
+      rightActiveTabId: tab2.id,
+      focusedPane: "right",
+      activeTabId: tab2.id,
+    });
+
+    useFileViewerStore.getState().closeTab(tab2.id);
+    const state = useFileViewerStore.getState();
+    expect(state.splitActive).toBe(false);
+    expect(state.activeTabId).toBe("ctx1:a.ts");
+  });
+
+  it("closeTab in split mode picks next tab when left pane tab is closed", () => {
+    const tab1 = makeTab({ id: "ctx1:a.ts", filePath: "a.ts" });
+    const tab2 = makeTab({ id: "ctx1:b.ts", filePath: "b.ts" });
+    const tab3 = makeTab({ id: "ctx1:c.ts", filePath: "c.ts" });
+    useFileViewerStore.setState({
+      tabs: [tab1, tab2, tab3],
+      splitActive: true,
+      leftActiveTabId: tab1.id,
+      rightActiveTabId: tab2.id,
+      focusedPane: "left",
+      activeTabId: tab1.id,
+    });
+
+    useFileViewerStore.getState().closeTab(tab1.id);
+    const state = useFileViewerStore.getState();
+    expect(state.splitActive).toBe(true);
+    // Left pane should pick next available tab (not tab2 which is in right)
+    expect(state.leftActiveTabId).toBe("ctx1:c.ts");
+  });
+
+  it("showChat in split mode with focused right pane closes split", () => {
+    const tab1 = makeTab({ id: "ctx1:a.ts", filePath: "a.ts" });
+    const tab2 = makeTab({ id: "ctx1:b.ts", filePath: "b.ts" });
+    useFileViewerStore.setState({
+      tabs: [tab1, tab2],
+      splitActive: true,
+      leftActiveTabId: tab1.id,
+      rightActiveTabId: tab2.id,
+      focusedPane: "right",
+      activeTabId: tab2.id,
+    });
+
+    useFileViewerStore.getState().showChat();
+    const state = useFileViewerStore.getState();
+    expect(state.splitActive).toBe(false);
+    expect(state.activeTabId).toBe("ctx1:a.ts");
+  });
+
+  it("showChat in split mode with focused left pane clears left tab", () => {
+    const tab1 = makeTab({ id: "ctx1:a.ts", filePath: "a.ts" });
+    const tab2 = makeTab({ id: "ctx1:b.ts", filePath: "b.ts" });
+    useFileViewerStore.setState({
+      tabs: [tab1, tab2],
+      splitActive: true,
+      leftActiveTabId: tab1.id,
+      rightActiveTabId: tab2.id,
+      focusedPane: "left",
+      activeTabId: tab1.id,
+    });
+
+    useFileViewerStore.getState().showChat();
+    const state = useFileViewerStore.getState();
+    expect(state.splitActive).toBe(true);
+    expect(state.leftActiveTabId).toBeNull();
+    expect(state.activeTabId).toBeNull();
+  });
+
+  it("closeAllTabs also closes split", () => {
+    const tab1 = makeTab({ id: "ctx1:a.ts", filePath: "a.ts" });
+    useFileViewerStore.setState({
+      tabs: [tab1],
+      splitActive: true,
+      leftActiveTabId: tab1.id,
+      rightActiveTabId: null,
+      focusedPane: "left",
+    });
+
+    useFileViewerStore.getState().closeAllTabs();
+    const state = useFileViewerStore.getState();
+    expect(state.splitActive).toBe(false);
+    expect(state.tabs).toEqual([]);
+    expect(state.leftActiveTabId).toBeNull();
+    expect(state.rightActiveTabId).toBeNull();
+  });
+
+  it("openFile in split mode opens in focused pane", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({
+      content: "content",
+      language: "typescript",
+    } as any);
+
+    const tab1 = makeTab({ id: "ctx1:a.ts", filePath: "a.ts", pinned: true });
+    const tab2 = makeTab({ id: "ctx1:b.ts", filePath: "b.ts", pinned: true });
+    useFileViewerStore.setState({
+      tabs: [tab1, tab2],
+      splitActive: true,
+      leftActiveTabId: tab1.id,
+      rightActiveTabId: tab2.id,
+      focusedPane: "right",
+      activeTabId: tab2.id,
+    });
+
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "c.ts", true);
+    const state = useFileViewerStore.getState();
+    expect(state.rightActiveTabId).toBe("ctx1:c.ts");
+    expect(state.activeTabId).toBe("ctx1:c.ts");
+    expect(state.leftActiveTabId).toBe("ctx1:a.ts");
   });
 });

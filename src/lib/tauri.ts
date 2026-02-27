@@ -1633,3 +1633,24 @@ export async function runTests(
 export async function stopTests(contextId: string): Promise<void> {
   return invoke("stop_tests", { contextId });
 }
+
+// Usage dashboard types
+export interface UsageDataPoint {
+  workspaceId: string;
+  workspaceName: string;
+  timestamp: string;
+  totalCostUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  numTurns: number;
+  durationMs: number;
+}
+
+export async function getUsageData(
+  workspaceId?: string,
+  since?: string,
+): Promise<UsageDataPoint[]> {
+  return invoke<UsageDataPoint[]>("get_usage_data", { workspaceId, since });
+}

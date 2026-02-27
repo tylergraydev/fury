@@ -3,7 +3,7 @@ import { applyTheme } from "../lib/themes";
 
 export type RightSidebarTab = "files" | "changes" | "checks" | "bookmarks";
 export type BottomTab = "setup" | "terminal" | "run";
-export type ViewType = "chat" | "settings" | "merge" | "history" | "diff" | "team" | "tests";
+export type ViewType = "chat" | "settings" | "merge" | "history" | "diff" | "team" | "tests" | "usage";
 
 export interface ViewTab {
   id: string;
@@ -20,6 +20,7 @@ const VIEW_LABELS: Record<ViewType, string> = {
   diff: "Changes",
   team: "Team",
   tests: "Tests",
+  usage: "Usage",
 };
 
 interface UIStore {

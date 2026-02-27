@@ -1,6 +1,7 @@
-import { X, Settings, GitMerge, History, FileDiff, Users } from "lucide-react";
+import { X, Settings, GitMerge, History, FileDiff, Users, Columns2, BarChart3 } from "lucide-react";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
 import { useUIStore } from "../../stores/uiStore";
+import type { PaneId } from "../../stores/fileViewerStore";
 
 const VIEW_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   settings: Settings,
@@ -8,6 +9,7 @@ const VIEW_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   history: History,
   diff: FileDiff,
   team: Users,
+  usage: BarChart3,
 };
 
 export function FileTabBar() {
@@ -17,6 +19,10 @@ export function FileTabBar() {
   const closeFileTab = useFileViewerStore((s) => s.closeTab);
   const pinFileTab = useFileViewerStore((s) => s.pinTab);
   const showChat = useFileViewerStore((s) => s.showChat);
+  const splitActive = useFileViewerStore((s) => s.splitActive);
+  const focusedPane = useFileViewerStore((s) => s.focusedPane);
+  const leftActiveTabId = useFileViewerStore((s) => s.leftActiveTabId);
+  const rightActiveTabId = useFileViewerStore((s) => s.rightActiveTabId);
 
   const viewTabs = useUIStore((s) => s.viewTabs);
   const activeViewTabId = useUIStore((s) => s.activeViewTabId);
@@ -34,7 +40,21 @@ export function FileTabBar() {
   };
 
   const handleFileTabClick = (tabId: string) => {
-    setActiveFileTab(tabId);
+    if (splitActive) {
+      useFileViewerStore.getState().setActiveTabInPane(focusedPane, tabId);
+    } else {
+      setActiveFileTab(tabId);
+    }
+    setActiveViewTab("chat");
+  };
+
+  const handleOpenInSplit = (tabId: string) => {
+    if (!splitActive) {
+      useFileViewerStore.getState().splitEditor(tabId);
+    } else {
+      const targetPane: PaneId = focusedPane === "left" ? "right" : "left";
+      useFileViewerStore.getState().setActiveTabInPane(targetPane, tabId);
+    }
     setActiveViewTab("chat");
   };
 
@@ -62,12 +82,14 @@ export function FileTabBar() {
 
       {/* File tabs */}
       {fileTabs.map((tab) => {
-        const isActive = viewType === "chat" && activeFileTabId === tab.id;
+        const isActive = splitActive
+          ? (leftActiveTabId === tab.id || rightActiveTabId === tab.id)
+          : (viewType === "chat" && activeFileTabId === tab.id);
         const fileName = tab.filePath.split("/").pop()!;
         return (
           <span
             key={tab.id}
-            className="flex flex-shrink-0 items-center gap-1 py-1.5 pl-3 pr-1 transition-colors"
+            className="group flex flex-shrink-0 items-center gap-1 py-1.5 pl-3 pr-1 transition-colors"
             style={{
               color: isActive ? "var(--accent)" : "var(--text-muted)",
               borderBottom: isActive
@@ -83,6 +105,22 @@ export function FileTabBar() {
                 title="Unsaved changes"
               />
             )}
+            {splitActive && leftActiveTabId === tab.id && (
+              <span
+                className="rounded px-0.5 text-[9px]"
+                style={{ backgroundColor: "var(--bg-surface)", color: "var(--text-muted)" }}
+              >
+                L
+              </span>
+            )}
+            {splitActive && rightActiveTabId === tab.id && (
+              <span
+                className="rounded px-0.5 text-[9px]"
+                style={{ backgroundColor: "var(--bg-surface)", color: "var(--text-muted)" }}
+              >
+                R
+              </span>
+            )}
             <span
               onClick={() => handleFileTabClick(tab.id)}
               onDoubleClick={() => pinFileTab(tab.id)}
@@ -90,6 +128,19 @@ export function FileTabBar() {
             >
               {fileName}
             </span>
+            {fileTabs.length >= 2 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenInSplit(tab.id);
+                }}
+                className="ml-0.5 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-[var(--bg-hover)]"
+                style={{ color: "var(--text-muted)" }}
+                title="Open in split view"
+              >
+                <Columns2 className="h-3 w-3" />
+              </button>
+            )}
             {tab.saving ? (
               <span
                 className="ml-0.5 p-0.5 text-[10px]"
@@ -113,8 +164,26 @@ export function FileTabBar() {
         );
       })}
 
-      {/* Spacer between file tabs and view tabs */}
-      {nonChatViewTabs.length > 0 && <div className="flex-1" />}
+      {/* Split toggle + spacer */}
+      <div className="flex flex-1 items-center justify-end">
+        {fileTabs.length >= 2 && (
+          <button
+            onClick={() => {
+              if (splitActive) {
+                useFileViewerStore.getState().closeSplit();
+              } else {
+                useFileViewerStore.getState().splitEditor();
+              }
+              setActiveViewTab("chat");
+            }}
+            className="flex-shrink-0 rounded p-1 hover:bg-[var(--bg-hover)]"
+            style={{ color: splitActive ? "var(--accent)" : "var(--text-muted)" }}
+            title={splitActive ? "Close split view" : "Split editor"}
+          >
+            <Columns2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
 
       {/* View tabs (Settings, Merge, History) — right side */}
       {nonChatViewTabs.map((tab) => {

@@ -194,6 +194,8 @@ pub fn run() {
             commands::perf::push_stream_events,
             commands::perf::toggle_perf_monitor,
             commands::perf::get_perf_status,
+            // Usage commands
+            commands::usage::get_usage_data,
         ])
         .setup(|app| {
             let app_data_dir = app

@@ -39,12 +39,15 @@ Save a workspace configuration (scripts, env vars, MCP servers, sparse checkout 
 Let users create and share custom color themes beyond the 3 built-in options. The theming system already uses CSS variables.
 
 ### 8. Agent Prompt Library
+**Status:** Done
 Save, organize, and reuse frequently-used prompts with variable placeholders (e.g., `{{file}}`, `{{selection}}`).
 
 ### 9. File Annotations / Bookmarks
+**Status:** Done
 Bookmark specific lines in files and add notes. Persist across sessions with Monaco editor decorations.
 
 ### 10. Test Runner Panel
+**Status:** Done
 Dedicated panel to run, view, and filter test results with pass/fail status per test (like VS Code's Test Explorer).
 
 ---
@@ -52,9 +55,11 @@ Dedicated panel to run, view, and filter test results with pass/fail status per 
 ## Tier 3 — Nice to Have
 
 ### 11. Split Editor View
+**Status:** Done
 View two files side-by-side in the file viewer (not just diff — two independent editors).
 
 ### 12. AI Cost Dashboard
+**Status:** Done
 Aggregate token usage and cost across sessions, workspaces, and time periods with charts.
 
 ### 13. Snippet Manager
