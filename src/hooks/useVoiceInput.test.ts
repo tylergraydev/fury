@@ -2,36 +2,43 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useVoiceInput } from "./useVoiceInput";
 
-class MockSpeechRecognition {
-  continuous = false;
-  interimResults = false;
-  lang = "";
-  onstart: (() => void) | null = null;
-  onresult: ((event: any) => void) | null = null;
-  onerror: ((event: any) => void) | null = null;
-  onend: (() => void) | null = null;
-  start = vi.fn(() => {
-    this.onstart?.();
-  });
-  stop = vi.fn(() => {
-    this.onend?.();
-  });
-  abort = vi.fn();
+interface MockInstance {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: (() => void) | null;
+  onresult: ((event: any) => void) | null;
+  onerror: ((event: any) => void) | null;
+  onend: (() => void) | null;
+  start: ReturnType<typeof vi.fn>;
+  stop: ReturnType<typeof vi.fn>;
+  abort: ReturnType<typeof vi.fn>;
 }
 
-let mockInstance: MockSpeechRecognition;
+let mockInstance: MockInstance;
 const OriginalSpeechRecognition = (globalThis as any).SpeechRecognition;
 const OriginalWebkit = (globalThis as any).webkitSpeechRecognition;
 
+function createMockInstance(): MockInstance {
+  const inst: MockInstance = {
+    continuous: false,
+    interimResults: false,
+    lang: "",
+    onstart: null,
+    onresult: null,
+    onerror: null,
+    onend: null,
+    start: vi.fn(() => { inst.onstart?.(); }),
+    stop: vi.fn(() => { inst.onend?.(); }),
+    abort: vi.fn(),
+  };
+  mockInstance = inst;
+  return inst;
+}
+
 describe("useVoiceInput", () => {
   beforeEach(() => {
-    // Patch the class so each new instance is captured
-    (globalThis as any).SpeechRecognition = class extends MockSpeechRecognition {
-      constructor() {
-        super();
-        mockInstance = this;
-      }
-    };
+    (globalThis as any).SpeechRecognition = vi.fn().mockImplementation(createMockInstance);
     delete (globalThis as any).webkitSpeechRecognition;
   });
 

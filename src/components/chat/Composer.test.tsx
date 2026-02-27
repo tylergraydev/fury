@@ -1452,19 +1452,24 @@ describe("Composer", () => {
   describe("voice input", () => {
     let mockRecognitionInstance: any;
 
-    class MockSpeechRecognition {
-      continuous = false;
-      interimResults = false;
-      lang = "";
-      onstart: (() => void) | null = null;
-      onresult: ((event: any) => void) | null = null;
-      onerror: ((event: any) => void) | null = null;
-      onend: (() => void) | null = null;
-      start = vi.fn(() => { this.onstart?.(); });
-      stop = vi.fn(() => { this.onend?.(); });
-      abort = vi.fn();
-      constructor() { mockRecognitionInstance = this; }
+    function createMockRecognition() {
+      const inst: any = {
+        continuous: false,
+        interimResults: false,
+        lang: "",
+        onstart: null,
+        onresult: null,
+        onerror: null,
+        onend: null,
+        start: vi.fn(() => { inst.onstart?.(); }),
+        stop: vi.fn(() => { inst.onend?.(); }),
+        abort: vi.fn(),
+      };
+      mockRecognitionInstance = inst;
+      return inst;
     }
+
+    const MockSpeechRecognition = vi.fn().mockImplementation(createMockRecognition);
 
     it("shows voice input button when SpeechRecognition is available", () => {
       (window as any).SpeechRecognition = MockSpeechRecognition;
