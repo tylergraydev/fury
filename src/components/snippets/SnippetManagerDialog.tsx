@@ -455,10 +455,10 @@ export function SnippetManagerDialog({ onClose, onInsert }: Props) {
                       key={snippet.id}
                       role="button"
                       tabIndex={0}
-                      onClick={() => onInsert ? handleInsert(snippet) : handleCopy(snippet)}
+                      onClick={() => { if (onInsert) { handleInsert(snippet); } else { handleCopy(snippet); } }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
-                          onInsert ? handleInsert(snippet) : handleCopy(snippet);
+                          if (onInsert) { handleInsert(snippet); } else { handleCopy(snippet); }
                         }
                       }}
                       className="group flex w-full cursor-pointer items-start gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
