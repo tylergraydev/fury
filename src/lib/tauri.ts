@@ -1561,6 +1561,59 @@ export async function deletePrompt(promptId: string): Promise<void> {
   return invoke("delete_prompt", { promptId });
 }
 
+// Snippet manager types
+export interface Snippet {
+  id: string;
+  title: string;
+  content: string;
+  language: string | null;
+  description: string | null;
+  tags: string[];
+  source: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSnippetRequest {
+  title: string;
+  content: string;
+  language?: string;
+  description?: string;
+  tags?: string[];
+  source?: string;
+}
+
+export interface UpdateSnippetRequest {
+  title?: string;
+  content?: string;
+  language?: string;
+  description?: string;
+  tags?: string[];
+  source?: string;
+}
+
+// Snippet manager commands
+export async function createSnippet(
+  request: CreateSnippetRequest,
+): Promise<Snippet> {
+  return invoke<Snippet>("create_snippet", { request });
+}
+
+export async function listSnippets(): Promise<Snippet[]> {
+  return invoke<Snippet[]>("list_snippets");
+}
+
+export async function updateSnippet(
+  snippetId: string,
+  request: UpdateSnippetRequest,
+): Promise<Snippet> {
+  return invoke<Snippet>("update_snippet", { snippetId, request });
+}
+
+export async function deleteSnippet(snippetId: string): Promise<void> {
+  return invoke("delete_snippet", { snippetId });
+}
+
 // Test runner types
 export type TestFramework = "vitest" | "jest" | "pytest" | "cargotest" | "gotest" | "custom";
 export type TestStatus = "passed" | "failed" | "skipped" | "running" | "pending";

@@ -5,6 +5,7 @@ use crate::models::checkpoint::Checkpoint;
 use crate::models::prompt::Prompt;
 use crate::models::repository::{RepoSettings, Repository};
 use crate::models::settings::AppSettings;
+use crate::models::snippet::Snippet;
 use crate::models::todo::TodoItem;
 use crate::models::workspace::{Workspace, WorkspaceStatus};
 use crate::models::workspace_template::WorkspaceTemplate;
@@ -176,6 +177,21 @@ pub fn test_prompt() -> Prompt {
         category: Some("Code Review".to_string()),
         tags: vec!["review".to_string(), "quality".to_string()],
         sort_order: 0,
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    }
+}
+
+/// Create a dummy Snippet for testing.
+pub fn test_snippet() -> Snippet {
+    Snippet {
+        id: Uuid::new_v4(),
+        title: "fetch helper".to_string(),
+        content: "async function fetchJSON(url: string) {\n  const res = await fetch(url);\n  return res.json();\n}".to_string(),
+        language: Some("typescript".to_string()),
+        description: Some("Typed fetch wrapper".to_string()),
+        tags: vec!["http".to_string(), "utility".to_string()],
+        source: Some("chat".to_string()),
         created_at: Utc::now(),
         updated_at: Utc::now(),
     }

@@ -181,6 +181,11 @@ pub fn run() {
             commands::prompt::list_prompts,
             commands::prompt::update_prompt,
             commands::prompt::delete_prompt,
+            // Snippet manager commands
+            commands::snippet::create_snippet,
+            commands::snippet::list_snippets,
+            commands::snippet::update_snippet,
+            commands::snippet::delete_snippet,
             // Test runner commands
             commands::test_runner::detect_test_framework,
             commands::test_runner::get_test_runner_config,

@@ -33,6 +33,7 @@ import { startIpcFlush, stopIpcFlush } from "./lib/ipcInstrumentation";
 import { startFrameMonitor, stopFrameMonitor } from "./lib/frameMonitor";
 import { NotificationPanel } from "./components/notifications/NotificationPanel";
 import { BookmarkNoteDialog } from "./components/file-viewer/BookmarkNoteDialog";
+import { SnippetManagerDialog } from "./components/snippets/SnippetManagerDialog";
 import { useNotificationStore } from "./stores/notificationStore";
 import { initNotificationListeners } from "./lib/notificationListeners";
 import "./App.css";
@@ -117,6 +118,7 @@ function App() {
   const theme = useUIStore((s) => s.theme);
   const [showPalette, setShowPalette] = useState(false);
   const [paletteMode, setPaletteMode] = useState<PaletteMode>("default");
+  const [showSnippets, setShowSnippets] = useState(false);
   const autoUpdate = useAutoUpdate();
   const settingsRef = useRef<{ copilotEnabled?: boolean } | null>(null);
 
@@ -255,6 +257,9 @@ function App() {
         }
         break;
       }
+      case "open-snippets":
+        setShowSnippets(true);
+        break;
       case "new-workspace":
         setShowPalette(true);
         break;
@@ -405,6 +410,9 @@ function App() {
 
       <NotificationPanel />
       <BookmarkNoteDialog />
+      {showSnippets && (
+        <SnippetManagerDialog onClose={() => setShowSnippets(false)} />
+      )}
       <ToastContainer />
     </div>
   );

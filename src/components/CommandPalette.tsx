@@ -173,6 +173,12 @@ export function CommandPalette({
                 >
                   Toggle Split Editor
                 </PaletteItem>
+                <PaletteItem
+                  onSelect={() => run("open-snippets")}
+                  shortcut={shortcutFor("open-snippets")}
+                >
+                  Open Snippet Manager
+                </PaletteItem>
               </CommandGroup>
 
               <CommandSeparator style={{ height: 1, backgroundColor: "var(--border)", margin: "4px 0" }} />
