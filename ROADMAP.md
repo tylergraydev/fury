@@ -83,4 +83,5 @@ When hovering over a changed file in the sidebar, show a tooltip with a mini dif
 Use browser/OS speech-to-text APIs to dictate messages to the AI agent.
 
 ### 18. Workspace Sharing / Export
+**Status:** Done
 Export a workspace's conversation history, todos, and configuration as a shareable bundle.

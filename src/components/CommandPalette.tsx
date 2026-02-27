@@ -179,6 +179,12 @@ export function CommandPalette({
                 >
                   Open Snippet Manager
                 </PaletteItem>
+                <PaletteItem
+                  onSelect={() => run("export-workspace")}
+                  shortcut={shortcutFor("export-workspace")}
+                >
+                  Export Workspace
+                </PaletteItem>
               </CommandGroup>
 
               <CommandSeparator style={{ height: 1, backgroundColor: "var(--border)", margin: "4px 0" }} />

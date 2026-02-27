@@ -3,6 +3,7 @@ pub mod bookmark;
 pub mod chat;
 pub mod checkpoint;
 pub mod diff;
+pub mod export;
 pub mod linear;
 pub mod mcp;
 pub mod merge;

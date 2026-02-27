@@ -204,6 +204,8 @@ pub fn run() {
             commands::perf::get_perf_status,
             // Usage commands
             commands::usage::get_usage_data,
+            // Export commands
+            commands::export::export_workspace,
         ])
         .setup(|app| {
             let app_data_dir = app
