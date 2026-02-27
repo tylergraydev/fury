@@ -18,6 +18,8 @@ vi.mock("../../lib/tauri", () => ({
   getFileDiff: vi.fn().mockResolvedValue(null),
   getRepoDiff: vi.fn().mockResolvedValue({ files: [], totalAdditions: 0, totalDeletions: 0 }),
   getRepoFileDiff: vi.fn().mockResolvedValue(null),
+  getFilePatch: vi.fn().mockResolvedValue(null),
+  getRepoFilePatch: vi.fn().mockResolvedValue(null),
   listen: vi.fn().mockResolvedValue(() => {}),
   getPrInfo: vi.fn().mockResolvedValue(null),
   getPrChecks: vi.fn().mockResolvedValue([]),
@@ -41,6 +43,8 @@ beforeEach(() => {
     fileDiffs: {},
     loading: {},
     error: {},
+    patchPreviews: {},
+    patchLoading: {},
     loadDiff: mockLoadDiff,
     loadRepoDiff: mockLoadRepoDiff,
     refresh: mockRefresh,
@@ -378,6 +382,35 @@ describe("ChangesPanel", () => {
     render(<ChangesPanel context={wsContext} />);
     const btn = screen.getByText("app.ts").closest("button");
     expect(btn).toHaveStyle({ backgroundColor: "var(--bg-surface)" });
+  });
+
+  it("shows DiffHoverPreview on mouse enter and hides on mouse leave", () => {
+    useDiffStore.setState({
+      diffResults: {
+        "ws-1": {
+          files: [
+            { path: "src/app.ts", status: "Modified", additions: 5, deletions: 2 },
+          ],
+          totalAdditions: 5,
+          totalDeletions: 2,
+        },
+      },
+      patchPreviews: {
+        "ws-1:src/app.ts": {
+          path: "src/app.ts",
+          language: "typescript",
+          patch: "+new line",
+          truncated: false,
+        },
+      },
+      patchLoading: {},
+    });
+    render(<ChangesPanel context={wsContext} />);
+    const btn = screen.getByText("app.ts").closest("button")!;
+    fireEvent.mouseEnter(btn);
+    expect(screen.getByTestId("diff-hover-preview")).toBeInTheDocument();
+    fireEvent.mouseLeave(btn);
+    expect(screen.queryByTestId("diff-hover-preview")).not.toBeInTheDocument();
   });
 });
 

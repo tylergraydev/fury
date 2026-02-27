@@ -316,6 +316,13 @@ export interface FileDiffContent {
   language: string;
 }
 
+export interface FilePatchPreview {
+  path: string;
+  language: string;
+  patch: string;
+  truncated: boolean;
+}
+
 // Checkpoint commands
 export async function listCheckpoints(
   workspaceId: string,
@@ -359,6 +366,31 @@ export async function getRepoFileDiff(
   filePath: string,
 ): Promise<FileDiffContent> {
   return invoke<FileDiffContent>("get_repo_file_diff", { repoId, filePath });
+}
+
+// Patch preview commands (lightweight diff for hover)
+export async function getFilePatch(
+  workspaceId: string,
+  filePath: string,
+  isUntracked?: boolean,
+): Promise<FilePatchPreview> {
+  return invoke<FilePatchPreview>("get_file_patch", {
+    workspaceId,
+    filePath,
+    isUntracked,
+  });
+}
+
+export async function getRepoFilePatch(
+  repoId: string,
+  filePath: string,
+  isUntracked?: boolean,
+): Promise<FilePatchPreview> {
+  return invoke<FilePatchPreview>("get_repo_file_patch", {
+    repoId,
+    filePath,
+    isUntracked,
+  });
 }
 
 // File content reading

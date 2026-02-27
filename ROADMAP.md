@@ -75,6 +75,7 @@ Paste or drag-and-drop images into the chat composer to send to vision-capable m
 Timeline view showing all actions taken in a workspace: commits, file changes, agent messages, script runs, PR events.
 
 ### 16. Quick Diff Preview on Hover
+**Status:** Done
 When hovering over a changed file in the sidebar, show a tooltip with a mini diff preview.
 
 ### 17. Voice Input for Chat

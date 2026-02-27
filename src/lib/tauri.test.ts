@@ -33,6 +33,9 @@ import {
   listWorkspaceFiles,
   getRepoDiff,
   getRepoFileDiff,
+  // Patch preview commands
+  getFilePatch,
+  getRepoFilePatch,
   // File content reading
   readWorkspaceFile,
   readRepoFile,
@@ -458,6 +461,22 @@ describe("Diff commands", () => {
     const result = await getRepoFileDiff("r1", "src/main.rs");
     expect(invoke).toHaveBeenCalledWith("get_repo_file_diff", { repoId: "r1", filePath: "src/main.rs" });
     expect(result).toEqual(fileDiff);
+  });
+
+  it("getFilePatch calls invoke with get_file_patch", async () => {
+    const preview = { path: "file.ts", language: "typescript", patch: "+line", truncated: false };
+    (invoke as any).mockResolvedValueOnce(preview);
+    const result = await getFilePatch("w1", "file.ts", false);
+    expect(invoke).toHaveBeenCalledWith("get_file_patch", { workspaceId: "w1", filePath: "file.ts", isUntracked: false });
+    expect(result).toEqual(preview);
+  });
+
+  it("getRepoFilePatch calls invoke with get_repo_file_patch", async () => {
+    const preview = { path: "main.rs", language: "rust", patch: "-old\n+new", truncated: false };
+    (invoke as any).mockResolvedValueOnce(preview);
+    const result = await getRepoFilePatch("r1", "main.rs", true);
+    expect(invoke).toHaveBeenCalledWith("get_repo_file_patch", { repoId: "r1", filePath: "main.rs", isUntracked: true });
+    expect(result).toEqual(preview);
   });
 });
 
