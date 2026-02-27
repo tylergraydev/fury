@@ -79,6 +79,7 @@ Timeline view showing all actions taken in a workspace: commits, file changes, a
 When hovering over a changed file in the sidebar, show a tooltip with a mini diff preview.
 
 ### 17. Voice Input for Chat
+**Status:** Done
 Use browser/OS speech-to-text APIs to dictate messages to the AI agent.
 
 ### 18. Workspace Sharing / Export

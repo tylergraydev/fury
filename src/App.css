@@ -265,3 +265,18 @@ body,
 .bookmark-glyph.bookmark-purple::after {
   background-color: var(--accent-purple);
 }
+
+/* Voice recording indicator pulse */
+@keyframes voice-recording-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(248, 113, 113, 0);
+  }
+}
+
+.voice-recording {
+  animation: voice-recording-pulse 1.5s ease-in-out infinite;
+  border-radius: 6px;
+}

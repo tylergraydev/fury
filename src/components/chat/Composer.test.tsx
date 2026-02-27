@@ -1449,6 +1449,105 @@ describe("Composer", () => {
     });
   });
 
+  describe("voice input", () => {
+    let mockRecognitionInstance: any;
+
+    class MockSpeechRecognition {
+      continuous = false;
+      interimResults = false;
+      lang = "";
+      onstart: (() => void) | null = null;
+      onresult: ((event: any) => void) | null = null;
+      onerror: ((event: any) => void) | null = null;
+      onend: (() => void) | null = null;
+      start = vi.fn(() => { this.onstart?.(); });
+      stop = vi.fn(() => { this.onend?.(); });
+      abort = vi.fn();
+      constructor() { mockRecognitionInstance = this; }
+    }
+
+    it("shows voice input button when SpeechRecognition is available", () => {
+      (window as any).SpeechRecognition = MockSpeechRecognition;
+      render(<Composer {...defaultProps} />);
+      expect(screen.getByTitle("Start voice input (⌥V)")).toBeInTheDocument();
+      delete (window as any).SpeechRecognition;
+    });
+
+    it("hides voice input button when SpeechRecognition is not available", () => {
+      delete (window as any).SpeechRecognition;
+      delete (window as any).webkitSpeechRecognition;
+      render(<Composer {...defaultProps} />);
+      expect(screen.queryByTitle(/voice input/)).not.toBeInTheDocument();
+    });
+
+    it("toggles to listening state when mic button is clicked", async () => {
+      (window as any).SpeechRecognition = MockSpeechRecognition;
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      await user.click(screen.getByTitle("Start voice input (⌥V)"));
+      expect(mockRecognitionInstance.start).toHaveBeenCalled();
+      expect(screen.getByTitle("Stop voice input (⌥V)")).toBeInTheDocument();
+      delete (window as any).SpeechRecognition;
+    });
+
+    it("appends transcribed text to textarea", async () => {
+      (window as any).SpeechRecognition = MockSpeechRecognition;
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      await user.type(screen.getByRole("textbox"), "Hello");
+      await user.click(screen.getByTitle("Start voice input (⌥V)"));
+      // Simulate a final transcript result
+      const { act } = await import("@testing-library/react");
+      act(() => {
+        mockRecognitionInstance.onresult?.({
+          resultIndex: 0,
+          results: {
+            length: 1,
+            0: { 0: { transcript: "world" }, isFinal: true, length: 1 },
+          },
+        });
+      });
+      expect(screen.getByRole("textbox")).toHaveValue("Hello world");
+      delete (window as any).SpeechRecognition;
+    });
+
+    it("disables voice button when agent is running", () => {
+      (window as any).SpeechRecognition = MockSpeechRecognition;
+      render(<Composer {...defaultProps} agentStatus="Running" />);
+      expect(screen.getByTitle(/voice input/)).toBeDisabled();
+      delete (window as any).SpeechRecognition;
+    });
+
+    it("shows interim transcript while listening", async () => {
+      (window as any).SpeechRecognition = MockSpeechRecognition;
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      await user.click(screen.getByTitle("Start voice input (⌥V)"));
+      const { act } = await import("@testing-library/react");
+      act(() => {
+        mockRecognitionInstance.onresult?.({
+          resultIndex: 0,
+          results: {
+            length: 1,
+            0: { 0: { transcript: "hel" }, isFinal: false, length: 1 },
+          },
+        });
+      });
+      expect(screen.getByText("hel...")).toBeInTheDocument();
+      delete (window as any).SpeechRecognition;
+    });
+
+    it("Alt+V toggles voice input", async () => {
+      (window as any).SpeechRecognition = MockSpeechRecognition;
+      render(<Composer {...defaultProps} />);
+      const textarea = screen.getByRole("textbox");
+      fireEvent.keyDown(textarea, { key: "v", altKey: true });
+      expect(mockRecognitionInstance.start).toHaveBeenCalled();
+      expect(screen.getByTitle("Stop voice input (⌥V)")).toBeInTheDocument();
+      delete (window as any).SpeechRecognition;
+    });
+  });
+
   it("Cmd+U opens file dialog", async () => {
     const mockOpen = vi.mocked(openFileDialog);
     mockOpen.mockResolvedValueOnce(null);

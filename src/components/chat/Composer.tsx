@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Square, Copy, ArrowRightFromLine, Check, ShieldCheck, ShieldX, X, FileText as FileIcon, Sparkles, Brain, BookOpen, ArrowUp, Plus, Paperclip, CircleDot, Link2 } from "lucide-react";
+import { Square, Copy, ArrowRightFromLine, Check, ShieldCheck, ShieldX, X, FileText as FileIcon, Sparkles, Brain, BookOpen, ArrowUp, Plus, Paperclip, CircleDot, Link2, Mic, MicOff } from "lucide-react";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { AgentStatus, SlashCommand } from "../../lib/tauri";
@@ -15,6 +15,8 @@ import { usePromptLibraryStore } from "../../stores/promptLibraryStore";
 import { BUILTIN_COMMANDS, type BuiltinCommand } from "../../lib/builtinCommands";
 import { extractVariables, substituteVariables, isAutoFillVariable } from "../../lib/promptVariables";
 import { PromptLibraryDialog } from "../prompt-library/PromptLibraryDialog";
+import { useVoiceInput } from "../../hooks/useVoiceInput";
+import { useToastStore } from "../../stores/toastStore";
 
 function ActionBar({ icon, description, bgStyle, secondaryActions, primaryAction }: {
   icon?: React.ReactNode;
@@ -227,6 +229,25 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
   // Prompt library state
   const [showPromptLibrary, setShowPromptLibrary] = useState(false);
 
+  // Voice input
+  const {
+    isSupported: voiceSupported,
+    isListening: voiceListening,
+    interimTranscript,
+    toggleListening: toggleVoice,
+    stopListening: stopVoice,
+  } = useVoiceInput({
+    onTranscript: useCallback((transcript: string) => {
+      setText((prev) => {
+        const separator = prev.length > 0 && !prev.endsWith(" ") ? " " : "";
+        return prev + separator + transcript;
+      });
+    }, []),
+    onError: useCallback((error: string) => {
+      useToastStore.getState().addToast(error, "error");
+    }, []),
+  });
+
   const currentModelDisplay = MODEL_OPTIONS.find(m => m.value === selectedModel)?.displayName ?? "Opus 4.6";
 
   const isRunning = agentStatus === "Running";
@@ -256,6 +277,16 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
       else store.loadRepoFiles(contextId);
     }
   }, [contextId, contextType]);
+
+  // Auto-resize textarea when text changes programmatically (e.g., voice input)
+  useEffect(() => {
+    const el = textareaRef.current;
+    /* v8 ignore next 4 -- @preserve */
+    if (el) {
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 200) + "px";
+    }
+  }, [text]);
 
   // Listen for Tauri drag-drop events
   useEffect(() => {
@@ -495,6 +526,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
 
   const handleSend = useCallback(() => {
     if (!canSend) return;
+    stopVoice();
     let message = pendingCommandContent ?? text.trim();
 
     // Expand @todos mention (only for user-typed text, not command content)
@@ -525,7 +557,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-  }, [canSend, text, droppedFiles, onSend, workspaceId, selectedModel, pendingCommandName, pendingCommandContent]);
+  }, [canSend, text, droppedFiles, onSend, workspaceId, selectedModel, pendingCommandName, pendingCommandContent, stopVoice]);
 
   const selectSlashCommand = useCallback(
     (cmd: SlashCommand) => {
@@ -670,6 +702,13 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     if (e.key === "p" && e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
       e.preventDefault();
       setShowModelMenu((prev) => !prev);
+      return;
+    }
+
+    // Option+V to toggle voice input
+    if (e.key === "v" && e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+      e.preventDefault();
+      if (voiceSupported) toggleVoice();
       return;
     }
 
@@ -986,6 +1025,16 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
             />
           </div>
 
+          {/* Voice interim transcript */}
+          {voiceListening && interimTranscript && (
+            <div
+              className="px-4 pb-1 text-xs italic"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {interimTranscript}...
+            </div>
+          )}
+
           {/* Bottom toolbar */}
           <div className="flex items-center justify-between px-3 pb-2 pt-1">
             {/* Left side: Model, Thinking, Plan */}
@@ -1131,6 +1180,27 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
                   </div>
                 )}
               </div>
+
+              {/* Voice input button */}
+              {voiceSupported && (
+                <button
+                  onClick={toggleVoice}
+                  disabled={isRunning || isStopping}
+                  className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:opacity-80 cursor-pointer ${
+                    voiceListening ? "voice-recording" : ""
+                  }`}
+                  style={{
+                    color: voiceListening ? "var(--error)" : "var(--text-muted)",
+                  }}
+                  title={voiceListening ? "Stop voice input (⌥V)" : "Start voice input (⌥V)"}
+                >
+                  {voiceListening ? (
+                    <MicOff className="h-4 w-4" />
+                  ) : (
+                    <Mic className="h-4 w-4" />
+                  )}
+                </button>
+              )}
 
               {isRunning || isStopping ? (
                 <button
