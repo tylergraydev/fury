@@ -16,12 +16,12 @@ pub fn list_slash_commands(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let repo_path = if context_type == "repo" {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         repos.get(&id).map(|r| r.path.clone())
     } else {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces.get(&id).ok_or(AppError::WorkspaceNotFound(id))?;
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         repos.get(&ws.repo_id).map(|r| r.path.clone())
     };
 
@@ -39,11 +39,11 @@ pub fn get_slash_command_content(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let repo_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         repos.get(&ws.repo_id).map(|r| r.path.clone())
     };
 

@@ -18,27 +18,32 @@ export function TerminalPanel({ context }: TerminalPanelProps) {
     setTerminalId(null);
     setError(null);
 
-    const terminalPromise = context.type === "workspace"
-      ? createTerminal(context.id, 80, 24)
-      : createRepoTerminal(context.id, 80, 24);
+    // Defer terminal creation by one frame to avoid blocking the initial
+    // layout paint with a synchronous IPC call.
+    const rafId = requestAnimationFrame(() => {
+      const terminalPromise = context.type === "workspace"
+        ? createTerminal(context.id, 80, 24)
+        : createRepoTerminal(context.id, 80, 24);
 
-    terminalPromise
-      .then((id) => {
-        if (active) {
-          setTerminalId(id);
-          prevIdRef.current = id;
-        } else {
-          closeTerminal(id).catch(() => {});
-        }
-      })
-      .catch((err) => {
-        if (active) {
-          setError(String(err));
-        }
-      });
+      terminalPromise
+        .then((id) => {
+          if (active) {
+            setTerminalId(id);
+            prevIdRef.current = id;
+          } else {
+            closeTerminal(id).catch(() => {});
+          }
+        })
+        .catch((err) => {
+          if (active) {
+            setError(String(err));
+          }
+        });
+    });
 
     return () => {
       active = false;
+      cancelAnimationFrame(rafId);
       if (prevIdRef.current) {
         closeTerminal(prevIdRef.current).catch(() => {});
         prevIdRef.current = null;

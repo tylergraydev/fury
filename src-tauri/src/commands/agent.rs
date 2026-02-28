@@ -87,7 +87,7 @@ pub async fn send_message(
 
     // Read agent type from settings
     let agent_type = {
-        let settings = state.settings.lock().unwrap();
+        let settings = state.settings.read().unwrap();
         settings.agent_type.clone()
     };
 
@@ -95,19 +95,19 @@ pub async fn send_message(
     let (working_dir, env_vars) = if let Some(workspace_id) = request.workspace_id {
         // Workspace mode: use worktree path
         let (workspace, repo) = {
-            let workspaces = state.workspaces.lock().unwrap();
+            let workspaces = state.workspaces.read().unwrap();
             let ws = workspaces
                 .get(&workspace_id)
                 .ok_or(AppError::WorkspaceNotFound(workspace_id))?
                 .clone();
-            let repos = state.repositories.lock().unwrap();
+            let repos = state.repositories.read().unwrap();
             let repo = repos
                 .get(&ws.repo_id)
                 .ok_or(AppError::RepoNotFound(ws.repo_id))?
                 .clone();
             (ws, repo)
         };
-        let settings = state.settings.lock().unwrap().clone();
+        let settings = state.settings.read().unwrap().clone();
         let mut env = match agent_type {
             AgentType::ClaudeCode => claude_process::build_env_vars(&workspace, &repo, &settings),
             AgentType::CodexCli => codex_process::build_env_vars(&workspace, &repo, &settings),
@@ -116,7 +116,7 @@ pub async fn send_message(
         // Agent teams: add sibling workspace names (env var is harmless for Codex,
     // though FURY_AGENT_TEAMS is only set by Claude's build_env_vars)
         if settings.experimental.agent_teams {
-            let workspaces = state.workspaces.lock().unwrap();
+            let workspaces = state.workspaces.read().unwrap();
             let siblings: Vec<String> = workspaces
                 .values()
                 .filter(|ws| ws.repo_id == workspace.repo_id && ws.id != workspace.id)
@@ -135,13 +135,13 @@ pub async fn send_message(
         // Repo mode: use repo path directly
         let repo_id = request.repo_id.unwrap();
         let repo = {
-            let repos = state.repositories.lock().unwrap();
+            let repos = state.repositories.read().unwrap();
             repos
                 .get(&repo_id)
                 .ok_or(AppError::RepoNotFound(repo_id))?
                 .clone()
         };
-        let settings = state.settings.lock().unwrap().clone();
+        let settings = state.settings.read().unwrap().clone();
         let env = match agent_type {
             AgentType::ClaudeCode => claude_process::build_repo_env_vars(&repo, &settings),
             AgentType::CodexCli => codex_process::build_repo_env_vars(&repo, &settings),
@@ -207,7 +207,7 @@ pub async fn send_message(
         let db = state.db.lock().unwrap();
         if let Some(db) = db.as_ref() {
             let link_ids = db.get_workspace_links(&context_id).unwrap_or_default();
-            let workspaces = state.workspaces.lock().unwrap();
+            let workspaces = state.workspaces.read().unwrap();
             link_ids
                 .iter()
                 .filter_map(|id| workspaces.get(id))
@@ -222,7 +222,7 @@ pub async fn send_message(
 
     // Get system prompt additions, persistent mode, and safe mode settings in a single lock
     let (system_prompt, persistent_mode, safe_mode) = {
-        let settings = state.settings.lock().unwrap();
+        let settings = state.settings.read().unwrap();
         (
             settings.system_prompt_additions.clone(),
             settings.experimental.persistent_processes,
@@ -709,7 +709,7 @@ pub async fn respond_to_permission(
 
     // Codex CLI does not support interactive permission responses
     let agent_type = {
-        let settings = state.settings.lock().unwrap();
+        let settings = state.settings.read().unwrap();
         settings.agent_type.clone()
     };
     if agent_type == AgentType::CodexCli {

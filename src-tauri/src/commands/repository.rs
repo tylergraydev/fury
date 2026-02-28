@@ -136,12 +136,12 @@ pub fn add_repository(state: State<'_, AppState>, path: String) -> Result<Reposi
     // Add to in-memory state
     state
         .repositories
-        .lock()
+        .write()
         .unwrap()
         .insert(repo.id, repo.clone());
 
     // Auto-index with Claude Context if enabled
-    let ctx_settings = state.settings.lock().unwrap().claude_context.clone();
+    let ctx_settings = state.settings.read().unwrap().claude_context.clone();
     maybe_auto_index(
         repo.id,
         repo.path.to_string_lossy().to_string(),
@@ -165,23 +165,30 @@ pub fn remove_repository(state: State<'_, AppState>, repo_id: String) -> Result<
         }
     }
 
-    state.repositories.lock().unwrap().remove(&id);
+    state.repositories.write().unwrap().remove(&id);
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn list_repositories(state: State<'_, AppState>) -> Result<Vec<Repository>, AppError> {
-    // Clone repos out of the mutex FIRST, then release the lock before running
-    // blocking git operations.  Holding the lock during detect_current_branch()
-    // blocks every other command that needs repository data.
+pub async fn list_repositories(state: State<'_, AppState>) -> Result<Vec<Repository>, AppError> {
+    // Clone repos out of the lock FIRST, then release before git I/O.
     let mut repos: Vec<Repository> = {
-        let guard = state.repositories.lock().unwrap();
+        let guard = state.repositories.read().unwrap();
         guard.values().cloned().collect()
     };
 
-    for r in &mut repos {
-        r.current_branch = detect_current_branch(&r.path);
+    // Detect current branch for each repo in parallel using spawn_blocking.
+    let handles: Vec<_> = repos
+        .iter()
+        .map(|r| {
+            let path = r.path.clone();
+            tokio::task::spawn_blocking(move || detect_current_branch(&path))
+        })
+        .collect();
+
+    for (repo, handle) in repos.iter_mut().zip(handles) {
+        repo.current_branch = handle.await.unwrap_or_default();
     }
 
     Ok(repos)
@@ -195,7 +202,7 @@ pub fn list_branches(state: State<'_, AppState>, repo_id: String) -> Result<Vec<
 
     // Extract the path while holding the lock, then release before git I/O.
     let repo_path = {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
     };
@@ -247,12 +254,12 @@ fn register_repository(state: &State<'_, AppState>, path: PathBuf) -> Result<Rep
 
     state
         .repositories
-        .lock()
+        .write()
         .unwrap()
         .insert(repo.id, repo.clone());
 
     // Auto-index with Claude Context if enabled
-    let ctx_settings = state.settings.lock().unwrap().claude_context.clone();
+    let ctx_settings = state.settings.read().unwrap().claude_context.clone();
     maybe_auto_index(
         repo.id,
         repo.path.to_string_lossy().to_string(),

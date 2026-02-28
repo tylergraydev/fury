@@ -11,6 +11,7 @@ let rafHandle: number | null = null;
 let lastFrameTime: number | null = null;
 const frameBuffer: FrameMetricPayload[] = [];
 let flushInterval: ReturnType<typeof setInterval> | null = null;
+let started = false;
 
 function flushFrameBuffer() {
   if (frameBuffer.length === 0) return;
@@ -18,21 +19,21 @@ function flushFrameBuffer() {
   invoke("push_frame_metrics", { metrics: batch }).catch(() => {});
 }
 
-export function startFrameMonitor() {
-  if (rafHandle !== null) return;
-
-  const tick = () => {
-    const now = performance.now();
-    if (lastFrameTime !== null) {
-      const delta = now - lastFrameTime;
-      if (delta > SLOW_FRAME_THRESHOLD_MS) {
-        frameBuffer.push({ durationMs: delta, timestamp: Date.now() });
-      }
+function tick() {
+  const now = performance.now();
+  if (lastFrameTime !== null) {
+    const delta = now - lastFrameTime;
+    if (delta > SLOW_FRAME_THRESHOLD_MS) {
+      frameBuffer.push({ durationMs: delta, timestamp: Date.now() });
     }
-    lastFrameTime = now;
-    rafHandle = requestAnimationFrame(tick);
-  };
+  }
+  lastFrameTime = now;
+  rafHandle = requestAnimationFrame(tick);
+}
 
+export function startFrameMonitor() {
+  if (started) return;
+  started = true;
   rafHandle = requestAnimationFrame(tick);
   /* v8 ignore next 3 -- flushInterval is always null when rafHandle is null */
   if (!flushInterval) {
@@ -41,6 +42,7 @@ export function startFrameMonitor() {
 }
 
 export function stopFrameMonitor() {
+  started = false;
   if (rafHandle !== null) {
     cancelAnimationFrame(rafHandle);
     rafHandle = null;
@@ -51,4 +53,17 @@ export function stopFrameMonitor() {
     flushInterval = null;
   }
   flushFrameBuffer();
+}
+
+export function pauseFrameMonitor() {
+  if (rafHandle !== null) {
+    cancelAnimationFrame(rafHandle);
+    rafHandle = null;
+    lastFrameTime = null;
+  }
+}
+
+export function resumeFrameMonitor() {
+  if (rafHandle !== null || !started) return;
+  rafHandle = requestAnimationFrame(tick);
 }

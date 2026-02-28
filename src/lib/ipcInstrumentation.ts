@@ -43,6 +43,20 @@ const ipcBuffer: IpcMetricPayload[] = [];
 const streamEventBuffer: StreamEventPayload[] = [];
 let flushInterval: ReturnType<typeof setInterval> | null = null;
 
+// ─── Debug mode ─────────────────────────────────────────────────────────
+// Enable from DevTools console:  window.__IPC_DEBUG = true
+// This logs every IPC call in real-time with timing + concurrency count.
+let _inflight = 0;
+
+function debugLog(phase: "START" | "END" | "FAIL", cmd: string, ms?: number) {
+  if (!(globalThis as Record<string, unknown>).__IPC_DEBUG) return;
+  const tag = phase === "START" ? "→" : phase === "END" ? "✓" : "✗";
+  const timing = ms !== undefined ? ` ${ms.toFixed(1)}ms` : "";
+  const concurrent = phase === "START" ? ` [inflight=${_inflight}]` : "";
+  console.warn(`[IPC ${tag}] ${cmd}${timing}${concurrent}`);
+}
+// ────────────────────────────────────────────────────────────────────────
+
 function flushIpcBuffer() {
   if (ipcBuffer.length === 0) return;
   const batch = ipcBuffer.splice(0, ipcBuffer.length);
@@ -79,18 +93,17 @@ function callInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
   return args !== undefined ? rawInvoke<T>(cmd, args) : rawInvoke<T>(cmd);
 }
 
-export async function instrumentedInvoke<T>(
+async function runInvoke<T>(
   cmd: string,
   args?: Record<string, unknown>,
 ): Promise<T> {
-  if (SKIP_COMMANDS.has(cmd)) {
-    return callInvoke<T>(cmd, args);
-  }
-
   const start = performance.now();
   const timestamp = Date.now();
   let success = true;
   let error: string | undefined;
+
+  _inflight++;
+  debugLog("START", cmd);
 
   try {
     return await callInvoke<T>(cmd, args);
@@ -100,8 +113,21 @@ export async function instrumentedInvoke<T>(
     throw e;
   } finally {
     const durationMs = performance.now() - start;
+    _inflight--;
+    debugLog(success ? "END" : "FAIL", cmd, durationMs);
     ipcBuffer.push({ command: cmd, durationMs, success, error, timestamp });
   }
+}
+
+export function instrumentedInvoke<T>(
+  cmd: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  if (SKIP_COMMANDS.has(cmd)) {
+    return callInvoke<T>(cmd, args);
+  }
+
+  return runInvoke<T>(cmd, args);
 }
 
 export function pushAgentTurnMetric(metric: AgentTurnPayload) {

@@ -133,26 +133,6 @@ export function RightSidebar({ context }: Props) {
     }
   }, [context.type, activeTab, setTab]);
 
-  // Double-rAF: defer heavy diff load to Tier 3 so chat data loads first.
-  // Loads eagerly (regardless of active tab) for the change count badge.
-  useEffect(() => {
-    let inner: number;
-    const outer = requestAnimationFrame(() => {
-      inner = requestAnimationFrame(() => {
-        const store = useDiffStore.getState();
-        if (context.type === "workspace") {
-          store.loadDiff(context.id);
-        } else {
-          store.loadRepoDiff(context.id);
-        }
-      });
-    });
-    return () => {
-      cancelAnimationFrame(outer);
-      cancelAnimationFrame(inner);
-    };
-  }, [context.type, context.id]);
-
   const bottomPanelRef = useRef<ImperativePanelHandle>(null);
   const [bottomCollapsed, setBottomCollapsed] = useState(false);
 
@@ -232,38 +212,32 @@ export function RightSidebar({ context }: Props) {
               <SyncButton contextId={context.id} />
             </div>
 
-            {/* Tab content — keep all panels mounted, hide inactive with CSS */}
+            {/* Tab content */}
             <div className="flex-1 overflow-hidden">
-              <div className={activeTab === "files" ? "h-full" : "hidden"}>
-                <ErrorBoundary label="files" resetKey={context.id}>
+              <ErrorBoundary label={activeTab} resetKey={`${context.id}:${activeTab}`}>
+                {activeTab === "files" && (
                   <FileTreePanel
                     context={context}
                     onFileClick={handleFileClick}
                     onFileDoubleClick={handleFileDoubleClick}
                   />
-                </ErrorBoundary>
-              </div>
-              {activeTab === "changes" && (
-                <div data-testid="panel-changes" className="h-full">
-                  <ErrorBoundary label="changes" resetKey={context.id}>
+                )}
+                {activeTab === "changes" && (
+                  <div data-testid="panel-changes" className="h-full">
                     <ChangesPanel context={context} />
-                  </ErrorBoundary>
-                </div>
-              )}
-              {context.type === "workspace" && activeTab === "checks" && (
-                <div data-testid="panel-checks" className="h-full">
-                  <ErrorBoundary label="checks" resetKey={context.id}>
+                  </div>
+                )}
+                {context.type === "workspace" && activeTab === "checks" && (
+                  <div data-testid="panel-checks" className="h-full">
                     <ChecksPanel workspaceId={context.id} />
-                  </ErrorBoundary>
-                </div>
-              )}
-              {activeTab === "bookmarks" && (
-                <div data-testid="panel-bookmarks" className="h-full">
-                  <ErrorBoundary label="bookmarks" resetKey={context.id}>
+                  </div>
+                )}
+                {activeTab === "bookmarks" && (
+                  <div data-testid="panel-bookmarks" className="h-full">
                     <BookmarksPanel context={context} />
-                  </ErrorBoundary>
-                </div>
-              )}
+                  </div>
+                )}
+              </ErrorBoundary>
             </div>
           </div>
         </Panel>

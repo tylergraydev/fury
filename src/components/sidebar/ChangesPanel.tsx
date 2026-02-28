@@ -222,12 +222,14 @@ export function ChangesPanel({ context }: Props) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
+    const store = useDiffStore.getState();
+    if (store.diffResults[contextId] !== undefined) return;
     const id = requestAnimationFrame(() => {
-      const store = useDiffStore.getState();
+      const s = useDiffStore.getState();
       if (context.type === "workspace") {
-        store.loadDiff(contextId);
+        s.loadDiff(contextId);
       } else {
-        store.loadRepoDiff(contextId);
+        s.loadRepoDiff(contextId);
       }
     });
     return () => cancelAnimationFrame(id);

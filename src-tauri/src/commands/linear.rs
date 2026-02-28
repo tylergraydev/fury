@@ -11,7 +11,7 @@ pub fn search_linear_issues(
     query: String,
 ) -> Result<Vec<LinearIssue>, AppError> {
     let api_key = {
-        let settings = state.settings.lock().unwrap();
+        let settings = state.settings.read().unwrap();
         settings.linear.api_key.clone().ok_or_else(|| {
             AppError::LinearError(
                 "Linear API key not configured. Set it in Settings > Linear.".to_string(),
@@ -33,7 +33,7 @@ pub fn link_issue_to_workspace(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;

@@ -14,7 +14,7 @@ pub fn export_workspace(
         .map_err(|e| AppError::DbError(format!("Invalid workspace ID: {}", e)))?;
 
     let ws = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         workspaces
             .get(&ws_id)
             .cloned()

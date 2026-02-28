@@ -17,11 +17,11 @@ pub fn create_pr(
     let ws_id = request.workspace_id;
 
     let (worktree_path, branch, default_branch) = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos
             .get(&ws.repo_id)
             .ok_or(AppError::RepoNotFound(ws.repo_id))?;
@@ -56,7 +56,7 @@ pub async fn get_pr_info(state: State<'_, AppState>, workspace_id: String) -> Re
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -94,7 +94,7 @@ pub fn get_pr_checks(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -115,7 +115,7 @@ pub fn push_changes(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let (worktree_path, branch) = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -143,7 +143,7 @@ pub fn fix_failing_checks(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -191,7 +191,7 @@ pub fn merge_pr(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -216,7 +216,7 @@ pub fn get_pr_reviews(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -236,7 +236,7 @@ pub fn get_pr_review_comments(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -256,7 +256,7 @@ pub fn list_repo_prs(
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
     let repo_path = {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
     };
@@ -274,7 +274,7 @@ pub fn list_repo_issues(
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
     let repo_path = {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
     };
@@ -293,7 +293,7 @@ pub fn get_pr_details(
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
     let repo_path = {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
     };
@@ -312,7 +312,7 @@ pub fn get_issue_details(
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
     let repo_path = {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
     };
@@ -330,7 +330,7 @@ pub async fn get_workflow_runs(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let (worktree_path, branch) = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -353,7 +353,7 @@ pub fn get_run_jobs(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -375,7 +375,7 @@ pub fn get_run_logs(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -397,7 +397,7 @@ pub fn rerun_workflow(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;

@@ -59,7 +59,7 @@ pub fn import_cursor_config() -> Result<CursorMigrationResult, AppError> {
 
 #[tauri::command]
 pub fn get_app_settings(state: State<'_, AppState>) -> Result<AppSettings, AppError> {
-    let settings = state.settings.lock().unwrap();
+    let settings = state.settings.read().unwrap();
     Ok(settings.clone())
 }
 
@@ -68,7 +68,7 @@ pub fn update_app_settings(
     state: State<'_, AppState>,
     settings: AppSettings,
 ) -> Result<(), AppError> {
-    let old_settings = state.settings.lock().unwrap().clone();
+    let old_settings = state.settings.read().unwrap().clone();
 
     // Persist to database
     let db_guard = state.db.lock().unwrap();
@@ -79,7 +79,7 @@ pub fn update_app_settings(
 
     // Update in-memory state
     {
-        let mut current = state.settings.lock().unwrap();
+        let mut current = state.settings.write().unwrap();
         *current = settings.clone();
     }
 
@@ -114,7 +114,7 @@ pub fn detect_cursorrules(state: State<'_, AppState>, repo_id: String) -> Result
     let id: Uuid = repo_id
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
-    let repos = state.repositories.lock().unwrap();
+    let repos = state.repositories.read().unwrap();
     let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
     Ok(cursor_migration::detect_cursorrules(&repo.path))
 }
@@ -128,7 +128,7 @@ pub fn import_cursorrules(
     let id: Uuid = repo_id
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
-    let repos = state.repositories.lock().unwrap();
+    let repos = state.repositories.read().unwrap();
     let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
     cursor_migration::import_cursorrules(&repo.path, overwrite)
 }

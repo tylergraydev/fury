@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { TerminalPanel } from "./TerminalPanel";
 
+// Make rAF synchronous so createTerminal fires within the same tick as render
+vi.stubGlobal("requestAnimationFrame", (cb: () => void) => { cb(); return 0; });
+vi.stubGlobal("cancelAnimationFrame", () => {});
+
 vi.mock("./TerminalView", () => ({
   TerminalView: ({ terminalId }: any) => (
     <div data-testid="terminal-view">{terminalId}</div>

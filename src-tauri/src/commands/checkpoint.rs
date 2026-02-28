@@ -60,7 +60,7 @@ pub fn revert_to_checkpoint(
 
     // Get worktree path
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;

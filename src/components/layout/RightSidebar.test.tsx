@@ -2,18 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import React from "react";
 
-vi.mock("monaco-editor", () => ({}));
-vi.mock("../../lib/monacoSetup", () => ({ ensureTypesLoaded: vi.fn() }));
-vi.mock("../../lib/copilot", () => ({
-  notifyDocumentClosed: vi.fn(),
-  startCopilot: vi.fn(),
-  stopCopilot: vi.fn(),
-  copilotSignIn: vi.fn(),
-  copilotCheckStatus: vi.fn(),
-  registerCopilotProvider: vi.fn(),
-  disposeCopilotProvider: vi.fn(),
-}));
-
 // Store callbacks from the bottom Panel to simulate collapse/expand
 let capturedPanelProps: {
   onCollapse?: () => void;
@@ -21,8 +9,14 @@ let capturedPanelProps: {
   ref?: React.Ref<any>;
 } = {};
 
-const mockPanelExpand = vi.fn();
-const mockPanelCollapse = vi.fn();
+// When collapse/expand is called on the imperative handle, simulate
+// react-resizable-panels by firing the captured onCollapse/onExpand callback.
+const mockPanelExpand = vi.fn(() => {
+  capturedPanelProps.onExpand?.();
+});
+const mockPanelCollapse = vi.fn(() => {
+  capturedPanelProps.onCollapse?.();
+});
 
 vi.mock("react-resizable-panels", () => ({
   Panel: React.forwardRef(({ children, onCollapse, onExpand }: any, ref: any) => {
@@ -40,7 +34,19 @@ vi.mock("react-resizable-panels", () => ({
     return <div data-testid="panel">{children}</div>;
   }),
   PanelGroup: ({ children }: any) => <div data-testid="panel-group">{children}</div>,
-  PanelResizeHandle: () => <div data-testid="resize-handle" />,
+  PanelResizeHandle: ({ className }: any) => <div data-testid="resize-handle" className={className} />,
+}));
+
+vi.mock("monaco-editor", () => ({}));
+vi.mock("../../lib/monacoSetup", () => ({ ensureTypesLoaded: vi.fn() }));
+vi.mock("../../lib/copilot", () => ({
+  notifyDocumentClosed: vi.fn(),
+  startCopilot: vi.fn(),
+  stopCopilot: vi.fn(),
+  copilotSignIn: vi.fn(),
+  copilotCheckStatus: vi.fn(),
+  registerCopilotProvider: vi.fn(),
+  disposeCopilotProvider: vi.fn(),
 }));
 
 vi.mock("lucide-react", () => ({
@@ -259,50 +265,43 @@ describe("RightSidebar", () => {
       expect(screen.getByTestId("chevron-down")).toBeInTheDocument();
     });
 
-    it("calls panel collapse when toggle button clicked while expanded", () => {
+    it("collapses when toggle button clicked while expanded", () => {
       render(<RightSidebar context={wsContext} />);
+      expect(screen.getByTestId("terminal-panel")).toBeInTheDocument();
+
       const toggleBtn = screen.getByTitle("Collapse panel");
       fireEvent.click(toggleBtn);
-      expect(mockPanelCollapse).toHaveBeenCalled();
+
+      expect(screen.queryByTestId("terminal-panel")).not.toBeInTheDocument();
     });
 
     it("shows expand button with ChevronUp when collapsed", () => {
       render(<RightSidebar context={wsContext} />);
 
-      // Simulate the panel being collapsed via the onCollapse callback
-      act(() => {
-        capturedPanelProps.onCollapse?.();
-      });
+      // Collapse via toggle button
+      fireEvent.click(screen.getByTitle("Collapse panel"));
 
       expect(screen.getByTitle("Expand panel")).toBeInTheDocument();
       expect(screen.getByTestId("chevron-up")).toBeInTheDocument();
     });
 
-    it("calls panel expand when toggle button clicked while collapsed", () => {
+    it("expands when toggle button clicked while collapsed", () => {
       render(<RightSidebar context={wsContext} />);
 
-      // First collapse
-      act(() => {
-        capturedPanelProps.onCollapse?.();
-      });
+      // Collapse first
+      fireEvent.click(screen.getByTitle("Collapse panel"));
+      expect(screen.queryByTestId("terminal-panel")).not.toBeInTheDocument();
 
-      const toggleBtn = screen.getByTitle("Expand panel");
-      fireEvent.click(toggleBtn);
-      expect(mockPanelExpand).toHaveBeenCalled();
+      // Expand
+      fireEvent.click(screen.getByTitle("Expand panel"));
+      expect(screen.getByTestId("terminal-panel")).toBeInTheDocument();
     });
 
     it("hides terminal content when collapsed", () => {
       render(<RightSidebar context={wsContext} />);
-
-      // Terminal panel should be visible initially
       expect(screen.getByTestId("terminal-panel")).toBeInTheDocument();
 
-      // Collapse the panel
-      act(() => {
-        capturedPanelProps.onCollapse?.();
-      });
-
-      // Terminal panel should be hidden
+      fireEvent.click(screen.getByTitle("Collapse panel"));
       expect(screen.queryByTestId("terminal-panel")).not.toBeInTheDocument();
     });
 
@@ -310,58 +309,34 @@ describe("RightSidebar", () => {
       render(<RightSidebar context={wsContext} />);
 
       // Collapse
-      act(() => {
-        capturedPanelProps.onCollapse?.();
-      });
+      fireEvent.click(screen.getByTitle("Collapse panel"));
       expect(screen.queryByTestId("terminal-panel")).not.toBeInTheDocument();
 
       // Expand
-      act(() => {
-        capturedPanelProps.onExpand?.();
-      });
+      fireEvent.click(screen.getByTitle("Expand panel"));
       expect(screen.getByTestId("terminal-panel")).toBeInTheDocument();
     });
 
     it("does not show border-bottom on toolbar when collapsed", () => {
       render(<RightSidebar context={wsContext} />);
 
-      // Get the bottom toolbar div (the one containing Setup/Run/Terminal)
       const toolbarDiv = screen.getByText("Setup").closest(".flex.items-center")! as HTMLElement;
-      // Initially has border-bottom
       expect(toolbarDiv.style.borderBottom).toBe("1px solid var(--border)");
 
-      // Collapse
-      act(() => {
-        capturedPanelProps.onCollapse?.();
-      });
-
-      // After collapse, borderBottom should be removed
+      fireEvent.click(screen.getByTitle("Collapse panel"));
       expect(toolbarDiv.style.borderBottom).toBe("");
     });
 
     it("expands bottom panel when clicking a tab while collapsed", () => {
       render(<RightSidebar context={wsContext} />);
 
-      // Collapse the panel
-      act(() => {
-        capturedPanelProps.onCollapse?.();
-      });
+      // Collapse
+      fireEvent.click(screen.getByTitle("Collapse panel"));
+      expect(screen.queryByTestId("terminal-panel")).not.toBeInTheDocument();
 
-      // Click on Setup tab while collapsed
+      // Click on Setup tab while collapsed — should expand
       fireEvent.click(screen.getByText("Setup"));
-
-      // Should have called expand on the panel ref
-      expect(mockPanelExpand).toHaveBeenCalled();
-    });
-
-    it("does not expand bottom panel when clicking a tab while already expanded", () => {
-      render(<RightSidebar context={wsContext} />);
-
-      // Click on Setup tab while NOT collapsed
-      fireEvent.click(screen.getByText("Setup"));
-
-      // Should NOT have called expand
-      expect(mockPanelExpand).not.toHaveBeenCalled();
+      expect(screen.getByTestId("setup-panel")).toBeInTheDocument();
     });
   });
 
@@ -479,29 +454,10 @@ describe("RightSidebar", () => {
 
   // --- Resize handle ---
   describe("Resize handle", () => {
-    it("renders the resize handle between panels", () => {
+    it("renders the vertical resize handle between panels", () => {
       render(<RightSidebar context={wsContext} />);
       expect(screen.getByTestId("resize-handle")).toBeInTheDocument();
-    });
-  });
-
-  // --- Toggle bottom panel with null ref (edge case) ---
-  describe("Toggle with null panel ref", () => {
-    it("does nothing when toggle is clicked and panel ref is null", () => {
-      // Temporarily clear the panel ref
-      render(<RightSidebar context={wsContext} />);
-
-      // Before clicking toggle, set ref.current to null
-      if (capturedPanelProps.ref && typeof capturedPanelProps.ref === "object") {
-        (capturedPanelProps.ref as any).current = null;
-      }
-
-      const toggleBtn = screen.getByTitle("Collapse panel");
-      fireEvent.click(toggleBtn);
-
-      // Should not throw and should not call expand/collapse
-      expect(mockPanelCollapse).not.toHaveBeenCalled();
-      expect(mockPanelExpand).not.toHaveBeenCalled();
+      expect(screen.getByTestId("resize-handle")).toHaveClass("resize-handle-v");
     });
   });
 

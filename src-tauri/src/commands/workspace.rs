@@ -18,7 +18,7 @@ pub fn create_workspace(
     request: CreateWorkspaceRequest,
 ) -> Result<WorkspaceInfo, AppError> {
     // Validate repository exists
-    let repos = state.repositories.lock().unwrap();
+    let repos = state.repositories.read().unwrap();
     let repo = repos
         .get(&request.repo_id)
         .ok_or(AppError::RepoNotFound(request.repo_id))?
@@ -121,7 +121,7 @@ pub fn create_workspace(
     // Add to in-memory state
     state
         .workspaces
-        .lock()
+        .write()
         .unwrap()
         .insert(workspace.id, workspace);
 
@@ -143,7 +143,7 @@ pub fn create_workspace(
 
 #[tauri::command]
 pub fn list_workspaces(state: State<'_, AppState>) -> Result<Vec<WorkspaceInfo>, AppError> {
-    let workspaces = state.workspaces.lock().unwrap();
+    let workspaces = state.workspaces.read().unwrap();
     Ok(workspaces
         .values()
         .filter(|ws| ws.status != WorkspaceStatus::Archived)
@@ -163,14 +163,14 @@ pub fn archive_workspace(
 
     // Get workspace info for archive script before updating status
     let (repo_id, worktree_path) = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces.get(&id).ok_or(AppError::WorkspaceNotFound(id))?;
         (ws.repo_id, ws.worktree_path.clone())
     };
 
     // Update status
     {
-        let mut workspaces = state.workspaces.lock().unwrap();
+        let mut workspaces = state.workspaces.write().unwrap();
         if let Some(ws) = workspaces.get_mut(&id) {
             ws.status = WorkspaceStatus::Archived;
             ws.archived_at = Some(chrono::Utc::now());
@@ -208,13 +208,13 @@ pub fn delete_workspace(state: State<'_, AppState>, workspace_id: String) -> Res
 
     // Get workspace info for cleanup
     let ws = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         workspaces.get(&id).cloned()
     };
 
     if let Some(ws) = ws {
         // Get repo path
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         if let Some(repo) = repos.get(&ws.repo_id) {
             let _ = worktree::remove_worktree(&repo.path, &ws.worktree_path);
         }
@@ -230,7 +230,7 @@ pub fn delete_workspace(state: State<'_, AppState>, workspace_id: String) -> Res
             db.delete_workspace(&id)?;
         }
     }
-    state.workspaces.lock().unwrap().remove(&id);
+    state.workspaces.write().unwrap().remove(&id);
 
     Ok(())
 }
@@ -246,7 +246,7 @@ pub fn update_sparse_dirs(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces.get(&id).ok_or(AppError::WorkspaceNotFound(id))?;
         ws.worktree_path.clone()
     };
@@ -265,7 +265,7 @@ pub fn update_sparse_dirs(
 
     // Update in-memory state
     {
-        let mut workspaces = state.workspaces.lock().unwrap();
+        let mut workspaces = state.workspaces.write().unwrap();
         if let Some(ws) = workspaces.get_mut(&id) {
             ws.sparse_dirs = sparse_dirs.clone();
         }
@@ -297,7 +297,7 @@ pub fn link_workspaces(
 
     // Verify both workspaces exist
     {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -363,9 +363,9 @@ pub fn start_spotlight(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let (worktree_path, repo_path) = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces.get(&ws_id).ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos
             .get(&ws.repo_id)
             .ok_or(AppError::RepoNotFound(ws.repo_id))?;
@@ -464,7 +464,7 @@ pub fn restore_workspace(
     let info = WorkspaceInfo::from(&ws);
 
     // Re-add to in-memory state
-    state.workspaces.lock().unwrap().insert(ws.id, ws);
+    state.workspaces.write().unwrap().insert(ws.id, ws);
 
     let _ = app.emit("workspace-restored", &info);
     Ok(info)
@@ -482,7 +482,7 @@ pub fn update_workspace_notes(
 
     // Update in-memory
     {
-        let mut workspaces = state.workspaces.lock().unwrap();
+        let mut workspaces = state.workspaces.write().unwrap();
         if let Some(ws) = workspaces.get_mut(&id) {
             ws.notes = notes.clone();
         }
@@ -511,7 +511,7 @@ pub fn rename_workspace(
 
     // Update in-memory
     {
-        let mut workspaces = state.workspaces.lock().unwrap();
+        let mut workspaces = state.workspaces.write().unwrap();
         if let Some(ws) = workspaces.get_mut(&id) {
             ws.name = name.clone();
         }
@@ -540,7 +540,7 @@ pub fn set_workspace_pinned(
 
     // Update in-memory
     {
-        let mut workspaces = state.workspaces.lock().unwrap();
+        let mut workspaces = state.workspaces.write().unwrap();
         if let Some(ws) = workspaces.get_mut(&id) {
             ws.pinned = pinned;
         }
@@ -585,17 +585,17 @@ fn fire_and_forget_script(
 
     // Build env vars
     let env_vars = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = match workspaces.get(&ws_id) {
             Some(ws) => ws.clone(),
             None => return,
         };
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = match repos.get(&repo_id) {
             Some(r) => r.clone(),
             None => return,
         };
-        let app_settings = state.settings.lock().unwrap().clone();
+        let app_settings = state.settings.read().unwrap().clone();
         let mut env = claude_process::build_env_vars(&ws, &repo, &app_settings);
         for (k, v) in &settings.env_vars {
             env.insert(k.clone(), v.clone());

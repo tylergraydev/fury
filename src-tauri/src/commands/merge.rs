@@ -21,12 +21,12 @@ pub(crate) fn resolve_workspace(
     {
         let workspaces = state
             .workspaces
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
         if let Some(ws) = workspaces.get(&id) {
             let repos = state
                 .repositories
-                .lock()
+                .read()
                 .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
             let repo = repos
                 .get(&ws.repo_id)
@@ -45,7 +45,7 @@ pub(crate) fn resolve_workspace(
     let (repo_path, default_branch) = {
         let repos = state
             .repositories
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
         let repo = repos.get(&id).ok_or(AppError::WorkspaceNotFound(id))?;
         (repo.path.clone(), repo.default_branch.clone())
@@ -152,7 +152,7 @@ pub fn cross_worktree_diff(
     let branch_b = {
         let workspaces = state
             .workspaces
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
         let ws = workspaces
             .get(&linked_id)
@@ -178,7 +178,7 @@ pub fn get_cross_worktree_file_diff(
     let branch_b = {
         let workspaces = state
             .workspaces
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
         let ws = workspaces
             .get(&linked_id)

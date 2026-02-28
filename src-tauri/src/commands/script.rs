@@ -20,7 +20,7 @@ pub(crate) fn resolve_settings(state: &AppState, repo_id: &Uuid) -> Result<RepoS
     };
 
     let repo_path = {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos.get(repo_id).ok_or(AppError::RepoNotFound(*repo_id))?;
         repo.path.clone()
     };
@@ -43,7 +43,7 @@ pub async fn run_script(
 
     // Look up workspace and repo
     let (worktree_path, repo_id) = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -77,17 +77,17 @@ pub async fn run_script(
 
     // Build env vars: FURY_* + provider vars + repo-specific env vars
     let env_vars = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?
             .clone();
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos
             .get(&repo_id)
             .ok_or(AppError::RepoNotFound(repo_id))?
             .clone();
-        let app_settings = state.settings.lock().unwrap().clone();
+        let app_settings = state.settings.read().unwrap().clone();
         let mut env = claude_process::build_env_vars(&ws, &repo, &app_settings);
         // Add repo-specific env vars
         for (k, v) in &settings.env_vars {
@@ -179,7 +179,7 @@ pub async fn run_repo_script(
     let settings = resolve_settings(&state, &id)?;
 
     let repo_path = {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
     };
@@ -207,9 +207,9 @@ pub async fn run_repo_script(
 
     // Build env vars using repo-direct mode
     let env_vars = {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?.clone();
-        let app_settings = state.settings.lock().unwrap().clone();
+        let app_settings = state.settings.read().unwrap().clone();
         let mut env = claude_process::build_repo_env_vars(&repo, &app_settings);
         for (k, v) in &settings.env_vars {
             env.insert(k.clone(), v.clone());
@@ -308,7 +308,7 @@ pub fn update_repo_settings(
 
     // Verify repo exists
     {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         if !repos.contains_key(&id) {
             return Err(AppError::RepoNotFound(id));
         }

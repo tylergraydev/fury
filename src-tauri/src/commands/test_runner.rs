@@ -19,7 +19,7 @@ pub fn detect_test_framework(
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
     let repo_path = {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
     };
@@ -55,7 +55,7 @@ pub fn get_test_runner_config(
 
     // Otherwise auto-detect
     let repo_path = {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
     };
@@ -91,7 +91,7 @@ pub fn save_test_runner_config(
 
     // Verify repo exists
     {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         if !repos.contains_key(&id) {
             return Err(AppError::RepoNotFound(id));
         }
@@ -119,13 +119,13 @@ pub async fn run_tests(
 
     // Resolve working directory and repo ID based on context type
     let (working_dir, repo_id) = if context_type == "workspace" {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ctx_id)
             .ok_or(AppError::WorkspaceNotFound(ctx_id))?;
         (ws.worktree_path.clone(), ws.repo_id)
     } else {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos.get(&ctx_id).ok_or(AppError::RepoNotFound(ctx_id))?;
         (repo.path.clone(), ctx_id)
     };
@@ -144,7 +144,7 @@ pub async fn run_tests(
         } else {
             // Auto-detect
             let repo_path = {
-                let repos = state.repositories.lock().unwrap();
+                let repos = state.repositories.read().unwrap();
                 repos
                     .get(&repo_id)
                     .ok_or(AppError::RepoNotFound(repo_id))?
@@ -208,25 +208,25 @@ pub async fn run_tests(
 
     // Build env vars
     let env_vars = if context_type == "workspace" {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ctx_id)
             .ok_or(AppError::WorkspaceNotFound(ctx_id))?
             .clone();
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos
             .get(&repo_id)
             .ok_or(AppError::RepoNotFound(repo_id))?
             .clone();
-        let app_settings = state.settings.lock().unwrap().clone();
+        let app_settings = state.settings.read().unwrap().clone();
         claude_process::build_env_vars(&ws, &repo, &app_settings)
     } else {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos
             .get(&ctx_id)
             .ok_or(AppError::RepoNotFound(ctx_id))?
             .clone();
-        let app_settings = state.settings.lock().unwrap().clone();
+        let app_settings = state.settings.read().unwrap().clone();
         claude_process::build_repo_env_vars(&repo, &app_settings)
     };
 

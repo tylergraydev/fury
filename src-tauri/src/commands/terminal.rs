@@ -24,17 +24,17 @@ pub async fn create_terminal(
 
     // Look up workspace and repo for env vars and working dir
     let (worktree_path, env_vars) = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?
             .clone();
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos
             .get(&ws.repo_id)
             .ok_or(AppError::RepoNotFound(ws.repo_id))?
             .clone();
-        let app_settings = state.settings.lock().unwrap().clone();
+        let app_settings = state.settings.read().unwrap().clone();
         let env = claude_process::build_env_vars(&ws, &repo, &app_settings);
         (ws.worktree_path.clone(), env)
     };
@@ -164,12 +164,12 @@ pub async fn create_repo_terminal(
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
     let (repo_path, env_vars) = {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos
             .get(&id)
             .ok_or(AppError::RepoNotFound(id))?
             .clone();
-        let app_settings = state.settings.lock().unwrap().clone();
+        let app_settings = state.settings.read().unwrap().clone();
         let env = claude_process::build_repo_env_vars(&repo, &app_settings);
         (repo.path.clone(), env)
     };

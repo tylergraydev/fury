@@ -46,7 +46,7 @@ pub fn get_git_log(
     let worktree_path = {
         let workspaces = state
             .workspaces
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
         let ws = workspaces
             .get(&ws_id)
@@ -98,14 +98,14 @@ pub async fn get_diff(state: State<'_, AppState>, workspace_id: String) -> Resul
     let (worktree_path, default_branch) = {
         let workspaces = state
             .workspaces
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
         let repos = state
             .repositories
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
         let repo = repos
             .get(&ws.repo_id)
@@ -131,14 +131,14 @@ pub fn get_file_diff(
     let (worktree_path, default_branch) = {
         let workspaces = state
             .workspaces
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
         let repos = state
             .repositories
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
         let repo = repos
             .get(&ws.repo_id)
@@ -162,7 +162,7 @@ pub fn list_repo_directories(
     let repo_path = {
         let repos = state
             .repositories
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
@@ -209,7 +209,7 @@ pub fn list_workspace_files(
     let worktree_path = {
         let workspaces = state
             .workspaces
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
         let ws = workspaces
             .get(&ws_id)
@@ -249,7 +249,7 @@ pub fn list_repo_files(
     let repo_path = {
         let repos = state
             .repositories
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
@@ -284,7 +284,7 @@ pub fn get_repo_diff(state: State<'_, AppState>, repo_id: String) -> Result<Diff
     let (repo_path, default_branch) = {
         let repos = state
             .repositories
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         (repo.path.clone(), repo.default_branch.clone())
@@ -306,7 +306,7 @@ pub fn get_repo_file_diff(
     let (repo_path, default_branch) = {
         let repos = state
             .repositories
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         (repo.path.clone(), repo.default_branch.clone())
@@ -329,14 +329,14 @@ pub fn get_file_patch(
     let (worktree_path, default_branch) = {
         let workspaces = state
             .workspaces
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
         let repos = state
             .repositories
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
         let repo = repos
             .get(&ws.repo_id)
@@ -366,7 +366,7 @@ pub fn get_repo_file_patch(
     let (repo_path, default_branch) = {
         let repos = state
             .repositories
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         (repo.path.clone(), repo.default_branch.clone())
@@ -393,7 +393,7 @@ pub fn read_workspace_file(
     let worktree_path = {
         let workspaces = state
             .workspaces
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
         let ws = workspaces
             .get(&ws_id)
@@ -432,7 +432,7 @@ pub fn read_repo_file(
     let repo_path = {
         let repos = state
             .repositories
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
@@ -528,7 +528,7 @@ pub fn write_workspace_file(
     let worktree_path = {
         let workspaces = state
             .workspaces
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
         let ws = workspaces
             .get(&ws_id)
@@ -591,7 +591,7 @@ pub fn write_repo_file(
     let repo_path = {
         let repos = state
             .repositories
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
@@ -712,7 +712,7 @@ pub fn load_type_definitions(
             .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
         let workspaces = state
             .workspaces
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
         let ws = workspaces
             .get(&ws_id)
@@ -724,7 +724,7 @@ pub fn load_type_definitions(
             .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
         let repos = state
             .repositories
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()

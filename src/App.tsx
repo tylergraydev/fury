@@ -182,14 +182,12 @@ function App() {
 
   const hasContext = activeWorkspaceId || activeRepoId;
 
-  // Defer the heavy 3-panel layout mount using double-rAF so the browser
-  // gets a full paint frame before mounting the complex layout.
+  // Defer the workspace layout mount so the browser gets a paint frame
+  // before mounting the heavy 3-panel layout and all its children.
   const [layoutReady, setLayoutReady] = useState(!!hasContext);
   const prevHasContext = useRef(hasContext);
   useEffect(() => {
     if (hasContext && !prevHasContext.current) {
-      // Just gained context — defer the heavy mount by two animation frames
-      // to guarantee the browser paints the transition first.
       setLayoutReady(false);
       let inner: number;
       const outer = requestAnimationFrame(() => {
@@ -359,7 +357,8 @@ function App() {
 
   useKeyboardShortcuts(handleAction);
 
-  // Full-screen landing page when no workspace/repo is selected
+  // Full-screen landing page when no workspace/repo is selected,
+  // or while the layout mount is being deferred.
   if (!hasContext || !layoutReady) {
     const showSettingsOverlay = activeViewTabId === "settings";
 
@@ -426,15 +425,15 @@ function App() {
           onDismiss={autoUpdate.dismiss}
         />
       )}
-      <PanelGroup direction="horizontal" key={showRightSidebar ? "with-right" : "without-right"}>
-        <Panel defaultSize={20} minSize={12} maxSize={30}>
+      <PanelGroup direction="horizontal">
+        <Panel order={1} defaultSize={20} minSize={12} maxSize={30}>
           <ErrorBoundary label="Sidebar">
             <Sidebar />
           </ErrorBoundary>
         </Panel>
         <PanelResizeHandle className="resize-handle-h" />
 
-        <Panel defaultSize={showRightSidebar ? 55 : 80} minSize={30}>
+        <Panel order={2} defaultSize={showRightSidebar ? 55 : 80} minSize={30}>
           <div className="flex h-full flex-col">
             <TopBar activeWs={activeWs} activeRepo={activeRepo} />
             <FileTabBar />
@@ -449,7 +448,7 @@ function App() {
         {showRightSidebar && sidebarContext && (
           <>
             <PanelResizeHandle className="resize-handle-h" />
-            <Panel defaultSize={25} minSize={15} maxSize={40}>
+            <Panel order={3} defaultSize={25} minSize={15} maxSize={40}>
               {rightSidebarReady ? (
                 <ErrorBoundary label="Panel" resetKey={sidebarContext.id}>
                   <RightSidebar context={sidebarContext} />

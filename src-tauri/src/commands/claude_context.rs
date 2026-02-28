@@ -15,9 +15,9 @@ pub async fn index_repository(
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
     let (repo_path, settings) = {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
-        let settings = state.settings.lock().unwrap().clone();
+        let settings = state.settings.read().unwrap().clone();
         (
             repo.path.to_string_lossy().to_string(),
             settings.claude_context.clone(),
