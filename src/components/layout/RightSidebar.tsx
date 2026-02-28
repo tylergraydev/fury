@@ -133,26 +133,25 @@ export function RightSidebar({ context }: Props) {
     }
   }, [context.type, activeTab, setTab]);
 
-  // Pre-load diff data for the change count badge, but defer until browser
-  // is idle so it doesn't compete with the critical initial mount.
+  // Eagerly load diff for the change count badge.
+  // Deferred by double-rAF so the initial layout paints first.
   useEffect(() => {
-    const load = () => {
-      const store = useDiffStore.getState();
-      if (store.diffResults[context.id] !== undefined) return;
-      if (context.type === "workspace") {
-        store.loadDiff(context.id);
-      } else {
-        store.loadRepoDiff(context.id);
-      }
+    let inner: number;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => {
+        const store = useDiffStore.getState();
+        if (store.diffResults[context.id] !== undefined) return;
+        if (context.type === "workspace") {
+          store.loadDiff(context.id);
+        } else {
+          store.loadRepoDiff(context.id);
+        }
+      });
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
     };
-
-    if ("requestIdleCallback" in window) {
-      const id = requestIdleCallback(load, { timeout: 3000 });
-      return () => cancelIdleCallback(id);
-    }
-    // Fallback: 1s delay
-    const id = setTimeout(load, 1000);
-    return () => clearTimeout(id);
   }, [context.type, context.id]);
 
   const bottomPanelRef = useRef<ImperativePanelHandle>(null);
@@ -234,7 +233,7 @@ export function RightSidebar({ context }: Props) {
               <SyncButton contextId={context.id} />
             </div>
 
-            {/* Tab content — keep all panels mounted, hide inactive with CSS */}
+            {/* Tab content — FileTreePanel stays mounted to preserve scroll/expand state */}
             <div className="flex-1 overflow-hidden">
               <div className={activeTab === "files" ? "h-full" : "hidden"}>
                 <ErrorBoundary label="files" resetKey={context.id}>
