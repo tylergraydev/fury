@@ -11,6 +11,11 @@ interface Props {
   context: SidebarContext;
 }
 
+// Stable empty array to avoid infinite re-renders from Zustand selectors.
+// `s.bookmarks[id] ?? []` creates a new reference each render, which
+// Object.is treats as changed, triggering another render in a loop.
+const EMPTY_BOOKMARKS: FileBookmark[] = [];
+
 function bookmarkColorDot(color: string | null) {
   const colorMap: Record<string, string> = {
     blue: "var(--accent)",
@@ -32,7 +37,7 @@ export function BookmarksPanel({ context }: Props) {
   }, [context, workspaces]);
 
   const bookmarks = useBookmarkStore((s) =>
-    repoId ? (s.bookmarks[repoId] ?? []) : [],
+    repoId ? (s.bookmarks[repoId] ?? EMPTY_BOOKMARKS) : EMPTY_BOOKMARKS,
   );
   const loading = useBookmarkStore((s) =>
     repoId ? (s.loading[repoId] ?? false) : false,
