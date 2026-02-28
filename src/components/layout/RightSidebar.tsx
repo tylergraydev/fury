@@ -54,7 +54,10 @@ function SyncButton({ contextId }: { contextId: string }) {
   const syncError = useMergeStore((s) => s.syncError[contextId] ?? null);
 
   useEffect(() => {
-    useMergeStore.getState().loadBranchStatus(contextId);
+    const id = requestAnimationFrame(() => {
+      useMergeStore.getState().loadBranchStatus(contextId);
+    });
+    return () => cancelAnimationFrame(id);
   }, [contextId]);
 
   const handleSync = () => {
@@ -123,14 +126,18 @@ export function RightSidebar({ context }: Props) {
     }
   }, [context.type, activeTab, setTab]);
 
-  // Eagerly load diff for the change count badge (ChangesPanel itself is lazy-mounted)
+  // Defer diff loading by one frame to avoid the initial mount IPC burst,
+  // but load eagerly (regardless of active tab) for the change count badge.
   useEffect(() => {
-    const store = useDiffStore.getState();
-    if (context.type === "workspace") {
-      store.loadDiff(context.id);
-    } else {
-      store.loadRepoDiff(context.id);
-    }
+    const id = requestAnimationFrame(() => {
+      const store = useDiffStore.getState();
+      if (context.type === "workspace") {
+        store.loadDiff(context.id);
+      } else {
+        store.loadRepoDiff(context.id);
+      }
+    });
+    return () => cancelAnimationFrame(id);
   }, [context.type, context.id]);
 
   const bottomPanelRef = useRef<ImperativePanelHandle>(null);

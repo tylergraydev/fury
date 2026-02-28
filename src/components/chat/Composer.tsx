@@ -259,23 +259,32 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     setSelectedModel("");
   }, [agentType]);
 
-  // Load slash commands when context changes
+  // Load slash commands when context changes — deferred to avoid mount-phase IPC burst
   useEffect(() => {
-    useSlashCommandStore.getState().loadCommands(contextId, contextType);
+    const id = requestAnimationFrame(() => {
+      useSlashCommandStore.getState().loadCommands(contextId, contextType);
+    });
+    return () => cancelAnimationFrame(id);
   }, [contextId, contextType]);
 
-  // Load prompt library
+  // Load prompt library — deferred to avoid mount-phase IPC burst
   useEffect(() => {
-    usePromptLibraryStore.getState().loadPrompts();
+    const id = requestAnimationFrame(() => {
+      usePromptLibraryStore.getState().loadPrompts();
+    });
+    return () => cancelAnimationFrame(id);
   }, []);
 
-  // Load file list for @mention autocomplete
+  // Load file list for @mention autocomplete — deferred to avoid mount-phase IPC burst
   useEffect(() => {
-    const store = useFileTreeStore.getState();
-    if (!store.files[contextId]) {
-      if (contextType === "workspace") store.loadFiles(contextId);
-      else store.loadRepoFiles(contextId);
-    }
+    const id = requestAnimationFrame(() => {
+      const store = useFileTreeStore.getState();
+      if (!store.files[contextId]) {
+        if (contextType === "workspace") store.loadFiles(contextId);
+        else store.loadRepoFiles(contextId);
+      }
+    });
+    return () => cancelAnimationFrame(id);
   }, [contextId, contextType]);
 
   // Auto-resize textarea when text changes programmatically (e.g., voice input)

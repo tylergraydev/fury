@@ -39,8 +39,6 @@ vi.mock("../workspace/LinkWorkspaceDialog", () => ({
 }));
 
 vi.mock("../../lib/tauri", () => ({
-  listRepositories: vi.fn().mockResolvedValue([]),
-  listWorkspaces: vi.fn().mockResolvedValue([]),
   listArchivedWorkspaces: vi.fn().mockResolvedValue([]),
   archiveWorkspace: vi.fn().mockResolvedValue(undefined),
   restoreWorkspace: vi.fn().mockResolvedValue(undefined),
@@ -89,6 +87,16 @@ describe("Sidebar", () => {
   it("renders header with Worktrees title", () => {
     render(<Sidebar />);
     expect(screen.getByText("Worktrees")).toBeInTheDocument();
+  });
+
+  it("does not call loadRepositories or loadWorkspaces on mount", () => {
+    const loadRepositories = vi.fn();
+    const loadWorkspaces = vi.fn();
+    useRepositoryStore.setState({ loadRepositories });
+    useWorkspaceStore.setState({ loadWorkspaces });
+    render(<Sidebar />);
+    expect(loadRepositories).not.toHaveBeenCalled();
+    expect(loadWorkspaces).not.toHaveBeenCalled();
   });
 
   it("shows empty state when no repositories", () => {
@@ -198,8 +206,8 @@ describe("Sidebar", () => {
       // Workspace should be visible initially
       expect(screen.getByText("Feature Work")).toBeInTheDocument();
 
-      // Click the repo toggle button (contains "Repository:")
-      const repoButton = screen.getByText("my-repo").closest("button")!;
+      // Click the repo toggle div (contains "Repository:")
+      const repoButton = screen.getByText("my-repo").closest('[role="button"]')!;
       fireEvent.click(repoButton);
 
       // Workspace should be hidden
@@ -213,7 +221,7 @@ describe("Sidebar", () => {
       });
       render(<Sidebar />);
 
-      const repoButton = screen.getByText("my-repo").closest("button")!;
+      const repoButton = screen.getByText("my-repo").closest('[role="button"]')!;
       // Collapse
       fireEvent.click(repoButton);
       expect(screen.queryByText("Feature Work")).not.toBeInTheDocument();
@@ -892,7 +900,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Collapse first repo
-      const repoOneBtn = screen.getByText("repo-one").closest("button")!;
+      const repoOneBtn = screen.getByText("repo-one").closest('[role="button"]')!;
       fireEvent.click(repoOneBtn);
 
       // First repo workspace hidden, second still visible

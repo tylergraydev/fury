@@ -28,8 +28,10 @@ export function CommandPalette({
   onAction,
   mode = "default",
 }: CommandPaletteProps) {
-  const { workspaces, archivedWorkspaces, activeWorkspaceId } = useWorkspaceStore();
-  const { repositories } = useRepositoryStore();
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const archivedWorkspaces = useWorkspaceStore((s) => s.archivedWorkspaces);
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const repositories = useRepositoryStore((s) => s.repositories);
   const isWorkspaceSearch = mode === "workspace-search";
   const rightSidebarTab = useUIStore((s) => s.rightSidebarTab);
 

@@ -12,7 +12,7 @@ test.describe("Sidebar Details", () => {
   test("repo section collapses and expands on click", async ({ appPage }) => {
     // The sidebar shows "Repository: fury" as a clickable section
     const repoHeader = appPage
-      .locator("button")
+      .locator('[role="button"]')
       .filter({ hasText: "Repository" })
       .filter({ hasText: "fury" })
       .first();

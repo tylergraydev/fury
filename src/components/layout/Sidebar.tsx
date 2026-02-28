@@ -36,21 +36,18 @@ function relativeTime(dateStr: string): string {
 }
 
 export function Sidebar() {
-  const { repositories, loadRepositories } = useRepositoryStore();
-  const {
-    workspaces,
-    archivedWorkspaces,
-    activeWorkspaceId,
-    activeRepoId,
-    setActive,
-    setActiveRepo,
-    loadWorkspaces,
-    loadArchivedWorkspaces,
-    restoreWs,
-    renameWs,
-    archiveWs,
-    pinWs,
-  } = useWorkspaceStore();
+  const repositories = useRepositoryStore((s) => s.repositories);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const archivedWorkspaces = useWorkspaceStore((s) => s.archivedWorkspaces);
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const activeRepoId = useWorkspaceStore((s) => s.activeRepoId);
+  const setActive = useWorkspaceStore((s) => s.setActive);
+  const setActiveRepo = useWorkspaceStore((s) => s.setActiveRepo);
+  const loadArchivedWorkspaces = useWorkspaceStore((s) => s.loadArchivedWorkspaces);
+  const restoreWs = useWorkspaceStore((s) => s.restoreWs);
+  const renameWs = useWorkspaceStore((s) => s.renameWs);
+  const archiveWs = useWorkspaceStore((s) => s.archiveWs);
+  const pinWs = useWorkspaceStore((s) => s.pinWs);
   const [newWsRepoId, setNewWsRepoId] = useState<string | null>(null);
   const [settingsRepoId, setSettingsRepoId] = useState<string | null>(null);
   const [repoError, setRepoError] = useState<string | null>(null);
@@ -61,11 +58,6 @@ export function Sidebar() {
   } | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [collapsedRepos, setCollapsedRepos] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    loadRepositories();
-    loadWorkspaces();
-  }, [loadRepositories, loadWorkspaces]);
 
   useEffect(() => {
     if (showArchived) {
@@ -157,9 +149,12 @@ export function Sidebar() {
             return (
               <div key={repo.id}>
                 {/* Repo subtitle */}
-                <button
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => toggleRepo(repo.id)}
-                  className="flex w-full items-center gap-2 px-5 py-2.5 text-left text-xs"
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") toggleRepo(repo.id); }}
+                  className="flex w-full items-center gap-2 px-5 py-2.5 text-left text-xs cursor-pointer"
                   style={{ color: "var(--text-muted)" }}
                 >
                   <span className="flex-1 truncate">
@@ -176,7 +171,7 @@ export function Sidebar() {
                   >
                     <Settings className="h-3.5 w-3.5" />
                   </button>
-                </button>
+                </div>
 
                 {!isCollapsed && (
                   <>

@@ -24,7 +24,7 @@ interface LandingPageProps {
 }
 
 export function LandingPage({ onOpenSettings }: LandingPageProps) {
-  const { repositories } = useRepositoryStore();
+  const repositories = useRepositoryStore((s) => s.repositories);
   const hasRepos = repositories.length > 0;
   const [showCloneDialog, setShowCloneDialog] = useState(false);
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
@@ -242,8 +242,10 @@ function timeAgo(dateStr: string): string {
 }
 
 function RecentRepositories() {
-  const { repositories } = useRepositoryStore();
-  const { workspaces, setActive, setActiveRepo } = useWorkspaceStore();
+  const repositories = useRepositoryStore((s) => s.repositories);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const setActive = useWorkspaceStore((s) => s.setActive);
+  const setActiveRepo = useWorkspaceStore((s) => s.setActiveRepo);
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {

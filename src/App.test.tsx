@@ -205,10 +205,10 @@ describe("App", () => {
     expect(screen.queryByTestId("history-view")).not.toBeInTheDocument();
   });
 
-  it("shows RightSidebar when visible and context exists", () => {
+  it("shows RightSidebar when visible and context exists", async () => {
     setWorkspaceContext();
     render(<App />);
-    expect(screen.getByTestId("right-sidebar")).toBeInTheDocument();
+    expect(await screen.findByTestId("right-sidebar")).toBeInTheDocument();
   });
 
   it("hides RightSidebar when not visible", () => {
@@ -655,19 +655,19 @@ describe("App", () => {
 
   // --- Sidebar context ---
   describe("Sidebar context", () => {
-    it("uses workspace sidebar context when workspace is active", () => {
+    it("uses workspace sidebar context when workspace is active", async () => {
       setWorkspaceContext();
       render(<App />);
       // Sidebar and right sidebar should both be rendered
       expect(screen.getByTestId("sidebar")).toBeInTheDocument();
-      expect(screen.getByTestId("right-sidebar")).toBeInTheDocument();
+      expect(await screen.findByTestId("right-sidebar")).toBeInTheDocument();
     });
 
-    it("uses repo sidebar context when only repo is active", () => {
+    it("uses repo sidebar context when only repo is active", async () => {
       setRepoContext();
       render(<App />);
       expect(screen.getByTestId("sidebar")).toBeInTheDocument();
-      expect(screen.getByTestId("right-sidebar")).toBeInTheDocument();
+      expect(await screen.findByTestId("right-sidebar")).toBeInTheDocument();
     });
 
     it("resolves activeRepo from workspace repoId", () => {

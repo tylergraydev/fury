@@ -40,28 +40,27 @@ pub(crate) fn resolve_workspace(
         }
     }
 
-    // Fall back to repo — the ID may be a repository, not a workspace
-    let repos = state
-        .repositories
-        .lock()
-        .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
-    let repo = repos.get(&id).ok_or(AppError::WorkspaceNotFound(id))?;
+    // Fall back to repo — the ID may be a repository, not a workspace.
+    // Clone needed data and release the lock before running git commands.
+    let (repo_path, default_branch) = {
+        let repos = state
+            .repositories
+            .lock()
+            .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
+        let repo = repos.get(&id).ok_or(AppError::WorkspaceNotFound(id))?;
+        (repo.path.clone(), repo.default_branch.clone())
+    };
 
     let branch = crate::platform::command("git")
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
-        .current_dir(&repo.path)
+        .current_dir(&repo_path)
         .output()
         .ok()
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .unwrap_or_else(|| repo.default_branch.clone());
+        .unwrap_or_else(|| default_branch.clone());
 
-    Ok((
-        repo.path.clone(),
-        branch,
-        repo.default_branch.clone(),
-        repo.path.clone(),
-    ))
+    Ok((repo_path.clone(), branch, default_branch, repo_path))
 }
 
 #[tauri::command]
