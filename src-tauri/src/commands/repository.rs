@@ -172,15 +172,19 @@ pub fn remove_repository(state: State<'_, AppState>, repo_id: String) -> Result<
 
 #[tauri::command]
 pub fn list_repositories(state: State<'_, AppState>) -> Result<Vec<Repository>, AppError> {
-    let repos = state.repositories.lock().unwrap();
-    Ok(repos
-        .values()
-        .cloned()
-        .map(|mut r| {
-            r.current_branch = detect_current_branch(&r.path);
-            r
-        })
-        .collect())
+    // Clone repos out of the mutex FIRST, then release the lock before running
+    // blocking git operations.  Holding the lock during detect_current_branch()
+    // blocks every other command that needs repository data.
+    let mut repos: Vec<Repository> = {
+        let guard = state.repositories.lock().unwrap();
+        guard.values().cloned().collect()
+    };
+
+    for r in &mut repos {
+        r.current_branch = detect_current_branch(&r.path);
+    }
+
+    Ok(repos)
 }
 
 #[tauri::command]
@@ -189,12 +193,16 @@ pub fn list_branches(state: State<'_, AppState>, repo_id: String) -> Result<Vec<
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
-    let repos = state.repositories.lock().unwrap();
-    let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+    // Extract the path while holding the lock, then release before git I/O.
+    let repo_path = {
+        let repos = state.repositories.lock().unwrap();
+        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+        repo.path.clone()
+    };
 
     let output = platform::command("git")
         .args(["branch", "--format=%(refname:short)"])
-        .current_dir(&repo.path)
+        .current_dir(&repo_path)
         .output()?;
 
     if !output.status.success() {

@@ -153,12 +153,15 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick }: Props
   const error = useFileTreeStore((s) => s.error[contextId] ?? null);
 
   useEffect(() => {
-    const store = useFileTreeStore.getState();
-    if (context.type === "workspace") {
-      store.loadFiles(contextId);
-    } else {
-      store.loadRepoFiles(contextId);
-    }
+    const id = requestAnimationFrame(() => {
+      const store = useFileTreeStore.getState();
+      if (context.type === "workspace") {
+        store.loadFiles(contextId);
+      } else {
+        store.loadRepoFiles(contextId);
+      }
+    });
+    return () => cancelAnimationFrame(id);
   }, [context.type, contextId]);
 
   const handleToggle = useCallback(

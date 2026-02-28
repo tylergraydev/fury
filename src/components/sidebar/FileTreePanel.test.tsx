@@ -87,11 +87,13 @@ describe("FileTreePanel", () => {
     expect(screen.getByText("main.ts")).toBeInTheDocument();
   });
 
-  it("calls loadRepoFiles for repo context on mount", () => {
+  it("calls loadRepoFiles for repo context on mount", async () => {
     render(
       <FileTreePanel context={{ id: "repo-1", type: "repo" }} />,
     );
-    expect(listRepoFiles).toHaveBeenCalledWith("repo-1");
+    await vi.waitFor(() => {
+      expect(listRepoFiles).toHaveBeenCalledWith("repo-1");
+    });
   });
 
   it("calls onFileDoubleClick when a file is double-clicked", async () => {

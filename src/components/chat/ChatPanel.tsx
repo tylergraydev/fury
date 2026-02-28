@@ -51,28 +51,32 @@ export function ChatPanel({ contextId, contextType }: Props) {
     (s) => s.workspaces.find((w) => w.id === contextId) ?? null,
   );
 
-  // Subscribe to events when context changes
+  // Subscribe to events when context changes — deferred by one frame to avoid
+  // flooding IPC during the initial mount burst.
   useEffect(() => {
-    const agent = useAgentStore.getState();
-    const chat = useChatStore.getState();
-    const cp = useCheckpointStore.getState();
+    const id = requestAnimationFrame(() => {
+      const agent = useAgentStore.getState();
+      const chat = useChatStore.getState();
+      const cp = useCheckpointStore.getState();
 
-    agent.subscribe(contextId);
-    chat.subscribe(contextId);
-    agent.fetchStatus(contextId);
+      agent.subscribe(contextId);
+      chat.subscribe(contextId);
+      agent.fetchStatus(contextId);
 
-    if (contextType === "workspace") {
-      cp.subscribe(contextId);
-      cp.loadCheckpoints(contextId);
-      useTodoStore.getState().loadTodos(contextId);
-    }
+      if (contextType === "workspace") {
+        cp.subscribe(contextId);
+        cp.loadCheckpoints(contextId);
+        useTodoStore.getState().loadTodos(contextId);
+      }
+    });
 
     // NOTE: We intentionally do NOT unsubscribe agent/chat listeners on unmount.
     // These must stay alive so events aren't missed when the user switches tabs.
     // Subscriptions are deduplicated in the stores, so re-mounting is a no-op.
     return () => {
+      cancelAnimationFrame(id);
       if (contextType === "workspace") {
-        cp.unsubscribe(contextId);
+        useCheckpointStore.getState().unsubscribe(contextId);
       }
     };
   }, [contextId, contextType]);

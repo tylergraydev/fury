@@ -142,18 +142,22 @@ describe("Composer", () => {
   });
 
   // --- contextType "repo" loads repo files ---
-  it("loads repo files when contextType is repo", () => {
+  it("loads repo files when contextType is repo", async () => {
     const loadRepoFiles = vi.fn();
     useFileTreeStore.setState({ loadRepoFiles });
     render(<Composer {...defaultProps} contextId="repo-1" contextType="repo" />);
-    expect(loadRepoFiles).toHaveBeenCalledWith("repo-1");
+    await vi.waitFor(() => {
+      expect(loadRepoFiles).toHaveBeenCalledWith("repo-1");
+    });
   });
 
-  it("loads workspace files when contextType is workspace and no files cached", () => {
+  it("loads workspace files when contextType is workspace and no files cached", async () => {
     const loadFiles = vi.fn();
     useFileTreeStore.setState({ loadFiles });
     render(<Composer {...defaultProps} contextId="ws-1" contextType="workspace" />);
-    expect(loadFiles).toHaveBeenCalledWith("ws-1");
+    await vi.waitFor(() => {
+      expect(loadFiles).toHaveBeenCalledWith("ws-1");
+    });
   });
 
   // --- handleSend does not send when canSend is false ---

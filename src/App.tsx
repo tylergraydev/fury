@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Sidebar } from "./components/layout/Sidebar";
 import { TopBar } from "./components/layout/TopBar";
@@ -46,7 +46,9 @@ export type SidebarContext =
   | { type: "repo"; id: string };
 
 function MainPanel() {
-  const { activeWorkspaceId, activeRepoId, workspaces } = useWorkspaceStore();
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const activeRepoId = useWorkspaceStore((s) => s.activeRepoId);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
   const viewTabs = useUIStore((s) => s.viewTabs);
   const activeViewTabId = useUIStore((s) => s.activeViewTabId);
   const fileTabs = useFileViewerStore((s) => s.tabs);
@@ -119,8 +121,12 @@ function MainPanel() {
 }
 
 function App() {
-  const { activeWorkspaceId, activeRepoId, workspaces, loadWorkspaces } = useWorkspaceStore();
-  const { repositories, loadRepositories } = useRepositoryStore();
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const activeRepoId = useWorkspaceStore((s) => s.activeRepoId);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const loadWorkspaces = useWorkspaceStore((s) => s.loadWorkspaces);
+  const repositories = useRepositoryStore((s) => s.repositories);
+  const loadRepositories = useRepositoryStore((s) => s.loadRepositories);
   const rightSidebarVisible = useUIStore((s) => s.rightSidebarVisible);
   const activeViewTabId = useUIStore((s) => s.activeViewTabId);
   const theme = useUIStore((s) => s.theme);
@@ -176,18 +182,61 @@ function App() {
 
   const hasContext = activeWorkspaceId || activeRepoId;
 
-  // Auto-start Copilot LS when a workspace/repo is selected and copilot is enabled
+  // Defer the heavy 3-panel layout mount using double-rAF so the browser
+  // gets a full paint frame before mounting the complex layout.
+  const [layoutReady, setLayoutReady] = useState(!!hasContext);
+  const prevHasContext = useRef(hasContext);
   useEffect(() => {
-    if (!hasContext) return;
+    if (hasContext && !prevHasContext.current) {
+      // Just gained context — defer the heavy mount by two animation frames
+      // to guarantee the browser paints the transition first.
+      setLayoutReady(false);
+      let inner: number;
+      const outer = requestAnimationFrame(() => {
+        inner = requestAnimationFrame(() => setLayoutReady(true));
+      });
+      prevHasContext.current = hasContext;
+      return () => {
+        cancelAnimationFrame(outer);
+        cancelAnimationFrame(inner);
+      };
+    }
+    if (!hasContext) {
+      setLayoutReady(false);
+    }
+    prevHasContext.current = hasContext;
+  }, [hasContext]);
 
+  // Stage 2: defer the RightSidebar content by one more frame after the
+  // main layout has mounted (Sidebar + MainPanel render first).
+  const [rightSidebarReady, setRightSidebarReady] = useState(false);
+  useEffect(() => {
+    if (!layoutReady) {
+      setRightSidebarReady(false);
+      return;
+    }
+    const id = requestAnimationFrame(() => setRightSidebarReady(true));
+    return () => {
+      cancelAnimationFrame(id);
+      setRightSidebarReady(false);
+    };
+  }, [layoutReady]);
+
+  // Derive the repo path that Copilot needs — stable unless the active context actually changes.
+  const copilotRepoPath = useMemo(() => {
+    if (!hasContext) return null;
     const activeWs = workspaces.find((w) => w.id === activeWorkspaceId);
     const repo = activeWs
       ? repositories.find((r) => r.id === activeWs.repoId)
       : repositories.find((r) => activeRepoId === r.id);
+    return repo?.path ?? null;
+  }, [hasContext, activeWorkspaceId, activeRepoId, workspaces, repositories]);
 
-    if (!repo) return;
+  // Auto-start Copilot LS when a workspace/repo is selected and copilot is enabled
+  useEffect(() => {
+    if (!copilotRepoPath) return;
 
-    const rootUri = `file://${repo.path}`;
+    const rootUri = `file://${copilotRepoPath}`;
     if (settingsRef.current) {
       if (settingsRef.current.copilotEnabled) {
         useCopilotStore.getState().initialize(rootUri);
@@ -203,7 +252,7 @@ function App() {
         })
         .catch((e) => console.error("Failed to load Copilot settings:", e));
     }
-  }, [hasContext, activeWorkspaceId, activeRepoId, workspaces, repositories]);
+  }, [copilotRepoPath]);
 
   const handleAction = useCallback((action: string) => {
     const ui = useUIStore.getState();
@@ -311,7 +360,7 @@ function App() {
   useKeyboardShortcuts(handleAction);
 
   // Full-screen landing page when no workspace/repo is selected
-  if (!hasContext) {
+  if (!hasContext || !layoutReady) {
     const showSettingsOverlay = activeViewTabId === "settings";
 
     return (
@@ -401,9 +450,11 @@ function App() {
           <>
             <PanelResizeHandle className="resize-handle-h" />
             <Panel defaultSize={25} minSize={15} maxSize={40}>
-              <ErrorBoundary label="Panel" resetKey={sidebarContext.id}>
-                <RightSidebar context={sidebarContext} />
-              </ErrorBoundary>
+              {rightSidebarReady ? (
+                <ErrorBoundary label="Panel" resetKey={sidebarContext.id}>
+                  <RightSidebar context={sidebarContext} />
+                </ErrorBoundary>
+              ) : null}
             </Panel>
           </>
         )}

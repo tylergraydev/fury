@@ -54,7 +54,10 @@ function SyncButton({ contextId }: { contextId: string }) {
   const syncError = useMergeStore((s) => s.syncError[contextId] ?? null);
 
   useEffect(() => {
-    useMergeStore.getState().loadBranchStatus(contextId);
+    const id = requestAnimationFrame(() => {
+      useMergeStore.getState().loadBranchStatus(contextId);
+    });
+    return () => cancelAnimationFrame(id);
   }, [contextId]);
 
   const handleSync = () => {
@@ -123,15 +126,20 @@ export function RightSidebar({ context }: Props) {
     }
   }, [context.type, activeTab, setTab]);
 
-  // Eagerly load diff for the change count badge (ChangesPanel itself is lazy-mounted)
+  // Load diff lazily — only when the Changes tab is selected (not on mount).
+  // This avoids a heavy git-diff IPC call during the initial mount burst.
   useEffect(() => {
-    const store = useDiffStore.getState();
-    if (context.type === "workspace") {
-      store.loadDiff(context.id);
-    } else {
-      store.loadRepoDiff(context.id);
-    }
-  }, [context.type, context.id]);
+    if (activeTab !== "changes") return;
+    const id = requestAnimationFrame(() => {
+      const store = useDiffStore.getState();
+      if (context.type === "workspace") {
+        store.loadDiff(context.id);
+      } else {
+        store.loadRepoDiff(context.id);
+      }
+    });
+    return () => cancelAnimationFrame(id);
+  }, [activeTab, context.type, context.id]);
 
   const bottomPanelRef = useRef<ImperativePanelHandle>(null);
   const [bottomCollapsed, setBottomCollapsed] = useState(false);
