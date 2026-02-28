@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FileBookmark } from "../../lib/tauri";
 
@@ -225,14 +225,14 @@ describe("BookmarksPanel", () => {
     expect(removeBookmark).toHaveBeenCalledWith("repo-1", "bm-1");
   });
 
-  it("resolves repoId from workspace context", () => {
+  it("resolves repoId from workspace context", async () => {
     render(<BookmarksPanel context={{ type: "workspace", id: "ws-1" }} />);
-    expect(loadBookmarks).toHaveBeenCalledWith("repo-1");
+    await waitFor(() => expect(loadBookmarks).toHaveBeenCalledWith("repo-1"));
   });
 
-  it("uses context.id directly for repo context", () => {
+  it("uses context.id directly for repo context", async () => {
     render(<BookmarksPanel context={{ type: "repo", id: "repo-42" }} />);
-    expect(loadBookmarks).toHaveBeenCalledWith("repo-42");
+    await waitFor(() => expect(loadBookmarks).toHaveBeenCalledWith("repo-42"));
   });
 
   it("displays note text or No note italic fallback", () => {

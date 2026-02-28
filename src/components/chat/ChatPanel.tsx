@@ -51,22 +51,27 @@ export function ChatPanel({ contextId, contextType }: Props) {
     (s) => s.workspaces.find((w) => w.id === contextId) ?? null,
   );
 
-  // Subscribe to events when context changes — deferred by one frame to avoid
-  // flooding IPC during the initial mount burst.
+  // Subscribe to events when context changes — staggered across two frames to
+  // avoid flooding IPC during the initial mount burst.
+  // Tier 1: critical path (subscribe + load messages, what the user sees).
+  // Tier 2 (nested rAF): secondary data (checkpoints, todos).
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
+    let inner: number;
+    const outer = requestAnimationFrame(() => {
       const agent = useAgentStore.getState();
       const chat = useChatStore.getState();
-      const cp = useCheckpointStore.getState();
 
       agent.subscribe(contextId);
       chat.subscribe(contextId);
       agent.fetchStatus(contextId);
 
       if (contextType === "workspace") {
-        cp.subscribe(contextId);
-        cp.loadCheckpoints(contextId);
-        useTodoStore.getState().loadTodos(contextId);
+        inner = requestAnimationFrame(() => {
+          const cp = useCheckpointStore.getState();
+          cp.subscribe(contextId);
+          cp.loadCheckpoints(contextId);
+          useTodoStore.getState().loadTodos(contextId);
+        });
       }
     });
 
@@ -74,7 +79,8 @@ export function ChatPanel({ contextId, contextType }: Props) {
     // These must stay alive so events aren't missed when the user switches tabs.
     // Subscriptions are deduplicated in the stores, so re-mounting is a no-op.
     return () => {
-      cancelAnimationFrame(id);
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
       if (contextType === "workspace") {
         useCheckpointStore.getState().unsubscribe(contextId);
       }

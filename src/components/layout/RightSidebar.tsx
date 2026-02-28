@@ -53,11 +53,18 @@ function SyncButton({ contextId }: { contextId: string }) {
   const syncing = useMergeStore((s) => s.syncing[contextId] ?? false);
   const syncError = useMergeStore((s) => s.syncError[contextId] ?? null);
 
+  // Double-rAF: defer branch status to Tier 3 so chat data loads first.
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      useMergeStore.getState().loadBranchStatus(contextId);
+    let inner: number;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => {
+        useMergeStore.getState().loadBranchStatus(contextId);
+      });
     });
-    return () => cancelAnimationFrame(id);
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
   }, [contextId]);
 
   const handleSync = () => {
@@ -126,18 +133,24 @@ export function RightSidebar({ context }: Props) {
     }
   }, [context.type, activeTab, setTab]);
 
-  // Defer diff loading by one frame to avoid the initial mount IPC burst,
-  // but load eagerly (regardless of active tab) for the change count badge.
+  // Double-rAF: defer heavy diff load to Tier 3 so chat data loads first.
+  // Loads eagerly (regardless of active tab) for the change count badge.
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      const store = useDiffStore.getState();
-      if (context.type === "workspace") {
-        store.loadDiff(context.id);
-      } else {
-        store.loadRepoDiff(context.id);
-      }
+    let inner: number;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => {
+        const store = useDiffStore.getState();
+        if (context.type === "workspace") {
+          store.loadDiff(context.id);
+        } else {
+          store.loadRepoDiff(context.id);
+        }
+      });
     });
-    return () => cancelAnimationFrame(id);
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
   }, [context.type, context.id]);
 
   const bottomPanelRef = useRef<ImperativePanelHandle>(null);

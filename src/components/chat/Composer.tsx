@@ -259,32 +259,27 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     setSelectedModel("");
   }, [agentType]);
 
-  // Load slash commands when context changes — deferred to avoid mount-phase IPC burst
+  // Load Composer data — staggered across two frames to avoid mount-phase IPC burst.
+  // Tier 2: slash commands + prompts (needed when user starts typing).
+  // Tier 3 (nested rAF): file tree for @mention (heaviest, user rarely types immediately).
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
+    let inner: number;
+    const outer = requestAnimationFrame(() => {
       useSlashCommandStore.getState().loadCommands(contextId, contextType);
-    });
-    return () => cancelAnimationFrame(id);
-  }, [contextId, contextType]);
-
-  // Load prompt library — deferred to avoid mount-phase IPC burst
-  useEffect(() => {
-    const id = requestAnimationFrame(() => {
       usePromptLibraryStore.getState().loadPrompts();
-    });
-    return () => cancelAnimationFrame(id);
-  }, []);
 
-  // Load file list for @mention autocomplete — deferred to avoid mount-phase IPC burst
-  useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      const store = useFileTreeStore.getState();
-      if (!store.files[contextId]) {
-        if (contextType === "workspace") store.loadFiles(contextId);
-        else store.loadRepoFiles(contextId);
-      }
+      inner = requestAnimationFrame(() => {
+        const store = useFileTreeStore.getState();
+        if (!store.files[contextId]) {
+          if (contextType === "workspace") store.loadFiles(contextId);
+          else store.loadRepoFiles(contextId);
+        }
+      });
     });
-    return () => cancelAnimationFrame(id);
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
   }, [contextId, contextType]);
 
   // Auto-resize textarea when text changes programmatically (e.g., voice input)

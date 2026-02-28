@@ -39,9 +39,11 @@ export function BookmarksPanel({ context }: Props) {
   );
 
   useEffect(() => {
-    if (repoId) {
+    if (!repoId) return;
+    const id = requestAnimationFrame(() => {
       useBookmarkStore.getState().loadBookmarks(repoId);
-    }
+    });
+    return () => cancelAnimationFrame(id);
   }, [repoId]);
 
   const grouped = useMemo(() => {

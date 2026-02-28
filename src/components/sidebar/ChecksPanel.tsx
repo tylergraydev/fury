@@ -513,11 +513,16 @@ export function ChecksPanel({ workspaceId }: Props) {
   const [expandedRunId, setExpandedRunId] = useState<number | null>(null);
 
   useEffect(() => {
-    const store = usePrStore.getState();
-    store.subscribe(workspaceId);
-    store.loadPrInfo(workspaceId);
-    store.loadWorkflowRuns(workspaceId);
-    return () => usePrStore.getState().unsubscribe(workspaceId);
+    const id = requestAnimationFrame(() => {
+      const store = usePrStore.getState();
+      store.subscribe(workspaceId);
+      store.loadPrInfo(workspaceId);
+      store.loadWorkflowRuns(workspaceId);
+    });
+    return () => {
+      cancelAnimationFrame(id);
+      usePrStore.getState().unsubscribe(workspaceId);
+    };
   }, [workspaceId]);
 
   const hasPr = prInfo?.prNumber != null;

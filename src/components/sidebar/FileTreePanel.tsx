@@ -152,16 +152,23 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick }: Props
   const loading = useFileTreeStore((s) => s.loading[contextId] ?? false);
   const error = useFileTreeStore((s) => s.error[contextId] ?? null);
 
+  // Double-rAF: defer file tree loading to Tier 3 so chat data loads first.
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      const store = useFileTreeStore.getState();
-      if (context.type === "workspace") {
-        store.loadFiles(contextId);
-      } else {
-        store.loadRepoFiles(contextId);
-      }
+    let inner: number;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => {
+        const store = useFileTreeStore.getState();
+        if (context.type === "workspace") {
+          store.loadFiles(contextId);
+        } else {
+          store.loadRepoFiles(contextId);
+        }
+      });
     });
-    return () => cancelAnimationFrame(id);
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
   }, [context.type, contextId]);
 
   const handleToggle = useCallback(

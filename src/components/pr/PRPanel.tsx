@@ -16,10 +16,15 @@ export function PRPanel({ workspaceId }: PRPanelProps) {
   const error = usePrStore((s) => s.error[workspaceId] ?? null);
 
   useEffect(() => {
-    const store = usePrStore.getState();
-    store.subscribe(workspaceId);
-    store.loadPrInfo(workspaceId);
-    return () => usePrStore.getState().unsubscribe(workspaceId);
+    const id = requestAnimationFrame(() => {
+      const store = usePrStore.getState();
+      store.subscribe(workspaceId);
+      store.loadPrInfo(workspaceId);
+    });
+    return () => {
+      cancelAnimationFrame(id);
+      usePrStore.getState().unsubscribe(workspaceId);
+    };
   }, [workspaceId]);
 
   const hasPr = prInfo?.prNumber != null;

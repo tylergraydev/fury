@@ -22,9 +22,13 @@ export function SetupPanel({ context }: Props) {
   );
 
   useEffect(() => {
-    const store = useScriptStore.getState();
-    store.subscribe(contextId, "setup");
-    return () => useScriptStore.getState().unsubscribe(contextId, "setup");
+    const id = requestAnimationFrame(() => {
+      useScriptStore.getState().subscribe(contextId, "setup");
+    });
+    return () => {
+      cancelAnimationFrame(id);
+      useScriptStore.getState().unsubscribe(contextId, "setup");
+    };
   }, [contextId]);
 
   // Auto-scroll to bottom
