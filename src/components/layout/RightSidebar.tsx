@@ -133,6 +133,28 @@ export function RightSidebar({ context }: Props) {
     }
   }, [context.type, activeTab, setTab]);
 
+  // Pre-load diff data for the change count badge, but defer until browser
+  // is idle so it doesn't compete with the critical initial mount.
+  useEffect(() => {
+    const load = () => {
+      const store = useDiffStore.getState();
+      if (store.diffResults[context.id] !== undefined) return;
+      if (context.type === "workspace") {
+        store.loadDiff(context.id);
+      } else {
+        store.loadRepoDiff(context.id);
+      }
+    };
+
+    if ("requestIdleCallback" in window) {
+      const id = requestIdleCallback(load, { timeout: 3000 });
+      return () => cancelIdleCallback(id);
+    }
+    // Fallback: 1s delay
+    const id = setTimeout(load, 1000);
+    return () => clearTimeout(id);
+  }, [context.type, context.id]);
+
   const bottomPanelRef = useRef<ImperativePanelHandle>(null);
   const [bottomCollapsed, setBottomCollapsed] = useState(false);
 

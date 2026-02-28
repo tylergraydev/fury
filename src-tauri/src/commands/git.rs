@@ -119,7 +119,7 @@ pub async fn get_diff(state: State<'_, AppState>, workspace_id: String) -> Resul
 }
 
 #[tauri::command]
-pub fn get_file_diff(
+pub async fn get_file_diff(
     state: State<'_, AppState>,
     workspace_id: String,
     file_path: String,
@@ -146,7 +146,9 @@ pub fn get_file_diff(
         (ws.worktree_path.clone(), repo.default_branch.clone())
     };
 
-    diff_svc::get_file_diff_content(&worktree_path, &default_branch, &file_path)
+    tokio::task::spawn_blocking(move || diff_svc::get_file_diff_content(&worktree_path, &default_branch, &file_path))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
@@ -276,7 +278,7 @@ pub fn list_repo_files(
 }
 
 #[tauri::command]
-pub fn get_repo_diff(state: State<'_, AppState>, repo_id: String) -> Result<DiffResult, AppError> {
+pub async fn get_repo_diff(state: State<'_, AppState>, repo_id: String) -> Result<DiffResult, AppError> {
     let id: Uuid = repo_id
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
@@ -290,11 +292,13 @@ pub fn get_repo_diff(state: State<'_, AppState>, repo_id: String) -> Result<Diff
         (repo.path.clone(), repo.default_branch.clone())
     };
 
-    diff_svc::get_workspace_diff(&repo_path, &default_branch)
+    tokio::task::spawn_blocking(move || diff_svc::get_workspace_diff(&repo_path, &default_branch))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_repo_file_diff(
+pub async fn get_repo_file_diff(
     state: State<'_, AppState>,
     repo_id: String,
     file_path: String,
@@ -312,11 +316,13 @@ pub fn get_repo_file_diff(
         (repo.path.clone(), repo.default_branch.clone())
     };
 
-    diff_svc::get_file_diff_content(&repo_path, &default_branch, &file_path)
+    tokio::task::spawn_blocking(move || diff_svc::get_file_diff_content(&repo_path, &default_branch, &file_path))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_file_patch(
+pub async fn get_file_patch(
     state: State<'_, AppState>,
     workspace_id: String,
     file_path: String,
@@ -344,16 +350,14 @@ pub fn get_file_patch(
         (ws.worktree_path.clone(), repo.default_branch.clone())
     };
 
-    diff_svc::get_file_patch_preview(
-        &worktree_path,
-        &default_branch,
-        &file_path,
-        is_untracked.unwrap_or(false),
-    )
+    let untracked = is_untracked.unwrap_or(false);
+    tokio::task::spawn_blocking(move || diff_svc::get_file_patch_preview(&worktree_path, &default_branch, &file_path, untracked))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_repo_file_patch(
+pub async fn get_repo_file_patch(
     state: State<'_, AppState>,
     repo_id: String,
     file_path: String,
@@ -372,12 +376,10 @@ pub fn get_repo_file_patch(
         (repo.path.clone(), repo.default_branch.clone())
     };
 
-    diff_svc::get_file_patch_preview(
-        &repo_path,
-        &default_branch,
-        &file_path,
-        is_untracked.unwrap_or(false),
-    )
+    let untracked = is_untracked.unwrap_or(false);
+    tokio::task::spawn_blocking(move || diff_svc::get_file_patch_preview(&repo_path, &default_branch, &file_path, untracked))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
