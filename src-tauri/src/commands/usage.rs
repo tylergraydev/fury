@@ -5,7 +5,7 @@ use tauri::State;
 use uuid::Uuid;
 
 #[tauri::command]
-pub fn get_usage_data(
+pub async fn get_usage_data(
     state: State<'_, AppState>,
     workspace_id: Option<String>,
     since: Option<String>,
@@ -17,13 +17,19 @@ pub fn get_usage_data(
         })
         .transpose()?;
 
-    let db_lock = state
-        .db
-        .lock()
-        .map_err(|_| AppError::DbError("Failed to acquire database lock".into()))?;
-    let db = db_lock
-        .as_ref()
-        .ok_or(AppError::DbError("DB not initialized".into()))?;
+    let data = {
+        let db_lock = state
+            .db
+            .lock()
+            .map_err(|_| AppError::DbError("Failed to acquire database lock".into()))?;
+        let db = db_lock
+            .as_ref()
+            .ok_or(AppError::DbError("DB not initialized".into()))?;
 
-    db.get_usage_data(ws_id.as_ref(), since.as_deref())
+        db.get_usage_data(ws_id.as_ref(), since.as_deref())?
+    };
+
+    tokio::task::spawn_blocking(move || Ok(data))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }

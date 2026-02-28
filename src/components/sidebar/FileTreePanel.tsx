@@ -158,6 +158,7 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick }: Props
     const outer = requestAnimationFrame(() => {
       inner = requestAnimationFrame(() => {
         const store = useFileTreeStore.getState();
+        if (store.files[contextId]) return;
         if (context.type === "workspace") {
           store.loadFiles(contextId);
         } else {

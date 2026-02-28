@@ -6,12 +6,12 @@ use tauri::State;
 use uuid::Uuid;
 
 #[tauri::command]
-pub fn search_linear_issues(
+pub async fn search_linear_issues(
     state: State<'_, AppState>,
     query: String,
 ) -> Result<Vec<LinearIssue>, AppError> {
     let api_key = {
-        let settings = state.settings.lock().unwrap();
+        let settings = state.settings.read().unwrap();
         settings.linear.api_key.clone().ok_or_else(|| {
             AppError::LinearError(
                 "Linear API key not configured. Set it in Settings > Linear.".to_string(),
@@ -19,11 +19,13 @@ pub fn search_linear_issues(
         })?
     };
 
-    linear_svc::search_issues(&api_key, &query)
+    tokio::task::spawn_blocking(move || linear_svc::search_issues(&api_key, &query))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn link_issue_to_workspace(
+pub async fn link_issue_to_workspace(
     state: State<'_, AppState>,
     request: LinkIssueRequest,
 ) -> Result<(), AppError> {
@@ -33,7 +35,7 @@ pub fn link_issue_to_workspace(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -53,7 +55,7 @@ pub fn link_issue_to_workspace(
 }
 
 #[tauri::command]
-pub fn unlink_issue_from_workspace(
+pub async fn unlink_issue_from_workspace(
     state: State<'_, AppState>,
     request: UnlinkIssueRequest,
 ) -> Result<(), AppError> {
@@ -70,7 +72,7 @@ pub fn unlink_issue_from_workspace(
 }
 
 #[tauri::command]
-pub fn get_workspace_issues(
+pub async fn get_workspace_issues(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<WorkspaceIssue>, AppError> {

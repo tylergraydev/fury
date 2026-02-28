@@ -94,6 +94,10 @@ npm run test:e2e      # E2E tests (required — do not skip)
 
 If any test fails, fix it before committing. Do not push code that has not passed `npm test` in its final committed form. The `e2e` job is a required status check on `main` and PRs will fail without it.
 
+## Performance Rules
+
+**Never mount hidden components with CSS `display:none`/`hidden` instead of conditional rendering.** Mounting a component that is visually hidden still runs all its hooks, effects, and IPC calls. Use conditional rendering (`{active && <Component />}`) so only the visible tab/panel mounts. This was the root cause of a UI freeze — mounting all RightSidebar tab panels simultaneously triggered a storm of parallel IPC calls whose synchronous store updates locked the main thread.
+
 ## Conventions
 
 - **Unused variables**: Prefix with `_` (enforced by ESLint and `tsconfig.json`)

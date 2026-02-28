@@ -91,32 +91,46 @@ fn maybe_auto_index(
 }
 
 #[tauri::command]
-pub fn add_repository(state: State<'_, AppState>, path: String) -> Result<Repository, AppError> {
+pub async fn add_repository(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<Repository, AppError> {
+    let path_clone = path.clone();
+
+    // Run all git I/O off the main thread
+    let (name, default_branch, current_branch) =
+        tokio::task::spawn_blocking(move || -> Result<(String, String, Option<String>), AppError> {
+            let path = PathBuf::from(&path_clone);
+
+            // Validate it's a git repository
+            let git_check = platform::command("git")
+                .args(["rev-parse", "--git-dir"])
+                .current_dir(&path)
+                .output()?;
+
+            if !git_check.status.success() {
+                return Err(AppError::GitError(format!(
+                    "{} is not a git repository",
+                    path.display()
+                )));
+            }
+
+            // Detect name from directory
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "unknown".to_string());
+
+            // Detect default branch
+            let default_branch = worktree::detect_default_branch(&path);
+            let current_branch = detect_current_branch(&path);
+
+            Ok((name, default_branch, current_branch))
+        })
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))??;
+
     let path = PathBuf::from(&path);
-
-    // Validate it's a git repository
-    let git_check = platform::command("git")
-        .args(["rev-parse", "--git-dir"])
-        .current_dir(&path)
-        .output()?;
-
-    if !git_check.status.success() {
-        return Err(AppError::GitError(format!(
-            "{} is not a git repository",
-            path.display()
-        )));
-    }
-
-    // Detect name from directory
-    let name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| "unknown".to_string());
-
-    // Detect default branch
-    let default_branch = worktree::detect_default_branch(&path);
-    let current_branch = detect_current_branch(&path);
-
     let repo = Repository {
         id: Uuid::new_v4(),
         name,
@@ -136,12 +150,12 @@ pub fn add_repository(state: State<'_, AppState>, path: String) -> Result<Reposi
     // Add to in-memory state
     state
         .repositories
-        .lock()
+        .write()
         .unwrap()
         .insert(repo.id, repo.clone());
 
     // Auto-index with Claude Context if enabled
-    let ctx_settings = state.settings.lock().unwrap().claude_context.clone();
+    let ctx_settings = state.settings.read().unwrap().claude_context.clone();
     maybe_auto_index(
         repo.id,
         repo.path.to_string_lossy().to_string(),
@@ -153,7 +167,10 @@ pub fn add_repository(state: State<'_, AppState>, path: String) -> Result<Reposi
 }
 
 #[tauri::command]
-pub fn remove_repository(state: State<'_, AppState>, repo_id: String) -> Result<(), AppError> {
+pub async fn remove_repository(
+    state: State<'_, AppState>,
+    repo_id: String,
+) -> Result<(), AppError> {
     let id: Uuid = repo_id
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
@@ -165,59 +182,73 @@ pub fn remove_repository(state: State<'_, AppState>, repo_id: String) -> Result<
         }
     }
 
-    state.repositories.lock().unwrap().remove(&id);
+    state.repositories.write().unwrap().remove(&id);
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn list_repositories(state: State<'_, AppState>) -> Result<Vec<Repository>, AppError> {
-    // Clone repos out of the mutex FIRST, then release the lock before running
-    // blocking git operations.  Holding the lock during detect_current_branch()
-    // blocks every other command that needs repository data.
+pub async fn list_repositories(state: State<'_, AppState>) -> Result<Vec<Repository>, AppError> {
+    // Clone repos out of the lock FIRST, then release before git I/O.
     let mut repos: Vec<Repository> = {
-        let guard = state.repositories.lock().unwrap();
+        let guard = state.repositories.read().unwrap();
         guard.values().cloned().collect()
     };
 
-    for r in &mut repos {
-        r.current_branch = detect_current_branch(&r.path);
+    // Detect current branch for each repo in parallel using spawn_blocking.
+    let handles: Vec<_> = repos
+        .iter()
+        .map(|r| {
+            let path = r.path.clone();
+            tokio::task::spawn_blocking(move || detect_current_branch(&path))
+        })
+        .collect();
+
+    for (repo, handle) in repos.iter_mut().zip(handles) {
+        repo.current_branch = handle.await.unwrap_or_default();
     }
 
     Ok(repos)
 }
 
 #[tauri::command]
-pub fn list_branches(state: State<'_, AppState>, repo_id: String) -> Result<Vec<String>, AppError> {
+pub async fn list_branches(
+    state: State<'_, AppState>,
+    repo_id: String,
+) -> Result<Vec<String>, AppError> {
     let id: Uuid = repo_id
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
     // Extract the path while holding the lock, then release before git I/O.
     let repo_path = {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
     };
 
-    let output = platform::command("git")
-        .args(["branch", "--format=%(refname:short)"])
-        .current_dir(&repo_path)
-        .output()?;
+    tokio::task::spawn_blocking(move || {
+        let output = platform::command("git")
+            .args(["branch", "--format=%(refname:short)"])
+            .current_dir(&repo_path)
+            .output()?;
 
-    if !output.status.success() {
-        return Err(AppError::GitError(
-            String::from_utf8_lossy(&output.stderr).to_string(),
-        ));
-    }
+        if !output.status.success() {
+            return Err(AppError::GitError(
+                String::from_utf8_lossy(&output.stderr).to_string(),
+            ));
+        }
 
-    let branches: Vec<String> = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(|l| l.trim().to_string())
-        .filter(|l| !l.is_empty())
-        .collect();
+        let branches: Vec<String> = String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect();
 
-    Ok(branches)
+        Ok(branches)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 /// Helper to register a local git repo path into state + DB.
@@ -247,12 +278,12 @@ fn register_repository(state: &State<'_, AppState>, path: PathBuf) -> Result<Rep
 
     state
         .repositories
-        .lock()
+        .write()
         .unwrap()
         .insert(repo.id, repo.clone());
 
     // Auto-index with Claude Context if enabled
-    let ctx_settings = state.settings.lock().unwrap().claude_context.clone();
+    let ctx_settings = state.settings.read().unwrap().claude_context.clone();
     maybe_auto_index(
         repo.id,
         repo.path.to_string_lossy().to_string(),
@@ -264,60 +295,85 @@ fn register_repository(state: &State<'_, AppState>, path: PathBuf) -> Result<Rep
 }
 
 #[tauri::command]
-pub fn clone_repository(
+pub async fn clone_repository(
     state: State<'_, AppState>,
     url: String,
     path: String,
 ) -> Result<Repository, AppError> {
+    let path_clone = path.clone();
+
+    // Run git clone off the main thread
+    tokio::task::spawn_blocking(move || {
+        let output = platform::command("git")
+            .args(["clone", &url, &path_clone])
+            .output()?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(AppError::GitError(format!("Clone failed: {}", stderr)));
+        }
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))??;
+
     let dest = PathBuf::from(&path);
 
-    let output = platform::command("git")
-        .args(["clone", &url, &path])
-        .output()?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(AppError::GitError(format!("Clone failed: {}", stderr)));
-    }
-
+    // register_repository does git I/O (detect_default_branch, detect_current_branch)
+    // plus state writes — run it inline since it needs state access.
     register_repository(&state, dest)
 }
 
 #[tauri::command]
-pub fn init_repository(
+pub async fn init_repository(
     state: State<'_, AppState>,
     path: String,
     name: String,
 ) -> Result<Repository, AppError> {
+    let path_clone = path.clone();
+    let name_clone = name.clone();
+
+    // Run git init + initial commit off the main thread
+    tokio::task::spawn_blocking(move || {
+        let dest = PathBuf::from(&path_clone);
+
+        if !dest.exists() {
+            fs::create_dir_all(&dest)?;
+        }
+
+        let output = platform::command("git")
+            .args(["init"])
+            .current_dir(&dest)
+            .output()?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(AppError::GitError(format!("Init failed: {}", stderr)));
+        }
+
+        // Create initial commit so the repo has a branch
+        let readme = dest.join("README.md");
+        fs::write(&readme, format!("# {}\n", name_clone))?;
+
+        let _ = platform::command("git")
+            .args(["add", "."])
+            .current_dir(&dest)
+            .output();
+
+        let _ = platform::command("git")
+            .args(["commit", "-m", "Initial commit"])
+            .current_dir(&dest)
+            .output();
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))??;
+
     let dest = PathBuf::from(&path);
 
-    if !dest.exists() {
-        fs::create_dir_all(&dest)?;
-    }
-
-    let output = platform::command("git")
-        .args(["init"])
-        .current_dir(&dest)
-        .output()?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(AppError::GitError(format!("Init failed: {}", stderr)));
-    }
-
-    // Create initial commit so the repo has a branch
-    let readme = dest.join("README.md");
-    fs::write(&readme, format!("# {}\n", name))?;
-
-    let _ = platform::command("git")
-        .args(["add", "."])
-        .current_dir(&dest)
-        .output();
-
-    let _ = platform::command("git")
-        .args(["commit", "-m", "Initial commit"])
-        .current_dir(&dest)
-        .output();
-
+    // register_repository does git I/O (detect_default_branch, detect_current_branch)
+    // plus state writes — run it inline since it needs state access.
     register_repository(&state, dest)
 }

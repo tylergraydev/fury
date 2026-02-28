@@ -9,7 +9,7 @@ use tauri::{Emitter, State};
 use uuid::Uuid;
 
 #[tauri::command]
-pub fn create_pr(
+pub async fn create_pr(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     request: CreatePrRequest,
@@ -17,11 +17,11 @@ pub fn create_pr(
     let ws_id = request.workspace_id;
 
     let (worktree_path, branch, default_branch) = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos
             .get(&ws.repo_id)
             .ok_or(AppError::RepoNotFound(ws.repo_id))?;
@@ -32,21 +32,29 @@ pub fn create_pr(
         )
     };
 
-    gh_svc::check_gh_auth()?;
-    gh_svc::push_branch(&worktree_path, &branch)?;
+    let draft = request.draft.unwrap_or(false);
+    let title = request.title;
+    let body = request.body;
 
-    let mut pr_info = gh_svc::create_pr(
-        &worktree_path,
-        &request.title,
-        &request.body,
-        &default_branch,
-        request.draft.unwrap_or(false),
-    )?;
-    pr_info.workspace_id = ws_id;
+    tokio::task::spawn_blocking(move || {
+        gh_svc::check_gh_auth()?;
+        gh_svc::push_branch(&worktree_path, &branch)?;
 
-    let _ = app.emit(&format!("pr-updated:{}", ws_id), &pr_info);
+        let mut pr_info = gh_svc::create_pr(
+            &worktree_path,
+            &title,
+            &body,
+            &default_branch,
+            draft,
+        )?;
+        pr_info.workspace_id = ws_id;
 
-    Ok(pr_info)
+        let _ = app.emit(&format!("pr-updated:{}", ws_id), &pr_info);
+
+        Ok(pr_info)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
@@ -56,7 +64,7 @@ pub async fn get_pr_info(state: State<'_, AppState>, workspace_id: String) -> Re
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -85,7 +93,7 @@ pub async fn get_pr_info(state: State<'_, AppState>, workspace_id: String) -> Re
 }
 
 #[tauri::command]
-pub fn get_pr_checks(
+pub async fn get_pr_checks(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<PrCheck>, AppError> {
@@ -94,18 +102,22 @@ pub fn get_pr_checks(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
         ws.worktree_path.clone()
     };
 
-    gh_svc::get_pr_checks(&worktree_path)
+    tokio::task::spawn_blocking(move || {
+        gh_svc::get_pr_checks(&worktree_path)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn push_changes(
+pub async fn push_changes(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     workspace_id: String,
@@ -115,26 +127,30 @@ pub fn push_changes(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let (worktree_path, branch) = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
         (ws.worktree_path.clone(), ws.branch.clone())
     };
 
-    gh_svc::push_branch(&worktree_path, &branch)?;
+    tokio::task::spawn_blocking(move || {
+        gh_svc::push_branch(&worktree_path, &branch)?;
 
-    if let Ok(Some(mut info)) = gh_svc::get_pr_info(&worktree_path) {
-        info.workspace_id = ws_id;
-        info.checks = gh_svc::get_pr_checks(&worktree_path).unwrap_or_default();
-        let _ = app.emit(&format!("pr-updated:{}", ws_id), &info);
-    }
+        if let Ok(Some(mut info)) = gh_svc::get_pr_info(&worktree_path) {
+            info.workspace_id = ws_id;
+            info.checks = gh_svc::get_pr_checks(&worktree_path).unwrap_or_default();
+            let _ = app.emit(&format!("pr-updated:{}", ws_id), &info);
+        }
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn fix_failing_checks(
+pub async fn fix_failing_checks(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<String, AppError> {
@@ -143,44 +159,48 @@ pub fn fix_failing_checks(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
         ws.worktree_path.clone()
     };
 
-    let checks = gh_svc::get_pr_checks(&worktree_path)?;
+    tokio::task::spawn_blocking(move || {
+        let checks = gh_svc::get_pr_checks(&worktree_path)?;
 
-    let failing: Vec<_> = checks
-        .iter()
-        .filter(|c| {
-            c.conclusion.as_deref() == Some("FAILURE") || c.conclusion.as_deref() == Some("failure")
-        })
-        .collect();
+        let failing: Vec<_> = checks
+            .iter()
+            .filter(|c| {
+                c.conclusion.as_deref() == Some("FAILURE") || c.conclusion.as_deref() == Some("failure")
+            })
+            .collect();
 
-    if failing.is_empty() {
-        return Ok("No failing checks found.".to_string());
-    }
+        if failing.is_empty() {
+            return Ok("No failing checks found.".to_string());
+        }
 
-    let mut message = String::from(
-        "The following CI checks are failing on the current PR. Please analyze and fix these issues:\n\n",
-    );
-    for check in &failing {
-        message.push_str(&format!(
-            "- **{}**: {}\n  URL: {}\n\n",
-            check.name,
-            check.description.as_deref().unwrap_or("No description"),
-            check.details_url.as_deref().unwrap_or("N/A"),
-        ));
-    }
-    message.push_str("Please investigate the failures, fix the code, and ensure the tests pass.");
+        let mut message = String::from(
+            "The following CI checks are failing on the current PR. Please analyze and fix these issues:\n\n",
+        );
+        for check in &failing {
+            message.push_str(&format!(
+                "- **{}**: {}\n  URL: {}\n\n",
+                check.name,
+                check.description.as_deref().unwrap_or("No description"),
+                check.details_url.as_deref().unwrap_or("N/A"),
+            ));
+        }
+        message.push_str("Please investigate the failures, fix the code, and ensure the tests pass.");
 
-    Ok(message)
+        Ok(message)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn merge_pr(
+pub async fn merge_pr(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     workspace_id: String,
@@ -191,23 +211,28 @@ pub fn merge_pr(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
         ws.worktree_path.clone()
     };
 
-    let method = merge_method.as_deref().unwrap_or("squash");
-    let result = gh_svc::merge_pr(&worktree_path, method)?;
+    let method = merge_method.unwrap_or_else(|| "squash".to_string());
 
-    let _ = app.emit(&format!("pr-merged:{}", ws_id), &result);
+    tokio::task::spawn_blocking(move || {
+        let result = gh_svc::merge_pr(&worktree_path, &method)?;
 
-    Ok(result)
+        let _ = app.emit(&format!("pr-merged:{}", ws_id), &result);
+
+        Ok(result)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_pr_reviews(
+pub async fn get_pr_reviews(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<PrReview>, AppError> {
@@ -216,18 +241,22 @@ pub fn get_pr_reviews(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
         ws.worktree_path.clone()
     };
 
-    gh_svc::get_pr_reviews(&worktree_path)
+    tokio::task::spawn_blocking(move || {
+        gh_svc::get_pr_reviews(&worktree_path)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_pr_review_comments(
+pub async fn get_pr_review_comments(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<PrComment>, AppError> {
@@ -236,18 +265,22 @@ pub fn get_pr_review_comments(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
         ws.worktree_path.clone()
     };
 
-    gh_svc::get_pr_review_comments(&worktree_path)
+    tokio::task::spawn_blocking(move || {
+        gh_svc::get_pr_review_comments(&worktree_path)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn list_repo_prs(
+pub async fn list_repo_prs(
     state: State<'_, AppState>,
     repo_id: String,
 ) -> Result<Vec<PrListItem>, AppError> {
@@ -256,16 +289,20 @@ pub fn list_repo_prs(
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
     let repo_path = {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
     };
 
-    gh_svc::list_repo_prs(&repo_path)
+    tokio::task::spawn_blocking(move || {
+        gh_svc::list_repo_prs(&repo_path)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn list_repo_issues(
+pub async fn list_repo_issues(
     state: State<'_, AppState>,
     repo_id: String,
 ) -> Result<Vec<IssueListItem>, AppError> {
@@ -274,16 +311,20 @@ pub fn list_repo_issues(
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
     let repo_path = {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
     };
 
-    gh_svc::list_repo_issues(&repo_path)
+    tokio::task::spawn_blocking(move || {
+        gh_svc::list_repo_issues(&repo_path)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_pr_details(
+pub async fn get_pr_details(
     state: State<'_, AppState>,
     repo_id: String,
     pr_number: u32,
@@ -293,16 +334,20 @@ pub fn get_pr_details(
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
     let repo_path = {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
     };
 
-    gh_svc::get_pr_detail(&repo_path, pr_number)
+    tokio::task::spawn_blocking(move || {
+        gh_svc::get_pr_detail(&repo_path, pr_number)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_issue_details(
+pub async fn get_issue_details(
     state: State<'_, AppState>,
     repo_id: String,
     issue_number: u32,
@@ -312,12 +357,16 @@ pub fn get_issue_details(
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
     let repo_path = {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
     };
 
-    gh_svc::get_issue_detail(&repo_path, issue_number)
+    tokio::task::spawn_blocking(move || {
+        gh_svc::get_issue_detail(&repo_path, issue_number)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
@@ -330,7 +379,7 @@ pub async fn get_workflow_runs(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let (worktree_path, branch) = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -343,7 +392,7 @@ pub async fn get_workflow_runs(
 }
 
 #[tauri::command]
-pub fn get_run_jobs(
+pub async fn get_run_jobs(
     state: State<'_, AppState>,
     workspace_id: String,
     run_id: u64,
@@ -353,18 +402,22 @@ pub fn get_run_jobs(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
         ws.worktree_path.clone()
     };
 
-    gh_svc::get_run_jobs(&worktree_path, run_id)
+    tokio::task::spawn_blocking(move || {
+        gh_svc::get_run_jobs(&worktree_path, run_id)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_run_logs(
+pub async fn get_run_logs(
     state: State<'_, AppState>,
     workspace_id: String,
     run_id: u64,
@@ -375,18 +428,22 @@ pub fn get_run_logs(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
         ws.worktree_path.clone()
     };
 
-    gh_svc::get_run_logs(&worktree_path, run_id, failed_only)
+    tokio::task::spawn_blocking(move || {
+        gh_svc::get_run_logs(&worktree_path, run_id, failed_only)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn rerun_workflow(
+pub async fn rerun_workflow(
     state: State<'_, AppState>,
     workspace_id: String,
     run_id: u64,
@@ -397,12 +454,16 @@ pub fn rerun_workflow(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
         ws.worktree_path.clone()
     };
 
-    gh_svc::rerun_workflow(&worktree_path, run_id, failed_only)
+    tokio::task::spawn_blocking(move || {
+        gh_svc::rerun_workflow(&worktree_path, run_id, failed_only)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }

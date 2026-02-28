@@ -220,7 +220,7 @@ pub fn run() {
 
                     // Restore repositories from database
                     if let Ok(repos) = database.list_repositories() {
-                        let mut repo_map = state.repositories.lock().unwrap();
+                        let mut repo_map = state.repositories.write().unwrap();
                         for repo in repos {
                             repo_map.insert(repo.id, repo);
                         }
@@ -228,7 +228,7 @@ pub fn run() {
 
                     // Restore workspaces from database
                     if let Ok(workspaces) = database.list_workspaces() {
-                        let mut ws_map = state.workspaces.lock().unwrap();
+                        let mut ws_map = state.workspaces.write().unwrap();
                         for ws in workspaces {
                             ws_map.insert(ws.id, ws);
                         }
@@ -236,7 +236,7 @@ pub fn run() {
 
                     // Restore app settings from database
                     if let Ok(settings) = database.get_app_settings() {
-                        *state.settings.lock().unwrap() = settings;
+                        *state.settings.write().unwrap() = settings;
                     }
 
                     *state.db.lock().unwrap() = Some(database);

@@ -12,18 +12,19 @@ use crate::services::{claude_process, script_runner, worktree};
 use crate::state::AppState;
 
 #[tauri::command]
-pub fn create_workspace(
+pub async fn create_workspace(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     request: CreateWorkspaceRequest,
 ) -> Result<WorkspaceInfo, AppError> {
     // Validate repository exists
-    let repos = state.repositories.lock().unwrap();
-    let repo = repos
-        .get(&request.repo_id)
-        .ok_or(AppError::RepoNotFound(request.repo_id))?
-        .clone();
-    drop(repos);
+    let repo = {
+        let repos = state.repositories.read().unwrap();
+        repos
+            .get(&request.repo_id)
+            .ok_or(AppError::RepoNotFound(request.repo_id))?
+            .clone()
+    };
 
     // Allocate ports
     let port_base = state.port_allocator.lock().unwrap().allocate()?;
@@ -45,51 +46,64 @@ pub fn create_workspace(
             .join(".worktrees"),
     };
 
-    // Fetch remote branch if requested (needed for PR branches that don't exist locally).
-    // Uses <src>:<dst> refspec to create a local branch ref from the remote one,
-    // so create_worktree can find it via refs/heads/<branch>.
-    if request.fetch_remote_branch.unwrap_or(false) {
-        let refspec = format!("{}:{}", &request.branch_name, &request.branch_name);
-        let fetch_output = crate::platform::command("git")
-            .args(["fetch", "origin", &refspec])
-            .current_dir(&repo.path)
-            .output()
-            .map_err(|e| {
-                AppError::GitError(format!("Failed to fetch branch '{}': {}", request.branch_name, e))
-            })?;
+    // Clone data needed inside spawn_blocking
+    let repo_path = repo.path.clone();
+    let branch_name = request.branch_name.clone();
+    let workspace_name = request.workspace_name.clone();
+    let fetch_remote_branch = request.fetch_remote_branch.unwrap_or(false);
+    let base_branch = request.base_branch.clone();
+    let sparse_dirs = request.sparse_dirs.clone();
 
-        if !fetch_output.status.success() {
-            let stderr = String::from_utf8_lossy(&fetch_output.stderr);
-            // Allow failure if branch already exists locally
-            if !stderr.contains("already exists") {
-                return Err(AppError::GitError(format!(
-                    "Failed to fetch branch '{}': {}",
-                    request.branch_name, stderr
-                )));
+    // Do blocking git/filesystem work inside spawn_blocking
+    let worktree_path = tokio::task::spawn_blocking(move || -> Result<PathBuf, AppError> {
+        // Fetch remote branch if requested (needed for PR branches that don't exist locally).
+        if fetch_remote_branch {
+            let refspec = format!("{}:{}", &branch_name, &branch_name);
+            let fetch_output = crate::platform::command("git")
+                .args(["fetch", "origin", &refspec])
+                .current_dir(&repo_path)
+                .output()
+                .map_err(|e| {
+                    AppError::GitError(format!("Failed to fetch branch '{}': {}", branch_name, e))
+                })?;
+
+            if !fetch_output.status.success() {
+                let stderr = String::from_utf8_lossy(&fetch_output.stderr);
+                // Allow failure if branch already exists locally
+                if !stderr.contains("already exists") {
+                    return Err(AppError::GitError(format!(
+                        "Failed to fetch branch '{}': {}",
+                        branch_name, stderr
+                    )));
+                }
             }
         }
-    }
 
-    // Create git worktree
-    let worktree_path = worktree::create_worktree(
-        &repo.path,
-        &request.branch_name,
-        &request.workspace_name,
-        &worktree_base,
-        request.base_branch.as_deref(),
-    )?;
+        // Create git worktree
+        let worktree_path = worktree::create_worktree(
+            &repo_path,
+            &branch_name,
+            &workspace_name,
+            &worktree_base,
+            base_branch.as_deref(),
+        )?;
 
-    // Create .context directory for inter-agent collaboration
-    let context_dir = worktree_path.join(".context");
-    let _ = std::fs::create_dir_all(&context_dir);
-    let _ = std::fs::write(context_dir.join(".gitignore"), "*\n!.gitignore\n");
+        // Create .context directory for inter-agent collaboration
+        let context_dir = worktree_path.join(".context");
+        let _ = std::fs::create_dir_all(&context_dir);
+        let _ = std::fs::write(context_dir.join(".gitignore"), "*\n!.gitignore\n");
 
-    // Apply sparse checkout if needed
-    if let Some(ref dirs) = request.sparse_dirs {
-        if !dirs.is_empty() {
-            worktree::apply_sparse_checkout(&worktree_path, dirs)?;
+        // Apply sparse checkout if needed
+        if let Some(ref dirs) = sparse_dirs {
+            if !dirs.is_empty() {
+                worktree::apply_sparse_checkout(&worktree_path, dirs)?;
+            }
         }
-    }
+
+        Ok(worktree_path)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))??;
 
     let workspace = Workspace {
         id: Uuid::new_v4(),
@@ -121,7 +135,7 @@ pub fn create_workspace(
     // Add to in-memory state
     state
         .workspaces
-        .lock()
+        .write()
         .unwrap()
         .insert(workspace.id, workspace);
 
@@ -142,17 +156,23 @@ pub fn create_workspace(
 }
 
 #[tauri::command]
-pub fn list_workspaces(state: State<'_, AppState>) -> Result<Vec<WorkspaceInfo>, AppError> {
-    let workspaces = state.workspaces.lock().unwrap();
-    Ok(workspaces
-        .values()
-        .filter(|ws| ws.status != WorkspaceStatus::Archived)
-        .map(WorkspaceInfo::from)
-        .collect())
+pub async fn list_workspaces(state: State<'_, AppState>) -> Result<Vec<WorkspaceInfo>, AppError> {
+    let result = {
+        let workspaces = state.workspaces.read().unwrap();
+        workspaces
+            .values()
+            .filter(|ws| ws.status != WorkspaceStatus::Archived)
+            .map(WorkspaceInfo::from)
+            .collect::<Vec<_>>()
+    };
+
+    tokio::task::spawn_blocking(move || Ok(result))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn archive_workspace(
+pub async fn archive_workspace(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     workspace_id: String,
@@ -163,14 +183,14 @@ pub fn archive_workspace(
 
     // Get workspace info for archive script before updating status
     let (repo_id, worktree_path) = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces.get(&id).ok_or(AppError::WorkspaceNotFound(id))?;
         (ws.repo_id, ws.worktree_path.clone())
     };
 
     // Update status
     {
-        let mut workspaces = state.workspaces.lock().unwrap();
+        let mut workspaces = state.workspaces.write().unwrap();
         if let Some(ws) = workspaces.get_mut(&id) {
             ws.status = WorkspaceStatus::Archived;
             ws.archived_at = Some(chrono::Utc::now());
@@ -197,26 +217,40 @@ pub fn archive_workspace(
         ScriptKind::Archive,
     );
 
-    Ok(())
+    tokio::task::spawn_blocking(move || Ok(()))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn delete_workspace(state: State<'_, AppState>, workspace_id: String) -> Result<(), AppError> {
+pub async fn delete_workspace(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<(), AppError> {
     let id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     // Get workspace info for cleanup
     let ws = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         workspaces.get(&id).cloned()
     };
 
-    if let Some(ws) = ws {
+    if let Some(ref ws) = ws {
         // Get repo path
-        let repos = state.repositories.lock().unwrap();
-        if let Some(repo) = repos.get(&ws.repo_id) {
-            let _ = worktree::remove_worktree(&repo.path, &ws.worktree_path);
+        let repo_path = {
+            let repos = state.repositories.read().unwrap();
+            repos.get(&ws.repo_id).map(|r| r.path.clone())
+        };
+
+        if let Some(repo_path) = repo_path {
+            let wt_path = ws.worktree_path.clone();
+            tokio::task::spawn_blocking(move || {
+                let _ = worktree::remove_worktree(&repo_path, &wt_path);
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?;
         }
 
         // Release ports
@@ -230,13 +264,13 @@ pub fn delete_workspace(state: State<'_, AppState>, workspace_id: String) -> Res
             db.delete_workspace(&id)?;
         }
     }
-    state.workspaces.lock().unwrap().remove(&id);
+    state.workspaces.write().unwrap().remove(&id);
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn update_sparse_dirs(
+pub async fn update_sparse_dirs(
     state: State<'_, AppState>,
     workspace_id: String,
     dirs: Vec<String>,
@@ -246,26 +280,32 @@ pub fn update_sparse_dirs(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces.get(&id).ok_or(AppError::WorkspaceNotFound(id))?;
         ws.worktree_path.clone()
     };
 
-    // Apply or disable sparse checkout
-    if dirs.is_empty() {
-        let _ = crate::platform::command("git")
-            .args(["sparse-checkout", "disable"])
-            .current_dir(&worktree_path)
-            .output();
-    } else {
-        worktree::apply_sparse_checkout(&worktree_path, &dirs)?;
-    }
+    // Apply or disable sparse checkout (blocking git operations)
+    let dirs_clone = dirs.clone();
+    tokio::task::spawn_blocking(move || -> Result<(), AppError> {
+        if dirs_clone.is_empty() {
+            let _ = crate::platform::command("git")
+                .args(["sparse-checkout", "disable"])
+                .current_dir(&worktree_path)
+                .output();
+        } else {
+            worktree::apply_sparse_checkout(&worktree_path, &dirs_clone)?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))??;
 
     let sparse_dirs = if dirs.is_empty() { None } else { Some(dirs) };
 
     // Update in-memory state
     {
-        let mut workspaces = state.workspaces.lock().unwrap();
+        let mut workspaces = state.workspaces.write().unwrap();
         if let Some(ws) = workspaces.get_mut(&id) {
             ws.sparse_dirs = sparse_dirs.clone();
         }
@@ -283,7 +323,7 @@ pub fn update_sparse_dirs(
 }
 
 #[tauri::command]
-pub fn link_workspaces(
+pub async fn link_workspaces(
     state: State<'_, AppState>,
     workspace_id: String,
     linked_workspace_id: String,
@@ -297,7 +337,7 @@ pub fn link_workspaces(
 
     // Verify both workspaces exist
     {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -306,16 +346,20 @@ pub fn link_workspaces(
             .ok_or(AppError::WorkspaceNotFound(linked_id))?;
     }
 
-    let db = state.db.lock().unwrap();
-    if let Some(db) = db.as_ref() {
-        db.insert_workspace_link(&ws_id, &linked_id)?;
+    {
+        let db = state.db.lock().unwrap();
+        if let Some(db) = db.as_ref() {
+            db.insert_workspace_link(&ws_id, &linked_id)?;
+        }
     }
 
-    Ok(())
+    tokio::task::spawn_blocking(move || Ok(()))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn unlink_workspaces(
+pub async fn unlink_workspaces(
     state: State<'_, AppState>,
     workspace_id: String,
     linked_workspace_id: String,
@@ -327,16 +371,20 @@ pub fn unlink_workspaces(
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
-    let db = state.db.lock().unwrap();
-    if let Some(db) = db.as_ref() {
-        db.delete_workspace_link(&ws_id, &linked_id)?;
+    {
+        let db = state.db.lock().unwrap();
+        if let Some(db) = db.as_ref() {
+            db.delete_workspace_link(&ws_id, &linked_id)?;
+        }
     }
 
-    Ok(())
+    tokio::task::spawn_blocking(move || Ok(()))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_linked_workspaces(
+pub async fn get_linked_workspaces(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<String>, AppError> {
@@ -344,17 +392,23 @@ pub fn get_linked_workspaces(
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
-    let db = state.db.lock().unwrap();
-    if let Some(db) = db.as_ref() {
-        let ids = db.get_workspace_links(&ws_id)?;
-        Ok(ids.into_iter().map(|id| id.to_string()).collect())
-    } else {
-        Ok(vec![])
-    }
+    let result = {
+        let db = state.db.lock().unwrap();
+        if let Some(db) = db.as_ref() {
+            let ids = db.get_workspace_links(&ws_id)?;
+            ids.into_iter().map(|id| id.to_string()).collect()
+        } else {
+            vec![]
+        }
+    };
+
+    tokio::task::spawn_blocking(move || Ok(result))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn start_spotlight(
+pub async fn start_spotlight(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<(), AppError> {
@@ -363,17 +417,20 @@ pub fn start_spotlight(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let (worktree_path, repo_path) = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces.get(&ws_id).ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = repos
             .get(&ws.repo_id)
             .ok_or(AppError::RepoNotFound(ws.repo_id))?;
         (ws.worktree_path.clone(), repo.path.clone())
     };
 
-    let handle =
-        crate::services::spotlight::start_spotlight(worktree_path, repo_path)?;
+    let handle = tokio::task::spawn_blocking(move || {
+        crate::services::spotlight::start_spotlight(worktree_path, repo_path)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))??;
 
     state
         .spotlight_watchers
@@ -385,7 +442,7 @@ pub fn start_spotlight(
 }
 
 #[tauri::command]
-pub fn stop_spotlight(
+pub async fn stop_spotlight(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<(), AppError> {
@@ -393,28 +450,40 @@ pub fn stop_spotlight(
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
-    if let Some(handle) = state.spotlight_watchers.lock().unwrap().remove(&ws_id) {
-        handle.stop();
+    let handle = state.spotlight_watchers.lock().unwrap().remove(&ws_id);
+
+    if let Some(handle) = handle {
+        tokio::task::spawn_blocking(move || {
+            handle.stop();
+        })
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?;
     }
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn list_archived_workspaces(
+pub async fn list_archived_workspaces(
     state: State<'_, AppState>,
 ) -> Result<Vec<WorkspaceInfo>, AppError> {
-    let db = state.db.lock().unwrap();
-    if let Some(db) = db.as_ref() {
-        let workspaces = db.list_archived_workspaces()?;
-        Ok(workspaces.iter().map(WorkspaceInfo::from).collect())
-    } else {
-        Ok(vec![])
-    }
+    let result = {
+        let db = state.db.lock().unwrap();
+        if let Some(db) = db.as_ref() {
+            let workspaces = db.list_archived_workspaces()?;
+            workspaces.iter().map(WorkspaceInfo::from).collect()
+        } else {
+            vec![]
+        }
+    };
+
+    tokio::task::spawn_blocking(move || Ok(result))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn restore_workspace(
+pub async fn restore_workspace(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     workspace_id: String,
@@ -436,18 +505,25 @@ pub fn restore_workspace(
             .ok_or(AppError::WorkspaceNotFound(id))?
     };
 
-    // Validate worktree still exists on disk
-    if !ws.worktree_path.exists() {
-        return Err(AppError::GitError(format!(
-            "Worktree path no longer exists: {}",
-            ws.worktree_path.display()
-        )));
-    }
+    // Validate worktree and ensure .context directory (blocking filesystem ops)
+    let wt_path = ws.worktree_path.clone();
+    tokio::task::spawn_blocking(move || -> Result<(), AppError> {
+        if !wt_path.exists() {
+            return Err(AppError::GitError(format!(
+                "Worktree path no longer exists: {}",
+                wt_path.display()
+            )));
+        }
 
-    // Ensure .context directory exists for inter-agent collaboration
-    let context_dir = ws.worktree_path.join(".context");
-    let _ = std::fs::create_dir_all(&context_dir);
-    let _ = std::fs::write(context_dir.join(".gitignore"), "*\n!.gitignore\n");
+        // Ensure .context directory exists for inter-agent collaboration
+        let context_dir = wt_path.join(".context");
+        let _ = std::fs::create_dir_all(&context_dir);
+        let _ = std::fs::write(context_dir.join(".gitignore"), "*\n!.gitignore\n");
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))??;
 
     // Update status
     ws.status = WorkspaceStatus::Active;
@@ -464,14 +540,14 @@ pub fn restore_workspace(
     let info = WorkspaceInfo::from(&ws);
 
     // Re-add to in-memory state
-    state.workspaces.lock().unwrap().insert(ws.id, ws);
+    state.workspaces.write().unwrap().insert(ws.id, ws);
 
     let _ = app.emit("workspace-restored", &info);
     Ok(info)
 }
 
 #[tauri::command]
-pub fn update_workspace_notes(
+pub async fn update_workspace_notes(
     state: State<'_, AppState>,
     workspace_id: String,
     notes: String,
@@ -482,7 +558,7 @@ pub fn update_workspace_notes(
 
     // Update in-memory
     {
-        let mut workspaces = state.workspaces.lock().unwrap();
+        let mut workspaces = state.workspaces.write().unwrap();
         if let Some(ws) = workspaces.get_mut(&id) {
             ws.notes = notes.clone();
         }
@@ -496,11 +572,13 @@ pub fn update_workspace_notes(
         }
     }
 
-    Ok(())
+    tokio::task::spawn_blocking(move || Ok(()))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn rename_workspace(
+pub async fn rename_workspace(
     state: State<'_, AppState>,
     workspace_id: String,
     name: String,
@@ -511,7 +589,7 @@ pub fn rename_workspace(
 
     // Update in-memory
     {
-        let mut workspaces = state.workspaces.lock().unwrap();
+        let mut workspaces = state.workspaces.write().unwrap();
         if let Some(ws) = workspaces.get_mut(&id) {
             ws.name = name.clone();
         }
@@ -525,11 +603,13 @@ pub fn rename_workspace(
         }
     }
 
-    Ok(())
+    tokio::task::spawn_blocking(move || Ok(()))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn set_workspace_pinned(
+pub async fn set_workspace_pinned(
     state: State<'_, AppState>,
     workspace_id: String,
     pinned: bool,
@@ -540,7 +620,7 @@ pub fn set_workspace_pinned(
 
     // Update in-memory
     {
-        let mut workspaces = state.workspaces.lock().unwrap();
+        let mut workspaces = state.workspaces.write().unwrap();
         if let Some(ws) = workspaces.get_mut(&id) {
             ws.pinned = pinned;
         }
@@ -554,7 +634,9 @@ pub fn set_workspace_pinned(
         }
     }
 
-    Ok(())
+    tokio::task::spawn_blocking(move || Ok(()))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 /// Spawn a script in the background without blocking the calling command.
@@ -585,17 +667,17 @@ fn fire_and_forget_script(
 
     // Build env vars
     let env_vars = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = match workspaces.get(&ws_id) {
             Some(ws) => ws.clone(),
             None => return,
         };
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         let repo = match repos.get(&repo_id) {
             Some(r) => r.clone(),
             None => return,
         };
-        let app_settings = state.settings.lock().unwrap().clone();
+        let app_settings = state.settings.read().unwrap().clone();
         let mut env = claude_process::build_env_vars(&ws, &repo, &app_settings);
         for (k, v) in &settings.env_vars {
             env.insert(k.clone(), v.clone());

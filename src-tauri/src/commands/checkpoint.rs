@@ -7,7 +7,7 @@ use tauri::{Emitter, State};
 use uuid::Uuid;
 
 #[tauri::command]
-pub fn list_checkpoints(
+pub async fn list_checkpoints(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<Checkpoint>, AppError> {
@@ -24,7 +24,7 @@ pub fn list_checkpoints(
 }
 
 #[tauri::command]
-pub fn revert_to_checkpoint(
+pub async fn revert_to_checkpoint(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     workspace_id: String,
@@ -60,22 +60,32 @@ pub fn revert_to_checkpoint(
 
     // Get worktree path
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
         ws.worktree_path.clone()
     };
 
-    // Revert filesystem to checkpoint state
-    checkpoint_svc::revert_to_checkpoint(&worktree_path, &checkpoint.tree_sha)?;
+    let tree_sha = checkpoint.tree_sha.clone();
+    let turn_index = checkpoint.turn_index;
+    let worktree_path_clone = worktree_path.clone();
 
-    // Delete later checkpoints (git refs + DB)
-    let _ = checkpoint_svc::delete_checkpoints_after(&worktree_path, ws_id, checkpoint.turn_index);
+    // Revert filesystem to checkpoint state + delete later checkpoint refs (git I/O)
+    tokio::task::spawn_blocking(move || {
+        checkpoint_svc::revert_to_checkpoint(&worktree_path_clone, &tree_sha)?;
+        let _ =
+            checkpoint_svc::delete_checkpoints_after(&worktree_path_clone, ws_id, turn_index);
+        Ok::<(), AppError>(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))??;
+
+    // Delete later checkpoints from DB
     {
         let db = state.db.lock().unwrap();
         if let Some(db) = db.as_ref() {
-            let _ = db.delete_checkpoints_after(&ws_id, checkpoint.turn_index);
+            let _ = db.delete_checkpoints_after(&ws_id, turn_index);
         }
     }
 
@@ -90,7 +100,7 @@ pub fn revert_to_checkpoint(
     // Emit revert event to frontend
     let _ = app.emit(
         &format!("checkpoint-reverted:{}", ws_id),
-        serde_json::json!({ "turnIndex": checkpoint.turn_index }),
+        serde_json::json!({ "turnIndex": turn_index }),
     );
 
     Ok(())

@@ -133,13 +133,14 @@ export function RightSidebar({ context }: Props) {
     }
   }, [context.type, activeTab, setTab]);
 
-  // Double-rAF: defer heavy diff load to Tier 3 so chat data loads first.
-  // Loads eagerly (regardless of active tab) for the change count badge.
+  // Eagerly load diff for the change count badge.
+  // Deferred by double-rAF so the initial layout paints first.
   useEffect(() => {
     let inner: number;
     const outer = requestAnimationFrame(() => {
       inner = requestAnimationFrame(() => {
         const store = useDiffStore.getState();
+        if (store.diffResults[context.id] !== undefined) return;
         if (context.type === "workspace") {
           store.loadDiff(context.id);
         } else {
@@ -232,7 +233,7 @@ export function RightSidebar({ context }: Props) {
               <SyncButton contextId={context.id} />
             </div>
 
-            {/* Tab content — keep all panels mounted, hide inactive with CSS */}
+            {/* Tab content — FileTreePanel stays mounted to preserve scroll/expand state */}
             <div className="flex-1 overflow-hidden">
               <div className={activeTab === "files" ? "h-full" : "hidden"}>
                 <ErrorBoundary label="files" resetKey={context.id}>

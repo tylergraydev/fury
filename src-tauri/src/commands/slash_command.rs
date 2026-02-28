@@ -6,7 +6,7 @@ use tauri::State;
 use uuid::Uuid;
 
 #[tauri::command]
-pub fn list_slash_commands(
+pub async fn list_slash_commands(
     state: State<'_, AppState>,
     context_id: String,
     context_type: String,
@@ -16,20 +16,22 @@ pub fn list_slash_commands(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let repo_path = if context_type == "repo" {
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         repos.get(&id).map(|r| r.path.clone())
     } else {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces.get(&id).ok_or(AppError::WorkspaceNotFound(id))?;
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         repos.get(&ws.repo_id).map(|r| r.path.clone())
     };
 
-    slash_svc::discover_commands(repo_path.as_deref())
+    tokio::task::spawn_blocking(move || slash_svc::discover_commands(repo_path.as_deref()))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_slash_command_content(
+pub async fn get_slash_command_content(
     state: State<'_, AppState>,
     workspace_id: String,
     name: String,
@@ -39,14 +41,18 @@ pub fn get_slash_command_content(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let repo_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        let repos = state.repositories.lock().unwrap();
+        let repos = state.repositories.read().unwrap();
         repos.get(&ws.repo_id).map(|r| r.path.clone())
     };
 
-    let commands = slash_svc::discover_commands(repo_path.as_deref())?;
-    Ok(commands.into_iter().find(|c| c.name == name))
+    tokio::task::spawn_blocking(move || {
+        let commands = slash_svc::discover_commands(repo_path.as_deref())?;
+        Ok(commands.into_iter().find(|c| c.name == name))
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }

@@ -21,12 +21,12 @@ pub(crate) fn resolve_workspace(
     {
         let workspaces = state
             .workspaces
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
         if let Some(ws) = workspaces.get(&id) {
             let repos = state
                 .repositories
-                .lock()
+                .read()
                 .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
             let repo = repos
                 .get(&ws.repo_id)
@@ -45,7 +45,7 @@ pub(crate) fn resolve_workspace(
     let (repo_path, default_branch) = {
         let repos = state
             .repositories
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
         let repo = repos.get(&id).ok_or(AppError::WorkspaceNotFound(id))?;
         (repo.path.clone(), repo.default_branch.clone())
@@ -64,82 +64,115 @@ pub(crate) fn resolve_workspace(
 }
 
 #[tauri::command]
-pub fn get_branch_status(
+pub async fn get_branch_status(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<BranchStatus, AppError> {
     let (worktree_path, branch, default_branch, _) = resolve_workspace(&state, &workspace_id)?;
-    branch_svc::get_branch_status(&worktree_path, &branch, &default_branch)
+    tokio::task::spawn_blocking(move || {
+        branch_svc::get_branch_status(&worktree_path, &branch, &default_branch)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn fetch_upstream(state: State<'_, AppState>, workspace_id: String) -> Result<(), AppError> {
+pub async fn fetch_upstream(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<(), AppError> {
     let (worktree_path, _, _, _) = resolve_workspace(&state, &workspace_id)?;
-    branch_svc::fetch_upstream(&worktree_path)
+    tokio::task::spawn_blocking(move || branch_svc::fetch_upstream(&worktree_path))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn pull_rebase(
+pub async fn pull_rebase(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<PullResult, AppError> {
     let (worktree_path, _, default_branch, _) = resolve_workspace(&state, &workspace_id)?;
-    branch_svc::pull_rebase(&worktree_path, &default_branch)
+    tokio::task::spawn_blocking(move || branch_svc::pull_rebase(&worktree_path, &default_branch))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn pull_merge(
+pub async fn pull_merge(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<PullResult, AppError> {
     let (worktree_path, _, default_branch, _) = resolve_workspace(&state, &workspace_id)?;
-    branch_svc::pull_merge(&worktree_path, &default_branch)
+    tokio::task::spawn_blocking(move || branch_svc::pull_merge(&worktree_path, &default_branch))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_conflicted_files(
+pub async fn get_conflicted_files(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<ConflictedFile>, AppError> {
     let (worktree_path, _, _, _) = resolve_workspace(&state, &workspace_id)?;
-    branch_svc::get_conflicted_files(&worktree_path)
+    tokio::task::spawn_blocking(move || branch_svc::get_conflicted_files(&worktree_path))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_conflict_content(
+pub async fn get_conflict_content(
     state: State<'_, AppState>,
     workspace_id: String,
     file_path: String,
 ) -> Result<ConflictContent, AppError> {
     let (worktree_path, _, _, _) = resolve_workspace(&state, &workspace_id)?;
-    branch_svc::get_conflict_content(&worktree_path, &file_path)
+    tokio::task::spawn_blocking(move || {
+        branch_svc::get_conflict_content(&worktree_path, &file_path)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn resolve_conflict(
+pub async fn resolve_conflict(
     state: State<'_, AppState>,
     workspace_id: String,
     file_path: String,
     strategy: String,
 ) -> Result<(), AppError> {
     let (worktree_path, _, _, _) = resolve_workspace(&state, &workspace_id)?;
-    branch_svc::resolve_conflict(&worktree_path, &file_path, &strategy)
+    tokio::task::spawn_blocking(move || {
+        branch_svc::resolve_conflict(&worktree_path, &file_path, &strategy)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn abort_merge_cmd(state: State<'_, AppState>, workspace_id: String) -> Result<(), AppError> {
+pub async fn abort_merge_cmd(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<(), AppError> {
     let (worktree_path, _, _, _) = resolve_workspace(&state, &workspace_id)?;
-    branch_svc::abort_merge(&worktree_path)
+    tokio::task::spawn_blocking(move || branch_svc::abort_merge(&worktree_path))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn continue_merge(state: State<'_, AppState>, workspace_id: String) -> Result<(), AppError> {
+pub async fn continue_merge(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<(), AppError> {
     let (worktree_path, _, _, _) = resolve_workspace(&state, &workspace_id)?;
-    branch_svc::continue_merge(&worktree_path)
+    tokio::task::spawn_blocking(move || branch_svc::continue_merge(&worktree_path))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn cross_worktree_diff(
+pub async fn cross_worktree_diff(
     state: State<'_, AppState>,
     workspace_id: String,
     linked_workspace_id: String,
@@ -152,7 +185,7 @@ pub fn cross_worktree_diff(
     let branch_b = {
         let workspaces = state
             .workspaces
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
         let ws = workspaces
             .get(&linked_id)
@@ -160,11 +193,15 @@ pub fn cross_worktree_diff(
         ws.branch.clone()
     };
 
-    branch_svc::cross_worktree_diff(&repo_path, &branch_a, &branch_b)
+    tokio::task::spawn_blocking(move || {
+        branch_svc::cross_worktree_diff(&repo_path, &branch_a, &branch_b)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_cross_worktree_file_diff(
+pub async fn get_cross_worktree_file_diff(
     state: State<'_, AppState>,
     workspace_id: String,
     linked_workspace_id: String,
@@ -178,7 +215,7 @@ pub fn get_cross_worktree_file_diff(
     let branch_b = {
         let workspaces = state
             .workspaces
-            .lock()
+            .read()
             .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
         let ws = workspaces
             .get(&linked_id)
@@ -186,11 +223,20 @@ pub fn get_cross_worktree_file_diff(
         ws.branch.clone()
     };
 
-    branch_svc::get_file_at_ref(&repo_path, &branch_a, &branch_b, &file_path)
+    tokio::task::spawn_blocking(move || {
+        branch_svc::get_file_at_ref(&repo_path, &branch_a, &branch_b, &file_path)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn push_workspace(state: State<'_, AppState>, workspace_id: String) -> Result<(), AppError> {
+pub async fn push_workspace(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<(), AppError> {
     let (worktree_path, branch, _, _) = resolve_workspace(&state, &workspace_id)?;
-    gh_svc::push_branch(&worktree_path, &branch)
+    tokio::task::spawn_blocking(move || gh_svc::push_branch(&worktree_path, &branch))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }

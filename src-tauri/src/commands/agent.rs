@@ -87,7 +87,7 @@ pub async fn send_message(
 
     // Read agent type from settings
     let agent_type = {
-        let settings = state.settings.lock().unwrap();
+        let settings = state.settings.read().unwrap();
         settings.agent_type.clone()
     };
 
@@ -95,19 +95,19 @@ pub async fn send_message(
     let (working_dir, env_vars) = if let Some(workspace_id) = request.workspace_id {
         // Workspace mode: use worktree path
         let (workspace, repo) = {
-            let workspaces = state.workspaces.lock().unwrap();
+            let workspaces = state.workspaces.read().unwrap();
             let ws = workspaces
                 .get(&workspace_id)
                 .ok_or(AppError::WorkspaceNotFound(workspace_id))?
                 .clone();
-            let repos = state.repositories.lock().unwrap();
+            let repos = state.repositories.read().unwrap();
             let repo = repos
                 .get(&ws.repo_id)
                 .ok_or(AppError::RepoNotFound(ws.repo_id))?
                 .clone();
             (ws, repo)
         };
-        let settings = state.settings.lock().unwrap().clone();
+        let settings = state.settings.read().unwrap().clone();
         let mut env = match agent_type {
             AgentType::ClaudeCode => claude_process::build_env_vars(&workspace, &repo, &settings),
             AgentType::CodexCli => codex_process::build_env_vars(&workspace, &repo, &settings),
@@ -116,7 +116,7 @@ pub async fn send_message(
         // Agent teams: add sibling workspace names (env var is harmless for Codex,
     // though FURY_AGENT_TEAMS is only set by Claude's build_env_vars)
         if settings.experimental.agent_teams {
-            let workspaces = state.workspaces.lock().unwrap();
+            let workspaces = state.workspaces.read().unwrap();
             let siblings: Vec<String> = workspaces
                 .values()
                 .filter(|ws| ws.repo_id == workspace.repo_id && ws.id != workspace.id)
@@ -135,13 +135,13 @@ pub async fn send_message(
         // Repo mode: use repo path directly
         let repo_id = request.repo_id.unwrap();
         let repo = {
-            let repos = state.repositories.lock().unwrap();
+            let repos = state.repositories.read().unwrap();
             repos
                 .get(&repo_id)
                 .ok_or(AppError::RepoNotFound(repo_id))?
                 .clone()
         };
-        let settings = state.settings.lock().unwrap().clone();
+        let settings = state.settings.read().unwrap().clone();
         let env = match agent_type {
             AgentType::ClaudeCode => claude_process::build_repo_env_vars(&repo, &settings),
             AgentType::CodexCli => codex_process::build_repo_env_vars(&repo, &settings),
@@ -207,7 +207,7 @@ pub async fn send_message(
         let db = state.db.lock().unwrap();
         if let Some(db) = db.as_ref() {
             let link_ids = db.get_workspace_links(&context_id).unwrap_or_default();
-            let workspaces = state.workspaces.lock().unwrap();
+            let workspaces = state.workspaces.read().unwrap();
             link_ids
                 .iter()
                 .filter_map(|id| workspaces.get(id))
@@ -222,7 +222,7 @@ pub async fn send_message(
 
     // Get system prompt additions, persistent mode, and safe mode settings in a single lock
     let (system_prompt, persistent_mode, safe_mode) = {
-        let settings = state.settings.lock().unwrap();
+        let settings = state.settings.read().unwrap();
         (
             settings.system_prompt_additions.clone(),
             settings.experimental.persistent_processes,
@@ -709,7 +709,7 @@ pub async fn respond_to_permission(
 
     // Codex CLI does not support interactive permission responses
     let agent_type = {
-        let settings = state.settings.lock().unwrap();
+        let settings = state.settings.read().unwrap();
         settings.agent_type.clone()
     };
     if agent_type == AgentType::CodexCli {
@@ -745,7 +745,7 @@ pub async fn respond_to_permission(
 }
 
 #[tauri::command]
-pub fn stop_agent(
+pub async fn stop_agent(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     workspace_id: String,
@@ -754,58 +754,68 @@ pub fn stop_agent(
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
-    // Set status to Stopping and get PID for kill
-    let pid = {
-        let mut agents = state.agents.lock().unwrap();
-        if let Some(agent) = agents.get_mut(&id) {
-            agent.status = AgentStatus::Stopping;
-            agent.pid
-        } else {
-            None
+    // Extract Arc references before spawn_blocking
+    let agents = Arc::clone(&state.agents);
+    let agent_processes = Arc::clone(&state.agent_processes);
+    let persistent_agents = Arc::clone(&state.persistent_agents);
+    let agent_stdins = Arc::clone(&state.agent_stdins);
+
+    tokio::task::spawn_blocking(move || {
+        // Set status to Stopping and get PID for kill
+        let pid = {
+            let mut agents_lock = agents.lock().unwrap();
+            if let Some(agent) = agents_lock.get_mut(&id) {
+                agent.status = AgentStatus::Stopping;
+                agent.pid
+            } else {
+                None
+            }
+        };
+
+        // Kill via PID stored in agent info (works even if background task took the Child)
+        if let Some(pid) = pid {
+            let _ = crate::platform::kill_process_group(pid);
         }
-    };
 
-    // Kill via PID stored in agent info (works even if background task took the Child)
-    if let Some(pid) = pid {
-        let _ = crate::platform::kill_process_group(pid);
-    }
-
-    // Also try agent_processes as fallback
-    {
-        let mut processes = state.agent_processes.lock().unwrap();
-        if let Some(child) = processes.remove(&id) {
-            if let Some(pid) = child.id() {
-                let _ = crate::platform::kill_process_group(pid);
+        // Also try agent_processes as fallback
+        {
+            let mut processes = agent_processes.lock().unwrap();
+            if let Some(child) = processes.remove(&id) {
+                if let Some(pid) = child.id() {
+                    let _ = crate::platform::kill_process_group(pid);
+                }
             }
         }
-    }
 
-    // Clean up persistent state and stdin handles
-    state.persistent_agents.lock().unwrap().remove(&id);
-    state.agent_stdins.lock().unwrap().remove(&id);
+        // Clean up persistent state and stdin handles
+        persistent_agents.lock().unwrap().remove(&id);
+        agent_stdins.lock().unwrap().remove(&id);
 
-    // Set status to Idle and clear PID
-    {
-        let mut agents = state.agents.lock().unwrap();
-        if let Some(agent) = agents.get_mut(&id) {
-            agent.status = AgentStatus::Idle;
-            agent.pid = None;
+        // Set status to Idle and clear PID
+        {
+            let mut agents_lock = agents.lock().unwrap();
+            if let Some(agent) = agents_lock.get_mut(&id) {
+                agent.status = AgentStatus::Idle;
+                agent.pid = None;
+            }
         }
-    }
 
-    let _ = app.emit(
-        &format!("agent-status:{}", id),
-        &AgentStatusEvent {
-            workspace_id: id,
-            status: AgentStatus::Idle,
-        },
-    );
+        let _ = app.emit(
+            &format!("agent-status:{}", id),
+            &AgentStatusEvent {
+                workspace_id: id,
+                status: AgentStatus::Idle,
+            },
+        );
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_agent_status(
+pub async fn get_agent_status(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<AgentInfo, AppError> {
@@ -813,15 +823,20 @@ pub fn get_agent_status(
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
-    let agents = state.agents.lock().unwrap();
-    Ok(agents
-        .get(&id)
-        .cloned()
-        .unwrap_or_else(|| AgentInfo::new(id)))
+    let agents = Arc::clone(&state.agents);
+    tokio::task::spawn_blocking(move || {
+        let agents_lock = agents.lock().unwrap();
+        Ok(agents_lock
+            .get(&id)
+            .cloned()
+            .unwrap_or_else(|| AgentInfo::new(id)))
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn clear_session(
+pub async fn clear_session(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<(), AppError> {
@@ -829,23 +844,32 @@ pub fn clear_session(
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
-    let mut agents = state.agents.lock().unwrap();
-    if let Some(agent) = agents.get_mut(&id) {
-        agent.session_id = None;
-    }
-    drop(agents);
+    let agents = Arc::clone(&state.agents);
+    let persistent_agents = Arc::clone(&state.persistent_agents);
+    let agent_stdins = Arc::clone(&state.agent_stdins);
+    let agent_processes = Arc::clone(&state.agent_processes);
 
-    // Kill any persistent process for this workspace (new session = new process)
-    state.persistent_agents.lock().unwrap().remove(&id);
-    state.agent_stdins.lock().unwrap().remove(&id);
-    {
-        let mut processes = state.agent_processes.lock().unwrap();
-        if let Some(child) = processes.remove(&id) {
-            if let Some(pid) = child.id() {
-                let _ = crate::platform::kill_process_group(pid);
+    tokio::task::spawn_blocking(move || {
+        let mut agents_lock = agents.lock().unwrap();
+        if let Some(agent) = agents_lock.get_mut(&id) {
+            agent.session_id = None;
+        }
+        drop(agents_lock);
+
+        // Kill any persistent process for this workspace (new session = new process)
+        persistent_agents.lock().unwrap().remove(&id);
+        agent_stdins.lock().unwrap().remove(&id);
+        {
+            let mut processes = agent_processes.lock().unwrap();
+            if let Some(child) = processes.remove(&id) {
+                if let Some(pid) = child.id() {
+                    let _ = crate::platform::kill_process_group(pid);
+                }
             }
         }
-    }
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }

@@ -52,7 +52,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
   );
 
   // Subscribe to events when context changes — staggered across two frames to
-  // avoid flooding IPC during the initial mount burst.
+  // avoid flooding IPC during workspace switches.
   // Tier 1: critical path (subscribe + load messages, what the user sees).
   // Tier 2 (nested rAF): secondary data (checkpoints, todos).
   useEffect(() => {

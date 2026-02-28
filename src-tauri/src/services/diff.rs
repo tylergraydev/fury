@@ -119,8 +119,12 @@ pub fn get_workspace_diff(
 
         // Count lines efficiently without reading entire file into a String
         let file_path = worktree_path.join(&path);
-        let line_count = std::fs::metadata(&file_path)
-            .ok()
+        let meta = std::fs::metadata(&file_path).ok();
+        // Skip directories — only regular files are meaningful diffs
+        if meta.as_ref().map(|m| !m.is_file()).unwrap_or(true) {
+            continue;
+        }
+        let line_count = meta
             .filter(|m| m.len() <= MAX_UNTRACKED_FILE_SIZE)
             .and_then(|_| std::fs::File::open(&file_path).ok())
             .map(|f| BufReader::new(f).lines().count() as u32)

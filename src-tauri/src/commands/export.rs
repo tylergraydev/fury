@@ -6,7 +6,7 @@ use crate::models::export::{ExportOptions, WorkspaceExportBundle, WorkspaceExpor
 use crate::state::AppState;
 
 #[tauri::command]
-pub fn export_workspace(
+pub async fn export_workspace(
     state: State<'_, AppState>,
     options: ExportOptions,
 ) -> Result<String, AppError> {
@@ -14,79 +14,96 @@ pub fn export_workspace(
         .map_err(|e| AppError::DbError(format!("Invalid workspace ID: {}", e)))?;
 
     let ws = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         workspaces
             .get(&ws_id)
             .cloned()
             .ok_or(AppError::WorkspaceNotFound(ws_id))?
     };
 
-    let db_lock = state.db.lock().unwrap();
-    let db = db_lock
-        .as_ref()
-        .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
+    // Extract all data from DB while holding the lock
+    let (workspace_config, repo_settings, chat_messages, todos, bookmarks, snippets) = {
+        let db_lock = state.db.lock().unwrap();
+        let db = db_lock
+            .as_ref()
+            .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
 
-    let workspace_config = WorkspaceExportConfig {
-        name: ws.name.clone(),
-        branch: ws.branch.clone(),
-        sparse_dirs: ws.sparse_dirs.clone(),
-        notes: ws.notes.clone(),
-        auto_commit: ws.auto_commit,
-        created_at: ws.created_at.to_rfc3339(),
+        let workspace_config = WorkspaceExportConfig {
+            name: ws.name.clone(),
+            branch: ws.branch.clone(),
+            sparse_dirs: ws.sparse_dirs.clone(),
+            notes: ws.notes.clone(),
+            auto_commit: ws.auto_commit,
+            created_at: ws.created_at.to_rfc3339(),
+        };
+
+        let repo_settings = if options.include_repo_settings {
+            let mut settings = db.get_repo_settings(&ws.repo_id)?;
+            if !options.include_env_vars {
+                settings.env_vars.clear();
+            }
+            Some(serde_json::to_value(&settings)?)
+        } else {
+            None
+        };
+
+        let chat_messages = if options.include_chat {
+            let messages = db.list_chat_messages(&ws_id)?;
+            Some(serde_json::to_value(&messages)?)
+        } else {
+            None
+        };
+
+        let todos = if options.include_todos {
+            let items = db.list_todos(&ws_id)?;
+            Some(serde_json::to_value(&items)?)
+        } else {
+            None
+        };
+
+        let bookmarks = if options.include_bookmarks {
+            let items = db.list_bookmarks(&ws.repo_id)?;
+            Some(serde_json::to_value(&items)?)
+        } else {
+            None
+        };
+
+        let snippets = if options.include_snippets {
+            let items = db.list_snippets()?;
+            Some(serde_json::to_value(&items)?)
+        } else {
+            None
+        };
+
+        (
+            workspace_config,
+            repo_settings,
+            chat_messages,
+            todos,
+            bookmarks,
+            snippets,
+        )
     };
 
-    let repo_settings = if options.include_repo_settings {
-        let mut settings = db.get_repo_settings(&ws.repo_id)?;
-        if !options.include_env_vars {
-            settings.env_vars.clear();
-        }
-        Some(serde_json::to_value(&settings)?)
-    } else {
-        None
-    };
+    // Build bundle and serialize off the main thread
+    tokio::task::spawn_blocking(move || {
+        let bundle = WorkspaceExportBundle {
+            fury_version: env!("CARGO_PKG_VERSION").to_string(),
+            exported_at: chrono::Utc::now().to_rfc3339(),
+            format_version: 1,
+            workspace: workspace_config,
+            repo_settings,
+            chat_messages,
+            todos,
+            bookmarks,
+            snippets,
+        };
 
-    let chat_messages = if options.include_chat {
-        let messages = db.list_chat_messages(&ws_id)?;
-        Some(serde_json::to_value(&messages)?)
-    } else {
-        None
-    };
-
-    let todos = if options.include_todos {
-        let items = db.list_todos(&ws_id)?;
-        Some(serde_json::to_value(&items)?)
-    } else {
-        None
-    };
-
-    let bookmarks = if options.include_bookmarks {
-        let items = db.list_bookmarks(&ws.repo_id)?;
-        Some(serde_json::to_value(&items)?)
-    } else {
-        None
-    };
-
-    let snippets = if options.include_snippets {
-        let items = db.list_snippets()?;
-        Some(serde_json::to_value(&items)?)
-    } else {
-        None
-    };
-
-    let bundle = WorkspaceExportBundle {
-        fury_version: env!("CARGO_PKG_VERSION").to_string(),
-        exported_at: chrono::Utc::now().to_rfc3339(),
-        format_version: 1,
-        workspace: workspace_config,
-        repo_settings,
-        chat_messages,
-        todos,
-        bookmarks,
-        snippets,
-    };
-
-    let json = serde_json::to_string_pretty(&bundle)?;
-    Ok(json)
+        let json = serde_json::to_string_pretty(&bundle)?;
+        Ok(json)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[cfg(test)]

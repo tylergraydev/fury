@@ -10,7 +10,7 @@ use crate::services::port_allocator::PortAllocator;
 use crate::services::spotlight::SpotlightHandle;
 use crate::services::terminal::TerminalSession;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use tokio::process::{Child, ChildStdin};
 use uuid::Uuid;
 
@@ -22,9 +22,9 @@ pub struct PersistentAgentHandle {
 }
 
 pub struct AppState {
-    pub repositories: Mutex<HashMap<Uuid, Repository>>,
-    pub workspaces: Mutex<HashMap<Uuid, Workspace>>,
-    pub settings: Mutex<AppSettings>,
+    pub repositories: RwLock<HashMap<Uuid, Repository>>,
+    pub workspaces: RwLock<HashMap<Uuid, Workspace>>,
+    pub settings: RwLock<AppSettings>,
     pub port_allocator: Mutex<PortAllocator>,
     pub db: Mutex<Option<Database>>,
     /// Agent metadata — Arc-wrapped so async tasks can hold a reference
@@ -54,9 +54,9 @@ pub struct AppState {
 impl AppState {
     pub fn new() -> Self {
         Self {
-            repositories: Mutex::new(HashMap::new()),
-            workspaces: Mutex::new(HashMap::new()),
-            settings: Mutex::new(AppSettings::default()),
+            repositories: RwLock::new(HashMap::new()),
+            workspaces: RwLock::new(HashMap::new()),
+            settings: RwLock::new(AppSettings::default()),
             port_allocator: Mutex::new(PortAllocator::new(10000, 60000)),
             db: Mutex::new(None),
             agents: Arc::new(Mutex::new(HashMap::new())),
@@ -82,8 +82,8 @@ mod tests {
     fn test_new_initializes_empty_collections() {
         let state = AppState::new();
 
-        assert!(state.repositories.lock().unwrap().is_empty());
-        assert!(state.workspaces.lock().unwrap().is_empty());
+        assert!(state.repositories.read().unwrap().is_empty());
+        assert!(state.workspaces.read().unwrap().is_empty());
         assert!(state.agents.lock().unwrap().is_empty());
         assert!(state.agent_processes.lock().unwrap().is_empty());
         assert!(state.script_processes.lock().unwrap().is_empty());
@@ -100,7 +100,7 @@ mod tests {
     #[test]
     fn test_new_initializes_default_settings() {
         let state = AppState::new();
-        let settings = state.settings.lock().unwrap();
+        let settings = state.settings.read().unwrap();
         // Verify settings are the default
         assert!(!settings.analytics_enabled);
         assert!(settings.system_prompt_additions.is_none());
@@ -117,9 +117,9 @@ mod tests {
             current_branch: None,
         };
         let id = repo.id;
-        state.repositories.lock().unwrap().insert(id, repo);
-        assert_eq!(state.repositories.lock().unwrap().len(), 1);
-        assert!(state.repositories.lock().unwrap().contains_key(&id));
+        state.repositories.write().unwrap().insert(id, repo);
+        assert_eq!(state.repositories.read().unwrap().len(), 1);
+        assert!(state.repositories.read().unwrap().contains_key(&id));
     }
 
     #[test]
@@ -127,8 +127,8 @@ mod tests {
         let state = AppState::new();
         let ws = crate::test_helpers::test_workspace(Uuid::new_v4());
         let id = ws.id;
-        state.workspaces.lock().unwrap().insert(id, ws);
-        assert_eq!(state.workspaces.lock().unwrap().len(), 1);
+        state.workspaces.write().unwrap().insert(id, ws);
+        assert_eq!(state.workspaces.read().unwrap().len(), 1);
     }
 
     #[test]
