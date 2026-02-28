@@ -52,6 +52,10 @@ describe("NotificationPanel", () => {
   });
 
   it("renders grouped notifications with time labels", () => {
+    // Use fake timers set to noon so "3 hours ago" is always after midnight (i.e. "Today"),
+    // regardless of the CI runner's timezone.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 15, 12, 0, 0)); // Jan 15, 2026 12:00 noon
     const now = Date.now();
     useNotificationStore.setState({
       panelOpen: true,
@@ -64,6 +68,7 @@ describe("NotificationPanel", () => {
 
     expect(screen.getByText("Just now")).toBeTruthy();
     expect(screen.getByText("Today")).toBeTruthy();
+    vi.useRealTimers();
   });
 
   it("shows Mark all read when unreadCount > 0", () => {
