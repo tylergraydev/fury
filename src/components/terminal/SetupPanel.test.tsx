@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { SetupPanel } from "./SetupPanel";
 import { useScriptStore } from "../../stores/scriptStore";
 
@@ -99,9 +99,9 @@ describe("SetupPanel", () => {
     expect(mockClearOutput).toHaveBeenCalledWith("ws-1", "setup");
   });
 
-  it("subscribes on mount and unsubscribes on unmount", () => {
+  it("subscribes on mount and unsubscribes on unmount", async () => {
     const { unmount } = render(<SetupPanel context={{ id: "ws-1", type: "workspace" }} />);
-    expect(mockSubscribe).toHaveBeenCalledWith("ws-1", "setup");
+    await waitFor(() => expect(mockSubscribe).toHaveBeenCalledWith("ws-1", "setup"));
     unmount();
     expect(mockUnsubscribe).toHaveBeenCalledWith("ws-1", "setup");
   });

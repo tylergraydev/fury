@@ -175,6 +175,8 @@ describe("PRPanel", () => {
 
   it("submits create PR form and calls store", async () => {
     render(<PRPanel workspaceId="ws-1" />);
+    // Wait for deferred loadPrInfo to settle before interacting with form
+    await waitFor(() => expect(mockGetPrInfo).toHaveBeenCalled());
     const button = await screen.findByRole("button", { name: "Create Pull Request" });
     const createPrSpy = vi.spyOn(usePrStore.getState(), "createPr");
     await act(async () => {
@@ -211,9 +213,10 @@ describe("PRPanel", () => {
   it("shows Creating... text when loading during form", async () => {
     usePrStore.setState({ loading: { "ws-1": false } });
     render(<PRPanel workspaceId="ws-1" />);
-    // Wait for form to appear
+    // Wait for deferred loadPrInfo to settle so prInfo is populated
+    await waitFor(() => expect(mockGetPrInfo).toHaveBeenCalled());
     await screen.findByPlaceholderText("PR title");
-    // Set loading
+    // Set loading — with prInfo populated, shows "Creating..." instead of "Loading PR info..."
     await act(async () => {
       usePrStore.setState({ loading: { "ws-1": true } });
     });
@@ -810,12 +813,14 @@ describe("PRPanel", () => {
 
   // === Effects ===
 
-  it("subscribes and loads PR info on mount", () => {
+  it("subscribes and loads PR info on mount", async () => {
     const subscribeSpy = vi.spyOn(usePrStore.getState(), "subscribe");
     const loadSpy = vi.spyOn(usePrStore.getState(), "loadPrInfo");
     render(<PRPanel workspaceId="ws-1" />);
-    expect(subscribeSpy).toHaveBeenCalledWith("ws-1");
-    expect(loadSpy).toHaveBeenCalledWith("ws-1");
+    await waitFor(() => {
+      expect(subscribeSpy).toHaveBeenCalledWith("ws-1");
+      expect(loadSpy).toHaveBeenCalledWith("ws-1");
+    });
   });
 
   it("unsubscribes on unmount", () => {
@@ -938,6 +943,8 @@ describe("PRPanel", () => {
       ],
     });
     render(<PRPanel workspaceId="ws-1" />);
+    // Wait for deferred loadPrInfo to complete before accessing fiber props
+    await waitFor(() => expect(mockGetPrInfo).toHaveBeenCalled());
     const button = await screen.findByRole("button", { name: "Create Pull Request" });
     expect(button).toBeDisabled();
 

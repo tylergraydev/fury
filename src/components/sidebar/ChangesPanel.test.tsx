@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 
 import { ChangesPanel } from "./ChangesPanel";
 import { useDiffStore } from "../../stores/diffStore";
@@ -157,14 +157,14 @@ describe("ChangesPanel", () => {
     expect(screen.getByText("1 file")).toBeInTheDocument();
   });
 
-  it("calls loadDiff for workspace context on mount", () => {
+  it("calls loadDiff for workspace context on mount", async () => {
     render(<ChangesPanel context={wsContext} />);
-    expect(mockLoadDiff).toHaveBeenCalledWith("ws-1");
+    await waitFor(() => expect(mockLoadDiff).toHaveBeenCalledWith("ws-1"));
   });
 
-  it("calls loadRepoDiff for repo context on mount", () => {
+  it("calls loadRepoDiff for repo context on mount", async () => {
     render(<ChangesPanel context={repoContext} />);
-    expect(mockLoadRepoDiff).toHaveBeenCalledWith("repo-1");
+    await waitFor(() => expect(mockLoadRepoDiff).toHaveBeenCalledWith("repo-1"));
   });
 
   it("refreshes workspace when agent transitions to idle", () => {

@@ -760,12 +760,14 @@ describe("ChecksPanel", () => {
 
   // === Effects ===
 
-  it("subscribes and loads PR info on mount", () => {
+  it("subscribes and loads PR info on mount", async () => {
     const subscribeSpy = vi.spyOn(usePrStore.getState(), "subscribe");
     const loadSpy = vi.spyOn(usePrStore.getState(), "loadPrInfo");
     render(<ChecksPanel workspaceId="ws-1" />);
-    expect(subscribeSpy).toHaveBeenCalledWith("ws-1");
-    expect(loadSpy).toHaveBeenCalledWith("ws-1");
+    await waitFor(() => {
+      expect(subscribeSpy).toHaveBeenCalledWith("ws-1");
+      expect(loadSpy).toHaveBeenCalledWith("ws-1");
+    });
   });
 
   it("unsubscribes on unmount", () => {

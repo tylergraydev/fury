@@ -45,14 +45,19 @@ function PrStatusBar({ workspaceId }: { workspaceId: string }) {
   const prError = usePrStore((s) => s.error[workspaceId] ?? null);
 
   useEffect(() => {
-    const store = usePrStore.getState();
-    store.subscribe(workspaceId).catch((e) => {
-      /* v8 ignore start -- subscribe rarely fails */
-      console.error("[PrStatusBar] Failed to subscribe to PR events:", e);
-      /* v8 ignore stop */
+    const id = requestAnimationFrame(() => {
+      const store = usePrStore.getState();
+      store.subscribe(workspaceId).catch((e) => {
+        /* v8 ignore start -- subscribe rarely fails */
+        console.error("[PrStatusBar] Failed to subscribe to PR events:", e);
+        /* v8 ignore stop */
+      });
+      store.loadPrInfo(workspaceId);
     });
-    store.loadPrInfo(workspaceId);
-    return () => usePrStore.getState().unsubscribe(workspaceId);
+    return () => {
+      cancelAnimationFrame(id);
+      usePrStore.getState().unsubscribe(workspaceId);
+    };
   }, [workspaceId]);
 
   const hasPr = prInfo?.prNumber != null;
@@ -217,12 +222,15 @@ export function ChangesPanel({ context }: Props) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    const store = useDiffStore.getState();
-    if (context.type === "workspace") {
-      store.loadDiff(contextId);
-    } else {
-      store.loadRepoDiff(contextId);
-    }
+    const id = requestAnimationFrame(() => {
+      const store = useDiffStore.getState();
+      if (context.type === "workspace") {
+        store.loadDiff(contextId);
+      } else {
+        store.loadRepoDiff(contextId);
+      }
+    });
+    return () => cancelAnimationFrame(id);
   }, [context.type, contextId]);
 
   // Auto-refresh when agent transitions to Idle (not on initial mount)
