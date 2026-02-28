@@ -943,6 +943,8 @@ describe("PRPanel", () => {
       ],
     });
     render(<PRPanel workspaceId="ws-1" />);
+    // Wait for deferred loadPrInfo to complete before accessing fiber props
+    await waitFor(() => expect(mockGetPrInfo).toHaveBeenCalled());
     const button = await screen.findByRole("button", { name: "Create Pull Request" });
     expect(button).toBeDisabled();
 
