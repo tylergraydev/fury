@@ -126,10 +126,9 @@ export function RightSidebar({ context }: Props) {
     }
   }, [context.type, activeTab, setTab]);
 
-  // Load diff lazily — only when the Changes tab is selected (not on mount).
-  // This avoids a heavy git-diff IPC call during the initial mount burst.
+  // Defer diff loading by one frame to avoid the initial mount IPC burst,
+  // but load eagerly (regardless of active tab) for the change count badge.
   useEffect(() => {
-    if (activeTab !== "changes") return;
     const id = requestAnimationFrame(() => {
       const store = useDiffStore.getState();
       if (context.type === "workspace") {
@@ -139,7 +138,7 @@ export function RightSidebar({ context }: Props) {
       }
     });
     return () => cancelAnimationFrame(id);
-  }, [activeTab, context.type, context.id]);
+  }, [context.type, context.id]);
 
   const bottomPanelRef = useRef<ImperativePanelHandle>(null);
   const [bottomCollapsed, setBottomCollapsed] = useState(false);
