@@ -5,7 +5,7 @@ use tauri::State;
 use uuid::Uuid;
 
 #[tauri::command]
-pub fn save_chat_message(state: State<'_, AppState>, message: ChatMessage) -> Result<(), AppError> {
+pub async fn save_chat_message(state: State<'_, AppState>, message: ChatMessage) -> Result<(), AppError> {
     let db_lock = state
         .db
         .lock()
@@ -18,7 +18,7 @@ pub fn save_chat_message(state: State<'_, AppState>, message: ChatMessage) -> Re
 }
 
 #[tauri::command]
-pub fn list_chat_messages(
+pub async fn list_chat_messages(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<ChatMessage>, AppError> {
@@ -36,7 +36,7 @@ pub fn list_chat_messages(
 }
 
 #[tauri::command]
-pub fn clear_chat_messages(
+pub async fn clear_chat_messages(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<(), AppError> {
@@ -55,7 +55,7 @@ pub fn clear_chat_messages(
 }
 
 #[tauri::command]
-pub fn search_chat_messages(
+pub async fn search_chat_messages(
     state: State<'_, AppState>,
     query: String,
     workspace_id: Option<String>,

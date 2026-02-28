@@ -745,7 +745,7 @@ pub async fn respond_to_permission(
 }
 
 #[tauri::command]
-pub fn stop_agent(
+pub async fn stop_agent(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     workspace_id: String,
@@ -754,58 +754,68 @@ pub fn stop_agent(
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
-    // Set status to Stopping and get PID for kill
-    let pid = {
-        let mut agents = state.agents.lock().unwrap();
-        if let Some(agent) = agents.get_mut(&id) {
-            agent.status = AgentStatus::Stopping;
-            agent.pid
-        } else {
-            None
+    // Extract Arc references before spawn_blocking
+    let agents = Arc::clone(&state.agents);
+    let agent_processes = Arc::clone(&state.agent_processes);
+    let persistent_agents = Arc::clone(&state.persistent_agents);
+    let agent_stdins = Arc::clone(&state.agent_stdins);
+
+    tokio::task::spawn_blocking(move || {
+        // Set status to Stopping and get PID for kill
+        let pid = {
+            let mut agents_lock = agents.lock().unwrap();
+            if let Some(agent) = agents_lock.get_mut(&id) {
+                agent.status = AgentStatus::Stopping;
+                agent.pid
+            } else {
+                None
+            }
+        };
+
+        // Kill via PID stored in agent info (works even if background task took the Child)
+        if let Some(pid) = pid {
+            let _ = crate::platform::kill_process_group(pid);
         }
-    };
 
-    // Kill via PID stored in agent info (works even if background task took the Child)
-    if let Some(pid) = pid {
-        let _ = crate::platform::kill_process_group(pid);
-    }
-
-    // Also try agent_processes as fallback
-    {
-        let mut processes = state.agent_processes.lock().unwrap();
-        if let Some(child) = processes.remove(&id) {
-            if let Some(pid) = child.id() {
-                let _ = crate::platform::kill_process_group(pid);
+        // Also try agent_processes as fallback
+        {
+            let mut processes = agent_processes.lock().unwrap();
+            if let Some(child) = processes.remove(&id) {
+                if let Some(pid) = child.id() {
+                    let _ = crate::platform::kill_process_group(pid);
+                }
             }
         }
-    }
 
-    // Clean up persistent state and stdin handles
-    state.persistent_agents.lock().unwrap().remove(&id);
-    state.agent_stdins.lock().unwrap().remove(&id);
+        // Clean up persistent state and stdin handles
+        persistent_agents.lock().unwrap().remove(&id);
+        agent_stdins.lock().unwrap().remove(&id);
 
-    // Set status to Idle and clear PID
-    {
-        let mut agents = state.agents.lock().unwrap();
-        if let Some(agent) = agents.get_mut(&id) {
-            agent.status = AgentStatus::Idle;
-            agent.pid = None;
+        // Set status to Idle and clear PID
+        {
+            let mut agents_lock = agents.lock().unwrap();
+            if let Some(agent) = agents_lock.get_mut(&id) {
+                agent.status = AgentStatus::Idle;
+                agent.pid = None;
+            }
         }
-    }
 
-    let _ = app.emit(
-        &format!("agent-status:{}", id),
-        &AgentStatusEvent {
-            workspace_id: id,
-            status: AgentStatus::Idle,
-        },
-    );
+        let _ = app.emit(
+            &format!("agent-status:{}", id),
+            &AgentStatusEvent {
+                workspace_id: id,
+                status: AgentStatus::Idle,
+            },
+        );
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_agent_status(
+pub async fn get_agent_status(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<AgentInfo, AppError> {
@@ -813,15 +823,20 @@ pub fn get_agent_status(
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
-    let agents = state.agents.lock().unwrap();
-    Ok(agents
-        .get(&id)
-        .cloned()
-        .unwrap_or_else(|| AgentInfo::new(id)))
+    let agents = Arc::clone(&state.agents);
+    tokio::task::spawn_blocking(move || {
+        let agents_lock = agents.lock().unwrap();
+        Ok(agents_lock
+            .get(&id)
+            .cloned()
+            .unwrap_or_else(|| AgentInfo::new(id)))
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn clear_session(
+pub async fn clear_session(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<(), AppError> {
@@ -829,23 +844,32 @@ pub fn clear_session(
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
-    let mut agents = state.agents.lock().unwrap();
-    if let Some(agent) = agents.get_mut(&id) {
-        agent.session_id = None;
-    }
-    drop(agents);
+    let agents = Arc::clone(&state.agents);
+    let persistent_agents = Arc::clone(&state.persistent_agents);
+    let agent_stdins = Arc::clone(&state.agent_stdins);
+    let agent_processes = Arc::clone(&state.agent_processes);
 
-    // Kill any persistent process for this workspace (new session = new process)
-    state.persistent_agents.lock().unwrap().remove(&id);
-    state.agent_stdins.lock().unwrap().remove(&id);
-    {
-        let mut processes = state.agent_processes.lock().unwrap();
-        if let Some(child) = processes.remove(&id) {
-            if let Some(pid) = child.id() {
-                let _ = crate::platform::kill_process_group(pid);
+    tokio::task::spawn_blocking(move || {
+        let mut agents_lock = agents.lock().unwrap();
+        if let Some(agent) = agents_lock.get_mut(&id) {
+            agent.session_id = None;
+        }
+        drop(agents_lock);
+
+        // Kill any persistent process for this workspace (new session = new process)
+        persistent_agents.lock().unwrap().remove(&id);
+        agent_stdins.lock().unwrap().remove(&id);
+        {
+            let mut processes = agent_processes.lock().unwrap();
+            if let Some(child) = processes.remove(&id) {
+                if let Some(pid) = child.id() {
+                    let _ = crate::platform::kill_process_group(pid);
+                }
             }
         }
-    }
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }

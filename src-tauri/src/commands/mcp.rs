@@ -48,29 +48,33 @@ pub async fn remove_mcp_server(request: RemoveMcpRequest) -> Result<(), AppError
 }
 
 #[tauri::command]
-pub fn detect_cursor_config() -> Result<bool, AppError> {
-    Ok(cursor_migration::detect_cursor_config().is_some())
+pub async fn detect_cursor_config() -> Result<bool, AppError> {
+    tokio::task::spawn_blocking(|| Ok(cursor_migration::detect_cursor_config().is_some()))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn import_cursor_config() -> Result<CursorMigrationResult, AppError> {
-    cursor_migration::import_cursor_mcp_servers()
+pub async fn import_cursor_config() -> Result<CursorMigrationResult, AppError> {
+    tokio::task::spawn_blocking(cursor_migration::import_cursor_mcp_servers)
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_app_settings(state: State<'_, AppState>) -> Result<AppSettings, AppError> {
-    let settings = state.settings.read().unwrap();
-    Ok(settings.clone())
+pub async fn get_app_settings(state: State<'_, AppState>) -> Result<AppSettings, AppError> {
+    let settings = state.settings.read().unwrap().clone();
+    Ok(settings)
 }
 
 #[tauri::command]
-pub fn update_app_settings(
+pub async fn update_app_settings(
     state: State<'_, AppState>,
     settings: AppSettings,
 ) -> Result<(), AppError> {
     let old_settings = state.settings.read().unwrap().clone();
 
-    // Persist to database
+    // Persist to database — extract the Arc'd db
     let db_guard = state.db.lock().unwrap();
     if let Some(ref db) = *db_guard {
         db.save_app_settings(&settings)?;
@@ -110,17 +114,25 @@ pub fn update_app_settings(
 }
 
 #[tauri::command]
-pub fn detect_cursorrules(state: State<'_, AppState>, repo_id: String) -> Result<bool, AppError> {
+pub async fn detect_cursorrules(
+    state: State<'_, AppState>,
+    repo_id: String,
+) -> Result<bool, AppError> {
     let id: Uuid = repo_id
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
-    let repos = state.repositories.read().unwrap();
-    let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
-    Ok(cursor_migration::detect_cursorrules(&repo.path))
+    let repo_path = {
+        let repos = state.repositories.read().unwrap();
+        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+        repo.path.clone()
+    };
+    tokio::task::spawn_blocking(move || Ok(cursor_migration::detect_cursorrules(&repo_path)))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn import_cursorrules(
+pub async fn import_cursorrules(
     state: State<'_, AppState>,
     repo_id: String,
     overwrite: bool,
@@ -128,7 +140,12 @@ pub fn import_cursorrules(
     let id: Uuid = repo_id
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
-    let repos = state.repositories.read().unwrap();
-    let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
-    cursor_migration::import_cursorrules(&repo.path, overwrite)
+    let repo_path = {
+        let repos = state.repositories.read().unwrap();
+        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+        repo.path.clone()
+    };
+    tokio::task::spawn_blocking(move || cursor_migration::import_cursorrules(&repo_path, overwrite))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }

@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::services::script_runner::ScriptExitEvent;
 
 #[tauri::command]
-pub fn detect_test_framework(
+pub async fn detect_test_framework(
     state: State<'_, AppState>,
     repo_id: String,
 ) -> Result<TestRunnerConfig, AppError> {
@@ -24,14 +24,18 @@ pub fn detect_test_framework(
         repo.path.clone()
     };
 
-    match test_runner::detect_framework(&repo_path) {
-        Some(fw) => Ok(test_runner::default_commands(&fw)),
-        None => Ok(TestRunnerConfig::default()),
-    }
+    tokio::task::spawn_blocking(move || {
+        match test_runner::detect_framework(&repo_path) {
+            Some(fw) => Ok(test_runner::default_commands(&fw)),
+            None => Ok(TestRunnerConfig::default()),
+        }
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_test_runner_config(
+pub async fn get_test_runner_config(
     state: State<'_, AppState>,
     repo_id: String,
 ) -> Result<TestRunnerConfig, AppError> {
@@ -39,7 +43,7 @@ pub fn get_test_runner_config(
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
-    // Try to read from DB first
+    // Read DB config before spawn_blocking (db is not Arc)
     let db_config = {
         let db = state.db.lock().unwrap();
         match db.as_ref() {
@@ -60,27 +64,31 @@ pub fn get_test_runner_config(
         repo.path.clone()
     };
 
-    match test_runner::detect_framework(&repo_path) {
-        Some(fw) => {
-            let mut config = test_runner::default_commands(&fw);
-            // Merge: DB overrides take precedence over auto-detected defaults
-            if db_config.test_command.is_some() {
-                config.test_command = db_config.test_command;
+    tokio::task::spawn_blocking(move || {
+        match test_runner::detect_framework(&repo_path) {
+            Some(fw) => {
+                let mut config = test_runner::default_commands(&fw);
+                // Merge: DB overrides take precedence over auto-detected defaults
+                if db_config.test_command.is_some() {
+                    config.test_command = db_config.test_command;
+                }
+                if db_config.test_file_command.is_some() {
+                    config.test_file_command = db_config.test_file_command;
+                }
+                if db_config.working_dir.is_some() {
+                    config.working_dir = db_config.working_dir;
+                }
+                Ok(config)
             }
-            if db_config.test_file_command.is_some() {
-                config.test_file_command = db_config.test_file_command;
-            }
-            if db_config.working_dir.is_some() {
-                config.working_dir = db_config.working_dir;
-            }
-            Ok(config)
+            None => Ok(db_config),
         }
-        None => Ok(db_config),
-    }
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn save_test_runner_config(
+pub async fn save_test_runner_config(
     state: State<'_, AppState>,
     repo_id: String,
     config: TestRunnerConfig,
@@ -273,7 +281,7 @@ pub async fn run_tests(
 }
 
 #[tauri::command]
-pub fn stop_tests(
+pub async fn stop_tests(
     state: State<'_, AppState>,
     context_id: String,
 ) -> Result<(), AppError> {
@@ -281,12 +289,17 @@ pub fn stop_tests(
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
-    let process_key = format!("test:{}", ctx_id);
-    let mut processes = state.test_processes.lock().unwrap();
-    if let Some(pid) = processes.remove(&process_key) {
-        let _ = crate::platform::kill_process_group(pid);
-    }
+    let test_processes = Arc::clone(&state.test_processes);
+    tokio::task::spawn_blocking(move || {
+        let process_key = format!("test:{}", ctx_id);
+        let mut processes = test_processes.lock().unwrap();
+        if let Some(pid) = processes.remove(&process_key) {
+            let _ = crate::platform::kill_process_group(pid);
+        }
 
-    // Also emit an error event to signal the UI
-    Ok(())
+        // Also emit an error event to signal the UI
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }

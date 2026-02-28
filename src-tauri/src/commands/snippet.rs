@@ -7,7 +7,7 @@ use crate::models::snippet::{CreateSnippetRequest, Snippet, UpdateSnippetRequest
 use crate::state::AppState;
 
 #[tauri::command]
-pub fn create_snippet(
+pub async fn create_snippet(
     state: State<'_, AppState>,
     request: CreateSnippetRequest,
 ) -> Result<Snippet, AppError> {
@@ -33,7 +33,7 @@ pub fn create_snippet(
 }
 
 #[tauri::command]
-pub fn list_snippets(state: State<'_, AppState>) -> Result<Vec<Snippet>, AppError> {
+pub async fn list_snippets(state: State<'_, AppState>) -> Result<Vec<Snippet>, AppError> {
     let db = state.db.lock().unwrap();
     if let Some(db) = db.as_ref() {
         db.list_snippets()
@@ -43,7 +43,7 @@ pub fn list_snippets(state: State<'_, AppState>) -> Result<Vec<Snippet>, AppErro
 }
 
 #[tauri::command]
-pub fn update_snippet(
+pub async fn update_snippet(
     state: State<'_, AppState>,
     snippet_id: String,
     request: UpdateSnippetRequest,
@@ -84,7 +84,7 @@ pub fn update_snippet(
 }
 
 #[tauri::command]
-pub fn delete_snippet(state: State<'_, AppState>, snippet_id: String) -> Result<(), AppError> {
+pub async fn delete_snippet(state: State<'_, AppState>, snippet_id: String) -> Result<(), AppError> {
     let id = Uuid::parse_str(&snippet_id)
         .map_err(|e| AppError::DbError(format!("Invalid UUID: {}", e)))?;
     let db = state.db.lock().unwrap();

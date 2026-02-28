@@ -1,4 +1,5 @@
 use std::io::{Read, Write};
+use std::sync::Arc;
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -74,7 +75,7 @@ pub async fn create_terminal(
 }
 
 #[tauri::command]
-pub fn write_terminal(
+pub async fn write_terminal(
     state: State<'_, AppState>,
     terminal_id: String,
     data: String,
@@ -87,26 +88,31 @@ pub fn write_terminal(
         .decode(&data)
         .map_err(|e| AppError::ScriptError(format!("Failed to decode input: {}", e)))?;
 
-    let mut sessions = state.terminal_sessions.lock().unwrap();
-    let session = sessions
-        .get_mut(&id)
-        .ok_or_else(|| AppError::ScriptError("Terminal session not found".to_string()))?;
+    let terminal_sessions = Arc::clone(&state.terminal_sessions);
+    tokio::task::spawn_blocking(move || {
+        let mut sessions = terminal_sessions.lock().unwrap();
+        let session = sessions
+            .get_mut(&id)
+            .ok_or_else(|| AppError::ScriptError("Terminal session not found".to_string()))?;
 
-    session
-        .writer
-        .write_all(&decoded)
-        .map_err(|e| AppError::ScriptError(format!("Failed to write to terminal: {}", e)))?;
+        session
+            .writer
+            .write_all(&decoded)
+            .map_err(|e| AppError::ScriptError(format!("Failed to write to terminal: {}", e)))?;
 
-    session
-        .writer
-        .flush()
-        .map_err(|e| AppError::ScriptError(format!("Failed to flush terminal: {}", e)))?;
+        session
+            .writer
+            .flush()
+            .map_err(|e| AppError::ScriptError(format!("Failed to flush terminal: {}", e)))?;
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn resize_terminal(
+pub async fn resize_terminal(
     state: State<'_, AppState>,
     terminal_id: String,
     cols: u16,
@@ -116,26 +122,31 @@ pub fn resize_terminal(
         .parse()
         .map_err(|_| AppError::ScriptError("Invalid terminal ID".to_string()))?;
 
-    let sessions = state.terminal_sessions.lock().unwrap();
-    let session = sessions
-        .get(&id)
-        .ok_or_else(|| AppError::ScriptError("Terminal session not found".to_string()))?;
+    let terminal_sessions = Arc::clone(&state.terminal_sessions);
+    tokio::task::spawn_blocking(move || {
+        let sessions = terminal_sessions.lock().unwrap();
+        let session = sessions
+            .get(&id)
+            .ok_or_else(|| AppError::ScriptError("Terminal session not found".to_string()))?;
 
-    session
-        .master
-        .resize(PtySize {
-            rows,
-            cols,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .map_err(|e| AppError::ScriptError(format!("Failed to resize terminal: {}", e)))?;
+        session
+            .master
+            .resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|e| AppError::ScriptError(format!("Failed to resize terminal: {}", e)))?;
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn close_terminal(
+pub async fn close_terminal(
     state: State<'_, AppState>,
     terminal_id: String,
 ) -> Result<(), AppError> {
@@ -143,12 +154,17 @@ pub fn close_terminal(
         .parse()
         .map_err(|_| AppError::ScriptError("Invalid terminal ID".to_string()))?;
 
-    let mut sessions = state.terminal_sessions.lock().unwrap();
-    if let Some(mut session) = sessions.remove(&id) {
-        let _ = session.child.kill();
-    }
+    let terminal_sessions = Arc::clone(&state.terminal_sessions);
+    tokio::task::spawn_blocking(move || {
+        let mut sessions = terminal_sessions.lock().unwrap();
+        if let Some(mut session) = sessions.remove(&id) {
+            let _ = session.child.kill();
+        }
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]

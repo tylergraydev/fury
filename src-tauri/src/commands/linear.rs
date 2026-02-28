@@ -6,7 +6,7 @@ use tauri::State;
 use uuid::Uuid;
 
 #[tauri::command]
-pub fn search_linear_issues(
+pub async fn search_linear_issues(
     state: State<'_, AppState>,
     query: String,
 ) -> Result<Vec<LinearIssue>, AppError> {
@@ -19,11 +19,13 @@ pub fn search_linear_issues(
         })?
     };
 
-    linear_svc::search_issues(&api_key, &query)
+    tokio::task::spawn_blocking(move || linear_svc::search_issues(&api_key, &query))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn link_issue_to_workspace(
+pub async fn link_issue_to_workspace(
     state: State<'_, AppState>,
     request: LinkIssueRequest,
 ) -> Result<(), AppError> {
@@ -53,7 +55,7 @@ pub fn link_issue_to_workspace(
 }
 
 #[tauri::command]
-pub fn unlink_issue_from_workspace(
+pub async fn unlink_issue_from_workspace(
     state: State<'_, AppState>,
     request: UnlinkIssueRequest,
 ) -> Result<(), AppError> {
@@ -70,7 +72,7 @@ pub fn unlink_issue_from_workspace(
 }
 
 #[tauri::command]
-pub fn get_workspace_issues(
+pub async fn get_workspace_issues(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<WorkspaceIssue>, AppError> {

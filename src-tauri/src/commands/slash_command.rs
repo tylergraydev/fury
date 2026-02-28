@@ -6,7 +6,7 @@ use tauri::State;
 use uuid::Uuid;
 
 #[tauri::command]
-pub fn list_slash_commands(
+pub async fn list_slash_commands(
     state: State<'_, AppState>,
     context_id: String,
     context_type: String,
@@ -25,11 +25,13 @@ pub fn list_slash_commands(
         repos.get(&ws.repo_id).map(|r| r.path.clone())
     };
 
-    slash_svc::discover_commands(repo_path.as_deref())
+    tokio::task::spawn_blocking(move || slash_svc::discover_commands(repo_path.as_deref()))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_slash_command_content(
+pub async fn get_slash_command_content(
     state: State<'_, AppState>,
     workspace_id: String,
     name: String,
@@ -47,6 +49,10 @@ pub fn get_slash_command_content(
         repos.get(&ws.repo_id).map(|r| r.path.clone())
     };
 
-    let commands = slash_svc::discover_commands(repo_path.as_deref())?;
-    Ok(commands.into_iter().find(|c| c.name == name))
+    tokio::task::spawn_blocking(move || {
+        let commands = slash_svc::discover_commands(repo_path.as_deref())?;
+        Ok(commands.into_iter().find(|c| c.name == name))
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }

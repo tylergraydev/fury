@@ -142,7 +142,7 @@ pub async fn run_script(
 }
 
 #[tauri::command]
-pub fn stop_script(
+pub async fn stop_script(
     state: State<'_, AppState>,
     workspace_id: String,
     script_kind: String,
@@ -152,15 +152,20 @@ pub fn stop_script(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
     let kind = ScriptKind::from_str(&script_kind)?;
 
-    let key = format!("{}:{}", ws_id, kind.as_str());
-    let mut processes = state.script_processes.lock().unwrap();
-    if let Some(child) = processes.remove(&key) {
-        if let Some(pid) = child.id() {
-            let _ = crate::platform::kill_process_group(pid);
+    let script_processes = Arc::clone(&state.script_processes);
+    tokio::task::spawn_blocking(move || {
+        let key = format!("{}:{}", ws_id, kind.as_str());
+        let mut processes = script_processes.lock().unwrap();
+        if let Some(child) = processes.remove(&key) {
+            if let Some(pid) = child.id() {
+                let _ = crate::platform::kill_process_group(pid);
+            }
         }
-    }
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
@@ -263,7 +268,7 @@ pub async fn run_repo_script(
 }
 
 #[tauri::command]
-pub fn stop_repo_script(
+pub async fn stop_repo_script(
     state: State<'_, AppState>,
     repo_id: String,
     script_kind: String,
@@ -273,19 +278,24 @@ pub fn stop_repo_script(
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
     let kind = ScriptKind::from_str(&script_kind)?;
 
-    let key = format!("repo:{}:{}", id, kind.as_str());
-    let mut processes = state.script_processes.lock().unwrap();
-    if let Some(child) = processes.remove(&key) {
-        if let Some(pid) = child.id() {
-            let _ = crate::platform::kill_process_group(pid);
+    let script_processes = Arc::clone(&state.script_processes);
+    tokio::task::spawn_blocking(move || {
+        let key = format!("repo:{}:{}", id, kind.as_str());
+        let mut processes = script_processes.lock().unwrap();
+        if let Some(child) = processes.remove(&key) {
+            if let Some(pid) = child.id() {
+                let _ = crate::platform::kill_process_group(pid);
+            }
         }
-    }
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn get_repo_settings(
+pub async fn get_repo_settings(
     state: State<'_, AppState>,
     repo_id: String,
 ) -> Result<RepoSettings, AppError> {
@@ -297,7 +307,7 @@ pub fn get_repo_settings(
 }
 
 #[tauri::command]
-pub fn update_repo_settings(
+pub async fn update_repo_settings(
     state: State<'_, AppState>,
     repo_id: String,
     settings: RepoSettings,

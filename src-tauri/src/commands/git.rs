@@ -34,7 +34,7 @@ pub struct GitLogEntry {
 }
 
 #[tauri::command]
-pub fn get_git_log(
+pub async fn get_git_log(
     state: State<'_, AppState>,
     workspace_id: String,
     max_count: Option<u32>,
@@ -54,39 +54,43 @@ pub fn get_git_log(
         ws.worktree_path.clone()
     };
 
-    let count = max_count.unwrap_or(100).to_string();
-    let format_arg = "--format=%h\x1f%H\x1f%s\x1f%an\x1f%aI";
+    let count = max_count.unwrap_or(100);
+    tokio::task::spawn_blocking(move || {
+        let count_str = count.to_string();
+        let format_arg = "--format=%h\x1f%H\x1f%s\x1f%an\x1f%aI";
 
-    let output = platform::command("git")
-        .args(["log", &format!("--max-count={}", count), format_arg])
-        .current_dir(&worktree_path)
-        .output()?;
+        let output = platform::command("git")
+            .args(["log", &format!("--max-count={}", count_str), format_arg])
+            .current_dir(&worktree_path)
+            .output()?;
 
-    if !output.status.success() {
-        // Empty repo or no commits - return empty list
-        return Ok(Vec::new());
-    }
+        if !output.status.success() {
+            return Ok(Vec::new());
+        }
 
-    let entries = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter(|l| !l.is_empty())
-        .filter_map(|line| {
-            let parts: Vec<&str> = line.splitn(5, '\x1f').collect();
-            if parts.len() == 5 {
-                Some(GitLogEntry {
-                    hash: parts[0].to_string(),
-                    full_hash: parts[1].to_string(),
-                    message: parts[2].to_string(),
-                    author: parts[3].to_string(),
-                    timestamp: parts[4].to_string(),
-                })
-            } else {
-                None
-            }
-        })
-        .collect();
+        let entries = String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter(|l| !l.is_empty())
+            .filter_map(|line| {
+                let parts: Vec<&str> = line.splitn(5, '\x1f').collect();
+                if parts.len() == 5 {
+                    Some(GitLogEntry {
+                        hash: parts[0].to_string(),
+                        full_hash: parts[1].to_string(),
+                        message: parts[2].to_string(),
+                        author: parts[3].to_string(),
+                        timestamp: parts[4].to_string(),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
 
-    Ok(entries)
+        Ok(entries)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
@@ -152,7 +156,7 @@ pub async fn get_file_diff(
 }
 
 #[tauri::command]
-pub fn list_repo_directories(
+pub async fn list_repo_directories(
     state: State<'_, AppState>,
     repo_id: String,
     depth: Option<u32>,
@@ -171,36 +175,40 @@ pub fn list_repo_directories(
     };
 
     let depth = depth.unwrap_or(1);
-    let mut args = vec!["ls-tree", "--name-only", "-d"];
-    let depth_str;
-    if depth > 1 {
-        depth_str = "-r".to_string();
-        args.push(&depth_str);
-    }
-    args.push("HEAD");
+    tokio::task::spawn_blocking(move || {
+        let mut args = vec!["ls-tree", "--name-only", "-d"];
+        let depth_str;
+        if depth > 1 {
+            depth_str = "-r".to_string();
+            args.push(&depth_str);
+        }
+        args.push("HEAD");
 
-    let output = platform::command("git")
-        .args(&args)
-        .current_dir(&repo_path)
-        .output()?;
+        let output = platform::command("git")
+            .args(&args)
+            .current_dir(&repo_path)
+            .output()?;
 
-    if !output.status.success() {
-        return Err(AppError::GitError(
-            String::from_utf8_lossy(&output.stderr).to_string(),
-        ));
-    }
+        if !output.status.success() {
+            return Err(AppError::GitError(
+                String::from_utf8_lossy(&output.stderr).to_string(),
+            ));
+        }
 
-    let dirs = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter(|l| !l.is_empty())
-        .map(String::from)
-        .collect();
+        let dirs = String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(String::from)
+            .collect();
 
-    Ok(dirs)
+        Ok(dirs)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn list_workspace_files(
+pub async fn list_workspace_files(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<String>, AppError> {
@@ -219,28 +227,32 @@ pub fn list_workspace_files(
         ws.worktree_path.clone()
     };
 
-    let output = platform::command("git")
-        .args(["ls-tree", "-r", "--name-only", "HEAD"])
-        .current_dir(&worktree_path)
-        .output()?;
+    tokio::task::spawn_blocking(move || {
+        let output = platform::command("git")
+            .args(["ls-tree", "-r", "--name-only", "HEAD"])
+            .current_dir(&worktree_path)
+            .output()?;
 
-    if !output.status.success() {
-        return Err(AppError::GitError(
-            String::from_utf8_lossy(&output.stderr).to_string(),
-        ));
-    }
+        if !output.status.success() {
+            return Err(AppError::GitError(
+                String::from_utf8_lossy(&output.stderr).to_string(),
+            ));
+        }
 
-    let files = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter(|l| !l.is_empty())
-        .map(String::from)
-        .collect();
+        let files = String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(String::from)
+            .collect();
 
-    Ok(files)
+        Ok(files)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn list_repo_files(
+pub async fn list_repo_files(
     state: State<'_, AppState>,
     repo_id: String,
 ) -> Result<Vec<String>, AppError> {
@@ -257,24 +269,28 @@ pub fn list_repo_files(
         repo.path.clone()
     };
 
-    let output = platform::command("git")
-        .args(["ls-tree", "-r", "--name-only", "HEAD"])
-        .current_dir(&repo_path)
-        .output()?;
+    tokio::task::spawn_blocking(move || {
+        let output = platform::command("git")
+            .args(["ls-tree", "-r", "--name-only", "HEAD"])
+            .current_dir(&repo_path)
+            .output()?;
 
-    if !output.status.success() {
-        return Err(AppError::GitError(
-            String::from_utf8_lossy(&output.stderr).to_string(),
-        ));
-    }
+        if !output.status.success() {
+            return Err(AppError::GitError(
+                String::from_utf8_lossy(&output.stderr).to_string(),
+            ));
+        }
 
-    let files = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter(|l| !l.is_empty())
-        .map(String::from)
-        .collect();
+        let files = String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(String::from)
+            .collect();
 
-    Ok(files)
+        Ok(files)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
@@ -383,7 +399,7 @@ pub async fn get_repo_file_patch(
 }
 
 #[tauri::command]
-pub fn read_workspace_file(
+pub async fn read_workspace_file(
     state: State<'_, AppState>,
     workspace_id: String,
     file_path: String,
@@ -403,26 +419,30 @@ pub fn read_workspace_file(
         ws.worktree_path.clone()
     };
 
-    let base = worktree_path
-        .canonicalize()
-        .map_err(|e| AppError::GitError(format!("failed to resolve workspace path: {}", e)))?;
-    let full_path = PathBuf::from(&worktree_path).join(&file_path);
-    let full_path = full_path
-        .canonicalize()
-        .map_err(|e| AppError::GitError(format!("failed to resolve file path: {}", e)))?;
-    if !full_path.starts_with(&base) {
-        return Err(AppError::GitError("file path outside workspace".into()));
-    }
+    tokio::task::spawn_blocking(move || {
+        let base = worktree_path
+            .canonicalize()
+            .map_err(|e| AppError::GitError(format!("failed to resolve workspace path: {}", e)))?;
+        let full_path = PathBuf::from(&worktree_path).join(&file_path);
+        let full_path = full_path
+            .canonicalize()
+            .map_err(|e| AppError::GitError(format!("failed to resolve file path: {}", e)))?;
+        if !full_path.starts_with(&base) {
+            return Err(AppError::GitError("file path outside workspace".into()));
+        }
 
-    let content = std::fs::read_to_string(&full_path)
-        .map_err(|e| AppError::GitError(format!("failed to read file: {}", e)))?;
-    let language = diff_svc::detect_language(&file_path);
+        let content = std::fs::read_to_string(&full_path)
+            .map_err(|e| AppError::GitError(format!("failed to read file: {}", e)))?;
+        let language = diff_svc::detect_language(&file_path);
 
-    Ok(FileContent { content, language })
+        Ok(FileContent { content, language })
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn read_repo_file(
+pub async fn read_repo_file(
     state: State<'_, AppState>,
     repo_id: String,
     file_path: String,
@@ -440,22 +460,26 @@ pub fn read_repo_file(
         repo.path.clone()
     };
 
-    let base = repo_path
-        .canonicalize()
-        .map_err(|e| AppError::GitError(format!("failed to resolve repo path: {}", e)))?;
-    let full_path = PathBuf::from(&repo_path).join(&file_path);
-    let full_path = full_path
-        .canonicalize()
-        .map_err(|e| AppError::GitError(format!("failed to resolve file path: {}", e)))?;
-    if !full_path.starts_with(&base) {
-        return Err(AppError::GitError("file path outside repository".into()));
-    }
+    tokio::task::spawn_blocking(move || {
+        let base = repo_path
+            .canonicalize()
+            .map_err(|e| AppError::GitError(format!("failed to resolve repo path: {}", e)))?;
+        let full_path = PathBuf::from(&repo_path).join(&file_path);
+        let full_path = full_path
+            .canonicalize()
+            .map_err(|e| AppError::GitError(format!("failed to resolve file path: {}", e)))?;
+        if !full_path.starts_with(&base) {
+            return Err(AppError::GitError("file path outside repository".into()));
+        }
 
-    let content = std::fs::read_to_string(&full_path)
-        .map_err(|e| AppError::GitError(format!("failed to read file: {}", e)))?;
-    let language = diff_svc::detect_language(&file_path);
+        let content = std::fs::read_to_string(&full_path)
+            .map_err(|e| AppError::GitError(format!("failed to read file: {}", e)))?;
+        let language = diff_svc::detect_language(&file_path);
 
-    Ok(FileContent { content, language })
+        Ok(FileContent { content, language })
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 /// Attempt to format a file using available CLI formatters.
@@ -516,7 +540,7 @@ fn try_format_file(file_path: &std::path::Path, working_dir: &std::path::Path) -
 }
 
 #[tauri::command]
-pub fn write_workspace_file(
+pub async fn write_workspace_file(
     state: State<'_, AppState>,
     workspace_id: String,
     file_path: String,
@@ -538,48 +562,52 @@ pub fn write_workspace_file(
         ws.worktree_path.clone()
     };
 
-    let base = worktree_path
-        .canonicalize()
-        .map_err(|e| AppError::GitError(format!("failed to resolve workspace path: {}", e)))?;
-    let full_path = PathBuf::from(&worktree_path).join(&file_path);
-    // Canonicalize the parent directory (which must exist) and append the filename,
-    // so that new files that don't yet exist can still be validated.
-    let parent = full_path
-        .parent()
-        .ok_or_else(|| AppError::GitError("file path has no parent directory".into()))?;
-    let parent = parent
-        .canonicalize()
-        .map_err(|e| AppError::GitError(format!("failed to resolve parent directory: {}", e)))?;
-    let file_name = full_path
-        .file_name()
-        .ok_or_else(|| AppError::GitError("file path has no filename".into()))?;
-    let full_path = parent.join(file_name);
-    if !full_path.starts_with(&base) {
-        return Err(AppError::GitError("file path outside workspace".into()));
-    }
+    tokio::task::spawn_blocking(move || {
+        let base = worktree_path
+            .canonicalize()
+            .map_err(|e| AppError::GitError(format!("failed to resolve workspace path: {}", e)))?;
+        let full_path = PathBuf::from(&worktree_path).join(&file_path);
+        // Canonicalize the parent directory (which must exist) and append the filename,
+        // so that new files that don't yet exist can still be validated.
+        let parent = full_path
+            .parent()
+            .ok_or_else(|| AppError::GitError("file path has no parent directory".into()))?;
+        let parent = parent
+            .canonicalize()
+            .map_err(|e| AppError::GitError(format!("failed to resolve parent directory: {}", e)))?;
+        let file_name = full_path
+            .file_name()
+            .ok_or_else(|| AppError::GitError("file path has no filename".into()))?;
+        let full_path = parent.join(file_name);
+        if !full_path.starts_with(&base) {
+            return Err(AppError::GitError("file path outside workspace".into()));
+        }
 
-    std::fs::write(&full_path, &content)
-        .map_err(|e| AppError::GitError(format!("failed to write file: {}", e)))?;
+        std::fs::write(&full_path, &content)
+            .map_err(|e| AppError::GitError(format!("failed to write file: {}", e)))?;
 
-    let formatted = if format_on_save {
-        try_format_file(&full_path, &worktree_path)
-    } else {
-        false
-    };
+        let formatted = if format_on_save {
+            try_format_file(&full_path, &worktree_path)
+        } else {
+            false
+        };
 
-    let final_content = std::fs::read_to_string(&full_path)
-        .map_err(|e| AppError::GitError(format!("failed to read back file: {}", e)))?;
-    let language = diff_svc::detect_language(&file_path);
+        let final_content = std::fs::read_to_string(&full_path)
+            .map_err(|e| AppError::GitError(format!("failed to read back file: {}", e)))?;
+        let language = diff_svc::detect_language(&file_path);
 
-    Ok(WriteFileResult {
-        content: final_content,
-        language,
-        formatted,
+        Ok(WriteFileResult {
+            content: final_content,
+            language,
+            formatted,
+        })
     })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
-pub fn write_repo_file(
+pub async fn write_repo_file(
     state: State<'_, AppState>,
     repo_id: String,
     file_path: String,
@@ -599,44 +627,48 @@ pub fn write_repo_file(
         repo.path.clone()
     };
 
-    let base = repo_path
-        .canonicalize()
-        .map_err(|e| AppError::GitError(format!("failed to resolve repo path: {}", e)))?;
-    let full_path = PathBuf::from(&repo_path).join(&file_path);
-    // Canonicalize the parent directory (which must exist) and append the filename,
-    // so that new files that don't yet exist can still be validated.
-    let parent = full_path
-        .parent()
-        .ok_or_else(|| AppError::GitError("file path has no parent directory".into()))?;
-    let parent = parent
-        .canonicalize()
-        .map_err(|e| AppError::GitError(format!("failed to resolve parent directory: {}", e)))?;
-    let file_name = full_path
-        .file_name()
-        .ok_or_else(|| AppError::GitError("file path has no filename".into()))?;
-    let full_path = parent.join(file_name);
-    if !full_path.starts_with(&base) {
-        return Err(AppError::GitError("file path outside repository".into()));
-    }
+    tokio::task::spawn_blocking(move || {
+        let base = repo_path
+            .canonicalize()
+            .map_err(|e| AppError::GitError(format!("failed to resolve repo path: {}", e)))?;
+        let full_path = PathBuf::from(&repo_path).join(&file_path);
+        // Canonicalize the parent directory (which must exist) and append the filename,
+        // so that new files that don't yet exist can still be validated.
+        let parent = full_path
+            .parent()
+            .ok_or_else(|| AppError::GitError("file path has no parent directory".into()))?;
+        let parent = parent
+            .canonicalize()
+            .map_err(|e| AppError::GitError(format!("failed to resolve parent directory: {}", e)))?;
+        let file_name = full_path
+            .file_name()
+            .ok_or_else(|| AppError::GitError("file path has no filename".into()))?;
+        let full_path = parent.join(file_name);
+        if !full_path.starts_with(&base) {
+            return Err(AppError::GitError("file path outside repository".into()));
+        }
 
-    std::fs::write(&full_path, &content)
-        .map_err(|e| AppError::GitError(format!("failed to write file: {}", e)))?;
+        std::fs::write(&full_path, &content)
+            .map_err(|e| AppError::GitError(format!("failed to write file: {}", e)))?;
 
-    let formatted = if format_on_save {
-        try_format_file(&full_path, &repo_path)
-    } else {
-        false
-    };
+        let formatted = if format_on_save {
+            try_format_file(&full_path, &repo_path)
+        } else {
+            false
+        };
 
-    let final_content = std::fs::read_to_string(&full_path)
-        .map_err(|e| AppError::GitError(format!("failed to read back file: {}", e)))?;
-    let language = diff_svc::detect_language(&file_path);
+        let final_content = std::fs::read_to_string(&full_path)
+            .map_err(|e| AppError::GitError(format!("failed to read back file: {}", e)))?;
+        let language = diff_svc::detect_language(&file_path);
 
-    Ok(WriteFileResult {
-        content: final_content,
-        language,
-        formatted,
+        Ok(WriteFileResult {
+            content: final_content,
+            language,
+            formatted,
+        })
     })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 // --- Type definition loading for Monaco language services ---
@@ -703,7 +735,7 @@ fn collect_dts_files(
 }
 
 #[tauri::command]
-pub fn load_type_definitions(
+pub async fn load_type_definitions(
     state: State<'_, AppState>,
     workspace_id: Option<String>,
     repo_id: Option<String>,
@@ -734,122 +766,134 @@ pub fn load_type_definitions(
         return Err(AppError::GitError("no workspace or repo specified".into()));
     };
 
-    let mut result = TypeDefinitions {
-        tsconfig: None,
-        libs: Vec::new(),
-    };
+    tokio::task::spawn_blocking(move || {
+        let mut result = TypeDefinitions {
+            tsconfig: None,
+            libs: Vec::new(),
+        };
 
-    // Read tsconfig.json if present
-    let tsconfig_path = root_path.join("tsconfig.json");
-    if tsconfig_path.exists() {
-        if let Ok(content) = std::fs::read_to_string(&tsconfig_path) {
-            result.tsconfig = Some(content);
+        // Read tsconfig.json if present
+        let tsconfig_path = root_path.join("tsconfig.json");
+        if tsconfig_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&tsconfig_path) {
+                result.tsconfig = Some(content);
+            }
         }
-    }
 
-    // Scan node_modules/@types/ for type definition packages
-    let types_dir = root_path.join("node_modules/@types");
-    if types_dir.exists() {
-        let mut total_size: usize = 0;
-        collect_dts_files(&types_dir, &root_path, &mut result.libs, &mut total_size, 0);
-    }
+        // Scan node_modules/@types/ for type definition packages
+        let types_dir = root_path.join("node_modules/@types");
+        if types_dir.exists() {
+            let mut total_size: usize = 0;
+            collect_dts_files(&types_dir, &root_path, &mut result.libs, &mut total_size, 0);
+        }
 
-    Ok(result)
+        Ok(result)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 /// Read an arbitrary file and return its contents as a base64 data URL.
 /// Used for displaying dropped image previews in the chat UI.
 #[tauri::command]
-pub fn read_file_base64(file_path: String) -> Result<String, AppError> {
-    let path = PathBuf::from(&file_path);
+pub async fn read_file_base64(file_path: String) -> Result<String, AppError> {
+    tokio::task::spawn_blocking(move || {
+        let path = PathBuf::from(&file_path);
 
-    const MAX_FILE_SIZE: u64 = 50 * 1024 * 1024; // 50 MB
-    let metadata = std::fs::metadata(&path)
-        .map_err(|e| AppError::GitError(format!("failed to read file {}: {}", file_path, e)))?;
-    if metadata.len() > MAX_FILE_SIZE {
-        return Err(AppError::GitError(format!(
-            "file too large for preview ({} bytes, max {})",
-            metadata.len(),
-            MAX_FILE_SIZE
-        )));
-    }
+        const MAX_FILE_SIZE: u64 = 50 * 1024 * 1024; // 50 MB
+        let metadata = std::fs::metadata(&path)
+            .map_err(|e| AppError::GitError(format!("failed to read file {}: {}", file_path, e)))?;
+        if metadata.len() > MAX_FILE_SIZE {
+            return Err(AppError::GitError(format!(
+                "file too large for preview ({} bytes, max {})",
+                metadata.len(),
+                MAX_FILE_SIZE
+            )));
+        }
 
-    let bytes = std::fs::read(&path)
-        .map_err(|e| AppError::GitError(format!("failed to read file {}: {}", file_path, e)))?;
+        let bytes = std::fs::read(&path)
+            .map_err(|e| AppError::GitError(format!("failed to read file {}: {}", file_path, e)))?;
 
-    let mime = match path
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_lowercase())
-        .as_deref()
-    {
-        Some("png") => "image/png",
-        Some("jpg" | "jpeg") => "image/jpeg",
-        Some("gif") => "image/gif",
-        Some("webp") => "image/webp",
-        Some("svg") => "image/svg+xml",
-        Some("bmp") => "image/bmp",
-        Some("ico") => "image/x-icon",
-        Some("tiff" | "tif") => "image/tiff",
-        Some("avif") => "image/avif",
-        _ => "application/octet-stream",
-    };
+        let mime = match path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .as_deref()
+        {
+            Some("png") => "image/png",
+            Some("jpg" | "jpeg") => "image/jpeg",
+            Some("gif") => "image/gif",
+            Some("webp") => "image/webp",
+            Some("svg") => "image/svg+xml",
+            Some("bmp") => "image/bmp",
+            Some("ico") => "image/x-icon",
+            Some("tiff" | "tif") => "image/tiff",
+            Some("avif") => "image/avif",
+            _ => "application/octet-stream",
+        };
 
-    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
-    Ok(format!("data:{};base64,{}", mime, b64))
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+        Ok(format!("data:{};base64,{}", mime, b64))
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 /// Save base64-encoded image data to a temporary file and return the absolute path.
 /// Used for clipboard paste support in the chat composer.
 #[tauri::command]
-pub fn save_clipboard_image(data: String, mime_type: String) -> Result<String, AppError> {
-    let ext = match mime_type.as_str() {
-        "image/png" => "png",
-        "image/jpeg" => "jpg",
-        "image/gif" => "gif",
-        "image/webp" => "webp",
-        "image/bmp" => "bmp",
-        "image/svg+xml" => "svg",
-        _ => "png",
-    };
+pub async fn save_clipboard_image(data: String, mime_type: String) -> Result<String, AppError> {
+    tokio::task::spawn_blocking(move || {
+        let ext = match mime_type.as_str() {
+            "image/png" => "png",
+            "image/jpeg" => "jpg",
+            "image/gif" => "gif",
+            "image/webp" => "webp",
+            "image/bmp" => "bmp",
+            "image/svg+xml" => "svg",
+            _ => "png",
+        };
 
-    let tmp_dir = dirs::data_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("com.fury.app")
-        .join("tmp")
-        .join("clipboard-images");
-    std::fs::create_dir_all(&tmp_dir)?;
+        let tmp_dir = dirs::data_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("com.fury.app")
+            .join("tmp")
+            .join("clipboard-images");
+        std::fs::create_dir_all(&tmp_dir)?;
 
-    let filename = format!("paste-{}.{}", Uuid::new_v4(), ext);
-    let file_path = tmp_dir.join(&filename);
+        let filename = format!("paste-{}.{}", Uuid::new_v4(), ext);
+        let file_path = tmp_dir.join(&filename);
 
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(&data)
-        .map_err(|e| AppError::GitError(format!("failed to decode base64 image: {}", e)))?;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(&data)
+            .map_err(|e| AppError::GitError(format!("failed to decode base64 image: {}", e)))?;
 
-    const MAX_SIZE: usize = 50 * 1024 * 1024;
-    if bytes.len() > MAX_SIZE {
-        return Err(AppError::GitError(format!(
-            "pasted image too large ({} bytes, max {})",
-            bytes.len(),
-            MAX_SIZE
-        )));
-    }
+        const MAX_SIZE: usize = 50 * 1024 * 1024;
+        if bytes.len() > MAX_SIZE {
+            return Err(AppError::GitError(format!(
+                "pasted image too large ({} bytes, max {})",
+                bytes.len(),
+                MAX_SIZE
+            )));
+        }
 
-    std::fs::write(&file_path, &bytes)?;
+        std::fs::write(&file_path, &bytes)?;
 
-    Ok(file_path.to_string_lossy().into_owned())
+        Ok(file_path.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_save_clipboard_image_creates_file() {
+    #[tokio::test]
+    async fn test_save_clipboard_image_creates_file() {
         // Minimal valid 1x1 PNG
         let png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-        let result = save_clipboard_image(png_b64.to_string(), "image/png".to_string());
+        let result = save_clipboard_image(png_b64.to_string(), "image/png".to_string()).await;
         assert!(result.is_ok());
         let path = result.unwrap();
         assert!(path.ends_with(".png"));
@@ -857,19 +901,19 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    #[test]
-    fn test_save_clipboard_image_jpeg_extension() {
+    #[tokio::test]
+    async fn test_save_clipboard_image_jpeg_extension() {
         let png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-        let result = save_clipboard_image(png_b64.to_string(), "image/jpeg".to_string());
+        let result = save_clipboard_image(png_b64.to_string(), "image/jpeg".to_string()).await;
         assert!(result.is_ok());
         let path = result.unwrap();
         assert!(path.ends_with(".jpg"));
         let _ = std::fs::remove_file(&path);
     }
 
-    #[test]
-    fn test_save_clipboard_image_invalid_base64() {
-        let result = save_clipboard_image("not-valid!!!".to_string(), "image/png".to_string());
+    #[tokio::test]
+    async fn test_save_clipboard_image_invalid_base64() {
+        let result = save_clipboard_image("not-valid!!!".to_string(), "image/png".to_string()).await;
         assert!(result.is_err());
     }
 }

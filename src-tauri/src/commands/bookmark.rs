@@ -7,7 +7,7 @@ use crate::models::bookmark::{CreateBookmarkRequest, FileBookmark, UpdateBookmar
 use crate::state::AppState;
 
 #[tauri::command]
-pub fn create_bookmark(
+pub async fn create_bookmark(
     state: State<'_, AppState>,
     request: CreateBookmarkRequest,
 ) -> Result<FileBookmark, AppError> {
@@ -23,16 +23,17 @@ pub fn create_bookmark(
         updated_at: now,
     };
 
+    let bookmark_clone = bookmark.clone();
     let db = state.db.lock().unwrap();
     if let Some(db) = db.as_ref() {
-        db.insert_bookmark(&bookmark)?;
+        db.insert_bookmark(&bookmark_clone)?;
     }
 
     Ok(bookmark)
 }
 
 #[tauri::command]
-pub fn list_bookmarks(
+pub async fn list_bookmarks(
     state: State<'_, AppState>,
     repo_id: String,
 ) -> Result<Vec<FileBookmark>, AppError> {
@@ -47,7 +48,7 @@ pub fn list_bookmarks(
 }
 
 #[tauri::command]
-pub fn update_bookmark(
+pub async fn update_bookmark(
     state: State<'_, AppState>,
     bookmark_id: String,
     request: UpdateBookmarkRequest,
@@ -79,7 +80,7 @@ pub fn update_bookmark(
 }
 
 #[tauri::command]
-pub fn delete_bookmark(state: State<'_, AppState>, bookmark_id: String) -> Result<(), AppError> {
+pub async fn delete_bookmark(state: State<'_, AppState>, bookmark_id: String) -> Result<(), AppError> {
     let id = Uuid::parse_str(&bookmark_id)
         .map_err(|e| AppError::DbError(format!("Invalid UUID: {}", e)))?;
     let db = state.db.lock().unwrap();
@@ -90,7 +91,7 @@ pub fn delete_bookmark(state: State<'_, AppState>, bookmark_id: String) -> Resul
 }
 
 #[tauri::command]
-pub fn toggle_bookmark(
+pub async fn toggle_bookmark(
     state: State<'_, AppState>,
     repo_id: String,
     file_path: String,

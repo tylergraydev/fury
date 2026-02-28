@@ -7,7 +7,7 @@ use crate::models::prompt::{CreatePromptRequest, Prompt, UpdatePromptRequest};
 use crate::state::AppState;
 
 #[tauri::command]
-pub fn create_prompt(
+pub async fn create_prompt(
     state: State<'_, AppState>,
     request: CreatePromptRequest,
 ) -> Result<Prompt, AppError> {
@@ -33,7 +33,7 @@ pub fn create_prompt(
 }
 
 #[tauri::command]
-pub fn list_prompts(state: State<'_, AppState>) -> Result<Vec<Prompt>, AppError> {
+pub async fn list_prompts(state: State<'_, AppState>) -> Result<Vec<Prompt>, AppError> {
     let db = state.db.lock().unwrap();
     if let Some(db) = db.as_ref() {
         db.list_prompts()
@@ -43,7 +43,7 @@ pub fn list_prompts(state: State<'_, AppState>) -> Result<Vec<Prompt>, AppError>
 }
 
 #[tauri::command]
-pub fn update_prompt(
+pub async fn update_prompt(
     state: State<'_, AppState>,
     prompt_id: String,
     request: UpdatePromptRequest,
@@ -81,7 +81,7 @@ pub fn update_prompt(
 }
 
 #[tauri::command]
-pub fn delete_prompt(state: State<'_, AppState>, prompt_id: String) -> Result<(), AppError> {
+pub async fn delete_prompt(state: State<'_, AppState>, prompt_id: String) -> Result<(), AppError> {
     let id = Uuid::parse_str(&prompt_id)
         .map_err(|e| AppError::DbError(format!("Invalid UUID: {}", e)))?;
     let db = state.db.lock().unwrap();
