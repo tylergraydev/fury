@@ -85,12 +85,14 @@ const { activeWorkspaceId } = useWorkspaceStore();
 
 ## Pre-PR Checklist
 
-Before pushing or creating a PR, **always** run E2E tests locally. The `e2e` job is a required status check on `main` and PRs will fail without it.
+**CRITICAL: Always run the full test suite immediately before committing and pushing.** Do not rely on earlier test runs — changes made after the last test run can introduce failures. Run tests as the very last step before `git commit`, not just during development.
 
 ```bash
-npm test              # Unit tests first (fast)
+npm test              # Unit tests — run RIGHT BEFORE committing
 npm run test:e2e      # E2E tests (required — do not skip)
 ```
+
+If any test fails, fix it before committing. Do not push code that has not passed `npm test` in its final committed form. The `e2e` job is a required status check on `main` and PRs will fail without it.
 
 ## Conventions
 
