@@ -212,32 +212,38 @@ export function RightSidebar({ context }: Props) {
               <SyncButton contextId={context.id} />
             </div>
 
-            {/* Tab content */}
+            {/* Tab content — keep all panels mounted, hide inactive with CSS */}
             <div className="flex-1 overflow-hidden">
-              <ErrorBoundary label={activeTab} resetKey={`${context.id}:${activeTab}`}>
-                {activeTab === "files" && (
+              <div className={activeTab === "files" ? "h-full" : "hidden"}>
+                <ErrorBoundary label="files" resetKey={context.id}>
                   <FileTreePanel
                     context={context}
                     onFileClick={handleFileClick}
                     onFileDoubleClick={handleFileDoubleClick}
                   />
-                )}
-                {activeTab === "changes" && (
-                  <div data-testid="panel-changes" className="h-full">
+                </ErrorBoundary>
+              </div>
+              {activeTab === "changes" && (
+                <div data-testid="panel-changes" className="h-full">
+                  <ErrorBoundary label="changes" resetKey={context.id}>
                     <ChangesPanel context={context} />
-                  </div>
-                )}
-                {context.type === "workspace" && activeTab === "checks" && (
-                  <div data-testid="panel-checks" className="h-full">
+                  </ErrorBoundary>
+                </div>
+              )}
+              {context.type === "workspace" && activeTab === "checks" && (
+                <div data-testid="panel-checks" className="h-full">
+                  <ErrorBoundary label="checks" resetKey={context.id}>
                     <ChecksPanel workspaceId={context.id} />
-                  </div>
-                )}
-                {activeTab === "bookmarks" && (
-                  <div data-testid="panel-bookmarks" className="h-full">
+                  </ErrorBoundary>
+                </div>
+              )}
+              {activeTab === "bookmarks" && (
+                <div data-testid="panel-bookmarks" className="h-full">
+                  <ErrorBoundary label="bookmarks" resetKey={context.id}>
                     <BookmarksPanel context={context} />
-                  </div>
-                )}
-              </ErrorBoundary>
+                  </ErrorBoundary>
+                </div>
+              )}
             </div>
           </div>
         </Panel>
