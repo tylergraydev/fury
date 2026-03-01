@@ -775,6 +775,8 @@ describe("chatStore - result event with metadata", () => {
       totalInputTokens: 1000,
       totalOutputTokens: 500,
       numTurns: 3,
+      totalCacheReadTokens: 100,
+      totalCacheCreationTokens: 50,
     });
     expect(pushAgentTurnMetric).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -988,6 +990,8 @@ describe("chatStore - loadMessages with metadata restoration", () => {
       totalInputTokens: 500,
       totalOutputTokens: 200,
       numTurns: 2,
+      totalCacheReadTokens: 0,
+      totalCacheCreationTokens: 0,
     });
   });
 
@@ -1128,6 +1132,8 @@ describe("chatStore - result event branch coverage for ?? fallbacks", () => {
       totalInputTokens: 200,
       totalOutputTokens: 100,
       numTurns: 1,
+      totalCacheReadTokens: 0,
+      totalCacheCreationTokens: 0,
     });
   });
 
@@ -1167,6 +1173,8 @@ describe("chatStore - result event branch coverage for ?? fallbacks", () => {
       totalInputTokens: 0,
       totalOutputTokens: 0,
       numTurns: 0,
+      totalCacheReadTokens: 0,
+      totalCacheCreationTokens: 0,
     });
   });
 
@@ -1212,6 +1220,8 @@ describe("chatStore - result event branch coverage for ?? fallbacks", () => {
       totalInputTokens: 5000,
       totalOutputTokens: 2500,
       numTurns: 10,
+      totalCacheReadTokens: 0,
+      totalCacheCreationTokens: 0,
     });
   });
 });
