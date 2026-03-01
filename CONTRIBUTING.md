@@ -59,17 +59,27 @@ Run `npm run lint` before submitting a PR.
 ```
 src/                    # React frontend (TypeScript)
 ├── components/         # UI components
+│   ├── activity-log/   # Activity timeline
 │   ├── chat/           # Chat interface
-│   ├── layout/         # App layout (Sidebar, TopBar, etc.)
-│   ├── terminal/       # Terminal panels (xterm)
-│   ├── file-viewer/    # Monaco file viewer
 │   ├── diff/           # Diff viewer
+│   ├── file-viewer/    # Monaco file viewer
+│   ├── history/        # History view
+│   ├── icons/          # Icon components
+│   ├── landing/        # Landing page
+│   ├── layout/         # App layout (Sidebar, TopBar, etc.)
 │   ├── merge/          # Merge view and conflict resolution
+│   ├── notes/          # Notes/todos panel
+│   ├── notifications/  # Notification center
 │   ├── pr/             # PR management panel
-│   ├── sidebar/        # Right sidebar panels (files, changes, checks)
+│   ├── prompt-library/ # Saved prompts
 │   ├── settings/       # Settings panels
-│   ├── workspace/      # Workspace dialogs
-│   └── ...
+│   ├── sidebar/        # Right sidebar panels (files, changes, checks)
+│   ├── snippets/       # Snippet manager
+│   ├── team/           # Team features
+│   ├── terminal/       # Terminal panels (xterm)
+│   ├── test-runner/    # Test runner panel
+│   ├── usage/          # Usage/cost tracking
+│   └── workspace/      # Workspace dialogs
 ├── stores/             # Zustand state stores (one per domain)
 └── lib/                # Utilities and Tauri bindings
 
