@@ -27,6 +27,8 @@ export interface SessionStats {
   totalInputTokens: number;
   totalOutputTokens: number;
   numTurns: number;
+  totalCacheReadTokens?: number;
+  totalCacheCreationTokens?: number;
 }
 
 interface ChatStore {
@@ -167,6 +169,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
               totalInputTokens: meta.inputTokens ?? 0,
               totalOutputTokens: meta.outputTokens ?? 0,
               numTurns: meta.numTurns ?? 0,
+              totalCacheReadTokens: meta.cacheReadTokens ?? 0,
+              totalCacheCreationTokens: meta.cacheCreationTokens ?? 0,
             };
             break;
           }
@@ -403,6 +407,8 @@ function handleStreamEvent(
                 totalInputTokens: event.inputTokens ?? prev?.totalInputTokens ?? 0,
                 totalOutputTokens: event.outputTokens ?? prev?.totalOutputTokens ?? 0,
                 numTurns: event.numTurns ?? prev?.numTurns ?? 0,
+                totalCacheReadTokens: event.cacheReadTokens ?? prev?.totalCacheReadTokens ?? 0,
+                totalCacheCreationTokens: event.cacheCreationTokens ?? prev?.totalCacheCreationTokens ?? 0,
               },
             },
           };

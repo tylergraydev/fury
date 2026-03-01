@@ -1135,27 +1135,56 @@ describe("Composer", () => {
       expect(screen.queryByText("Compact")).not.toBeInTheDocument();
     });
 
-    it("shows context usage indicator in bottom toolbar when tokens > 0", () => {
+    it("shows context usage ring when tokens > 0", () => {
       useChatStore.setState({
         sessionStats: {
           "ws-1": { totalInputTokens: 50_000, totalOutputTokens: 1000, totalCostUsd: 0.25, numTurns: 3 },
         },
       });
       render(<Composer {...defaultProps} />);
-      expect(screen.getByText("$0.250")).toBeInTheDocument();
+      expect(screen.getByLabelText(/Context usage: 25%/)).toBeInTheDocument();
     });
 
-    it("applies warning color when context is 75-89% full", () => {
+    it("applies warning color to ring when context is 75-89% full", () => {
       useChatStore.setState({
         sessionStats: {
           "ws-1": { totalInputTokens: 160_000, totalOutputTokens: 0, totalCostUsd: 1.0, numTurns: 8 },
         },
       });
       render(<Composer {...defaultProps} />);
-      // The ContextUsageIndicator wrapper div should have the warning color
-      const costEl = screen.getByText("$1.00");
-      const indicator = costEl.closest(".flex.items-center") as HTMLElement;
-      expect(indicator.style.color).toBe("var(--accent-orange)");
+      const ring = screen.getByLabelText(/Context usage: 80%/);
+      const svg = ring.querySelector("svg") as SVGElement;
+      const circles = svg.querySelectorAll("circle");
+      // The second circle is the filled arc
+      expect(circles[1].getAttribute("stroke")).toBe("var(--accent-orange)");
+    });
+
+    it("shows tooltip with context details on hover", async () => {
+      useChatStore.setState({
+        sessionStats: {
+          "ws-1": { totalInputTokens: 50_000, totalOutputTokens: 2000, totalCostUsd: 0.25, numTurns: 3 },
+        },
+      });
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      const ring = screen.getByLabelText(/Context usage: 25%/);
+      await user.hover(ring.parentElement!);
+      expect(screen.getByText("Context")).toBeInTheDocument();
+      expect(screen.getByText("Cost")).toBeInTheDocument();
+      expect(screen.getByText("$0.250")).toBeInTheDocument();
+    });
+
+    it("shows cache read row in tooltip when cache tokens > 0", async () => {
+      useChatStore.setState({
+        sessionStats: {
+          "ws-1": { totalInputTokens: 50_000, totalOutputTokens: 2000, totalCostUsd: 0.25, numTurns: 3, totalCacheReadTokens: 10_000 },
+        },
+      });
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      const ring = screen.getByLabelText(/Context usage: 25%/);
+      await user.hover(ring.parentElement!);
+      expect(screen.getByText("Cache read")).toBeInTheDocument();
     });
   });
 
