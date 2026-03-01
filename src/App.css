@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+@utility scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* Default theme: blend (black base + Figma panels + blue accent).
    Themes are applied dynamically via src/lib/themes.ts — these are fallback defaults. */
 :root {
