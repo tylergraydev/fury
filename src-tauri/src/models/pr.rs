@@ -77,6 +77,21 @@ pub struct PrReview {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PrFullData {
+    pub info: PrInfo,
+    pub reviews: Vec<PrReview>,
+    pub review_comments: Vec<PrComment>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewsAndComments {
+    pub reviews: Vec<PrReview>,
+    pub review_comments: Vec<PrComment>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PrListItem {
     pub number: u32,
     pub title: String,

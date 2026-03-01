@@ -8,13 +8,12 @@ import {
   type CreatePrRequest,
   type MergeResult,
   createPr as createPrCmd,
-  getPrInfo as getPrInfoCmd,
   getPrChecks as getPrChecksCmd,
   pushChanges as pushChangesCmd,
   fixFailingChecks as fixFailingChecksCmd,
   mergePr as mergePrCmd,
-  getPrReviews as getPrReviewsCmd,
-  getPrReviewComments as getPrReviewCommentsCmd,
+  getPrFullData as getPrFullDataCmd,
+  getReviewsAndComments as getReviewsAndCommentsCmd,
   getWorkflowRuns as getWorkflowRunsCmd,
 } from "../lib/tauri";
 
@@ -120,15 +119,14 @@ export const usePrStore = create<PrStore>((set, get) => ({
       error: { ...state.error, [workspaceId]: null },
     }));
     try {
-      const info = await getPrInfoCmd(workspaceId);
+      // Single optimized call: fetches info + checks + reviews + comments
+      const data = await getPrFullDataCmd(workspaceId);
       set((state) => ({
-        prInfo: { ...state.prInfo, [workspaceId]: info },
+        prInfo: { ...state.prInfo, [workspaceId]: data.info },
+        reviews: { ...state.reviews, [workspaceId]: data.reviews },
+        reviewComments: { ...state.reviewComments, [workspaceId]: data.reviewComments },
         loading: { ...state.loading, [workspaceId]: false },
       }));
-      // Load reviews in the background if PR exists
-      if (info.prNumber != null) {
-        get().loadReviews(workspaceId);
-      }
     } catch (e) {
       set((state) => ({
         loading: { ...state.loading, [workspaceId]: false },
@@ -145,13 +143,11 @@ export const usePrStore = create<PrStore>((set, get) => ({
     if (_inflightReviews.has(workspaceId)) return;
     _inflightReviews.add(workspaceId);
     try {
-      const [reviews, comments] = await Promise.all([
-        getPrReviewsCmd(workspaceId),
-        getPrReviewCommentsCmd(workspaceId),
-      ]);
+      // Single optimized call: shares gh pr view between reviews and comments
+      const data = await getReviewsAndCommentsCmd(workspaceId);
       set((state) => ({
-        reviews: { ...state.reviews, [workspaceId]: reviews },
-        reviewComments: { ...state.reviewComments, [workspaceId]: comments },
+        reviews: { ...state.reviews, [workspaceId]: data.reviews },
+        reviewComments: { ...state.reviewComments, [workspaceId]: data.reviewComments },
       }));
     } catch (e) {
       console.error(`[prStore] Failed to load reviews for ${workspaceId}:`, e);

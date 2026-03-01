@@ -6,13 +6,12 @@ vi.mock("@tauri-apps/api/event", () => ({
 
 vi.mock("../lib/tauri", () => ({
   createPr: vi.fn(),
-  getPrInfo: vi.fn(),
   getPrChecks: vi.fn(),
   pushChanges: vi.fn(),
   fixFailingChecks: vi.fn(),
   mergePr: vi.fn(),
-  getPrReviews: vi.fn(),
-  getPrReviewComments: vi.fn(),
+  getPrFullData: vi.fn(),
+  getReviewsAndComments: vi.fn(),
   getWorkflowRuns: vi.fn(),
 }));
 
@@ -20,13 +19,12 @@ import { usePrStore } from "./prStore";
 import { listen } from "@tauri-apps/api/event";
 import {
   createPr,
-  getPrInfo,
   getPrChecks,
   pushChanges,
   fixFailingChecks,
   mergePr,
-  getPrReviews,
-  getPrReviewComments,
+  getPrFullData,
+  getReviewsAndComments,
   getWorkflowRuns,
 } from "../lib/tauri";
 
@@ -128,7 +126,11 @@ describe("prStore - subscribe", () => {
       }
       return () => {};
     });
-    vi.mocked(getPrInfo).mockResolvedValue(makePrInfo({ state: "merged" }) as any);
+    vi.mocked(getPrFullData).mockResolvedValue({
+      info: makePrInfo({ state: "merged" }),
+      reviews: [],
+      reviewComments: [],
+    } as any);
 
     await usePrStore.getState().subscribe("ws-1");
     // Start polling so we can verify it gets stopped
@@ -137,9 +139,9 @@ describe("prStore - subscribe", () => {
 
     mergedHandler({ payload: { success: true } });
 
-    // loadPrInfo should be called
+    // loadPrInfo should be called (which uses getPrFullData)
     await vi.waitFor(() => {
-      expect(getPrInfo).toHaveBeenCalledWith("ws-1");
+      expect(getPrFullData).toHaveBeenCalledWith("ws-1");
     });
     // Polling should be stopped
     expect(usePrStore.getState().pollIntervals["ws-1"]).toBeUndefined();
@@ -182,18 +184,26 @@ describe("prStore - unsubscribe", () => {
 });
 
 describe("prStore - loadPrInfo", () => {
-  it("loads PR info", async () => {
+  it("loads PR info, reviews, and comments via combined endpoint", async () => {
     const info = makePrInfo();
-    vi.mocked(getPrInfo).mockResolvedValue(info as any);
+    const reviews = [{ id: 1, author: "alice", state: "APPROVED", body: "", submittedAt: "" }];
+    const reviewComments = [{ id: 10, author: "bob", body: "fix", createdAt: "", path: "src/foo.ts", line: 5 }];
+    vi.mocked(getPrFullData).mockResolvedValue({
+      info,
+      reviews,
+      reviewComments,
+    } as any);
 
     await usePrStore.getState().loadPrInfo("ws-1");
 
     expect(usePrStore.getState().prInfo["ws-1"]).toEqual(info);
+    expect(usePrStore.getState().reviews["ws-1"]).toEqual(reviews);
+    expect(usePrStore.getState().reviewComments["ws-1"]).toEqual(reviewComments);
     expect(usePrStore.getState().loading["ws-1"]).toBe(false);
   });
 
   it("sets error on failure", async () => {
-    vi.mocked(getPrInfo).mockRejectedValue(new Error("load fail"));
+    vi.mocked(getPrFullData).mockRejectedValue(new Error("load fail"));
 
     await usePrStore.getState().loadPrInfo("ws-1");
 
@@ -358,9 +368,11 @@ describe("prStore - mergePr", () => {
       mergeMethod: "squash",
     };
     vi.mocked(mergePr).mockResolvedValue(mergeResult as any);
-    vi.mocked(getPrInfo).mockResolvedValue(
-      makePrInfo({ state: "merged" }) as any,
-    );
+    vi.mocked(getPrFullData).mockResolvedValue({
+      info: makePrInfo({ state: "merged" }),
+      reviews: [],
+      reviewComments: [],
+    } as any);
 
     const result = await usePrStore.getState().mergePr("ws-1", "squash");
 
@@ -468,11 +480,13 @@ describe("prStore - getters", () => {
 });
 
 describe("prStore - loadReviews", () => {
-  it("fetches and stores reviews and comments", async () => {
+  it("fetches and stores reviews and comments via combined endpoint", async () => {
     const reviews = [{ id: 1, author: "alice", state: "CHANGES_REQUESTED", body: "Please fix", submittedAt: "" }];
     const comments = [{ id: 10, author: "alice", body: "This is wrong", createdAt: "", path: "src/foo.ts", line: 5 }];
-    vi.mocked(getPrReviews).mockResolvedValue(reviews as any);
-    vi.mocked(getPrReviewComments).mockResolvedValue(comments as any);
+    vi.mocked(getReviewsAndComments).mockResolvedValue({
+      reviews,
+      reviewComments: comments,
+    } as any);
 
     await usePrStore.getState().loadReviews("ws-1");
 
@@ -481,8 +495,7 @@ describe("prStore - loadReviews", () => {
   });
 
   it("handles errors gracefully", async () => {
-    vi.mocked(getPrReviews).mockRejectedValue(new Error("network error"));
-    vi.mocked(getPrReviewComments).mockRejectedValue(new Error("network error"));
+    vi.mocked(getReviewsAndComments).mockRejectedValue(new Error("network error"));
     vi.spyOn(console, "error").mockImplementation(() => {});
 
     await usePrStore.getState().loadReviews("ws-1");
@@ -492,25 +505,19 @@ describe("prStore - loadReviews", () => {
   });
 
   it("deduplicates concurrent calls", async () => {
-    let resolveReviews: (v: any) => void;
-    let resolveComments: (v: any) => void;
-    vi.mocked(getPrReviews).mockImplementation(
-      () => new Promise((r) => { resolveReviews = r; }),
-    );
-    vi.mocked(getPrReviewComments).mockImplementation(
-      () => new Promise((r) => { resolveComments = r; }),
+    let resolveData: (v: any) => void;
+    vi.mocked(getReviewsAndComments).mockImplementation(
+      () => new Promise((r) => { resolveData = r; }),
     );
 
     const p1 = usePrStore.getState().loadReviews("ws-1");
     const p2 = usePrStore.getState().loadReviews("ws-1");
 
-    resolveReviews!([]);
-    resolveComments!([]);
+    resolveData!({ reviews: [], reviewComments: [] });
     await p1;
     await p2;
 
-    expect(getPrReviews).toHaveBeenCalledTimes(1);
-    expect(getPrReviewComments).toHaveBeenCalledTimes(1);
+    expect(getReviewsAndComments).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -42,6 +42,12 @@ const mockListTodos = vi.fn().mockResolvedValue([]);
 const mockSendMessage = vi.fn().mockResolvedValue(undefined);
 const mockGetPrReviews = vi.fn().mockResolvedValue([]);
 const mockGetPrReviewComments = vi.fn().mockResolvedValue([]);
+const mockGetPrFullData = vi.fn().mockResolvedValue({
+  info: { workspaceId: "ws-1", prNumber: null, prUrl: null, title: null, state: null, checks: [], mergeable: null },
+  reviews: [],
+  reviewComments: [],
+});
+const mockGetReviewsAndComments = vi.fn().mockResolvedValue({ reviews: [], reviewComments: [] });
 const mockGetWorkflowRuns = vi.fn().mockResolvedValue([]);
 const mockGetRunJobs = vi.fn().mockResolvedValue([]);
 const mockGetRunLogs = vi.fn().mockResolvedValue({ logs: "", truncated: false });
@@ -57,6 +63,8 @@ vi.mock("../../lib/tauri", () => ({
   listTodos: (...args: unknown[]) => mockListTodos(...args),
   getPrReviews: (...args: unknown[]) => mockGetPrReviews(...args),
   getPrReviewComments: (...args: unknown[]) => mockGetPrReviewComments(...args),
+  getPrFullData: (...args: unknown[]) => mockGetPrFullData(...args),
+  getReviewsAndComments: (...args: unknown[]) => mockGetReviewsAndComments(...args),
   getWorkflowRuns: (...args: unknown[]) => mockGetWorkflowRuns(...args),
   getRunJobs: (...args: unknown[]) => mockGetRunJobs(...args),
   getRunLogs: (...args: unknown[]) => mockGetRunLogs(...args),
@@ -84,6 +92,11 @@ const basePrInfo: PrInfo = {
 function setupOpenPr(overrides: Partial<PrInfo> = {}) {
   const info = { ...basePrInfo, ...overrides };
   mockGetPrInfo.mockResolvedValue(info);
+  mockGetPrFullData.mockResolvedValue({
+    info,
+    reviews: [],
+    reviewComments: [],
+  });
   usePrStore.setState({
     prInfo: { "ws-1": info },
   });
@@ -119,6 +132,11 @@ beforeEach(() => {
     state: null,
     checks: [],
     mergeable: null,
+  });
+  mockGetPrFullData.mockResolvedValue({
+    info: { workspaceId: "ws-1", prNumber: null, prUrl: null, title: null, state: null, checks: [], mergeable: null },
+    reviews: [],
+    reviewComments: [],
   });
 });
 

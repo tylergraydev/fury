@@ -1,7 +1,8 @@
 use crate::error::AppError;
 use crate::models::pr::{
-    CreatePrRequest, IssueDetail, IssueListItem, MergeResult, PrCheck, PrComment, PrDetail, PrInfo,
-    PrListItem, PrReview, RunLogsResult, WorkflowJob, WorkflowRun,
+    CreatePrRequest, IssueDetail, IssueListItem, MergeResult, PrCheck, PrComment, PrDetail,
+    PrFullData, PrInfo, PrListItem, PrReview, ReviewsAndComments, RunLogsResult, WorkflowJob,
+    WorkflowRun,
 };
 use crate::services::gh as gh_svc;
 use crate::state::AppState;
@@ -72,14 +73,15 @@ pub async fn get_pr_info(state: State<'_, AppState>, workspace_id: String) -> Re
     };
 
     tokio::task::spawn_blocking(move || {
-        // Run gh pr view and gh pr checks in parallel
-        let (pr_result, checks_result) = std::thread::scope(|s| {
-            let h1 = s.spawn(|| gh_svc::get_pr_info(&worktree_path));
-            let h2 = s.spawn(|| gh_svc::get_pr_checks(&worktree_path));
-            (h1.join().unwrap(), h2.join().unwrap())
+        // Parallelize PR info + checks fetch
+        let (info_result, checks_result) = std::thread::scope(|s| {
+            let path = &worktree_path;
+            let t1 = s.spawn(|| gh_svc::get_pr_info(path));
+            let t2 = s.spawn(|| gh_svc::get_pr_checks(path));
+            (t1.join().unwrap(), t2.join().unwrap())
         });
 
-        match pr_result? {
+        match info_result? {
             Some(mut info) => {
                 info.workspace_id = ws_id;
                 info.checks = checks_result.unwrap_or_default();
@@ -137,9 +139,17 @@ pub async fn push_changes(
     tokio::task::spawn_blocking(move || {
         gh_svc::push_branch(&worktree_path, &branch)?;
 
-        if let Ok(Some(mut info)) = gh_svc::get_pr_info(&worktree_path) {
+        // Parallelize PR info + checks fetch after push
+        let (info_result, checks_result) = std::thread::scope(|s| {
+            let path = &worktree_path;
+            let t1 = s.spawn(|| gh_svc::get_pr_info(path));
+            let t2 = s.spawn(|| gh_svc::get_pr_checks(path));
+            (t1.join().unwrap(), t2.join().unwrap())
+        });
+
+        if let Ok(Some(mut info)) = info_result {
             info.workspace_id = ws_id;
-            info.checks = gh_svc::get_pr_checks(&worktree_path).unwrap_or_default();
+            info.checks = checks_result.unwrap_or_default();
             let _ = app.emit(&format!("pr-updated:{}", ws_id), &info);
         }
 
@@ -277,6 +287,91 @@ pub async fn get_pr_review_comments(
     })
     .await
     .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+}
+
+/// Optimized: fetches PR info, checks, reviews, and comments in minimal CLI calls.
+/// Uses thread::scope to parallelize (gh pr view --json all_fields) || (gh pr checks),
+/// then fetches review comments using the PR metadata from the first call.
+/// Reduces 5 CLI spawns to 3, with 2 running in parallel.
+#[tauri::command]
+pub fn get_pr_full_data(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<PrFullData, AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let worktree_path = {
+        let workspaces = state.workspaces.read().unwrap();
+        let ws = workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        ws.worktree_path.clone()
+    };
+
+    // Phase 1: Parallel — combined pr view (info + reviews) alongside pr checks
+    let (info_reviews_result, checks_result) = std::thread::scope(|s| {
+        let path = &worktree_path;
+        let t1 = s.spawn(|| gh_svc::get_pr_info_with_reviews(path));
+        let t2 = s.spawn(|| gh_svc::get_pr_checks(path));
+        (t1.join().unwrap(), t2.join().unwrap())
+    });
+
+    match info_reviews_result? {
+        Some((mut info, reviews)) => {
+            info.workspace_id = ws_id;
+            info.checks = checks_result.unwrap_or_default();
+
+            // Phase 2: Fetch review comments using PR metadata (no redundant gh pr view)
+            let review_comments =
+                if let (Some(number), Some(url)) = (info.pr_number, info.pr_url.as_ref()) {
+                    gh_svc::get_pr_review_comments_for_pr(&worktree_path, number, url)
+                        .unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+
+            Ok(PrFullData {
+                info,
+                reviews,
+                review_comments,
+            })
+        }
+        None => Ok(PrFullData {
+            info: PrInfo::empty(ws_id),
+            reviews: Vec::new(),
+            review_comments: Vec::new(),
+        }),
+    }
+}
+
+/// Optimized: fetches reviews and comments in a single flow.
+/// Uses one `gh pr view` to get both reviews and PR metadata,
+/// then uses that metadata for the comments API call (no redundant gh pr view).
+#[tauri::command]
+pub fn get_reviews_and_comments(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<ReviewsAndComments, AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let worktree_path = {
+        let workspaces = state.workspaces.read().unwrap();
+        let ws = workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        ws.worktree_path.clone()
+    };
+
+    let (reviews, review_comments) = gh_svc::get_reviews_and_comments(&worktree_path)?;
+
+    Ok(ReviewsAndComments {
+        reviews,
+        review_comments,
+    })
 }
 
 #[tauri::command]

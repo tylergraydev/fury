@@ -673,6 +673,31 @@ export async function getPrReviewComments(
   return invoke<PrComment[]>("get_pr_review_comments", { workspaceId });
 }
 
+export interface PrFullData {
+  info: PrInfo;
+  reviews: PrReview[];
+  reviewComments: PrComment[];
+}
+
+export interface ReviewsAndComments {
+  reviews: PrReview[];
+  reviewComments: PrComment[];
+}
+
+export async function getPrFullData(
+  workspaceId: string,
+): Promise<PrFullData> {
+  return invoke<PrFullData>("get_pr_full_data", { workspaceId });
+}
+
+export async function getReviewsAndComments(
+  workspaceId: string,
+): Promise<ReviewsAndComments> {
+  return invoke<ReviewsAndComments>("get_reviews_and_comments", {
+    workspaceId,
+  });
+}
+
 // Workflow types
 export interface WorkflowRun {
   id: number;
