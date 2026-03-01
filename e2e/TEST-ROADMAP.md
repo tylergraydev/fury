@@ -1,6 +1,6 @@
 # E2E Test Roadmap
 
-Total: 78 tests across 16 suites. All passing.
+Total: 83 tests across 18 suites. All passing.
 
 ## Phase 1 — Core Flows (done)
 20 tests across 4 suites.
@@ -76,23 +76,21 @@ Total: 78 tests across 16 suites. All passing.
   - Updates tab shows version and check button
 
 ## Phase 8 — PR Panel (done)
-6 tests in 1 suite.
+5 tests in 1 suite.
 
-- [x] `pr-panel.spec.ts` (6 tests)
-  - Create PR form shows with title input defaulting to branch name
-  - Title defaults to workspace branch name
-  - Create PR button submits and shows PR status
-  - PR status view shows number and title
-  - CI checks display with success/failure/pending indicators
+- [x] `pr-panel.spec.ts` (5 tests)
+  - Shows Create PR button when no PR exists
+  - Create PR button triggers agent message
+  - PR number and title shown in status view
+  - CI checks display with status indicators
   - Push button and Fix with Claude button visible
 
 ## Phase 9 — Workspace Dialogs (done)
-5 tests in 1 suite.
+4 tests in 1 suite.
 
-- [x] `workspace-dialogs.spec.ts` (5 tests)
+- [x] `workspace-dialogs.spec.ts` (4 tests)
   - New workspace dialog opens from sidebar button
-  - Task description textarea and worktree name input visible
-  - Generate button creates name from task description
+  - Worktree name input visible
   - Branch dropdown loads branches from mock
   - Cancel closes dialog
 
@@ -131,3 +129,15 @@ NotesPanel component is defined but not rendered in the app yet.
   - Agent error status shows error indicator
   - Empty workspace shows help text with no messages
   - Streaming with pending text shows Running indicator
+
+## Phase 15 — Prompt Library (done)
+7 tests in 1 suite.
+
+- [x] `prompt-library.spec.ts` (7 tests)
+  - Opens prompt library from plus menu
+  - Creates a new prompt with name, content, description, and category
+  - Inserts a simple prompt into the composer
+  - Searches and filters prompts by text
+  - Shows category filter pills and filters by category
+  - Closes prompt library with Close button
+  - Slash command /prompt: autocomplete shows saved prompts

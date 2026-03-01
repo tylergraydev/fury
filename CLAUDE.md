@@ -48,7 +48,7 @@ Backend → frontend streaming uses Tauri events: `listen("agent-stream:${worksp
 
 ### Frontend (src/)
 
-**Stores** (`src/stores/`) — 46 Zustand stores. Use individual selectors to prevent re-renders:
+**Stores** (`src/stores/`) — 27 Zustand stores. Use individual selectors to prevent re-renders:
 ```typescript
 // Correct
 const activeId = useWorkspaceStore((s) => s.activeWorkspaceId);
@@ -67,7 +67,7 @@ const { activeWorkspaceId } = useWorkspaceStore();
 
 **Structure:**
 - `commands/` — Tauri command handlers (thin layer, delegates to services)
-- `services/` — Business logic: `claude_process.rs`, `codex_process.rs`, `git.rs`, `gh.rs`, `diff.rs`, `copilot_lsp.rs`, etc.
+- `services/` — Business logic: `claude_process.rs`, `codex_process.rs`, `gh.rs`, `diff.rs`, `copilot_lsp.rs`, `branch.rs`, etc.
 - `models/` — Serde-serializable types shared with frontend
 - `state/app_state.rs` — Singleton `AppState` with `Mutex<HashMap<Uuid, T>>` for runtime state
 - `db/` — SQLite (rusqlite) with WAL mode, versioned migrations in `db/migrations/`
