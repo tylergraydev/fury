@@ -99,6 +99,7 @@ vi.mock("./lib/tauri", () => ({
   listRepositories: vi.fn().mockResolvedValue([]),
   listWorkspaces: vi.fn().mockResolvedValue([]),
   listen: vi.fn().mockResolvedValue(() => {}),
+  detectLspSuggestions: vi.fn().mockResolvedValue([]),
 }));
 
 const mockApplyTheme = vi.fn();

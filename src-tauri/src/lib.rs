@@ -170,6 +170,12 @@ pub fn run() {
             commands::mcp::update_app_settings,
             commands::mcp::detect_cursorrules,
             commands::mcp::import_cursorrules,
+            // LSP Plugin commands
+            commands::lsp::get_lsp_catalog,
+            commands::lsp::list_lsp_plugins,
+            commands::lsp::install_lsp_plugin,
+            commands::lsp::uninstall_lsp_plugin,
+            commands::lsp::detect_lsp_suggestions,
             // Bookmark commands
             commands::bookmark::create_bookmark,
             commands::bookmark::list_bookmarks,

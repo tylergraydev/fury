@@ -58,6 +58,10 @@ vi.mock("../../lib/tauri", () => ({
   checkForUpdate: (...args: unknown[]) => mockCheckForUpdate(...args),
   indexRepository: (...args: unknown[]) => mockIndexRepository(...args),
   listIndexingStatuses: (...args: unknown[]) => mockListIndexingStatuses(...args),
+  getLspCatalog: vi.fn().mockResolvedValue([]),
+  listLspPlugins: vi.fn().mockResolvedValue([]),
+  installLspPlugin: vi.fn().mockResolvedValue(undefined),
+  uninstallLspPlugin: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../../lib/keybindings", () => ({
@@ -98,6 +102,9 @@ vi.mock("lucide-react", () => ({
   Copy: () => <span data-testid="copy-icon" />,
   Pencil: () => <span data-testid="pencil-icon" />,
   Upload: () => <span data-testid="upload-icon" />,
+  Blocks: () => <span data-testid="blocks-icon" />,
+  Check: () => <span data-testid="check-icon-lsp" />,
+  AlertTriangle: () => <span data-testid="alert-triangle-icon" />,
 }));
 
 const fullSettings = {

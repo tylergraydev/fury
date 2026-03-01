@@ -9,6 +9,7 @@ pub mod cursor_migration;
 pub mod diff;
 pub mod gh;
 pub mod linear;
+pub mod lsp;
 pub mod mcp;
 pub mod perf_server;
 pub mod port_allocator;

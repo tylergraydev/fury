@@ -6,6 +6,7 @@ pub mod claude_context;
 pub mod copilot;
 pub mod git;
 pub mod linear;
+pub mod lsp;
 pub mod mcp;
 pub mod merge;
 pub mod perf;

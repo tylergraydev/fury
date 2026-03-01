@@ -40,6 +40,8 @@ interface UIStore {
   closeViewTab: (tabId: string) => void;
   setActiveViewTab: (tabId: string) => void;
   pinViewTab: (tabId: string) => void;
+  settingsInitialTab: string | null;
+  setSettingsInitialTab: (tab: string | null) => void;
 }
 
 export const useUIStore = create<UIStore>((set, get) => ({
@@ -116,4 +118,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
       ),
     }));
   },
+
+  settingsInitialTab: null,
+  setSettingsInitialTab: (tab) => set({ settingsInitialTab: tab }),
 }));
