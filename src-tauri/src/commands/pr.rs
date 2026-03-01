@@ -303,7 +303,7 @@ pub fn get_pr_full_data(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -359,7 +359,7 @@ pub fn get_reviews_and_comments(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     let worktree_path = {
-        let workspaces = state.workspaces.lock().unwrap();
+        let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;

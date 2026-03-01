@@ -35,6 +35,11 @@ const mockMergePr = vi.fn().mockResolvedValue({ success: true, message: "Merged"
 const mockGetPrChecks = vi.fn().mockResolvedValue([]);
 const mockListTodos = vi.fn().mockResolvedValue([]);
 const mockSendMessage = vi.fn().mockResolvedValue(undefined);
+const mockGetPrFullData = vi.fn().mockResolvedValue({
+  info: { workspaceId: "ws-1", prNumber: null, prUrl: null, title: null, state: null, checks: [], mergeable: null },
+  reviews: [],
+  reviewComments: [],
+});
 
 vi.mock("../../lib/tauri", () => ({
   getPrInfo: (...args: unknown[]) => mockGetPrInfo(...args),
@@ -46,11 +51,7 @@ vi.mock("../../lib/tauri", () => ({
   listTodos: (...args: unknown[]) => mockListTodos(...args),
   getPrReviews: vi.fn().mockResolvedValue([]),
   getPrReviewComments: vi.fn().mockResolvedValue([]),
-  getPrFullData: vi.fn().mockResolvedValue({
-    info: { workspaceId: "ws-1", prNumber: null, prUrl: null, title: null, state: null, checks: [], mergeable: null },
-    reviews: [],
-    reviewComments: [],
-  }),
+  getPrFullData: (...args: unknown[]) => mockGetPrFullData(...args),
   getReviewsAndComments: vi.fn().mockResolvedValue({ reviews: [], reviewComments: [] }),
   getWorkflowRuns: vi.fn().mockResolvedValue([]),
   listen: vi.fn().mockResolvedValue(() => {}),
@@ -77,6 +78,11 @@ function setupOpenPr(overrides: Partial<PrInfo> = {}) {
   const info = { ...openPrInfo, ...overrides };
   // Make the mock return this PR info so loadPrInfo won't overwrite our state
   mockGetPrInfo.mockResolvedValue(info);
+  mockGetPrFullData.mockResolvedValue({
+    info,
+    reviews: [],
+    reviewComments: [],
+  });
   usePrStore.setState({
     prInfo: { "ws-1": info },
   });
@@ -109,6 +115,11 @@ beforeEach(() => {
     state: null,
     checks: [],
     mergeable: null,
+  });
+  mockGetPrFullData.mockResolvedValue({
+    info: { workspaceId: "ws-1", prNumber: null, prUrl: null, title: null, state: null, checks: [], mergeable: null },
+    reviews: [],
+    reviewComments: [],
   });
 });
 
@@ -146,7 +157,7 @@ describe("PRPanel", () => {
   });
 
   it("shows error when loadPrInfo fails", async () => {
-    mockGetPrInfo.mockRejectedValueOnce(new Error("Push failed"));
+    mockGetPrFullData.mockRejectedValueOnce(new Error("Push failed"));
     render(<PRPanel workspaceId="ws-1" />);
     expect(await screen.findByText(/Push failed/)).toBeInTheDocument();
   });
@@ -182,7 +193,7 @@ describe("PRPanel", () => {
   it("submits create PR form and calls store", async () => {
     render(<PRPanel workspaceId="ws-1" />);
     // Wait for deferred loadPrInfo to settle before interacting with form
-    await waitFor(() => expect(mockGetPrInfo).toHaveBeenCalled());
+    await waitFor(() => expect(mockGetPrFullData).toHaveBeenCalled());
     const button = await screen.findByRole("button", { name: "Create Pull Request" });
     const createPrSpy = vi.spyOn(usePrStore.getState(), "createPr");
     await act(async () => {
@@ -220,7 +231,7 @@ describe("PRPanel", () => {
     usePrStore.setState({ loading: { "ws-1": false } });
     render(<PRPanel workspaceId="ws-1" />);
     // Wait for deferred loadPrInfo to settle so prInfo is populated
-    await waitFor(() => expect(mockGetPrInfo).toHaveBeenCalled());
+    await waitFor(() => expect(mockGetPrFullData).toHaveBeenCalled());
     await screen.findByPlaceholderText("PR title");
     // Set loading — with prInfo populated, shows "Creating..." instead of "Loading PR info..."
     await act(async () => {
@@ -950,7 +961,7 @@ describe("PRPanel", () => {
     });
     render(<PRPanel workspaceId="ws-1" />);
     // Wait for deferred loadPrInfo to complete before accessing fiber props
-    await waitFor(() => expect(mockGetPrInfo).toHaveBeenCalled());
+    await waitFor(() => expect(mockGetPrFullData).toHaveBeenCalled());
     const button = await screen.findByRole("button", { name: "Create Pull Request" });
     expect(button).toBeDisabled();
 

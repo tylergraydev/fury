@@ -505,25 +505,19 @@ describe("prStore - loadReviews", () => {
   });
 
   it("deduplicates concurrent calls", async () => {
-    let resolveReviews: (v: any) => void;
-    let resolveComments: (v: any) => void;
-    vi.mocked(getPrReviews).mockImplementation(
-      () => new Promise((r) => { resolveReviews = r; }),
-    );
-    vi.mocked(getPrReviewComments).mockImplementation(
-      () => new Promise((r) => { resolveComments = r; }),
+    let resolveData: (v: any) => void;
+    vi.mocked(getReviewsAndComments).mockImplementation(
+      () => new Promise((r) => { resolveData = r; }),
     );
 
     const p1 = usePrStore.getState().loadReviews("ws-1");
     const p2 = usePrStore.getState().loadReviews("ws-1");
 
-    resolveReviews!([]);
-    resolveComments!([]);
+    resolveData!({ reviews: [], reviewComments: [] });
     await p1;
     await p2;
 
-    expect(getPrReviews).toHaveBeenCalledTimes(1);
-    expect(getPrReviewComments).toHaveBeenCalledTimes(1);
+    expect(getReviewsAndComments).toHaveBeenCalledTimes(1);
   });
 });
 
