@@ -4,6 +4,7 @@ import type { AgentStatus, ChatMessage } from "../../lib/tauri";
 import { MessageBubble } from "./MessageBubble";
 import { MarkdownContent } from "./MarkdownContent";
 import { ThinkingSpinner } from "./ThinkingSpinner";
+import { ChatEmptyState } from "./ChatEmptyState";
 
 // --- Turn segmentation ---
 
@@ -115,6 +116,8 @@ interface Props {
   highlightMessageId?: string | null;
   contextId?: string;
   contextType?: "workspace" | "repo";
+  workspaceName?: string;
+  onAction?: (prompt: string) => void;
 }
 
 export function MessageList({
@@ -125,6 +128,8 @@ export function MessageList({
   highlightMessageId,
   contextId,
   contextType,
+  workspaceName,
+  onAction,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [expandedTurns, setExpandedTurns] = useState<Set<string>>(new Set());
@@ -160,6 +165,14 @@ export function MessageList({
   const { orphans, turns } = useMemo(() => segmentTurns(messages), [messages]);
 
   if (messages.length === 0 && !streamingText) {
+    if (workspaceName && onAction) {
+      return (
+        <ChatEmptyState
+          workspaceName={workspaceName}
+          onAction={onAction}
+        />
+      );
+    }
     return (
       <div className="flex h-full items-center justify-center">
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>

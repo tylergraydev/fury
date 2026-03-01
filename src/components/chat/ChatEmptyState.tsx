@@ -17,7 +17,7 @@ interface QuickAction {
   prompt: string;
 }
 
-const QUICK_ACTIONS: QuickAction[] = [
+const PRIMARY_ACTIONS: QuickAction[] = [
   {
     icon: Sparkles,
     title: "Add Feature",
@@ -60,6 +60,9 @@ const QUICK_ACTIONS: QuickAction[] = [
     color: "#2dd4bf",
     prompt: "Add documentation to ",
   },
+];
+
+const SECONDARY_ACTIONS: QuickAction[] = [
   {
     icon: GitMerge,
     title: "Merge from Main",
@@ -84,31 +87,29 @@ interface ChatEmptyStateProps {
 export function ChatEmptyState({ workspaceName, onAction }: ChatEmptyStateProps) {
   return (
     <div className="flex h-full flex-col items-center justify-center px-6">
-      <div className="w-full max-w-2xl">
+      <div className="w-full max-w-xl">
         {/* Header */}
         <div className="mb-8 text-center">
-          <div className="mb-1 flex items-center justify-center gap-2.5">
-            <div
-              className="flex h-9 w-9 items-center justify-center rounded-xl"
-              style={{ backgroundColor: "var(--accent)" }}
-            >
-              <Sparkles className="h-4.5 w-4.5" style={{ color: "#fff" }} />
-            </div>
+          <div className="mb-1.5 flex items-center justify-center gap-2">
+            <Sparkles
+              className="h-5 w-5"
+              style={{ color: "var(--accent)" }}
+            />
             <h1
-              className="text-xl font-semibold"
+              className="text-lg font-semibold"
               style={{ color: "var(--text-primary)" }}
             >
               {workspaceName}
             </h1>
           </div>
-          <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
             What would you like to work on?
           </p>
         </div>
 
-        {/* Quick action grid */}
-        <div className="grid grid-cols-2 gap-3">
-          {QUICK_ACTIONS.map((action) => (
+        {/* Primary actions — 2-column grid */}
+        <div className="grid grid-cols-2 gap-2.5">
+          {PRIMARY_ACTIONS.map((action) => (
             <QuickActionCard
               key={action.title}
               action={action}
@@ -116,6 +117,25 @@ export function ChatEmptyState({ workspaceName, onAction }: ChatEmptyStateProps)
             />
           ))}
         </div>
+
+        {/* Secondary actions — compact row */}
+        <div className="mt-2.5 flex gap-2.5">
+          {SECONDARY_ACTIONS.map((action) => (
+            <SecondaryActionPill
+              key={action.title}
+              action={action}
+              onClick={() => onAction(action.prompt)}
+            />
+          ))}
+        </div>
+
+        {/* Hint */}
+        <p
+          className="mt-6 text-center text-xs"
+          style={{ color: "var(--text-muted)", opacity: 0.6 }}
+        >
+          or type a message below to get started
+        </p>
       </div>
     </div>
   );
@@ -131,34 +151,32 @@ function QuickActionCard({
   return (
     <button
       onClick={onClick}
-      className="group flex items-center gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all duration-150"
+      className="flex items-center gap-3 rounded-xl px-3.5 py-3 text-left transition-all duration-200"
       style={{
         backgroundColor: "var(--bg-surface)",
         border: "1px solid var(--border)",
-        borderLeftWidth: "3px",
-        borderLeftColor: action.color,
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = action.color;
-        e.currentTarget.style.borderLeftColor = action.color;
+        e.currentTarget.style.backgroundColor = action.color + "0F";
+        e.currentTarget.style.borderColor = action.color + "40";
       }}
       onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = "var(--bg-surface)";
         e.currentTarget.style.borderColor = "var(--border)";
-        e.currentTarget.style.borderLeftColor = action.color;
       }}
     >
       <div
-        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg"
-        style={{ backgroundColor: action.color + "18" }}
+        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg"
+        style={{ backgroundColor: action.color + "15" }}
       >
         <action.icon
-          className="h-5 w-5"
+          className="h-4.5 w-4.5"
           style={{ color: action.color }}
         />
       </div>
       <div className="min-w-0">
         <div
-          className="text-sm font-medium"
+          className="text-sm font-medium leading-tight"
           style={{ color: "var(--text-primary)" }}
         >
           {action.title}
@@ -170,6 +188,42 @@ function QuickActionCard({
           {action.description}
         </div>
       </div>
+    </button>
+  );
+}
+
+function SecondaryActionPill({
+  action,
+  onClick,
+}: {
+  action: QuickAction;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-all duration-200"
+      style={{
+        backgroundColor: "var(--bg-surface)",
+        border: "1px solid var(--border)",
+        color: "var(--text-secondary)",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = action.color + "0F";
+        e.currentTarget.style.borderColor = action.color + "40";
+        e.currentTarget.style.color = "var(--text-primary)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+        e.currentTarget.style.borderColor = "var(--border)";
+        e.currentTarget.style.color = "var(--text-secondary)";
+      }}
+    >
+      <action.icon
+        className="h-3.5 w-3.5"
+        style={{ color: action.color }}
+      />
+      {action.title}
     </button>
   );
 }
