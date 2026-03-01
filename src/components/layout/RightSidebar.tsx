@@ -206,31 +206,35 @@ export function RightSidebar({ context }: Props) {
                 paddingTop: isMac ? 42 : 10,
               }}
             >
-              {tabs.map((tab) => {
-                const isActive = activeTab === tab.key;
-                const label =
-                  tab.key === "changes" && changeCount > 0
-                    ? `${tab.label} ${changeCount}`
-                    : tab.label;
-                return (
-                  <button
-                    key={tab.key}
-                    onClick={() => setTab(tab.key)}
-                    className="px-5 py-2.5 transition-colors"
-                    style={{
-                      color: isActive
-                        ? "var(--accent)"
-                        : "var(--text-muted)",
-                      borderBottom: isActive
-                        ? "2px solid var(--accent)"
-                        : "2px solid transparent",
-                    }}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-              <SyncButton contextId={context.id} />
+              <div className="flex min-w-0 flex-1 items-end overflow-x-auto scrollbar-hide">
+                {tabs.map((tab) => {
+                  const isActive = activeTab === tab.key;
+                  const label =
+                    tab.key === "changes" && changeCount > 0
+                      ? `${tab.label} ${changeCount}`
+                      : tab.label;
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={() => setTab(tab.key)}
+                      className="shrink-0 whitespace-nowrap px-5 py-2.5 transition-colors"
+                      style={{
+                        color: isActive
+                          ? "var(--accent)"
+                          : "var(--text-muted)",
+                        borderBottom: isActive
+                          ? "2px solid var(--accent)"
+                          : "2px solid transparent",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="shrink-0 pb-2.5">
+                <SyncButton contextId={context.id} />
+              </div>
             </div>
 
             {/* Tab content — FileTreePanel stays mounted to preserve scroll/expand state */}
