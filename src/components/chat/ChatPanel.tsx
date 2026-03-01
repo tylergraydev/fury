@@ -223,6 +223,8 @@ export function ChatPanel({ contextId, contextType }: Props) {
           highlightMessageId={highlightMessageId}
           contextId={contextId}
           contextType={contextType}
+          workspaceName={workspace?.name}
+          onAction={(prompt) => handleSend(prompt)}
         />
         <div className="absolute right-3 top-3 z-20 flex gap-1">
           <button

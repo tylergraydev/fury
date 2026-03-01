@@ -11,6 +11,14 @@ beforeEach(() => {
 vi.mock("lucide-react", () => ({
   ChevronRight: () => <span data-testid="chevron-right" />,
   ChevronDown: () => <span data-testid="chevron-down" />,
+  Sparkles: () => <span data-testid="icon-sparkles" />,
+  Bug: () => <span data-testid="icon-bug" />,
+  Code2: () => <span data-testid="icon-code2" />,
+  GitPullRequest: () => <span data-testid="icon-git-pr" />,
+  Zap: () => <span data-testid="icon-zap" />,
+  FileText: () => <span data-testid="icon-filetext" />,
+  GitMerge: () => <span data-testid="icon-git-merge" />,
+  Terminal: () => <span data-testid="icon-terminal" />,
 }));
 
 vi.mock("./ThinkingSpinner", () => ({
