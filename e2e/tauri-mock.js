@@ -447,6 +447,33 @@
           };
         }
         return { workspaceId: args.workspaceId, prNumber: null, prUrl: null, title: null, state: null, checks: [], mergeable: null };
+      case "get_pr_full_data":
+        if (args.workspaceId === "ws-ui") {
+          return {
+            info: {
+              workspaceId: "ws-ui",
+              prNumber: 42,
+              prUrl: "https://github.com/demo/fury/pull/42",
+              title: "Redesign sidebar layout",
+              state: "OPEN",
+              checks: [
+                { name: "build", status: "COMPLETED", conclusion: "SUCCESS", detailsUrl: "https://github.com/demo/fury/actions/runs/1" },
+                { name: "lint", status: "COMPLETED", conclusion: "FAILURE", detailsUrl: "https://github.com/demo/fury/actions/runs/2" },
+                { name: "test", status: "IN_PROGRESS", conclusion: null, detailsUrl: null },
+              ],
+              mergeable: "MERGEABLE",
+            },
+            reviews: [],
+            reviewComments: [],
+          };
+        }
+        return {
+          info: { workspaceId: args.workspaceId, prNumber: null, prUrl: null, title: null, state: null, checks: [], mergeable: null },
+          reviews: [],
+          reviewComments: [],
+        };
+      case "get_reviews_and_comments":
+        return { reviews: [], reviewComments: [] };
       case "get_pr_checks":
         return [];
       case "create_pr":
