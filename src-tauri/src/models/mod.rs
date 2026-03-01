@@ -5,6 +5,7 @@ pub mod checkpoint;
 pub mod diff;
 pub mod export;
 pub mod linear;
+pub mod lsp;
 pub mod mcp;
 pub mod merge;
 pub mod pr;

@@ -39,6 +39,9 @@ pub enum AppError {
     #[error("MCP operation failed: {0}")]
     McpError(String),
 
+    #[error("Plugin operation failed: {0}")]
+    PluginError(String),
+
     #[error("Copilot error: {0}")]
     CopilotError(String),
 

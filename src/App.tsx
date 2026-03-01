@@ -39,6 +39,7 @@ import { WorkspaceExportDialog } from "./components/workspace/WorkspaceExportDia
 import { useNotificationStore } from "./stores/notificationStore";
 import { initNotificationListeners } from "./lib/notificationListeners";
 import { initActivityLogListeners } from "./lib/activityLogListeners";
+import { initLspSuggestionListener } from "./lib/lspSuggestionListener";
 import "./App.css";
 
 export type SidebarContext =
@@ -166,11 +167,13 @@ function App() {
     startFrameMonitor();
     const cleanupNotifications = initNotificationListeners();
     const cleanupActivityLog = initActivityLogListeners();
+    const cleanupLspSuggestions = initLspSuggestionListener();
     return () => {
       stopIpcFlush();
       stopFrameMonitor();
       cleanupNotifications();
       cleanupActivityLog();
+      cleanupLspSuggestions();
     };
   }, []);
 

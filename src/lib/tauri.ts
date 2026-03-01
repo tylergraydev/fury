@@ -957,6 +957,42 @@ export async function getTodoSummary(
   return invoke<TodoSummary>("get_todo_summary", { workspaceId });
 }
 
+// LSP Plugin types
+export interface LspCatalogEntry {
+  pluginName: string;
+  language: string;
+  binaryName: string;
+  extensions: string[];
+  installHint: string;
+}
+
+export interface LspPlugin {
+  name: string;
+  scope: string;
+  enabled: boolean;
+  binaryFound: boolean;
+  binaryName: string;
+  installHint: string;
+}
+
+export interface InstallLspPluginRequest {
+  pluginName: string;
+  scope: string;
+}
+
+export interface UninstallLspPluginRequest {
+  pluginName: string;
+  scope: string;
+}
+
+export interface LspSuggestion {
+  pluginName: string;
+  language: string;
+  fileCount: number;
+  binaryName: string;
+  installHint: string;
+}
+
 // MCP types
 export type McpScope = "user" | "project";
 
@@ -1056,6 +1092,33 @@ export interface AppSettings {
   linear: LinearSettings;
   claudeContext: ClaudeContextSettings;
   customThemes?: CustomTheme[];
+}
+
+// LSP Plugin commands
+export async function getLspCatalog(): Promise<LspCatalogEntry[]> {
+  return invoke<LspCatalogEntry[]>("get_lsp_catalog");
+}
+
+export async function listLspPlugins(): Promise<LspPlugin[]> {
+  return invoke<LspPlugin[]>("list_lsp_plugins");
+}
+
+export async function installLspPlugin(
+  request: InstallLspPluginRequest,
+): Promise<void> {
+  return invoke("install_lsp_plugin", { request });
+}
+
+export async function uninstallLspPlugin(
+  request: UninstallLspPluginRequest,
+): Promise<void> {
+  return invoke("uninstall_lsp_plugin", { request });
+}
+
+export async function detectLspSuggestions(
+  repoPath: string,
+): Promise<LspSuggestion[]> {
+  return invoke<LspSuggestion[]>("detect_lsp_suggestions", { repoPath });
 }
 
 // MCP commands
