@@ -10,6 +10,7 @@
     "fs:default",
     "process:default",
     "dialog:default",
-    "updater:default"
+    "updater:default",
+    "mcp-bridge:default"
   ]
 }

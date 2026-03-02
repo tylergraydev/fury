@@ -29,7 +29,10 @@ export function NewProjectDialog({ onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    homeDir().then((home) => setBasePath(`${home}Code`));
+    homeDir().then((home) => {
+      const base = home.endsWith("/") ? home : home + "/";
+      setBasePath(`${base}Code`);
+    });
   }, []);
 
   const slug = toKebab(name);

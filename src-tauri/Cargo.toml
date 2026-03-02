@@ -37,6 +37,7 @@ notify = "7"
 notify-debouncer-full = "0.4"
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "blocking"] }
 axum = "0.8"
+tauri-plugin-mcp-bridge = "0.9"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
