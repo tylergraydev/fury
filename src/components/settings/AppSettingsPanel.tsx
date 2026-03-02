@@ -92,7 +92,7 @@ const BUILT_IN_THEME_META: Record<BuiltInThemeName, { label: string; description
   blend: {
     label: "Blend",
     description: "Black base with blue accents",
-    swatches: ["#000000", "#161b22", "#3b82f6", "#f0f6fc"],
+    swatches: ["#000000", "#161b22", "#58a6ff", "#f0f6fc"],
   },
   midnight: {
     label: "Midnight",
@@ -102,7 +102,7 @@ const BUILT_IN_THEME_META: Record<BuiltInThemeName, { label: string; description
   github: {
     label: "GitHub Dark",
     description: "GitHub's dark default palette",
-    swatches: ["#0d1117", "#1c2128", "#3b82f6", "#f0f6fc"],
+    swatches: ["#0d1117", "#1c2128", "#58a6ff", "#f0f6fc"],
   },
 };
 

@@ -24,7 +24,7 @@ function useThemeColors() {
     ? getComputedStyle(document.documentElement)
     : null;
   return {
-    accent: style?.getPropertyValue("--accent").trim() ?? "#3b82f6",
+    accent: style?.getPropertyValue("--accent").trim() ?? "#58a6ff",
     success: style?.getPropertyValue("--success").trim() ?? "#4ade80",
     warning: style?.getPropertyValue("--warning").trim() ?? "#facc15",
     error: style?.getPropertyValue("--error").trim() ?? "#f87171",
