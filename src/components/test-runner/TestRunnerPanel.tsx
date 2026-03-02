@@ -16,6 +16,8 @@ import type { TestSuite, TestResult, TestStatus } from "../../lib/tauri";
 import { TestConfigDialog } from "./TestConfigDialog";
 
 const EMPTY_SUITES: TestSuite[] = [];
+const EMPTY_OUTPUT: string[] = [];
+const EMPTY_EXPANDED = new Set<string>();
 
 interface Props {
   contextId: string;
@@ -212,7 +214,7 @@ export function TestRunnerPanel({ contextId, contextType }: Props) {
     (s) => s.summary[contextId] ?? null,
   );
   const output = useTestRunnerStore(
-    (s) => s.output[contextId] ?? [],
+    (s) => s.output[contextId] ?? EMPTY_OUTPUT,
   );
   const running = useTestRunnerStore(
     (s) => s.running[contextId] ?? false,
@@ -227,7 +229,7 @@ export function TestRunnerPanel({ contextId, contextType }: Props) {
     (s) => s.filter[contextId] ?? "all",
   );
   const expandedSuites = useTestRunnerStore(
-    (s) => s.expandedSuites[contextId] ?? new Set<string>(),
+    (s) => s.expandedSuites[contextId] ?? EMPTY_EXPANDED,
   );
   const selectedTest = useTestRunnerStore(
     (s) => s.selectedTest[contextId] ?? null,

@@ -188,24 +188,32 @@ function App() {
   // Defer the workspace layout mount so the browser gets a paint frame
   // before mounting the heavy 3-panel layout and all its children.
   const [layoutReady, setLayoutReady] = useState(!!hasContext);
-  const prevHasContext = useRef(hasContext);
+  const layoutReadyRef = useRef(!!hasContext);
   useEffect(() => {
-    if (hasContext && !prevHasContext.current) {
-      setLayoutReady(false);
-      let inner: number;
-      const outer = requestAnimationFrame(() => {
-        inner = requestAnimationFrame(() => setLayoutReady(true));
-      });
-      prevHasContext.current = hasContext;
-      return () => {
-        cancelAnimationFrame(outer);
-        cancelAnimationFrame(inner);
-      };
-    }
     if (!hasContext) {
       setLayoutReady(false);
+      layoutReadyRef.current = false;
+      return;
     }
-    prevHasContext.current = hasContext;
+    // Already laid out (workspace-to-workspace switch) — no deferral needed
+    if (layoutReadyRef.current) return;
+
+    // Transitioning from no-context to has-context: defer heavy mount by 2 frames.
+    // Use a setTimeout fallback because rAF can stall when the window lacks focus.
+    let cancelled = false;
+    const ready = () => {
+      if (!cancelled) {
+        cancelled = true;
+        layoutReadyRef.current = true;
+        setLayoutReady(true);
+      }
+    };
+    requestAnimationFrame(() => requestAnimationFrame(ready));
+    const timeout = setTimeout(ready, 100);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
   }, [hasContext]);
 
   // Stage 2: defer the RightSidebar content by one more frame after the
@@ -216,9 +224,19 @@ function App() {
       setRightSidebarReady(false);
       return;
     }
-    const id = requestAnimationFrame(() => setRightSidebarReady(true));
+    let done = false;
+    const mark = () => {
+      if (!done) {
+        done = true;
+        setRightSidebarReady(true);
+      }
+    };
+    const id = requestAnimationFrame(mark);
+    const timeout = setTimeout(mark, 100);
     return () => {
+      done = true;
       cancelAnimationFrame(id);
+      clearTimeout(timeout);
       setRightSidebarReady(false);
     };
   }, [layoutReady]);

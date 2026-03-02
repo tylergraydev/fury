@@ -11,6 +11,7 @@ import {
   Pin,
   RotateCcw,
   Clock,
+  Home,
 } from "lucide-react";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -97,16 +98,28 @@ export function Sidebar() {
             <FolderGit2 className="h-4 w-4" />
             Worktrees
           </span>
-          <button
-            onClick={() => {
-              if (repositories.length > 0) setNewWsRepoId(repositories[0].id);
-            }}
-            className="rounded-md p-1 transition-colors hover:bg-[var(--bg-hover)]"
-            style={{ color: "var(--text-muted)" }}
-            title="New worktree"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={() => {
+                useWorkspaceStore.setState({ activeWorkspaceId: null, activeRepoId: null });
+              }}
+              className="rounded-md p-1 transition-colors hover:bg-[var(--bg-hover)]"
+              style={{ color: "var(--text-muted)" }}
+              title="Back to home"
+            >
+              <Home className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => {
+                if (repositories.length > 0) setNewWsRepoId(repositories[0].id);
+              }}
+              className="rounded-md p-1 transition-colors hover:bg-[var(--bg-hover)]"
+              style={{ color: "var(--text-muted)" }}
+              title="New worktree"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 

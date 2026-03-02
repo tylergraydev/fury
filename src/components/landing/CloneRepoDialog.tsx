@@ -45,7 +45,8 @@ export function CloneRepoDialog({ onClose }: Props) {
       let dest = path.trim();
       if (!dest) {
         const home = await homeDir();
-        dest = `${home}Code/${derivedName}`;
+        const base = home.endsWith("/") ? home : home + "/";
+        dest = `${base}Code/${derivedName}`;
       }
 
       await cloneRepo(url.trim(), dest);
