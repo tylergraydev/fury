@@ -118,14 +118,23 @@ pub fn get_lsp_catalog() -> Vec<LspCatalogEntry> {
         .collect()
 }
 
-/// List installed LSP plugins by running `claude plugin list` and filtering
-/// against the known catalog.
+/// A single entry from `claude plugin list --json`.
+#[derive(serde::Deserialize)]
+struct CliPluginEntry {
+    /// e.g. "typescript-lsp@claude-plugins-official"
+    id: String,
+    scope: String,
+    enabled: bool,
+}
+
+/// List installed LSP plugins by running `claude plugin list --json` and
+/// filtering against the known catalog.
 pub fn list_installed_lsp_plugins() -> Result<Vec<LspPlugin>, AppError> {
     let claude = claude_process::find_claude_binary()?;
     let lookup = catalog_lookup();
 
     let output = platform::command(&claude)
-        .args(["plugin", "list"])
+        .args(["plugin", "list", "--json"])
         .output()
         .map_err(|e| AppError::PluginError(format!("Failed to run claude plugin list: {}", e)))?;
 
@@ -145,28 +154,22 @@ pub fn list_installed_lsp_plugins() -> Result<Vec<LspPlugin>, AppError> {
         return Ok(Vec::new());
     }
 
+    let entries: Vec<CliPluginEntry> = serde_json::from_str(&stdout).map_err(|e| {
+        AppError::PluginError(format!("Failed to parse claude plugin list output: {}", e))
+    })?;
+
     let mut plugins = Vec::new();
-    for line in stdout.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
+    for entry in &entries {
+        // id is "plugin-name@marketplace" — extract the plugin name
+        let name = entry.id.split('@').next().unwrap_or(&entry.id);
 
-        // Parse plugin list output: name, scope, enabled status
-        // Format may vary — extract the first token as the plugin name
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        let name = parts.first().copied().unwrap_or(line);
-
-        // Only include known LSP plugins
         if let Some(catalog_def) = lookup.get(name) {
-            let scope = parts.get(1).copied().unwrap_or("user").to_string();
-            let enabled = !parts.contains(&"disabled");
             let binary_found = which::which(catalog_def.binary_name).is_ok();
 
             plugins.push(LspPlugin {
                 name: name.to_string(),
-                scope,
-                enabled,
+                scope: entry.scope.clone(),
+                enabled: entry.enabled,
                 binary_found,
                 binary_name: catalog_def.binary_name.to_string(),
                 install_hint: catalog_def.install_hint.to_string(),
