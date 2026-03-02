@@ -294,7 +294,6 @@ pub async fn spawn_and_stream(
     // Set CREATE_NEW_PROCESS_GROUP on Windows
     #[cfg(windows)]
     {
-        use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x08000200); // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
     }
 
@@ -485,7 +484,6 @@ pub async fn spawn_persistent(
 
     #[cfg(windows)]
     {
-        use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x08000200); // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
     }
 

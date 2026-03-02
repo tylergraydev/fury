@@ -67,11 +67,9 @@ pub async fn run_script(
     // Nonconcurrent mode: kill previous run script before starting new one
     if kind == ScriptKind::Run && matches!(settings.run_script_mode, RunScriptMode::Nonconcurrent) {
         let key = format!("{}:{}", ws_id, kind.as_str());
-        let mut processes = state.script_processes.lock().unwrap();
-        if let Some(child) = processes.remove(&key) {
-            if let Some(pid) = child.id() {
-                let _ = crate::platform::kill_process_group(pid);
-            }
+        let mut pids = state.script_pids.lock().unwrap();
+        if let Some(pid) = pids.remove(&key) {
+            let _ = crate::platform::kill_process_group(pid);
         }
     }
 
@@ -97,7 +95,7 @@ pub async fn run_script(
     };
 
     // Spawn the script
-    let child = script_runner::spawn_script(
+    let mut child = script_runner::spawn_script(
         ws_id,
         kind,
         &script_body,
@@ -107,28 +105,25 @@ pub async fn run_script(
     )
     .await?;
 
-    // Store process handle
+    // Store PID so stop_script can kill the process
     let key = format!("{}:{}", ws_id, kind.as_str());
-    {
-        let mut processes = state.script_processes.lock().unwrap();
-        processes.insert(key.clone(), child);
+    if let Some(pid) = child.id() {
+        let mut pids = state.script_pids.lock().unwrap();
+        pids.insert(key.clone(), pid);
     }
 
-    // Background task to wait for exit
-    let processes_ref = Arc::clone(&state.script_processes);
+    // Background task to wait for exit, then clean up and emit event
+    let pids_ref = Arc::clone(&state.script_pids);
     let app_clone = app.clone();
     let exit_event = format!("script-exit:{}:{}", kind.as_str(), ws_id);
     tokio::spawn(async move {
-        let mut child = {
-            let mut processes = processes_ref.lock().unwrap();
-            processes.remove(&key)
-        };
+        let exit_status = child.wait().await.ok();
 
-        let exit_status = if let Some(ref mut c) = child {
-            c.wait().await.ok()
-        } else {
-            None
-        };
+        // Remove PID from map now that process has exited
+        {
+            let mut pids = pids_ref.lock().unwrap();
+            pids.remove(&key);
+        }
 
         let (exit_code, success) = match exit_status {
             Some(ref status) => (status.code(), status.success()),
@@ -152,14 +147,12 @@ pub async fn stop_script(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
     let kind = ScriptKind::from_str(&script_kind)?;
 
-    let script_processes = Arc::clone(&state.script_processes);
+    let script_pids = Arc::clone(&state.script_pids);
     tokio::task::spawn_blocking(move || {
         let key = format!("{}:{}", ws_id, kind.as_str());
-        let mut processes = script_processes.lock().unwrap();
-        if let Some(child) = processes.remove(&key) {
-            if let Some(pid) = child.id() {
-                let _ = crate::platform::kill_process_group(pid);
-            }
+        let mut pids = script_pids.lock().unwrap();
+        if let Some(pid) = pids.remove(&key) {
+            let _ = crate::platform::kill_process_group(pid);
         }
 
         Ok(())
@@ -202,11 +195,9 @@ pub async fn run_repo_script(
     // Nonconcurrent mode: kill previous run script before starting new one
     if kind == ScriptKind::Run && matches!(settings.run_script_mode, RunScriptMode::Nonconcurrent) {
         let key = format!("repo:{}:{}", id, kind.as_str());
-        let mut processes = state.script_processes.lock().unwrap();
-        if let Some(child) = processes.remove(&key) {
-            if let Some(pid) = child.id() {
-                let _ = crate::platform::kill_process_group(pid);
-            }
+        let mut pids = state.script_pids.lock().unwrap();
+        if let Some(pid) = pids.remove(&key) {
+            let _ = crate::platform::kill_process_group(pid);
         }
     }
 
@@ -223,7 +214,7 @@ pub async fn run_repo_script(
     };
 
     // Spawn the script
-    let child = script_runner::spawn_script(
+    let mut child = script_runner::spawn_script(
         id,
         kind,
         &script_body,
@@ -233,28 +224,25 @@ pub async fn run_repo_script(
     )
     .await?;
 
-    // Store process handle with repo: prefix to avoid key collisions
+    // Store PID so stop_repo_script can kill the process
     let key = format!("repo:{}:{}", id, kind.as_str());
-    {
-        let mut processes = state.script_processes.lock().unwrap();
-        processes.insert(key.clone(), child);
+    if let Some(pid) = child.id() {
+        let mut pids = state.script_pids.lock().unwrap();
+        pids.insert(key.clone(), pid);
     }
 
-    // Background task to wait for exit
-    let processes_ref = Arc::clone(&state.script_processes);
+    // Background task to wait for exit, then clean up and emit event
+    let pids_ref = Arc::clone(&state.script_pids);
     let app_clone = app.clone();
     let exit_event = format!("script-exit:{}:{}", kind.as_str(), id);
     tokio::spawn(async move {
-        let mut child = {
-            let mut processes = processes_ref.lock().unwrap();
-            processes.remove(&key)
-        };
+        let exit_status = child.wait().await.ok();
 
-        let exit_status = if let Some(ref mut c) = child {
-            c.wait().await.ok()
-        } else {
-            None
-        };
+        // Remove PID from map now that process has exited
+        {
+            let mut pids = pids_ref.lock().unwrap();
+            pids.remove(&key);
+        }
 
         let (exit_code, success) = match exit_status {
             Some(ref status) => (status.code(), status.success()),
@@ -278,14 +266,12 @@ pub async fn stop_repo_script(
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
     let kind = ScriptKind::from_str(&script_kind)?;
 
-    let script_processes = Arc::clone(&state.script_processes);
+    let script_pids = Arc::clone(&state.script_pids);
     tokio::task::spawn_blocking(move || {
         let key = format!("repo:{}:{}", id, kind.as_str());
-        let mut processes = script_processes.lock().unwrap();
-        if let Some(child) = processes.remove(&key) {
-            if let Some(pid) = child.id() {
-                let _ = crate::platform::kill_process_group(pid);
-            }
+        let mut pids = script_pids.lock().unwrap();
+        if let Some(pid) = pids.remove(&key) {
+            let _ = crate::platform::kill_process_group(pid);
         }
 
         Ok(())

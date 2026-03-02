@@ -145,7 +145,6 @@ pub async fn start(root_uri: &str) -> Result<(CopilotLspHandle, Child), AppError
     }
     #[cfg(windows)]
     {
-        use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x08000200); // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
     }
 

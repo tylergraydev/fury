@@ -138,7 +138,6 @@ pub async fn spawn_test_run(
 
     #[cfg(windows)]
     {
-        use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x08000200);
     }
 
