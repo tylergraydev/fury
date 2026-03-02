@@ -184,18 +184,18 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
   Read:      { icon: <FileText className={ICON} />,       color: "#60a5fa", label: "Read" },
   Edit:      { icon: <Pencil className={ICON} />,         color: "#f59e0b", label: "Edit" },
   Write:     { icon: <FilePlus2 className={ICON} />,      color: "#34d399", label: "Write" },
-  Bash:      { icon: <SquareTerminal className={ICON} />, color: "#a78bfa", label: "Run" },
+  Bash:      { icon: <SquareTerminal className={ICON} />, color: "#d2a8ff", label: "Run" },
   Grep:      { icon: <FileSearch className={ICON} />,     color: "#fb923c", label: "Search" },
   Glob:      { icon: <FolderSearch className={ICON} />,   color: "#fb923c", label: "Find" },
   Task:      { icon: <Bot className={ICON} />,            color: "#ec4899", label: "Agent" },
-  Notebook:  { icon: <NotebookPen className={ICON} />,    color: "#8b5cf6", label: "Notebook" },
+  Notebook:  { icon: <NotebookPen className={ICON} />,    color: "#bc8cff", label: "Notebook" },
   WebFetch:  { icon: <Globe className={ICON} />,          color: "#22d3ee", label: "Fetch" },
   WebSearch: { icon: <Radar className={ICON} />,          color: "#22d3ee", label: "Search web" },
   Web:       { icon: <Globe className={ICON} />,          color: "#22d3ee", label: "Web" },
   TodoWrite: { icon: <ListPlus className={ICON} />,       color: "#facc15", label: "Update todos" },
   TodoRead:  { icon: <ListChecks className={ICON} />,     color: "#facc15", label: "Read todos" },
   Think:     { icon: <Brain className={ICON} />,          color: "#6b7280", label: "Thinking" },
-  Diff:      { icon: <GitCompare className={ICON} />,     color: "#3b82f6", label: "Diff" },
+  Diff:      { icon: <GitCompare className={ICON} />,     color: "#58a6ff", label: "Diff" },
 };
 
 const DEFAULT_CONFIG: ToolConfig = { icon: <Wrench className={ICON} />, color: "var(--text-muted)", label: "" };
