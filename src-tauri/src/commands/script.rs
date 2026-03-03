@@ -125,6 +125,12 @@ pub async fn run_script(
             pids.remove(&key);
         }
 
+        // Clean up PID entry after process exits
+        {
+            let mut pids = pids_ref.lock().unwrap();
+            pids.remove(&key);
+        }
+
         let (exit_code, success) = match exit_status {
             Some(ref status) => (status.code(), status.success()),
             None => (None, false),
@@ -239,6 +245,12 @@ pub async fn run_repo_script(
         let exit_status = child.wait().await.ok();
 
         // Remove PID from map now that process has exited
+        {
+            let mut pids = pids_ref.lock().unwrap();
+            pids.remove(&key);
+        }
+
+        // Clean up PID entry after process exits
         {
             let mut pids = pids_ref.lock().unwrap();
             pids.remove(&key);

@@ -181,14 +181,14 @@ interface ToolConfig {
 const ICON = "h-3.5 w-3.5";
 
 const TOOL_CONFIG: Record<string, ToolConfig> = {
-  Read:      { icon: <FileText className={ICON} />,       color: "#60a5fa", label: "Read" },
+  Read:      { icon: <FileText className={ICON} />,       color: "#79c0ff", label: "Read" },
   Edit:      { icon: <Pencil className={ICON} />,         color: "#f59e0b", label: "Edit" },
   Write:     { icon: <FilePlus2 className={ICON} />,      color: "#34d399", label: "Write" },
   Bash:      { icon: <SquareTerminal className={ICON} />, color: "#d2a8ff", label: "Run" },
   Grep:      { icon: <FileSearch className={ICON} />,     color: "#fb923c", label: "Search" },
   Glob:      { icon: <FolderSearch className={ICON} />,   color: "#fb923c", label: "Find" },
   Task:      { icon: <Bot className={ICON} />,            color: "#ec4899", label: "Agent" },
-  Notebook:  { icon: <NotebookPen className={ICON} />,    color: "#bc8cff", label: "Notebook" },
+  Notebook:  { icon: <NotebookPen className={ICON} />,    color: "#d2a8ff", label: "Notebook" },
   WebFetch:  { icon: <Globe className={ICON} />,          color: "#22d3ee", label: "Fetch" },
   WebSearch: { icon: <Radar className={ICON} />,          color: "#22d3ee", label: "Search web" },
   Web:       { icon: <Globe className={ICON} />,          color: "#22d3ee", label: "Web" },
@@ -380,7 +380,7 @@ function formatToolDetail(normalized: string, input: unknown, result: { content:
           {cmd && (
             <div>
               <div className="mb-0.5 text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>Command</div>
-              <pre className="overflow-x-auto rounded px-2 py-1 font-mono text-[11px]" style={{ color: "var(--accent-purple)", backgroundColor: "rgba(168, 85, 247, 0.08)" }}>
+              <pre className="overflow-x-auto rounded px-2 py-1 font-mono text-[11px]" style={{ color: "var(--accent-purple)", backgroundColor: "rgba(210, 168, 255, 0.08)" }}>
                 $ {cmd}
               </pre>
             </div>
