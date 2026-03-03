@@ -183,6 +183,126 @@ describe("prStore - unsubscribe", () => {
   });
 });
 
+describe("prStore - subscribe/unsubscribe race condition", () => {
+  // Each test resets the listen mock to avoid leftover mockImplementationOnce
+  // entries from previous tests (vi.clearAllMocks does not clear them).
+
+  it("unsubscribe during in-flight subscribe cancels and cleans up first listener", async () => {
+    vi.mocked(listen).mockReset();
+
+    let resolveFirst!: (v: () => void) => void;
+    const unlisten1 = vi.fn();
+
+    vi.mocked(listen).mockImplementationOnce(
+      () => new Promise((r) => { resolveFirst = r; }),
+    );
+
+    const subscribePromise = usePrStore.getState().subscribe("ws-1");
+
+    // Unsubscribe while subscribe is awaiting the first listen
+    usePrStore.getState().unsubscribe("ws-1");
+
+    // Resolve the first listen — subscribe should detect cancellation
+    resolveFirst(unlisten1);
+    await subscribePromise;
+
+    // First listener should be cleaned up, second never acquired
+    expect(unlisten1).toHaveBeenCalled();
+    expect(usePrStore.getState().subscriptions["ws-1"]).toBeUndefined();
+  });
+
+  it("unsubscribe between first and second await cleans up both listeners", async () => {
+    vi.mocked(listen).mockReset();
+
+    let resolveFirst!: (v: () => void) => void;
+    let resolveSecond!: (v: () => void) => void;
+    const unlisten1 = vi.fn();
+    const unlisten2 = vi.fn();
+
+    vi.mocked(listen)
+      .mockImplementationOnce(
+        () => new Promise((r) => { resolveFirst = r; }),
+      )
+      .mockImplementationOnce(
+        () => new Promise((r) => { resolveSecond = r; }),
+      );
+
+    const subscribePromise = usePrStore.getState().subscribe("ws-1");
+
+    // Resolve first listen so subscribe proceeds to second await
+    resolveFirst(unlisten1);
+    await Promise.resolve();
+
+    // Unsubscribe between the two awaits
+    usePrStore.getState().unsubscribe("ws-1");
+
+    // Resolve second listen
+    resolveSecond(unlisten2);
+    await subscribePromise;
+
+    // Both unlisten fns should have been called
+    expect(unlisten1).toHaveBeenCalled();
+    expect(unlisten2).toHaveBeenCalled();
+    expect(usePrStore.getState().subscriptions["ws-1"]).toBeUndefined();
+  });
+
+  it("cancelled event handler does not update store", async () => {
+    vi.mocked(listen).mockReset();
+
+    let updatedHandler: ((event: { payload: unknown }) => void) | undefined;
+    const unlisten1 = vi.fn();
+    const unlisten2 = vi.fn();
+
+    vi.mocked(listen).mockImplementation(async (_channel, handler) => {
+      const ch = String(_channel);
+      if (ch.startsWith("pr-updated:")) {
+        updatedHandler = handler as (event: { payload: unknown }) => void;
+      }
+      return ch.includes("updated") ? unlisten1 : unlisten2;
+    });
+
+    await usePrStore.getState().subscribe("ws-1");
+
+    // Now unsubscribe (cancels the token used by event handlers)
+    usePrStore.getState().unsubscribe("ws-1");
+
+    // Simulate an event arriving on the orphaned listener before unlisten takes effect
+    updatedHandler!({ payload: makePrInfo({ prNumber: 999, title: "Orphaned" }) });
+
+    // Store should NOT have been updated because the handler's token is cancelled
+    expect(usePrStore.getState().prInfo["ws-1"]).toBeUndefined();
+  });
+
+  it("re-subscribe after cancel works correctly", async () => {
+    vi.mocked(listen).mockReset();
+
+    let resolveFirst!: (v: () => void) => void;
+    const unlisten1 = vi.fn();
+
+    vi.mocked(listen).mockImplementationOnce(
+      () => new Promise((r) => { resolveFirst = r; }),
+    );
+
+    const subscribePromise = usePrStore.getState().subscribe("ws-1");
+
+    // Cancel it
+    usePrStore.getState().unsubscribe("ws-1");
+    resolveFirst(unlisten1);
+    await subscribePromise;
+
+    // Now re-subscribe fresh
+    const unlisten3 = vi.fn();
+    const unlisten4 = vi.fn();
+    vi.mocked(listen)
+      .mockResolvedValueOnce(unlisten3)
+      .mockResolvedValueOnce(unlisten4);
+
+    await usePrStore.getState().subscribe("ws-1");
+
+    expect(usePrStore.getState().subscriptions["ws-1"]).toEqual([unlisten3, unlisten4]);
+  });
+});
+
 describe("prStore - loadPrInfo", () => {
   it("loads PR info, reviews, and comments via combined endpoint", async () => {
     const info = makePrInfo();

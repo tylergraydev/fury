@@ -551,6 +551,9 @@ export function ChecksPanel({ workspaceId }: Props) {
     if (hasPendingChecks || hasInProgressRuns) {
       usePrStore.getState().startPolling(workspaceId);
     }
+    return () => {
+      usePrStore.getState().stopPolling(workspaceId);
+    };
   }, [hasPendingChecks, hasInProgressRuns, workspaceId]);
 
   const handleFix = async () => {

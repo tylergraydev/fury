@@ -112,6 +112,9 @@ function PrStatusBar({ workspaceId }: { workspaceId: string }) {
     if (hasPr && hasPendingChecks) {
       usePrStore.getState().startPolling(workspaceId);
     }
+    return () => {
+      usePrStore.getState().stopPolling(workspaceId);
+    };
   }, [hasPr, hasPendingChecks, workspaceId]);
 
   const prLink = hasPr && prInfo?.prUrl ? (
