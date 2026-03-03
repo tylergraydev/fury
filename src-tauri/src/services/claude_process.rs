@@ -212,6 +212,7 @@ fn stream_event_detail(event: &FrontendStreamEvent) -> String {
             }
         }
         FrontendStreamEvent::PermissionRequest { tool_name, .. } => format!("permissionRequest:{}", tool_name),
+        FrontendStreamEvent::AssistantImage { media_type, .. } => format!("assistantImage:{}", media_type),
     }
 }
 
@@ -333,7 +334,9 @@ pub async fn spawn_and_stream(
                 continue;
             }
 
-            if let Some(mut frontend_event) = parse_stream_line(&line) {
+            let frontend_events = parse_stream_line(&line);
+            if !frontend_events.is_empty() {
+              for mut frontend_event in frontend_events {
                 if !session_id_captured {
                     session_id_captured =
                         try_capture_session_id(&frontend_event, &agents, ws_id);
@@ -355,6 +358,7 @@ pub async fn spawn_and_stream(
                 );
 
                 let _ = app_handle_stdout.emit(&event_name, &frontend_event);
+              }
             } else if !is_known_skippable_line(&line) {
                 let truncated = if line.len() > 200 { format!("{}...", &line[..200]) } else { line.clone() };
                 log_stream_event(&perf_metrics_stdout, ws_id, "line_parse_failed", Some(truncated));
@@ -521,7 +525,9 @@ pub async fn spawn_persistent(
                 continue;
             }
 
-            if let Some(mut frontend_event) = parse_stream_line(&line) {
+            let frontend_events = parse_stream_line(&line);
+            if !frontend_events.is_empty() {
+              for mut frontend_event in frontend_events {
                 if !session_id_captured {
                     session_id_captured =
                         try_capture_session_id(&frontend_event, &agents_stdout, ws_id);
@@ -557,6 +563,7 @@ pub async fn spawn_persistent(
                 }
 
                 let _ = app_handle_stdout.emit(&event_name, &frontend_event);
+              }
             } else if !is_known_skippable_line(&line) {
                 let truncated = if line.len() > 200 { format!("{}...", &line[..200]) } else { line.clone() };
                 log_stream_event(&perf_metrics_stdout, ws_id, "line_parse_failed", Some(truncated));
@@ -648,29 +655,39 @@ fn enrich_error_from_stderr(
 }
 
 /// Parse a single NDJSON line from Claude Code's stream output
-/// into a frontend-friendly event.
-pub fn parse_stream_line(line: &str) -> Option<FrontendStreamEvent> {
-    let raw: serde_json::Value = serde_json::from_str(line).ok()?;
+/// into frontend-friendly events. Returns a Vec because a single
+/// assistant message can contain multiple content blocks (text, tool_use, image, etc.).
+pub fn parse_stream_line(line: &str) -> Vec<FrontendStreamEvent> {
+    let raw: serde_json::Value = match serde_json::from_str(line) {
+        Ok(v) => v,
+        Err(_) => return vec![],
+    };
 
-    let event_type = raw.get("type")?.as_str()?;
+    let event_type = match raw.get("type").and_then(|v| v.as_str()) {
+        Some(t) => t,
+        None => return vec![],
+    };
 
     match event_type {
         "system" => {
             let session_id = raw.get("session_id").and_then(|v| v.as_str()).map(String::from);
             let message = raw.get("message").and_then(|v| v.as_str()).map(String::from);
-            Some(FrontendStreamEvent::System {
+            vec![FrontendStreamEvent::System {
                 session_id,
                 message,
-            })
+            }]
         }
         "assistant" => {
             // Extract content blocks from the message
-            let content = raw
+            let content = match raw
                 .get("message")
                 .and_then(|m| m.get("content"))
-                .and_then(|c| c.as_array())?;
+                .and_then(|c| c.as_array()) {
+                Some(c) => c,
+                None => return vec![],
+            };
 
-            // Process each content block
+            // Process each content block — emit all of them
             let mut events = Vec::new();
             for block in content {
                 let block_type = block.get("type").and_then(|t| t.as_str()).unwrap_or("");
@@ -699,13 +716,23 @@ pub fn parse_stream_line(line: &str) -> Option<FrontendStreamEvent> {
                         }).unwrap_or_default();
                         events.push(FrontendStreamEvent::ToolResult { tool_use_id, content });
                     }
+                    "image" => {
+                        // Claude API image blocks: { type: "image", source: { type: "base64", media_type: "...", data: "..." } }
+                        if let Some(source) = block.get("source") {
+                            let media_type = source.get("media_type").and_then(|v| v.as_str()).unwrap_or("image/png").to_string();
+                            if let Some(data) = source.get("data").and_then(|v| v.as_str()) {
+                                events.push(FrontendStreamEvent::AssistantImage {
+                                    media_type,
+                                    data: data.to_string(),
+                                });
+                            }
+                        }
+                    }
                     _ => {}
                 }
             }
 
-            // Return the first event (most assistant messages have one content block)
-            // For multi-block messages, we emit them as separate events
-            events.into_iter().next()
+            events
         }
         "result" => {
             let is_error = raw.get("is_error").and_then(|v| v.as_bool()).unwrap_or(false)
@@ -739,7 +766,7 @@ pub fn parse_stream_line(line: &str) -> Option<FrontendStreamEvent> {
             let output_tokens = usage.and_then(|u| u.get("output_tokens")).and_then(|v| v.as_u64());
             let cache_read_tokens = usage.and_then(|u| u.get("cache_read_input_tokens")).and_then(|v| v.as_u64());
             let cache_creation_tokens = usage.and_then(|u| u.get("cache_creation_input_tokens")).and_then(|v| v.as_u64());
-            Some(FrontendStreamEvent::Result {
+            vec![FrontendStreamEvent::Result {
                 is_error,
                 result,
                 session_id,
@@ -751,7 +778,7 @@ pub fn parse_stream_line(line: &str) -> Option<FrontendStreamEvent> {
                 output_tokens,
                 cache_read_tokens,
                 cache_creation_tokens,
-            })
+            }]
         }
         // Permission request: emitted when CLI needs user approval for a tool call
         "input_request" => {
@@ -767,12 +794,12 @@ pub fn parse_stream_line(line: &str) -> Option<FrontendStreamEvent> {
                 .or_else(|| raw.get("input"))
                 .cloned()
                 .unwrap_or(serde_json::Value::Null);
-            Some(FrontendStreamEvent::PermissionRequest {
+            vec![FrontendStreamEvent::PermissionRequest {
                 tool_name,
                 input,
-            })
+            }]
         }
-        _ => None,
+        _ => vec![],
     }
 }
 
@@ -785,8 +812,9 @@ mod tests {
     #[test]
     fn test_parse_system_event() {
         let line = r#"{"type":"system","session_id":"sess-123","message":"Connected"}"#;
-        let event = parse_stream_line(line).unwrap();
-        match event {
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
             FrontendStreamEvent::System { session_id, message } => {
                 assert_eq!(session_id.as_deref(), Some("sess-123"));
                 assert_eq!(message.as_deref(), Some("Connected"));
@@ -798,8 +826,9 @@ mod tests {
     #[test]
     fn test_parse_assistant_text_event() {
         let line = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Hello world"}]}}"#;
-        let event = parse_stream_line(line).unwrap();
-        match event {
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
             FrontendStreamEvent::AssistantText { text } => {
                 assert_eq!(text, "Hello world");
             }
@@ -810,8 +839,9 @@ mod tests {
     #[test]
     fn test_parse_tool_use_event() {
         let line = r#"{"type":"assistant","message":{"content":[{"type":"tool_use","id":"tool-1","name":"read_file","input":{"path":"/tmp"}}]}}"#;
-        let event = parse_stream_line(line).unwrap();
-        match event {
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
             FrontendStreamEvent::ToolUse { id, name, input } => {
                 assert_eq!(id, "tool-1");
                 assert_eq!(name, "read_file");
@@ -824,8 +854,9 @@ mod tests {
     #[test]
     fn test_parse_tool_result_event() {
         let line = r#"{"type":"assistant","message":{"content":[{"type":"tool_result","tool_use_id":"tool-1","content":"file contents"}]}}"#;
-        let event = parse_stream_line(line).unwrap();
-        match event {
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
             FrontendStreamEvent::ToolResult { tool_use_id, content } => {
                 assert_eq!(tool_use_id, "tool-1");
                 assert_eq!(content, "file contents");
@@ -835,10 +866,34 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_assistant_image_event() {
+        let line = r#"{"type":"assistant","message":{"content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBOR..."}}]}}"#;
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            FrontendStreamEvent::AssistantImage { media_type, data } => {
+                assert_eq!(media_type, "image/png");
+                assert_eq!(data, "iVBOR...");
+            }
+            _ => panic!("Expected AssistantImage event"),
+        }
+    }
+
+    #[test]
+    fn test_parse_multi_block_assistant_message() {
+        let line = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Here is a screenshot:"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"abc123"}}]}}"#;
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 2);
+        assert!(matches!(&events[0], FrontendStreamEvent::AssistantText { .. }));
+        assert!(matches!(&events[1], FrontendStreamEvent::AssistantImage { .. }));
+    }
+
+    #[test]
     fn test_parse_result_event() {
         let line = r#"{"type":"result","is_error":false,"result":"Done","session_id":"sess-1","duration_ms":1000,"total_cost_usd":0.05,"num_turns":3,"usage":{"input_tokens":100,"output_tokens":200}}"#;
-        let event = parse_stream_line(line).unwrap();
-        match event {
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
             FrontendStreamEvent::Result {
                 is_error,
                 result,
@@ -853,11 +908,11 @@ mod tests {
                 assert!(!is_error);
                 assert_eq!(result.as_deref(), Some("Done"));
                 assert_eq!(session_id.as_deref(), Some("sess-1"));
-                assert_eq!(duration_ms, Some(1000));
-                assert_eq!(total_cost_usd, Some(0.05));
-                assert_eq!(num_turns, Some(3));
-                assert_eq!(input_tokens, Some(100));
-                assert_eq!(output_tokens, Some(200));
+                assert_eq!(*duration_ms, Some(1000));
+                assert_eq!(*total_cost_usd, Some(0.05));
+                assert_eq!(*num_turns, Some(3));
+                assert_eq!(*input_tokens, Some(100));
+                assert_eq!(*output_tokens, Some(200));
             }
             _ => panic!("Expected Result event"),
         }
@@ -866,8 +921,9 @@ mod tests {
     #[test]
     fn test_parse_result_error_via_subtype() {
         let line = r#"{"type":"result","subtype":"error","result":"Something went wrong"}"#;
-        let event = parse_stream_line(line).unwrap();
-        match event {
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
             FrontendStreamEvent::Result { is_error, .. } => assert!(is_error),
             _ => panic!("Expected Result event"),
         }
@@ -876,8 +932,9 @@ mod tests {
     #[test]
     fn test_parse_permission_request() {
         let line = r#"{"type":"input_request","tool":{"name":"bash","input":{"command":"ls"}}}"#;
-        let event = parse_stream_line(line).unwrap();
-        match event {
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
             FrontendStreamEvent::PermissionRequest { tool_name, input } => {
                 assert_eq!(tool_name, "bash");
                 assert_eq!(input["command"], "ls");
@@ -887,14 +944,14 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_invalid_json_returns_none() {
-        assert!(parse_stream_line("not json").is_none());
+    fn test_parse_invalid_json_returns_empty() {
+        assert!(parse_stream_line("not json").is_empty());
     }
 
     #[test]
-    fn test_parse_unknown_type_returns_none() {
+    fn test_parse_unknown_type_returns_empty() {
         let line = r#"{"type":"unknown_event","data":"something"}"#;
-        assert!(parse_stream_line(line).is_none());
+        assert!(parse_stream_line(line).is_empty());
     }
 
     // --- is_known_skippable_line tests ---
@@ -915,7 +972,7 @@ mod tests {
     fn test_skippable_assistant_metadata() {
         // Assistant message without extractable content blocks (metadata-only)
         let line = r#"{"type":"assistant","message":{"model":"claude-sonnet-4-20250514","stop_reason":"end_turn"}}"#;
-        assert!(parse_stream_line(line).is_none()); // not a frontend event
+        assert!(parse_stream_line(line).is_empty()); // not a frontend event
         assert!(is_known_skippable_line(line));      // but known-skippable
     }
 

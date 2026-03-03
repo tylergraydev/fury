@@ -60,6 +60,10 @@ pub enum ContentBlock {
         tool_use_id: String,
         content: String,
     },
+    Image {
+        media_type: String,
+        data: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

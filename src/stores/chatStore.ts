@@ -314,6 +314,18 @@ function handleStreamEvent(
       break;
     }
 
+    case "assistantImage": {
+      // Finalize any streaming text first, then add image block
+      finalizeStreamingText(workspaceId, set, get);
+      const imgBlock: ContentBlock = {
+        type: "image",
+        mediaType: event.mediaType,
+        data: event.data,
+      };
+      appendContentBlock(workspaceId, imgBlock, set, get);
+      break;
+    }
+
     case "toolUse": {
       // Finalize any streaming text first, then add tool use block
       finalizeStreamingText(workspaceId, set, get);

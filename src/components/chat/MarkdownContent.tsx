@@ -1,9 +1,10 @@
-import { Component, type ErrorInfo, type ReactNode, useMemo } from "react";
+import { Component, type ErrorInfo, type ReactNode, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 import { extractCodeBlockInfo } from "../../lib/codeBlockFilePath";
 import { CodeBlockToolbar } from "./CodeBlockToolbar";
+import { ImageLightbox } from "./ImageLightbox";
 
 interface Props {
   content: string;
@@ -31,6 +32,33 @@ class MarkdownErrorBoundary extends Component<
   render() {
     return this.state.hasError ? this.props.fallback : this.props.children;
   }
+}
+
+function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  if (!src) return null;
+
+  return (
+    <>
+      <button
+        type="button"
+        className="my-2 block cursor-pointer overflow-hidden rounded-md border transition-opacity hover:opacity-80"
+        style={{ borderColor: "var(--border)" }}
+        onClick={() => setLightboxOpen(true)}
+      >
+        <img
+          src={src}
+          alt={alt ?? ""}
+          className="max-h-64 max-w-full object-contain"
+          draggable={false}
+        />
+      </button>
+      {lightboxOpen && (
+        <ImageLightbox src={src} alt={alt} onClose={() => setLightboxOpen(false)} />
+      )}
+    </>
+  );
 }
 
 /** Shared renderers that don't need context. */
@@ -117,6 +145,7 @@ const staticComponents: Partial<Components> = {
     </strong>
   ),
   em: ({ children }) => <em>{children}</em>,
+  img: ({ src, alt }) => <MarkdownImage src={src} alt={alt} />,
 };
 
 function buildComponents(
