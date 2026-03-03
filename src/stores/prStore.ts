@@ -55,6 +55,11 @@ const _inflightPrInfo = new Set<string>();
 const _inflightReviews = new Set<string>();
 const _inflightWorkflowRuns = new Set<string>();
 
+// Cancel tokens for in-flight subscribe calls. When unsubscribe is called
+// while subscribe is still awaiting, the token is marked cancelled so
+// subscribe cleans up acquired listeners on resume instead of storing them.
+const _subscribeTokens = new Map<string, { cancelled: boolean }>();
+
 export const usePrStore = create<PrStore>((set, get) => ({
   prInfo: {},
   reviews: {},
@@ -70,24 +75,46 @@ export const usePrStore = create<PrStore>((set, get) => ({
   subscribe: async (workspaceId: string) => {
     if (get().subscriptions[workspaceId]) return;
 
+    // Cancel any in-flight subscribe for this workspace
+    const existing = _subscribeTokens.get(workspaceId);
+    if (existing) existing.cancelled = true;
+
+    const token = { cancelled: false };
+    _subscribeTokens.set(workspaceId, token);
+
     const unlistenUpdated = await listen<PrInfo>(
       `pr-updated:${workspaceId}`,
       (event) => {
+        if (token.cancelled) return;
         set((state) => ({
           prInfo: { ...state.prInfo, [workspaceId]: event.payload },
         }));
       },
     );
 
+    if (token.cancelled) {
+      unlistenUpdated();
+      _subscribeTokens.delete(workspaceId);
+      return;
+    }
+
     const unlistenMerged = await listen<MergeResult>(
       `pr-merged:${workspaceId}`,
       () => {
-        // Reload PR info after merge
+        if (token.cancelled) return;
         get().loadPrInfo(workspaceId);
         get().stopPolling(workspaceId);
       },
     );
 
+    if (token.cancelled) {
+      unlistenUpdated();
+      unlistenMerged();
+      _subscribeTokens.delete(workspaceId);
+      return;
+    }
+
+    // Keep token in map so unsubscribe can cancel event handlers later
     set((state) => ({
       subscriptions: {
         ...state.subscriptions,
@@ -97,6 +124,14 @@ export const usePrStore = create<PrStore>((set, get) => ({
   },
 
   unsubscribe: (workspaceId: string) => {
+    // Cancel the token so in-flight subscribes bail out and
+    // already-registered event handlers no-op on future events.
+    const token = _subscribeTokens.get(workspaceId);
+    if (token) {
+      token.cancelled = true;
+      _subscribeTokens.delete(workspaceId);
+    }
+
     const unsubs = get().subscriptions[workspaceId];
     if (unsubs) {
       unsubs.forEach((fn) => fn());

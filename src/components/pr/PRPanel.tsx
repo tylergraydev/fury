@@ -260,6 +260,9 @@ function PRStatusView({
     if (hasPendingChecks) {
       usePrStore.getState().startPolling(workspaceId);
     }
+    return () => {
+      usePrStore.getState().stopPolling(workspaceId);
+    };
   }, [hasPendingChecks, workspaceId]);
 
   return (

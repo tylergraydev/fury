@@ -831,6 +831,23 @@ describe("ChecksPanel", () => {
     expect(startPollingSpy).not.toHaveBeenCalled();
   });
 
+  it("stops polling on unmount", async () => {
+    setupOpenPr({
+      checks: [
+        { name: "Build", conclusion: null, status: "IN_PROGRESS", detailsUrl: null, description: null },
+      ],
+    });
+    const stopPollingSpy = vi.spyOn(usePrStore.getState(), "stopPolling");
+    const { unmount } = render(<ChecksPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Build")).toBeInTheDocument();
+    });
+
+    unmount();
+
+    expect(stopPollingSpy).toHaveBeenCalledWith("ws-1");
+  });
+
   // === Edge cases ===
 
   it("handles checks with mixed conclusions", async () => {

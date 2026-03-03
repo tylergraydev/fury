@@ -828,6 +828,23 @@ describe("PRPanel", () => {
     expect(startPollingSpy).not.toHaveBeenCalled();
   });
 
+  it("stops polling on unmount", async () => {
+    setupOpenPr({
+      checks: [
+        { name: "Build", conclusion: null, status: "IN_PROGRESS", detailsUrl: null, description: null },
+      ],
+    });
+    const stopPollingSpy = vi.spyOn(usePrStore.getState(), "stopPolling");
+    const { unmount } = render(<PRPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Build")).toBeInTheDocument();
+    });
+
+    unmount();
+
+    expect(stopPollingSpy).toHaveBeenCalledWith("ws-1");
+  });
+
   // === Effects ===
 
   it("subscribes and loads PR info on mount", async () => {
