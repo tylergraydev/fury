@@ -416,6 +416,72 @@ describe("ChangesPanel", () => {
   });
 });
 
+// ─── Polling behavior ──────────────────────────────────────────────────────────────────
+describe("ChangesPanel - polling", () => {
+  const wsContext = { id: "ws-1", type: "workspace" as const };
+  const repoContext = { id: "repo-1", type: "repo" as const };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("polls loadDiff every 3 seconds for workspace context", () => {
+    useDiffStore.setState({
+      diffResults: { "ws-1": { files: [], totalAdditions: 0, totalDeletions: 0 } },
+    });
+    render(<ChangesPanel context={wsContext} />);
+    mockLoadDiff.mockClear();
+
+    act(() => { vi.advanceTimersByTime(3000); });
+    expect(mockLoadDiff).toHaveBeenCalledWith("ws-1");
+
+    mockLoadDiff.mockClear();
+    act(() => { vi.advanceTimersByTime(3000); });
+    expect(mockLoadDiff).toHaveBeenCalledWith("ws-1");
+  });
+
+  it("polls loadRepoDiff every 3 seconds for repo context", () => {
+    useDiffStore.setState({
+      diffResults: { "repo-1": { files: [], totalAdditions: 0, totalDeletions: 0 } },
+    });
+    render(<ChangesPanel context={repoContext} />);
+    mockLoadRepoDiff.mockClear();
+
+    act(() => { vi.advanceTimersByTime(3000); });
+    expect(mockLoadRepoDiff).toHaveBeenCalledWith("repo-1");
+  });
+
+  it("clears interval on unmount", () => {
+    useDiffStore.setState({
+      diffResults: { "ws-1": { files: [], totalAdditions: 0, totalDeletions: 0 } },
+    });
+    const { unmount } = render(<ChangesPanel context={wsContext} />);
+    mockLoadDiff.mockClear();
+
+    unmount();
+
+    act(() => { vi.advanceTimersByTime(6000); });
+    expect(mockLoadDiff).not.toHaveBeenCalled();
+  });
+
+  it("uses loadDiff not refresh for polling (preserves patch preview cache)", () => {
+    useDiffStore.setState({
+      diffResults: { "ws-1": { files: [], totalAdditions: 0, totalDeletions: 0 } },
+    });
+    render(<ChangesPanel context={wsContext} />);
+    mockLoadDiff.mockClear();
+    mockRefresh.mockClear();
+
+    act(() => { vi.advanceTimersByTime(3000); });
+    expect(mockLoadDiff).toHaveBeenCalled();
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+});
+
 // ─── PrStatusBar sub-component (rendered inside ChangesPanel for workspace context) ──
 describe("PrStatusBar", () => {
   const wsContext = { id: "ws-1", type: "workspace" as const };
