@@ -20,6 +20,9 @@ export function RunPanel({ context }: RunPanelProps) {
   const exitCode = useScriptStore(
     (s) => s.exitCodes[`${contextId}:run`],
   );
+  const userStopped = useScriptStore(
+    (s) => s.userStopped[`${contextId}:run`] ?? false,
+  );
 
   useEffect(() => {
     const store = useScriptStore.getState();
@@ -69,10 +72,14 @@ export function RunPanel({ context }: RunPanelProps) {
             <span
               style={{
                 color:
-                  exitCode === 0 ? "var(--success)" : "var(--error)",
+                  exitCode === 0
+                    ? "var(--success)"
+                    : userStopped
+                      ? "var(--text-muted)"
+                      : "var(--error)",
               }}
             >
-              Exit: {exitCode}
+              {userStopped && exitCode !== 0 ? "Stopped" : `Exit: ${exitCode}`}
             </span>
           )}
           {running && (

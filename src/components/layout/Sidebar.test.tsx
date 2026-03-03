@@ -927,6 +927,70 @@ describe("Sidebar", () => {
     });
   });
 
+  // --- Needs attention indicator ---
+  describe("Needs attention indicator", () => {
+    it("shows accent border and pulsing dot when workspace needs attention", () => {
+      useRepositoryStore.setState({ repositories: [makeRepo()] });
+      useWorkspaceStore.setState({
+        workspaces: [makeWorkspace()],
+        activeWorkspaceId: null,
+      });
+      useAgentStore.setState({
+        agents: { "ws-1": { workspaceId: "ws-1", status: "Idle" } as any },
+        needsAttention: { "ws-1": true },
+      });
+      render(<Sidebar />);
+
+      const wsName = screen.getByText("Feature Work");
+      const wsDiv = wsName.closest(".group")! as HTMLElement;
+      expect(wsDiv.style.border).toBe("1px solid var(--accent)");
+      const dot = wsDiv.querySelector(".animate-pulse");
+      expect(dot).not.toBeNull();
+      expect(dot).toHaveStyle({ backgroundColor: "var(--accent)" });
+    });
+
+    it("clears attention indicator when workspace is clicked", () => {
+      const clearNeedsAttention = vi.fn();
+      const setActive = vi.fn();
+      useRepositoryStore.setState({ repositories: [makeRepo()] });
+      useWorkspaceStore.setState({
+        workspaces: [makeWorkspace()],
+        activeWorkspaceId: null,
+        setActive,
+      });
+      useAgentStore.setState({
+        agents: { "ws-1": { workspaceId: "ws-1", status: "Idle" } as any },
+        needsAttention: { "ws-1": true },
+        clearNeedsAttention,
+      });
+      render(<Sidebar />);
+
+      const wsName = screen.getByText("Feature Work");
+      const wsDiv = wsName.closest(".group")!;
+      fireEvent.click(wsDiv);
+
+      expect(clearNeedsAttention).toHaveBeenCalledWith("ws-1");
+      expect(setActive).toHaveBeenCalledWith("ws-1");
+    });
+
+    it("does not show attention indicator when needsAttention is false", () => {
+      useRepositoryStore.setState({ repositories: [makeRepo()] });
+      useWorkspaceStore.setState({
+        workspaces: [makeWorkspace()],
+        activeWorkspaceId: null,
+      });
+      useAgentStore.setState({
+        agents: { "ws-1": { workspaceId: "ws-1", status: "Idle" } as any },
+        needsAttention: { "ws-1": false },
+      });
+      render(<Sidebar />);
+
+      const wsName = screen.getByText("Feature Work");
+      const wsDiv = wsName.closest(".group")! as HTMLElement;
+      expect(wsDiv.style.border).toBe("1px solid var(--border)");
+    });
+  });
+
   // --- Inactive repo branch styling ---
   describe("Inactive repo branch styling", () => {
     it("does not have active background for inactive repo branch", () => {

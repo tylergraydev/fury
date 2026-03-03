@@ -20,6 +20,9 @@ export function SetupPanel({ context }: Props) {
   const exitCode = useScriptStore(
     (s) => s.exitCodes[`${contextId}:setup`],
   );
+  const userStopped = useScriptStore(
+    (s) => s.userStopped[`${contextId}:setup`] ?? false,
+  );
 
   useEffect(() => {
     const id = requestAnimationFrame(() => {
@@ -73,10 +76,14 @@ export function SetupPanel({ context }: Props) {
             <span
               style={{
                 color:
-                  exitCode === 0 ? "var(--success)" : "var(--error)",
+                  exitCode === 0
+                    ? "var(--success)"
+                    : userStopped
+                      ? "var(--text-muted)"
+                      : "var(--error)",
               }}
             >
-              Exit: {exitCode}
+              {userStopped && exitCode !== 0 ? "Stopped" : `Exit: ${exitCode}`}
             </span>
           )}
           {running && (
