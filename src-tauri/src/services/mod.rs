@@ -7,6 +7,7 @@ pub mod fury_json;
 pub mod copilot_lsp;
 pub mod cursor_migration;
 pub mod diff;
+pub mod diff_watcher;
 pub mod gh;
 pub mod linear;
 pub mod lsp;

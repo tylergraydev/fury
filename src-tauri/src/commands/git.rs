@@ -885,6 +885,72 @@ pub async fn save_clipboard_image(data: String, mime_type: String) -> Result<Str
     .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
+#[tauri::command]
+pub async fn start_diff_watcher(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    context_id: String,
+    context_type: String,
+) -> Result<(), AppError> {
+    let ctx_uuid: Uuid = context_id
+        .parse()
+        .map_err(|_| AppError::GitError("invalid context id".into()))?;
+
+    if state.diff_watchers.lock().unwrap().contains_key(&ctx_uuid) {
+        return Ok(());
+    }
+
+    let watch_path = if context_type == "workspace" {
+        let workspaces = state
+            .workspaces
+            .read()
+            .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
+        let ws = workspaces
+            .get(&ctx_uuid)
+            .ok_or(AppError::WorkspaceNotFound(ctx_uuid))?;
+        ws.worktree_path.clone()
+    } else {
+        let repos = state
+            .repositories
+            .read()
+            .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
+        let repo = repos
+            .get(&ctx_uuid)
+            .ok_or(AppError::RepoNotFound(ctx_uuid))?;
+        repo.path.clone()
+    };
+
+    let cid = context_id.clone();
+    let handle = tokio::task::spawn_blocking(move || {
+        crate::services::diff_watcher::start_diff_watcher(watch_path, app, cid)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))??;
+
+    state.diff_watchers.lock().unwrap().insert(ctx_uuid, handle);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn stop_diff_watcher(
+    state: State<'_, AppState>,
+    context_id: String,
+) -> Result<(), AppError> {
+    let ctx_uuid: Uuid = context_id
+        .parse()
+        .map_err(|_| AppError::GitError("invalid context id".into()))?;
+
+    let handle = state.diff_watchers.lock().unwrap().remove(&ctx_uuid);
+    if let Some(handle) = handle {
+        tokio::task::spawn_blocking(move || {
+            handle.stop();
+        })
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

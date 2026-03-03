@@ -19,6 +19,8 @@ import {
   type WorkspaceTemplate,
 } from "../../lib/tauri";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useRepositoryStore } from "../../stores/repositoryStore";
+import { formatGhError } from "../../lib/ghErrors";
 import { useAgentStore } from "../../stores/agentStore";
 import { useWorkspaceTemplateStore } from "../../stores/workspaceTemplateStore";
 
@@ -50,6 +52,10 @@ const MODES: { key: WorkspaceMode; label: string }[] = [
 
 export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
   const { createWs } = useWorkspaceStore();
+  const repositories = useRepositoryStore((s) => s.repositories);
+  const [selectedRepoId, setSelectedRepoId] = useState(repoId);
+  const selectedRepoName =
+    repositories.find((r) => r.id === selectedRepoId)?.name ?? repoName;
 
   const [mode, setMode] = useState<WorkspaceMode>("branch");
   const [taskDescription, setTaskDescription] = useState("");
@@ -89,9 +95,19 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
   const { templates, loadTemplates, loading: loadingTemplates } = useWorkspaceTemplateStore();
   const [selectedTemplate, setSelectedTemplate] = useState<WorkspaceTemplate | null>(null);
 
+  // Reset mode-specific data when repo changes
+  useEffect(() => {
+    setPrs([]);
+    setPrError(null);
+    setSelectedPr(null);
+    setIssues([]);
+    setIssueError(null);
+    setSelectedIssue(null);
+  }, [selectedRepoId]);
+
   useEffect(() => {
     setLoadingBranches(true);
-    listBranches(repoId)
+    listBranches(selectedRepoId)
       .then((b) => {
         setBranches(b);
         if (b.length > 0) {
@@ -108,44 +124,46 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
         setError(String(e));
       })
       .finally(() => setLoadingBranches(false));
-  }, [repoId]);
+  }, [selectedRepoId]);
 
   // Fetch PRs when switching to PR mode
   useEffect(() => {
     if (mode === "pr" && prs.length === 0 && !loadingPrs && !prError) {
       setLoadingPrs(true);
       setPrError(null);
-      listRepoPrs(repoId)
+      listRepoPrs(selectedRepoId)
         .then(setPrs)
         .catch((e) => {
           setPrs([]);
-          setPrError(String(e));
+          const raw = String(e);
+          setPrError(formatGhError(raw) ?? raw);
         })
         .finally(() => setLoadingPrs(false));
     }
-  }, [mode, repoId]);
+  }, [mode, selectedRepoId]);
 
   // Fetch issues when switching to issue mode
   useEffect(() => {
     if (mode === "issue" && issues.length === 0 && !loadingIssues && !issueError) {
       setLoadingIssues(true);
       setIssueError(null);
-      listRepoIssues(repoId)
+      listRepoIssues(selectedRepoId)
         .then(setIssues)
         .catch((e) => {
           setIssues([]);
-          setIssueError(String(e));
+          const raw = String(e);
+          setIssueError(formatGhError(raw) ?? raw);
         })
         .finally(() => setLoadingIssues(false));
     }
-  }, [mode, repoId]);
+  }, [mode, selectedRepoId]);
 
   // Load templates when switching to template mode
   useEffect(() => {
     if (mode === "template" && templates.length === 0 && !loadingTemplates) {
-      loadTemplates(repoId);
+      loadTemplates(selectedRepoId);
     }
-  }, [mode, repoId]);
+  }, [mode, selectedRepoId]);
 
   // Debounced Linear search
   useEffect(() => {
@@ -211,7 +229,7 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
       const ws = await createWs(
         mode === "pr"
           ? {
-              repoId,
+              repoId: selectedRepoId,
               workspaceName: worktreeName.trim(),
               branchName: selectedPr!.headBranch,
               baseBranch: selectedPr!.baseBranch,
@@ -219,7 +237,7 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
               fetchRemoteBranch: true,
             }
           : {
-              repoId,
+              repoId: selectedRepoId,
               workspaceName: worktreeName.trim(),
               branchName: worktreeName.trim(),
               baseBranch: baseBranch.trim(),
@@ -314,7 +332,7 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
           </button>
         </div>
 
-        {/* Repository card */}
+        {/* Repository selector */}
         <div
           className="mb-4 flex items-center gap-2 rounded-lg px-4 py-3"
           style={{
@@ -323,18 +341,39 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
           }}
         >
           <GitFork
-            className="h-4 w-4"
+            className="h-4 w-4 flex-shrink-0"
             style={{ color: "var(--text-muted)" }}
           />
           <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
             Repository:
           </span>
-          <span
-            className="text-xs font-semibold"
-            style={{ color: "var(--text-primary)" }}
-          >
-            {repoName}
-          </span>
+          {repositories.length > 1 ? (
+            <div className="relative flex-1">
+              <select
+                value={selectedRepoId}
+                onChange={(e) => setSelectedRepoId(e.target.value)}
+                className="w-full appearance-none bg-transparent text-xs font-semibold outline-none"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {repositories.map((repo) => (
+                  <option key={repo.id} value={repo.id}>
+                    {repo.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                className="pointer-events-none absolute right-0 top-1/2 h-3 w-3 -translate-y-1/2"
+                style={{ color: "var(--text-muted)" }}
+              />
+            </div>
+          ) : (
+            <span
+              className="text-xs font-semibold"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {selectedRepoName}
+            </span>
+          )}
         </div>
 
         {/* Mode tabs */}

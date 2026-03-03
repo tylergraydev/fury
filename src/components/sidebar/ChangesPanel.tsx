@@ -6,6 +6,8 @@ import { usePrStore } from "../../stores/prStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useUIStore } from "../../stores/uiStore";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { startDiffWatcher, stopDiffWatcher } from "../../lib/tauri";
 import type { FileDiff, FileStatus } from "../../lib/tauri";
 import type { SidebarContext } from "../../App";
 import { DiffHoverPreview } from "./DiffHoverPreview";
@@ -267,6 +269,42 @@ export function ChangesPanel({ context }: Props) {
       }
     }, 3_000);
     return () => clearInterval(interval);
+  }, [context.type, contextId]);
+
+  // File watcher: start watching on mount, trigger reload on file changes.
+  // The 3s poll above serves as a fallback if the watcher fails to start.
+  useEffect(() => {
+    let unlisten: UnlistenFn | null = null;
+    let cancelled = false;
+
+    const setup = async () => {
+      try {
+        await startDiffWatcher(contextId, context.type);
+      } catch {
+        // Watcher failed to start — 3s poll is the fallback
+        return;
+      }
+      if (cancelled) return;
+      try {
+        unlisten = await listen(`diff-changed:${contextId}`, () => {
+          const store = useDiffStore.getState();
+          if (context.type === "workspace") {
+            store.loadDiff(contextId);
+          } else {
+            store.loadRepoDiff(contextId);
+          }
+        });
+      } catch {
+        // Listen failed — 3s poll is the fallback
+      }
+    };
+    setup();
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+      stopDiffWatcher(contextId).catch(() => {});
+    };
   }, [context.type, contextId]);
 
   const handleFileClick = (filePath: string) => {
