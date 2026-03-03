@@ -31,8 +31,10 @@ pub struct AppState {
     pub agents: Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
     /// Agent process handles — Arc-wrapped so async tasks can hold a reference
     pub agent_processes: Arc<Mutex<HashMap<Uuid, Child>>>,
-    /// Script process handles — keyed by "{workspace_id}:{kind}"
-    pub script_processes: Arc<Mutex<HashMap<String, Child>>>,
+    /// Script process PIDs — keyed by "{workspace_id}:{kind}" or "repo:{repo_id}:{kind}".
+    /// The background task owns the Child for `.wait()` while this map stores the PID
+    /// so stop_script can kill by PID without racing.
+    pub script_pids: Arc<Mutex<HashMap<String, u32>>>,
     /// Terminal PTY sessions — keyed by terminal session ID
     pub terminal_sessions: Arc<Mutex<HashMap<Uuid, TerminalSession>>>,
     /// Spotlight file watchers — keyed by workspace ID
@@ -63,7 +65,7 @@ impl AppState {
             agent_processes: Arc::new(Mutex::new(HashMap::new())),
             persistent_agents: Arc::new(Mutex::new(HashMap::new())),
             agent_stdins: Arc::new(Mutex::new(HashMap::new())),
-            script_processes: Arc::new(Mutex::new(HashMap::new())),
+            script_pids: Arc::new(Mutex::new(HashMap::new())),
             terminal_sessions: Arc::new(Mutex::new(HashMap::new())),
             spotlight_watchers: Arc::new(Mutex::new(HashMap::new())),
             copilot: Arc::new(Mutex::new(None)),
@@ -86,7 +88,7 @@ mod tests {
         assert!(state.workspaces.read().unwrap().is_empty());
         assert!(state.agents.lock().unwrap().is_empty());
         assert!(state.agent_processes.lock().unwrap().is_empty());
-        assert!(state.script_processes.lock().unwrap().is_empty());
+        assert!(state.script_pids.lock().unwrap().is_empty());
         assert!(state.terminal_sessions.lock().unwrap().is_empty());
         assert!(state.spotlight_watchers.lock().unwrap().is_empty());
         assert!(state.persistent_agents.lock().unwrap().is_empty());

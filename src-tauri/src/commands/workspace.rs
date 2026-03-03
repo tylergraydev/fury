@@ -686,10 +686,10 @@ fn fire_and_forget_script(
     };
 
     let app_handle = app.clone();
-    let script_processes = Arc::clone(&state.script_processes);
+    let script_pids = Arc::clone(&state.script_pids);
 
     tauri::async_runtime::spawn(async move {
-        let child = match script_runner::spawn_script(
+        let mut child = match script_runner::spawn_script(
             ws_id,
             kind,
             &script_body,
@@ -704,17 +704,17 @@ fn fire_and_forget_script(
         };
 
         let key = format!("{}:{}", ws_id, kind.as_str());
-        {
-            script_processes.lock().unwrap().insert(key.clone(), child);
+        if let Some(pid) = child.id() {
+            script_pids.lock().unwrap().insert(key.clone(), pid);
         }
 
         // Wait for exit and emit event
-        let mut child = { script_processes.lock().unwrap().remove(&key) };
-        let exit_status = if let Some(ref mut c) = child {
-            c.wait().await.ok()
-        } else {
-            None
-        };
+        let exit_status = child.wait().await.ok();
+
+        // Remove PID from map now that process has exited
+        {
+            script_pids.lock().unwrap().remove(&key);
+        }
 
         let (exit_code, success) = match exit_status {
             Some(ref status) => (status.code(), status.success()),
