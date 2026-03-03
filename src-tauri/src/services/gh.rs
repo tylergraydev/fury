@@ -117,6 +117,28 @@ pub fn get_pr_info(worktree_path: &Path) -> Result<Option<PrInfo>, AppError> {
     }))
 }
 
+/// Maps `gh pr checks` `state` field to `(status, conclusion)` to match the
+/// frontend's expected shape. The `state` field combines lifecycle and outcome:
+/// terminal states like SUCCESS/FAILURE map to status=COMPLETED with a conclusion,
+/// while in-progress states map to their lifecycle name with no conclusion.
+fn map_check_state(state: &str) -> (String, Option<String>) {
+    match state {
+        "SUCCESS" => ("COMPLETED".to_string(), Some("SUCCESS".to_string())),
+        "FAILURE" | "ERROR" | "STARTUP_FAILURE" => {
+            ("COMPLETED".to_string(), Some("FAILURE".to_string()))
+        }
+        "NEUTRAL" => ("COMPLETED".to_string(), Some("NEUTRAL".to_string())),
+        "CANCELLED" => ("COMPLETED".to_string(), Some("CANCELLED".to_string())),
+        "TIMED_OUT" => ("COMPLETED".to_string(), Some("TIMED_OUT".to_string())),
+        "SKIPPED" => ("COMPLETED".to_string(), Some("SKIPPED".to_string())),
+        "ACTION_REQUIRED" => ("COMPLETED".to_string(), Some("ACTION_REQUIRED".to_string())),
+        "STALE" => ("COMPLETED".to_string(), Some("STALE".to_string())),
+        "PENDING" | "EXPECTED" => ("IN_PROGRESS".to_string(), None),
+        "QUEUED" => ("QUEUED".to_string(), None),
+        other => (other.to_string(), None),
+    }
+}
+
 pub fn get_pr_checks(worktree_path: &Path) -> Result<Vec<PrCheck>, AppError> {
     let gh = find_gh_binary()?;
     let output = platform::command(&gh)
@@ -124,7 +146,7 @@ pub fn get_pr_checks(worktree_path: &Path) -> Result<Vec<PrCheck>, AppError> {
             "pr",
             "checks",
             "--json",
-            "name,state,conclusion,detailsUrl,description",
+            "name,state,link,description",
         ])
         .current_dir(worktree_path)
         .output()
@@ -149,29 +171,29 @@ pub fn get_pr_checks(worktree_path: &Path) -> Result<Vec<PrCheck>, AppError> {
 
     Ok(raw
         .iter()
-        .map(|check| PrCheck {
-            name: check
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            status: check
+        .map(|check| {
+            let state = check
                 .get("state")
                 .and_then(|v| v.as_str())
-                .unwrap_or("UNKNOWN")
-                .to_string(),
-            conclusion: check
-                .get("conclusion")
-                .and_then(|v| v.as_str())
-                .map(String::from),
-            details_url: check
-                .get("detailsUrl")
-                .and_then(|v| v.as_str())
-                .map(String::from),
-            description: check
-                .get("description")
-                .and_then(|v| v.as_str())
-                .map(String::from),
+                .unwrap_or("UNKNOWN");
+            let (status, conclusion) = map_check_state(state);
+            PrCheck {
+                name: check
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                status,
+                conclusion,
+                details_url: check
+                    .get("link")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                description: check
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+            }
         })
         .collect())
 }
