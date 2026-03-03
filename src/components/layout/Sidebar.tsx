@@ -357,6 +357,7 @@ function RepoBranchItem({
   onClick: () => void;
 }) {
   const agentStatus = useAgentStore((s) => s.getStatus(repoId));
+  const attention = useAgentStore((s) => s.needsAttention[repoId] ?? false);
   const isRunning = agentStatus === "Running";
   const isAgentError =
     typeof agentStatus === "object" && "Error" in agentStatus;
@@ -367,23 +368,29 @@ function RepoBranchItem({
       ? "var(--error)"
       : "var(--text-muted)";
 
+  const handleClick = () => {
+    if (attention) useAgentStore.getState().clearNeedsAttention(repoId);
+    onClick();
+  };
+
   return (
     <div
-      onClick={onClick}
+      onClick={handleClick}
       className="group mx-3 my-1.5 cursor-pointer rounded-lg px-4 py-3.5 text-left text-sm transition-colors hover:bg-[var(--bg-hover)]"
       style={{
         backgroundColor: isActive ? "var(--bg-surface)" : "transparent",
-        border: isActive
+        border: isActive || attention
           ? "1px solid var(--accent)"
           : "1px solid var(--border)",
+        boxShadow: attention && !isActive ? "0 0 0 1px var(--accent)" : undefined,
         color: "var(--text-primary)",
       }}
     >
       {/* Row 1: status dot + name */}
       <div className="flex items-center gap-2">
         <span
-          className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${isRunning ? "animate-pulse" : ""}`}
-          style={{ backgroundColor: dotColor }}
+          className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${isRunning || attention ? "animate-pulse" : ""}`}
+          style={{ backgroundColor: attention ? "var(--accent)" : dotColor }}
         />
         <span className="truncate font-semibold">{branch}</span>
       </div>
@@ -428,11 +435,19 @@ function WorkspaceItem({
   onArchive: () => void;
 }) {
   const agentStatus = useAgentStore((s) => s.getStatus(id));
+  const attention = useAgentStore((s) => s.needsAttention[id] ?? false);
   const isRunning = agentStatus === "Running";
   const isAgentError =
     typeof agentStatus === "object" && "Error" in agentStatus;
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(name);
+
+  // Periodically re-render so relativeTime stays accurate
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
 
   const dotColor = isRunning
     ? "var(--success)"
@@ -456,23 +471,29 @@ function WorkspaceItem({
     setEditing(false);
   };
 
+  const handleClick = () => {
+    if (attention) useAgentStore.getState().clearNeedsAttention(id);
+    onClick();
+  };
+
   return (
     <div
-      onClick={onClick}
+      onClick={handleClick}
       className="group mx-3 my-1.5 cursor-pointer rounded-lg px-4 py-3.5 text-left text-sm transition-colors hover:bg-[var(--bg-hover)]"
       style={{
         backgroundColor: isActive ? "var(--bg-surface)" : "transparent",
-        border: isActive
+        border: isActive || attention
           ? "1px solid var(--accent)"
           : "1px solid var(--border)",
+        boxShadow: attention && !isActive ? "0 0 0 1px var(--accent)" : undefined,
         color: "var(--text-primary)",
       }}
     >
       {/* Row 1: status dot + name */}
       <div className="flex items-center gap-2">
         <span
-          className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${isRunning ? "animate-pulse" : ""}`}
-          style={{ backgroundColor: dotColor }}
+          className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${isRunning || attention ? "animate-pulse" : ""}`}
+          style={{ backgroundColor: attention ? "var(--accent)" : dotColor }}
         />
         {editing ? (
           <input

@@ -137,4 +137,24 @@ describe("SetupPanel", () => {
     render(<SetupPanel context={{ id: "ws-1", type: "workspace" }} />);
     expect(screen.getByText("Exit: 0")).toHaveStyle({ color: "var(--success)" });
   });
+
+  it("shows 'Stopped' with muted styling when user stopped the script", () => {
+    useScriptStore.setState({
+      exitCodes: { "ws-1:setup": 1 },
+      userStopped: { "ws-1:setup": true },
+    });
+    render(<SetupPanel context={{ id: "ws-1", type: "workspace" }} />);
+    const stoppedText = screen.getByText("Stopped");
+    expect(stoppedText).toHaveStyle({ color: "var(--text-muted)" });
+    expect(screen.queryByText("Exit: 1")).not.toBeInTheDocument();
+  });
+
+  it("shows success styling for exit code 0 even when userStopped is true", () => {
+    useScriptStore.setState({
+      exitCodes: { "ws-1:setup": 0 },
+      userStopped: { "ws-1:setup": true },
+    });
+    render(<SetupPanel context={{ id: "ws-1", type: "workspace" }} />);
+    expect(screen.getByText("Exit: 0")).toHaveStyle({ color: "var(--success)" });
+  });
 });

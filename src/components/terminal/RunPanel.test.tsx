@@ -151,4 +151,25 @@ describe("RunPanel", () => {
     const exitText = screen.getByText("Exit: 0");
     expect(exitText).toHaveStyle({ color: "var(--success)" });
   });
+
+  it("shows 'Stopped' with muted styling when user stopped the script", () => {
+    useScriptStore.setState({
+      exitCodes: { "ws-1:run": 1 },
+      userStopped: { "ws-1:run": true },
+    });
+    render(<RunPanel context={{ id: "ws-1", type: "workspace" }} />);
+    const stoppedText = screen.getByText("Stopped");
+    expect(stoppedText).toHaveStyle({ color: "var(--text-muted)" });
+    expect(screen.queryByText("Exit: 1")).not.toBeInTheDocument();
+  });
+
+  it("shows success styling for exit code 0 even when userStopped is true", () => {
+    useScriptStore.setState({
+      exitCodes: { "ws-1:run": 0 },
+      userStopped: { "ws-1:run": true },
+    });
+    render(<RunPanel context={{ id: "ws-1", type: "workspace" }} />);
+    const exitText = screen.getByText("Exit: 0");
+    expect(exitText).toHaveStyle({ color: "var(--success)" });
+  });
 });

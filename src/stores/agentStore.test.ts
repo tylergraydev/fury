@@ -17,7 +17,7 @@ import {
 const mockListen = vi.mocked(listen);
 
 beforeEach(() => {
-  useAgentStore.setState({ agents: {}, subscriptions: {} });
+  useAgentStore.setState({ agents: {}, subscriptions: {}, needsAttention: {} });
   vi.clearAllMocks();
 });
 
@@ -222,5 +222,61 @@ describe("agentStore - fetchStatus", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     await useAgentStore.getState().fetchStatus("ws-1");
     // Should not throw
+  });
+});
+
+describe("agentStore - needsAttention", () => {
+  it("sets needsAttention when agent transitions from Running to Idle", async () => {
+    const mockUnlisten = vi.fn();
+    mockListen.mockResolvedValueOnce(mockUnlisten);
+    await useAgentStore.getState().subscribe("ws-1");
+
+    // Set initial state to Running
+    useAgentStore.setState({
+      agents: {
+        "ws-1": { workspaceId: "ws-1", status: "Running" } as any,
+      },
+    });
+
+    // Simulate event callback with Idle status
+    const callback = mockListen.mock.calls[0][1] as (event: any) => void;
+    callback({ payload: { status: "Idle" } });
+
+    expect(useAgentStore.getState().needsAttention["ws-1"]).toBe(true);
+  });
+
+  it("does not set needsAttention for Idle to Idle transition", async () => {
+    const mockUnlisten = vi.fn();
+    mockListen.mockResolvedValueOnce(mockUnlisten);
+    await useAgentStore.getState().subscribe("ws-1");
+
+    // No agent info yet, getStatus returns "Idle" by default
+    const callback = mockListen.mock.calls[0][1] as (event: any) => void;
+    callback({ payload: { status: "Idle" } });
+
+    expect(useAgentStore.getState().needsAttention["ws-1"]).toBeUndefined();
+  });
+
+  it("does not set needsAttention for Running to Error transition", async () => {
+    const mockUnlisten = vi.fn();
+    mockListen.mockResolvedValueOnce(mockUnlisten);
+    await useAgentStore.getState().subscribe("ws-1");
+
+    useAgentStore.setState({
+      agents: {
+        "ws-1": { workspaceId: "ws-1", status: "Running" } as any,
+      },
+    });
+
+    const callback = mockListen.mock.calls[0][1] as (event: any) => void;
+    callback({ payload: { status: { Error: "something broke" } } });
+
+    expect(useAgentStore.getState().needsAttention["ws-1"]).toBeUndefined();
+  });
+
+  it("clears needsAttention via clearNeedsAttention", () => {
+    useAgentStore.setState({ needsAttention: { "ws-1": true } });
+    useAgentStore.getState().clearNeedsAttention("ws-1");
+    expect(useAgentStore.getState().needsAttention["ws-1"]).toBe(false);
   });
 });

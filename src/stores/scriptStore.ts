@@ -14,6 +14,7 @@ interface ScriptStore {
   output: Record<string, string[]>;
   running: Record<string, boolean>;
   exitCodes: Record<string, number | null>;
+  userStopped: Record<string, boolean>;
   subscriptions: Record<string, UnlistenFn[]>;
 
   subscribe: (contextId: string, kind: ScriptKind) => Promise<void>;
@@ -35,6 +36,7 @@ export const useScriptStore = create<ScriptStore>((set, get) => ({
   output: {},
   running: {},
   exitCodes: {},
+  userStopped: {},
   subscriptions: {},
 
   subscribe: async (workspaceId: string, kind: ScriptKind) => {
@@ -90,6 +92,7 @@ export const useScriptStore = create<ScriptStore>((set, get) => ({
     set((state) => ({
       running: { ...state.running, [k]: true },
       exitCodes: { ...state.exitCodes, [k]: null },
+      userStopped: { ...state.userStopped, [k]: false },
       output: { ...state.output, [k]: [] },
     }));
     try {
@@ -106,6 +109,10 @@ export const useScriptStore = create<ScriptStore>((set, get) => ({
   },
 
   stopScript: async (workspaceId: string, kind: ScriptKind) => {
+    const k = key(workspaceId, kind);
+    set((state) => ({
+      userStopped: { ...state.userStopped, [k]: true },
+    }));
     try {
       await stopScriptCmd(workspaceId, kind);
     } catch (e) {
@@ -118,6 +125,7 @@ export const useScriptStore = create<ScriptStore>((set, get) => ({
     set((state) => ({
       running: { ...state.running, [k]: true },
       exitCodes: { ...state.exitCodes, [k]: null },
+      userStopped: { ...state.userStopped, [k]: false },
       output: { ...state.output, [k]: [] },
     }));
     try {
@@ -134,6 +142,10 @@ export const useScriptStore = create<ScriptStore>((set, get) => ({
   },
 
   stopRepoScript: async (repoId: string, kind: ScriptKind) => {
+    const k = key(repoId, kind);
+    set((state) => ({
+      userStopped: { ...state.userStopped, [k]: true },
+    }));
     try {
       await stopRepoScriptCmd(repoId, kind);
     } catch (e) {
@@ -146,6 +158,7 @@ export const useScriptStore = create<ScriptStore>((set, get) => ({
     set((state) => ({
       output: { ...state.output, [k]: [] },
       exitCodes: { ...state.exitCodes, [k]: null },
+      userStopped: { ...state.userStopped, [k]: false },
     }));
   },
 

@@ -13,10 +13,12 @@ import { pushStreamEvent } from "../lib/ipcInstrumentation";
 interface AgentStore {
   agents: Record<string, AgentInfo>;
   subscriptions: Record<string, UnlistenFn>;
+  needsAttention: Record<string, boolean>;
 
   getStatus: (workspaceId: string) => AgentStatus;
   subscribe: (workspaceId: string) => Promise<void>;
   unsubscribe: (workspaceId: string) => void;
+  clearNeedsAttention: (workspaceId: string) => void;
   sendMessage: (
     contextId: string,
     message: string,
@@ -38,6 +40,7 @@ interface AgentStore {
 export const useAgentStore = create<AgentStore>((set, get) => ({
   agents: {},
   subscriptions: {},
+  needsAttention: {},
 
   getStatus: (workspaceId: string): AgentStatus => {
     return get().agents[workspaceId]?.status ?? "Idle";
@@ -53,6 +56,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         const newStatus = event.payload.status;
         const prevStatus = get().agents[workspaceId]?.status ?? "Idle";
         pushStreamEvent(workspaceId, "status_changed", `${JSON.stringify(prevStatus)} -> ${JSON.stringify(newStatus)}`);
+        const becameIdle = prevStatus === "Running" && newStatus === "Idle";
         set((state) => ({
           agents: {
             ...state.agents,
@@ -62,6 +66,9 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
               status: newStatus,
             } as AgentInfo,
           },
+          ...(becameIdle
+            ? { needsAttention: { ...state.needsAttention, [workspaceId]: true } }
+            : {}),
         }));
       },
     );
@@ -80,6 +87,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         return { subscriptions: rest };
       });
     }
+  },
+
+  clearNeedsAttention: (workspaceId: string) => {
+    set((state) => ({
+      needsAttention: { ...state.needsAttention, [workspaceId]: false },
+    }));
   },
 
   sendMessage: async (
