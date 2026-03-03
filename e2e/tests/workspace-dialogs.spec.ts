@@ -63,7 +63,7 @@ test.describe("Workspace Dialogs", () => {
     await expect(dialog.getByText("Base Branch")).toBeVisible();
 
     // Select should have "main" as default value
-    const branchSelect = dialog.locator("select").first();
+    const branchSelect = dialog.locator("select").nth(1);
     await expect(branchSelect).toHaveValue("main");
   });
 
