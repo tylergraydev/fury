@@ -251,6 +251,21 @@ export function ChangesPanel({ context }: Props) {
     }
   }, [agentStatus, context.type, contextId]);
 
+  // Poll for changes every 3s while the panel is visible.
+  // Uses loadDiff/loadRepoDiff (not refresh) to avoid clearing patch preview cache.
+  // Inflight dedup in the store prevents overlapping requests.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const store = useDiffStore.getState();
+      if (context.type === "workspace") {
+        store.loadDiff(contextId);
+      } else {
+        store.loadRepoDiff(contextId);
+      }
+    }, 3_000);
+    return () => clearInterval(interval);
+  }, [context.type, contextId]);
+
   const handleFileClick = (filePath: string) => {
     const store = useDiffStore.getState();
     if (context.type === "workspace") {
