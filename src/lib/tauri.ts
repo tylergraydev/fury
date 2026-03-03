@@ -395,6 +395,18 @@ export async function getRepoFilePatch(
   });
 }
 
+// Diff file watcher commands
+export async function startDiffWatcher(
+  contextId: string,
+  contextType: "workspace" | "repo",
+): Promise<void> {
+  return invoke("start_diff_watcher", { contextId, contextType });
+}
+
+export async function stopDiffWatcher(contextId: string): Promise<void> {
+  return invoke("stop_diff_watcher", { contextId });
+}
+
 // File content reading
 export interface FileContent {
   content: string;

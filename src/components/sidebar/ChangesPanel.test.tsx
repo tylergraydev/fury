@@ -29,6 +29,8 @@ vi.mock("../../lib/tauri", () => ({
   createPr: vi.fn().mockResolvedValue({ prNumber: 1, prUrl: "", title: "", state: "OPEN", checks: [], mergeable: null }),
   getPrFullData: vi.fn().mockResolvedValue({ info: { workspaceId: "", prNumber: null, prUrl: null, title: null, state: null, checks: [], mergeable: null }, reviews: [], reviewComments: [] }),
   getReviewsAndComments: vi.fn().mockResolvedValue({ reviews: [], reviewComments: [] }),
+  startDiffWatcher: vi.fn().mockResolvedValue(undefined),
+  stopDiffWatcher: vi.fn().mockResolvedValue(undefined),
 }));
 
 const mockLoadDiff = vi.fn();

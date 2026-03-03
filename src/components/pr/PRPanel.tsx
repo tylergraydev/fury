@@ -5,6 +5,7 @@ import { useChatStore } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useTodoStore } from "../../stores/todoStore";
 import type { PrInfo, PrCheck } from "../../lib/tauri";
+import { formatGhError } from "../../lib/ghErrors";
 
 interface PRPanelProps {
   workspaceId: string;
@@ -132,7 +133,7 @@ function CreatePRForm({
                 color: "var(--error)",
               }}
             >
-              {error}
+              {formatGhError(error) ?? error}
             </div>
           )}
 
@@ -305,7 +306,7 @@ function PRStatusView({
                 color: "var(--error)",
               }}
             >
-              {error}
+              {formatGhError(error) ?? error}
             </div>
           )}
 

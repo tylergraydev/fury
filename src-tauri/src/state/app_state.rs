@@ -5,6 +5,7 @@ use crate::models::repository::Repository;
 use crate::models::settings::AppSettings;
 use crate::models::workspace::Workspace;
 use crate::services::copilot_lsp::CopilotLspHandle;
+use crate::services::diff_watcher::DiffWatcherHandle;
 use crate::services::perf_server::PerfMetrics;
 use crate::services::port_allocator::PortAllocator;
 use crate::services::spotlight::SpotlightHandle;
@@ -39,6 +40,8 @@ pub struct AppState {
     pub terminal_sessions: Arc<Mutex<HashMap<Uuid, TerminalSession>>>,
     /// Spotlight file watchers — keyed by workspace ID
     pub spotlight_watchers: Arc<Mutex<HashMap<Uuid, SpotlightHandle>>>,
+    /// Diff file watchers — keyed by workspace/repo ID
+    pub diff_watchers: Arc<Mutex<HashMap<Uuid, DiffWatcherHandle>>>,
     /// Persistent agent handles — for Performance Mode (kept alive between turns)
     pub persistent_agents: Arc<Mutex<HashMap<Uuid, PersistentAgentHandle>>>,
     /// Agent stdin handles — for Safe Mode permission responses (all spawn modes)
@@ -68,6 +71,7 @@ impl AppState {
             script_pids: Arc::new(Mutex::new(HashMap::new())),
             terminal_sessions: Arc::new(Mutex::new(HashMap::new())),
             spotlight_watchers: Arc::new(Mutex::new(HashMap::new())),
+            diff_watchers: Arc::new(Mutex::new(HashMap::new())),
             copilot: Arc::new(Mutex::new(None)),
             perf_metrics: Arc::new(Mutex::new(PerfMetrics::new())),
             indexing_status: Arc::new(Mutex::new(HashMap::new())),
@@ -91,6 +95,7 @@ mod tests {
         assert!(state.script_pids.lock().unwrap().is_empty());
         assert!(state.terminal_sessions.lock().unwrap().is_empty());
         assert!(state.spotlight_watchers.lock().unwrap().is_empty());
+        assert!(state.diff_watchers.lock().unwrap().is_empty());
         assert!(state.persistent_agents.lock().unwrap().is_empty());
         assert!(state.agent_stdins.lock().unwrap().is_empty());
         assert!(state.copilot.lock().unwrap().is_none());

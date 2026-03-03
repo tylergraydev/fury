@@ -86,6 +86,8 @@ pub fn run() {
             commands::git::load_type_definitions,
             commands::git::read_file_base64,
             commands::git::save_clipboard_image,
+            commands::git::start_diff_watcher,
+            commands::git::stop_diff_watcher,
             // Merge/branch commands
             commands::merge::get_branch_status,
             commands::merge::fetch_upstream,
