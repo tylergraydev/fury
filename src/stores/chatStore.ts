@@ -370,9 +370,12 @@ function handleStreamEvent(
       // Finalize any remaining streaming text as the final assistant message
       finalizeStreamingText(workspaceId, set, get);
 
-      // Clear plan approval and permission request state when agent finishes
+      // Clear permission request state when agent finishes.
+      // NOTE: planApproval is intentionally NOT cleared here — the result event
+      // fires immediately after ExitPlanMode toolUse, so clearing it would race
+      // and hide the approve button before the user can interact with it.
+      // planApproval is cleared in addUserMessage() and clearMessages() instead.
       set((state) => ({
-        planApproval: { ...state.planApproval, [workspaceId]: false },
         permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
       }));
 

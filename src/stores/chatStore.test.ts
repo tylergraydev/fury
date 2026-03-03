@@ -1064,14 +1064,15 @@ describe("chatStore - planApproval via exitplanmode toolUse", () => {
     expect(useChatStore.getState().planApproval["ws-1"]).toBe(true);
   });
 
-  it("clears planApproval on result event", () => {
+  it("preserves planApproval on result event so approve button stays visible", () => {
     useChatStore.setState({ planApproval: { "ws-1": true } });
 
     handleEvent({
       payload: { type: "result", isError: false, result: null, sessionId: null },
     });
 
-    expect(useChatStore.getState().planApproval["ws-1"]).toBe(false);
+    // planApproval must NOT be cleared by result — it's cleared by addUserMessage instead
+    expect(useChatStore.getState().planApproval["ws-1"]).toBe(true);
   });
 });
 
