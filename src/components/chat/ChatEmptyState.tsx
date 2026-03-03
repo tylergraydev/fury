@@ -22,7 +22,7 @@ const PRIMARY_ACTIONS: QuickAction[] = [
     icon: Sparkles,
     title: "Add Feature",
     description: "Implement a new feature with AI assistance",
-    color: "#a78bfa",
+    color: "#d2a8ff",
     prompt: "I want to add a new feature. ",
   },
   {
@@ -36,7 +36,7 @@ const PRIMARY_ACTIONS: QuickAction[] = [
     icon: Code2,
     title: "Refactor Code",
     description: "Improve code structure and quality",
-    color: "#60a5fa",
+    color: "#79c0ff",
     prompt: "I want to refactor ",
   },
   {

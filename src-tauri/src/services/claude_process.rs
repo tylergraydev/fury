@@ -293,9 +293,7 @@ pub async fn spawn_and_stream(
 
     // Set CREATE_NEW_PROCESS_GROUP on Windows
     #[cfg(windows)]
-    {
-        cmd.creation_flags(0x08000200); // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
-    }
+    cmd.creation_flags(0x08000200); // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
 
     let mut child = cmd.spawn().map_err(|e| {
         AppError::AgentError(format!("Failed to spawn Claude Code: {}", e))
@@ -483,9 +481,7 @@ pub async fn spawn_persistent(
     }
 
     #[cfg(windows)]
-    {
-        cmd.creation_flags(0x08000200); // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
-    }
+    cmd.creation_flags(0x08000200); // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
 
     let mut child = cmd.spawn().map_err(|e| {
         AppError::AgentError(format!("Failed to spawn persistent Claude Code: {}", e))

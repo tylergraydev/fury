@@ -137,9 +137,7 @@ pub async fn spawn_test_run(
     }
 
     #[cfg(windows)]
-    {
-        cmd.creation_flags(0x08000200);
-    }
+    cmd.creation_flags(0x08000200); // CREATE_NO_WINDOW
 
     let mut child = cmd.spawn().map_err(|e| {
         AppError::ScriptError(format!("Failed to spawn test command: {}", e))

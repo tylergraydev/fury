@@ -22,7 +22,7 @@ describe("applyTheme", () => {
     applyTheme("blend");
     const root = document.documentElement;
     expect(root.style.getPropertyValue("--bg-primary")).toBe("#000000");
-    expect(root.style.getPropertyValue("--accent")).toBe("#3b82f6");
+    expect(root.style.getPropertyValue("--accent")).toBe("#58a6ff");
     expect(root.style.getPropertyValue("--text-primary")).toBe("#f0f6fc");
   });
 
@@ -43,7 +43,7 @@ describe("applyTheme", () => {
 
   it("overrides previous theme values when switching", () => {
     applyTheme("blend");
-    expect(document.documentElement.style.getPropertyValue("--accent")).toBe("#3b82f6");
+    expect(document.documentElement.style.getPropertyValue("--accent")).toBe("#58a6ff");
 
     applyTheme("midnight");
     expect(document.documentElement.style.getPropertyValue("--accent")).toBe("#ffffff");
@@ -63,7 +63,7 @@ describe("applyTheme", () => {
     applyTheme("nonexistent-theme");
     const root = document.documentElement;
     expect(root.style.getPropertyValue("--bg-primary")).toBe("#000000");
-    expect(root.style.getPropertyValue("--accent")).toBe("#3b82f6");
+    expect(root.style.getPropertyValue("--accent")).toBe("#58a6ff");
   });
 
   it("applies a registered custom theme", () => {
