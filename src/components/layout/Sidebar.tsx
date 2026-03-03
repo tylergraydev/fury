@@ -111,7 +111,11 @@ export function Sidebar() {
             </button>
             <button
               onClick={() => {
-                if (repositories.length > 0) setNewWsRepoId(repositories[0].id);
+                if (repositories.length > 0) {
+                  const activeWs = workspaces.find((ws) => ws.id === activeWorkspaceId);
+                  const repoId = activeWs?.repoId ?? activeRepoId ?? repositories[0].id;
+                  setNewWsRepoId(repoId);
+                }
               }}
               className="rounded-md p-1 transition-colors hover:bg-[var(--bg-hover)]"
               style={{ color: "var(--text-muted)" }}
@@ -282,7 +286,11 @@ export function Sidebar() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
-              if (repositories.length > 0) setNewWsRepoId(repositories[0].id);
+              if (repositories.length > 0) {
+                const activeWs = workspaces.find((ws) => ws.id === activeWorkspaceId);
+                const repoId = activeWs?.repoId ?? activeRepoId ?? repositories[0].id;
+                setNewWsRepoId(repoId);
+              }
             }}
             className="flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-colors"
             style={{
