@@ -137,7 +137,8 @@ export type FrontendStreamEvent =
       cacheReadTokens?: number;
       cacheCreationTokens?: number;
     }
-  | { type: "permissionRequest"; toolName: string; input: unknown };
+  | { type: "permissionRequest"; toolName: string; input: unknown }
+  | { type: "assistantImage"; mediaType: string; data: string };
 
 // Chat types
 export type MessageRole = "user" | "assistant" | "system";
@@ -145,7 +146,8 @@ export type MessageRole = "user" | "assistant" | "system";
 export type ContentBlock =
   | { type: "text"; text: string }
   | { type: "toolUse"; id: string; name: string; input: unknown }
-  | { type: "toolResult"; toolUseId: string; content: string };
+  | { type: "toolResult"; toolUseId: string; content: string }
+  | { type: "image"; mediaType: string; data: string };
 
 export interface ResponseMetadata {
   durationMs?: number;

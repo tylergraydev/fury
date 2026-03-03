@@ -318,6 +318,25 @@ pub fn parse_codex_line(line: &str) -> Option<FrontendStreamEvent> {
                             .unwrap_or(serde_json::Value::Null);
                         return Some(FrontendStreamEvent::ToolUse { id, name, input });
                     }
+                    "image" => {
+                        // Codex image blocks: { type: "image", url: "..." } or base64 source
+                        if let Some(url) = block.get("url").and_then(|v| v.as_str()) {
+                            // URL-based image — encode as data with media_type hint
+                            return Some(FrontendStreamEvent::AssistantImage {
+                                media_type: "image/png".to_string(),
+                                data: url.to_string(),
+                            });
+                        }
+                        if let Some(source) = block.get("source") {
+                            let media_type = source.get("media_type").and_then(|v| v.as_str()).unwrap_or("image/png").to_string();
+                            if let Some(data) = source.get("data").and_then(|v| v.as_str()) {
+                                return Some(FrontendStreamEvent::AssistantImage {
+                                    media_type,
+                                    data: data.to_string(),
+                                });
+                            }
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -564,8 +583,21 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_image_content_block_url() {
+        let line = r#"{"type":"item.message","item":{"role":"assistant","content":[{"type":"image","url":"https://example.com/img.png"}]}}"#;
+        let event = parse_codex_line(line).unwrap();
+        match event {
+            FrontendStreamEvent::AssistantImage { media_type, data } => {
+                assert_eq!(media_type, "image/png");
+                assert_eq!(data, "https://example.com/img.png");
+            }
+            _ => panic!("Expected AssistantImage event"),
+        }
+    }
+
+    #[test]
     fn test_parse_unknown_content_block_type() {
-        let line = r#"{"type":"item.message","item":{"role":"assistant","content":[{"type":"image","url":"..."}]}}"#;
+        let line = r#"{"type":"item.message","item":{"role":"assistant","content":[{"type":"audio","data":"..."}]}}"#;
         assert!(parse_codex_line(line).is_none());
     }
 

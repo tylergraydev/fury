@@ -24,6 +24,7 @@ import type { ChatMessage, ContentBlock, ResponseMetadata } from "../../lib/taur
 import { readFileBase64 } from "../../lib/tauri";
 import { formatDuration, formatTokens, formatCost } from "../../lib/format";
 import { MarkdownContent } from "./MarkdownContent";
+import { ImageLightbox } from "./ImageLightbox";
 
 // --- Attachment parsing ---
 
@@ -99,12 +100,14 @@ interface ToolPair {
 
 type RenderGroup =
   | { kind: "text"; blocks: Array<ContentBlock & { type: "text" }> }
-  | { kind: "tools"; pairs: ToolPair[] };
+  | { kind: "tools"; pairs: ToolPair[] }
+  | { kind: "images"; blocks: Array<ContentBlock & { type: "image" }> };
 
 function groupContentBlocks(blocks: ContentBlock[]): RenderGroup[] {
   const groups: RenderGroup[] = [];
   let currentToolPairs: ToolPair[] = [];
   let currentTextBlocks: Array<ContentBlock & { type: "text" }> = [];
+  let currentImageBlocks: Array<ContentBlock & { type: "image" }> = [];
 
   const flushText = () => {
     if (currentTextBlocks.length > 0) {
@@ -120,14 +123,23 @@ function groupContentBlocks(blocks: ContentBlock[]): RenderGroup[] {
     }
   };
 
+  const flushImages = () => {
+    if (currentImageBlocks.length > 0) {
+      groups.push({ kind: "images", blocks: currentImageBlocks });
+      currentImageBlocks = [];
+    }
+  };
+
   for (const block of blocks) {
     switch (block.type) {
       case "text":
         flushTools();
+        flushImages();
         currentTextBlocks.push(block);
         break;
       case "toolUse":
         flushText();
+        flushImages();
         currentToolPairs.push({
           use: { id: block.id, name: block.name, input: block.input },
           result: null,
@@ -141,11 +153,17 @@ function groupContentBlocks(blocks: ContentBlock[]): RenderGroup[] {
         }
         break;
       }
+      case "image":
+        flushText();
+        flushTools();
+        currentImageBlocks.push(block);
+        break;
     }
   }
 
   flushText();
   flushTools();
+  flushImages();
   return groups;
 }
 
@@ -547,22 +565,61 @@ export function MessageBubble({ message, onRetry, contextId, contextType }: Prop
   // Assistant messages: plain output, no bubble, no avatar
   return (
     <div className="mb-3 text-[15px]" style={{ color: "var(--text-primary)" }}>
-      {groups.map((group, i) =>
-        group.kind === "text" ? (
-          group.blocks.map((block, j) => (
+      {groups.map((group, i) => {
+        if (group.kind === "text") {
+          return group.blocks.map((block, j) => (
             <div key={`${i}-${j}`} className="mb-1 break-words">
               <MarkdownContent content={block.text} contextId={contextId} contextType={contextType} />
             </div>
-          ))
-        ) : (
-          <ToolCallList key={i} pairs={group.pairs} />
-        ),
-      )}
+          ));
+        }
+        if (group.kind === "images") {
+          return <InlineImageGroup key={i} blocks={group.blocks} />;
+        }
+        return <ToolCallList key={i} pairs={group.pairs} />;
+      })}
       {message.metadata && <ResponseMetadataRow metadata={message.metadata} />}
     </div>
   );
 }
 
+
+function InlineImageGroup({ blocks }: { blocks: Array<ContentBlock & { type: "image" }> }) {
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+
+  return (
+    <>
+      <div className="my-2 flex flex-wrap gap-2">
+        {blocks.map((block, i) => {
+          const src = block.data.startsWith("data:")
+            ? block.data
+            : block.data.startsWith("http")
+              ? block.data
+              : `data:${block.mediaType};base64,${block.data}`;
+          return (
+            <button
+              key={i}
+              type="button"
+              className="cursor-pointer overflow-hidden rounded-md border transition-opacity hover:opacity-80"
+              style={{ borderColor: "var(--border)" }}
+              onClick={() => setLightboxSrc(src)}
+            >
+              <img
+                src={src}
+                alt={`Image ${i + 1}`}
+                className="max-h-64 max-w-full object-contain"
+                draggable={false}
+              />
+            </button>
+          );
+        })}
+      </div>
+      {lightboxSrc && (
+        <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+      )}
+    </>
+  );
+}
 
 function ResponseMetadataRow({ metadata }: { metadata: ResponseMetadata }) {
   const parts: string[] = [];

@@ -106,6 +106,10 @@ pub enum ContentBlockEvent {
         tool_use_id: String,
         content: serde_json::Value,
     },
+    #[serde(rename = "image")]
+    Image {
+        source: serde_json::Value,
+    },
 }
 
 /// Lightweight event emitted to the frontend via Tauri events.
@@ -128,6 +132,10 @@ pub enum FrontendStreamEvent {
     ToolResult {
         tool_use_id: String,
         content: String,
+    },
+    AssistantImage {
+        media_type: String,
+        data: String,
     },
     Result {
         is_error: bool,
