@@ -324,7 +324,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
 
   const isRunning = agentStatus === "Running";
   const isStopping = agentStatus === "Stopping";
-  const canSend = (text.trim().length > 0 || droppedFiles.length > 0) && !isStopping;
+  const canSend = (text.trim().length > 0 || droppedFiles.length > 0) && !isRunning && !isStopping;
 
   // Reset model selection when agent type changes
   useEffect(() => {
@@ -1090,7 +1090,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               placeholder={placeholderText}
-              disabled={isStopping}
+              disabled={isRunning || isStopping}
               rows={1}
               className="w-full resize-none bg-transparent text-sm outline-none"
               style={{
