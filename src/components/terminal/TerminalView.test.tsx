@@ -30,6 +30,15 @@ vi.mock("@xterm/addon-fit", () => {
   return { FitAddon: FitAddonClass };
 });
 
+vi.mock("@xterm/addon-web-links", () => {
+  const WebLinksAddonClass = vi.fn();
+  return { WebLinksAddon: WebLinksAddonClass };
+});
+
+vi.mock("@tauri-apps/plugin-shell", () => ({
+  open: vi.fn().mockResolvedValue(undefined),
+}));
+
 let listenCallback: ((event: any) => void) | null = null;
 const mockUnlisten = vi.fn();
 vi.mock("@tauri-apps/api/event", () => ({
@@ -88,9 +97,9 @@ describe("TerminalView", () => {
     expect(mockOpen).toHaveBeenCalled();
   });
 
-  it("loads FitAddon", () => {
+  it("loads FitAddon and WebLinksAddon", () => {
     render(<TerminalView terminalId="t-1" />);
-    expect(mockLoadAddon).toHaveBeenCalled();
+    expect(mockLoadAddon).toHaveBeenCalledTimes(2);
   });
 
   it("listens for terminal output events", () => {

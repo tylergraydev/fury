@@ -5,6 +5,7 @@ import {
   type AgentStatus,
   type AgentStatusEvent,
   sendMessage as sendMessageCmd,
+  sendFollowupMessage as sendFollowupCmd,
   stopAgent as stopAgentCmd,
   getAgentStatus,
 } from "../lib/tauri";
@@ -104,6 +105,13 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     disablePlanMode?: boolean,
   ) => {
     try {
+      // If agent is already running, send as a follow-up via stdin
+      const status = get().agents[contextId]?.status;
+      if (status === "Running") {
+        await sendFollowupCmd(contextId, message);
+        return;
+      }
+
       const request =
         contextType === "workspace"
           ? { workspaceId: contextId, message, model: model || undefined, disableThinking, disablePlanMode }

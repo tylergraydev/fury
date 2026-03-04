@@ -258,6 +258,13 @@ export async function sendMessage(request: SendMessageRequest): Promise<void> {
   return invoke("send_message", { request });
 }
 
+export async function sendFollowupMessage(
+  workspaceId: string,
+  message: string,
+): Promise<void> {
+  return invoke("send_followup_message", { workspaceId, message });
+}
+
 export async function stopAgent(workspaceId: string): Promise<void> {
   return invoke("stop_agent", { workspaceId });
 }
