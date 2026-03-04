@@ -19,6 +19,7 @@ vi.mock("lucide-react", () => ({
   RotateCcw: () => <span data-testid="restore-icon" />,
   Clock: () => <span data-testid="clock-icon" />,
   Home: () => <span data-testid="home-icon" />,
+  MessageSquare: () => <span data-testid="message-icon" />,
 }));
 
 vi.mock("../workspace/NewWorkspaceDialog", () => ({

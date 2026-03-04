@@ -12,6 +12,7 @@ import {
   RotateCcw,
   Clock,
   Home,
+  MessageSquare,
 } from "lucide-react";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -230,6 +231,9 @@ export function Sidebar() {
                             setRepoError(`Failed to archive "${ws.name}": ${String(e)}`);
                           }
                         }}
+                        onOpenChatTab={() => {
+                          useUIStore.getState().openChatTab(ws.id, ws.name, "workspace");
+                        }}
                       />
                     ))}
                   </>
@@ -420,6 +424,7 @@ function WorkspaceItem({
   onRename,
   onTogglePin,
   onArchive,
+  onOpenChatTab,
 }: {
   id: string;
   name: string;
@@ -433,6 +438,7 @@ function WorkspaceItem({
   onRename: (newName: string) => void;
   onTogglePin: () => void;
   onArchive: () => void;
+  onOpenChatTab: () => void;
 }) {
   const agentStatus = useAgentStore((s) => s.getStatus(id));
   const attention = useAgentStore((s) => s.needsAttention[id] ?? false);
@@ -531,6 +537,17 @@ function WorkspaceItem({
             title={pinned ? "Unpin workspace" : "Pin workspace"}
           >
             <Pin className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenChatTab();
+            }}
+            className="rounded p-1 hover:bg-[var(--bg-surface)]"
+            style={{ color: "var(--text-muted)" }}
+            title="Open in new chat tab"
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={(e) => {

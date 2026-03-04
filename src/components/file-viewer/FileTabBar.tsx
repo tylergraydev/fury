@@ -1,4 +1,4 @@
-import { X, Settings, GitMerge, History, FileDiff, Users, Columns2, BarChart3 } from "lucide-react";
+import { X, Settings, GitMerge, History, FileDiff, Users, Columns2, BarChart3, MessageSquare } from "lucide-react";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
 import { useUIStore } from "../../stores/uiStore";
 import type { PaneId } from "../../stores/fileViewerStore";
@@ -30,8 +30,10 @@ export function FileTabBar() {
   const closeViewTab = useUIStore((s) => s.closeViewTab);
   const pinViewTab = useUIStore((s) => s.pinViewTab);
 
-  const viewType = viewTabs.find((t) => t.id === activeViewTabId)?.type ?? "chat";
-  const isChatActive = viewType === "chat" && activeFileTabId === null;
+  const activeViewTab = viewTabs.find((t) => t.id === activeViewTabId);
+  const viewType = activeViewTab?.type ?? "chat";
+  const isChatActive = viewType === "chat" && activeFileTabId === null && activeViewTabId === "chat";
+  const workspaceChatTabs = viewTabs.filter((t) => t.type === "chat" && t.id !== "chat");
   const nonChatViewTabs = viewTabs.filter((t) => t.type !== "chat" && t.type !== "settings");
 
   const handleChatClick = () => {
@@ -79,6 +81,45 @@ export function FileTabBar() {
       >
         Chat
       </button>
+
+      {/* Workspace-pinned chat tabs */}
+      {workspaceChatTabs.map((tab) => {
+        const isActive = activeViewTabId === tab.id && activeFileTabId === null;
+        return (
+          <span
+            key={tab.id}
+            className="flex flex-shrink-0 items-center gap-1 py-1.5 pl-3 pr-1 transition-colors"
+            style={{
+              color: isActive ? "var(--accent)" : "var(--text-muted)",
+              borderBottom: isActive
+                ? "2px solid var(--accent)"
+                : "2px solid transparent",
+              cursor: "pointer",
+            }}
+          >
+            <MessageSquare className="h-3 w-3" />
+            <span
+              className="max-w-[120px] truncate"
+              onClick={() => {
+                showChat();
+                setActiveViewTab(tab.id);
+              }}
+            >
+              {tab.label}
+            </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                closeViewTab(tab.id);
+              }}
+              className="ml-0.5 rounded p-0.5 hover:bg-[var(--bg-hover)]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        );
+      })}
 
       {/* File tabs */}
       {fileTabs.map((tab) => {

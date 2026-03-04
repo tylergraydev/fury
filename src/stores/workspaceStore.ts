@@ -11,6 +11,7 @@ import {
   renameWorkspace,
   setWorkspacePinned,
 } from "../lib/tauri";
+import { useUIStore } from "./uiStore";
 
 interface WorkspaceStore {
   workspaces: WorkspaceInfo[];
@@ -70,6 +71,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       await archiveWorkspace(id);
       const archived = get().workspaces.find((w) => w.id === id);
       const wasActive = get().activeWorkspaceId === id;
+      useUIStore.getState().closeChatTabsForContext(id);
       set({
         workspaces: get().workspaces.filter((w) => w.id !== id),
         archivedWorkspaces: archived
@@ -91,6 +93,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       const deleted = get().workspaces.find((w) => w.id === id);
       const wasActive = get().activeWorkspaceId === id;
       await deleteWorkspace(id);
+      useUIStore.getState().closeChatTabsForContext(id);
       set({
         workspaces: get().workspaces.filter((w) => w.id !== id),
         activeWorkspaceId: wasActive ? null : get().activeWorkspaceId,

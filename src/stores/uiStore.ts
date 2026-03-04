@@ -10,6 +10,8 @@ export interface ViewTab {
   type: ViewType;
   pinned: boolean;
   label: string;
+  contextId?: string;
+  contextType?: "workspace" | "repo";
 }
 
 const VIEW_LABELS: Record<ViewType, string> = {
@@ -40,6 +42,8 @@ interface UIStore {
   closeViewTab: (tabId: string) => void;
   setActiveViewTab: (tabId: string) => void;
   pinViewTab: (tabId: string) => void;
+  openChatTab: (contextId: string, label: string, contextType: "workspace" | "repo") => void;
+  closeChatTabsForContext: (contextId: string) => void;
   settingsInitialTab: string | null;
   setSettingsInitialTab: (tab: string | null) => void;
 }
@@ -67,6 +71,10 @@ export const useUIStore = create<UIStore>((set, get) => ({
   activeViewTabId: "chat",
 
   openViewTab: (type, pin = true) => {
+    if (type === "chat") {
+      set({ activeViewTabId: "chat" });
+      return;
+    }
     const { viewTabs } = get();
     const existing = viewTabs.find((t) => t.type === type);
     if (existing) {
@@ -117,6 +125,33 @@ export const useUIStore = create<UIStore>((set, get) => ({
         t.id === tabId ? { ...t, pinned: true } : t,
       ),
     }));
+  },
+
+  openChatTab: (contextId, label, contextType) => {
+    const { viewTabs } = get();
+    const tabId = `chat-${contextId}`;
+    const existing = viewTabs.find((t) => t.id === tabId);
+    if (existing) {
+      set({ activeViewTabId: tabId });
+      return;
+    }
+    const newTab: ViewTab = {
+      id: tabId,
+      type: "chat",
+      pinned: true,
+      label,
+      contextId,
+      contextType,
+    };
+    set({ viewTabs: [...viewTabs, newTab], activeViewTabId: tabId });
+  },
+
+  closeChatTabsForContext: (contextId) => {
+    const { viewTabs, activeViewTabId } = get();
+    const tabId = `chat-${contextId}`;
+    const updated = viewTabs.filter((t) => t.id !== tabId);
+    const nextActive = activeViewTabId === tabId ? "chat" : activeViewTabId;
+    set({ viewTabs: updated, activeViewTabId: nextActive });
   },
 
   settingsInitialTab: null,
