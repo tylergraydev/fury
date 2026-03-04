@@ -99,7 +99,7 @@ function CheckRow({ check }: { check: PrCheck }) {
         href={check.detailsUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="group/check flex items-center gap-2 rounded px-2 py-1 text-xs no-underline transition-colors hover:bg-[var(--bg-surface)]"
+        className="group/check flex items-center gap-2 rounded px-2 py-1 text-sm no-underline transition-colors hover:bg-[var(--bg-surface)]"
       >
         {content}
       </a>
@@ -107,7 +107,7 @@ function CheckRow({ check }: { check: PrCheck }) {
   }
 
   return (
-    <div className="group/check flex items-center gap-2 px-2 py-1 text-xs">
+    <div className="group/check flex items-center gap-2 px-2 py-1 text-sm">
       {content}
     </div>
   );
@@ -139,7 +139,7 @@ function ReviewRow({ review }: { review: PrReview }) {
   const color = reviewStateColor(review.state);
 
   return (
-    <div className="flex flex-col gap-0.5 px-2 py-1 text-xs">
+    <div className="flex flex-col gap-0.5 px-2 py-1 text-sm">
       <div className="flex items-center gap-2">
         <span
           className="h-2 w-2 flex-shrink-0 rounded-full"
@@ -157,7 +157,7 @@ function ReviewRow({ review }: { review: PrReview }) {
       </div>
       {review.body && (
         <p
-          className="truncate pl-4 text-[10px]"
+          className="truncate pl-4 text-xs"
           style={{ color: "var(--text-muted)" }}
         >
           {review.body}
@@ -175,14 +175,14 @@ function ReviewCommentRow({ comment }: { comment: PrComment }) {
     : null;
 
   return (
-    <div className="flex flex-col gap-0.5 px-2 py-1 text-xs">
+    <div className="flex flex-col gap-0.5 px-2 py-1 text-sm">
       <div className="flex items-center gap-2">
         <span className="font-medium" style={{ color: "var(--text-primary)" }}>
           @{comment.author}
         </span>
         {location && (
           <span
-            className="truncate text-[10px]"
+            className="truncate text-xs"
             style={{ color: "var(--accent)" }}
           >
             {location}
@@ -190,7 +190,7 @@ function ReviewCommentRow({ comment }: { comment: PrComment }) {
         )}
       </div>
       <p
-        className="truncate pl-0 text-[10px]"
+        className="truncate pl-0 text-xs"
         style={{ color: "var(--text-muted)" }}
       >
         {comment.body}

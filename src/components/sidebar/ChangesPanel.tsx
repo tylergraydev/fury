@@ -329,7 +329,7 @@ export function ChangesPanel({ context }: Props) {
   if (loading && !diffResult) {
     return (
       <div
-        className="flex h-full items-center justify-center text-xs"
+        className="flex h-full items-center justify-center text-sm"
         style={{ color: "var(--text-muted)" }}
       >
         Loading changes...
@@ -339,7 +339,7 @@ export function ChangesPanel({ context }: Props) {
 
   if (error && !diffResult) {
     return (
-      <div className="p-3 text-xs" style={{ color: "var(--error)" }}>
+      <div className="p-3 text-sm" style={{ color: "var(--error)" }}>
         {error}
       </div>
     );
@@ -352,7 +352,7 @@ export function ChangesPanel({ context }: Props) {
           <PrStatusBar workspaceId={contextId} />
         )}
         <div
-          className="flex flex-1 items-center justify-center text-xs"
+          className="flex flex-1 items-center justify-center text-sm"
           style={{ color: "var(--text-muted)" }}
         >
           No changes
@@ -370,7 +370,7 @@ export function ChangesPanel({ context }: Props) {
 
       {/* Summary */}
       <div
-        className="flex items-center gap-2 px-3 py-2 text-xs"
+        className="flex items-center gap-2 px-3 py-2 text-sm"
         style={{
           borderBottom: "1px solid var(--border)",
           color: "var(--text-muted)",

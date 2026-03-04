@@ -1090,7 +1090,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               placeholder={placeholderText}
-              disabled={isRunning || isStopping}
+              disabled={isStopping}
               rows={1}
               className="w-full resize-none bg-transparent text-sm outline-none"
               style={{
