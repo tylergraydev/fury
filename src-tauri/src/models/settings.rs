@@ -25,6 +25,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub linear: LinearSettings,
     #[serde(default)]
+    pub azure_devops: AzureDevOpsSettings,
+    #[serde(default)]
     pub claude_context: ClaudeContextSettings,
     #[serde(default)]
     pub custom_themes: Vec<CustomTheme>,
@@ -41,6 +43,7 @@ impl Default for AppSettings {
             experimental: ExperimentalSettings::default(),
             copilot: CopilotSettings::default(),
             linear: LinearSettings::default(),
+            azure_devops: AzureDevOpsSettings::default(),
             claude_context: ClaudeContextSettings::default(),
             custom_themes: Vec::new(),
         }
@@ -121,6 +124,13 @@ pub struct CopilotSettings {
 #[serde(rename_all = "camelCase")]
 pub struct LinearSettings {
     pub api_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AzureDevOpsSettings {
+    pub pat: Option<String>,
+    pub default_org: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]

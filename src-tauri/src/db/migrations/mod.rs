@@ -219,5 +219,11 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
         conn.execute_batch("ALTER TABLE repository_settings ADD COLUMN test_file_command TEXT;");
     let _ = conn.execute_batch("ALTER TABLE repository_settings ADD COLUMN test_working_dir TEXT;");
 
+    // Git provider detection columns on repositories (idempotent)
+    let _ = conn.execute_batch(
+        "ALTER TABLE repositories ADD COLUMN provider TEXT NOT NULL DEFAULT 'github';",
+    );
+    let _ = conn.execute_batch("ALTER TABLE repositories ADD COLUMN remote_url TEXT;");
+
     Ok(())
 }

@@ -10,6 +10,8 @@ const mockRepo: Repository = {
   path: "/home/user/my-project",
   defaultBranch: "main",
   currentBranch: "feature-x",
+  provider: "git_hub" as const,
+  remoteUrl: null,
 };
 
 const mockWorkspace: WorkspaceInfo = {

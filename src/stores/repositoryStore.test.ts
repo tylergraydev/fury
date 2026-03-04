@@ -15,12 +15,17 @@ import {
   cloneRepository,
   initRepository,
   removeRepository,
+  type Repository,
 } from "../lib/tauri";
 
-const makeRepo = (id = "repo-1") => ({
+const makeRepo = (id = "repo-1"): Repository => ({
   id,
   name: "test-repo",
   path: "/path/to/repo",
+  defaultBranch: "main",
+  currentBranch: "main",
+  provider: "git_hub" as const,
+  remoteUrl: null,
 });
 
 beforeEach(() => {

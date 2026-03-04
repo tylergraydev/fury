@@ -120,6 +120,7 @@ const fullSettings = {
   copilot: { enabled: false },
   linear: { apiKey: null },
   claudeContext: { enabled: false, openaiApiKey: null, zillizUri: null, zillizToken: null },
+  azureDevops: { pat: null, defaultOrg: null },
   customThemes: [],
 };
 

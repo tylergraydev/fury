@@ -48,6 +48,9 @@ pub enum AppError {
     #[error("Linear API error: {0}")]
     LinearError(String),
 
+    #[error("Azure DevOps error: {0}")]
+    AzureDevOpsError(String),
+
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
 }

@@ -27,8 +27,8 @@ beforeEach(() => {
   });
   useRepositoryStore.setState({
     repositories: [
-      { id: "r1", name: "Repo 1", path: "/path/r1", defaultBranch: "main", currentBranch: "main" },
-      { id: "r2", name: "Repo 2", path: "/path/r2", defaultBranch: "main", currentBranch: "main" },
+      { id: "r1", name: "Repo 1", path: "/path/r1", defaultBranch: "main", currentBranch: "main", provider: "git_hub" as const, remoteUrl: null },
+      { id: "r2", name: "Repo 2", path: "/path/r2", defaultBranch: "main", currentBranch: "main", provider: "git_hub" as const, remoteUrl: null },
     ],
   });
   vi.clearAllMocks();

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { usePrStore } from "../../stores/prStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useTodoStore } from "../../stores/todoStore";
@@ -11,10 +12,23 @@ interface PRPanelProps {
   workspaceId: string;
 }
 
+function useProviderLabel(workspaceId: string): string {
+  const repoId = useWorkspaceStore((s) => {
+    const ws = s.workspaces.find((w) => w.id === workspaceId);
+    return ws?.repoId;
+  });
+  const provider = useRepositoryStore((s) => {
+    const repo = s.repositories.find((r) => r.id === repoId);
+    return repo?.provider;
+  });
+  return provider === "azure_dev_ops" ? "View on Azure DevOps" : "View on GitHub";
+}
+
 export function PRPanel({ workspaceId }: PRPanelProps) {
   const prInfo = usePrStore((s) => s.prInfo[workspaceId] ?? null);
   const loading = usePrStore((s) => s.loading[workspaceId] ?? false);
   const error = usePrStore((s) => s.error[workspaceId] ?? null);
+  const viewLabel = useProviderLabel(workspaceId);
 
   useEffect(() => {
     const id = requestAnimationFrame(() => {
@@ -43,7 +57,7 @@ export function PRPanel({ workspaceId }: PRPanelProps) {
   }
 
   if (isMerged && prInfo) {
-    return <MergedView prInfo={prInfo} />;
+    return <MergedView prInfo={prInfo} viewLabel={viewLabel} />;
   }
 
   if (hasPr && prInfo) {
@@ -53,6 +67,7 @@ export function PRPanel({ workspaceId }: PRPanelProps) {
         prInfo={prInfo}
         loading={loading}
         error={error}
+        viewLabel={viewLabel}
         onRefresh={() => usePrStore.getState().refreshChecks(workspaceId)}
         onPush={() => usePrStore.getState().pushChanges(workspaceId)}
         onFix={async () => {
@@ -215,6 +230,7 @@ function PRStatusView({
   prInfo,
   loading,
   error,
+  viewLabel,
   onRefresh,
   onPush,
   onFix,
@@ -224,6 +240,7 @@ function PRStatusView({
   prInfo: PrInfo;
   loading: boolean;
   error: string | null;
+  viewLabel: string;
   onRefresh: () => void;
   onPush: () => void;
   onFix: () => void;
@@ -290,7 +307,7 @@ function PRStatusView({
             className="ml-auto text-[10px] underline"
             style={{ color: "var(--accent)" }}
           >
-            View on GitHub
+            {viewLabel}
           </a>
         )}
       </div>
@@ -531,7 +548,7 @@ function CheckRow({ check }: { check: PrCheck }) {
 
 // --- Merged View ---
 
-function MergedView({ prInfo }: { prInfo: PrInfo }) {
+function MergedView({ prInfo, viewLabel }: { prInfo: PrInfo; viewLabel: string }) {
   return (
     <div
       className="flex h-full flex-col items-center justify-center gap-3"
@@ -557,7 +574,7 @@ function MergedView({ prInfo }: { prInfo: PrInfo }) {
           className="text-xs underline"
           style={{ color: "var(--accent)" }}
         >
-          View on GitHub
+          {viewLabel}
         </a>
       )}
     </div>
