@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import { listen } from "@tauri-apps/api/event";
 import {
   writeTerminal,
@@ -53,6 +54,11 @@ export function TerminalView({ terminalId }: TerminalViewProps) {
 
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
+    term.loadAddon(
+      new WebLinksAddon((_event, uri) => {
+        import("@tauri-apps/plugin-shell").then(({ open }) => open(uri));
+      }),
+    );
     term.open(containerRef.current);
 
     // Initial fit

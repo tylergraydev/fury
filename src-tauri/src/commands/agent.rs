@@ -745,6 +745,39 @@ pub async fn respond_to_permission(
 }
 
 #[tauri::command]
+pub async fn send_followup_message(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    message: String,
+) -> Result<(), AppError> {
+    let id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    // Try agent_stdins first (non-persistent mode)
+    let regular_stdin = state.agent_stdins.lock().unwrap().remove(&id);
+    if let Some(mut stdin) = regular_stdin {
+        let write_result = claude_process::write_message(&mut stdin, &message).await;
+        state.agent_stdins.lock().unwrap().insert(id, stdin);
+        write_result?;
+        return Ok(());
+    }
+
+    // Try persistent_agents
+    let persistent_handle = state.persistent_agents.lock().unwrap().remove(&id);
+    if let Some(mut handle) = persistent_handle {
+        let write_result = claude_process::write_message(&mut handle.stdin, &message).await;
+        state.persistent_agents.lock().unwrap().insert(id, handle);
+        write_result?;
+        return Ok(());
+    }
+
+    Err(AppError::AgentError(
+        "No stdin handle found for this agent".to_string(),
+    ))
+}
+
+#[tauri::command]
 pub async fn stop_agent(
     app: tauri::AppHandle,
     state: State<'_, AppState>,

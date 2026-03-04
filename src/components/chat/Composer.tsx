@@ -324,7 +324,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
 
   const isRunning = agentStatus === "Running";
   const isStopping = agentStatus === "Stopping";
-  const canSend = (text.trim().length > 0 || droppedFiles.length > 0) && !isRunning && !isStopping;
+  const canSend = (text.trim().length > 0 || droppedFiles.length > 0) && !isStopping;
 
   // Reset model selection when agent type changes
   useEffect(() => {
@@ -882,7 +882,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
 
   let placeholderText: string;
   if (isRunning) {
-    placeholderText = "Waiting for response...";
+    placeholderText = "Send a follow-up message...";
   } else if (isPlanApproval) {
     placeholderText = "Enter your plan adjustments here...";
   } else {
