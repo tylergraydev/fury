@@ -58,6 +58,8 @@ describe("lspSuggestionListener", () => {
           path: "/path/to/repo",
           defaultBranch: "main",
           currentBranch: "main",
+          provider: "git_hub" as const,
+          remoteUrl: null,
         },
       ],
     });
@@ -111,6 +113,8 @@ describe("lspSuggestionListener", () => {
           path: "/path/to/repo",
           defaultBranch: "main",
           currentBranch: "main",
+          provider: "git_hub" as const,
+          remoteUrl: null,
         },
       ],
     });
@@ -173,6 +177,8 @@ describe("lspSuggestionListener", () => {
           path: "/path/to/empty",
           defaultBranch: "main",
           currentBranch: "main",
+          provider: "git_hub" as const,
+          remoteUrl: null,
         },
       ],
     });

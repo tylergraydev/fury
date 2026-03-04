@@ -56,12 +56,14 @@ impl Database {
 
     pub fn insert_repository(&self, repo: &Repository) -> Result<(), AppError> {
         self.conn.execute(
-            "INSERT INTO repositories (id, name, path, default_branch) VALUES (?1, ?2, ?3, ?4)",
+            "INSERT INTO repositories (id, name, path, default_branch, provider, remote_url) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             rusqlite::params![
                 repo.id.to_string(),
                 repo.name,
                 repo.path.to_string_lossy().to_string(),
                 repo.default_branch,
+                repo.provider.as_str(),
+                repo.remote_url,
             ],
         )?;
         Ok(())
@@ -76,17 +78,22 @@ impl Database {
     }
 
     pub fn list_repositories(&self) -> Result<Vec<Repository>, AppError> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT id, name, path, default_branch FROM repositories")?;
+        use crate::models::repository::GitProvider;
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, path, default_branch, provider, remote_url FROM repositories",
+        )?;
         let repos = stmt
             .query_map([], |row| {
+                let provider_str: String = row.get(4)?;
+                let remote_url: Option<String> = row.get(5)?;
                 Ok(Repository {
                     id: row.get::<_, String>(0)?.parse::<Uuid>().unwrap_or_default(),
                     name: row.get(1)?,
                     path: PathBuf::from(row.get::<_, String>(2)?),
                     default_branch: row.get(3)?,
                     current_branch: None,
+                    provider: GitProvider::from_db_str(&provider_str),
+                    remote_url,
                 })
             })?
             .filter_map(|r| r.ok())

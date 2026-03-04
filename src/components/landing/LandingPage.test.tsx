@@ -43,6 +43,8 @@ const REPO_1 = {
   path: "/home/user/test-repo",
   defaultBranch: "main",
   currentBranch: null,
+  provider: "git_hub" as const,
+  remoteUrl: null,
 };
 
 const REPO_2 = {
@@ -51,6 +53,8 @@ const REPO_2 = {
   path: "/home/user/other-repo",
   defaultBranch: "main",
   currentBranch: null,
+  provider: "git_hub" as const,
+  remoteUrl: null,
 };
 
 const WS_1 = {

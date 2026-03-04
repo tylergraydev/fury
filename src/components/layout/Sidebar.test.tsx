@@ -55,6 +55,8 @@ const makeRepo = (overrides: Record<string, unknown> = {}) => ({
   path: "/path",
   defaultBranch: "main",
   currentBranch: "main",
+  provider: "git_hub" as const,
+  remoteUrl: null,
   ...overrides,
 });
 

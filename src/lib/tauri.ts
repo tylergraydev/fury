@@ -7,6 +7,8 @@ export interface Repository {
   path: string;
   defaultBranch: string;
   currentBranch: string | null;
+  provider: "git_hub" | "azure_dev_ops" | "unknown";
+  remoteUrl: string | null;
 }
 
 // Workspace types
@@ -1077,6 +1079,11 @@ export interface LinearSettings {
   apiKey: string | null;
 }
 
+export interface AzureDevOpsSettings {
+  pat: string | null;
+  defaultOrg: string | null;
+}
+
 export interface ClaudeContextSettings {
   enabled: boolean;
   openaiApiKey: string | null;
@@ -1111,6 +1118,7 @@ export interface AppSettings {
   experimental: ExperimentalSettings;
   copilot: CopilotSettings;
   linear: LinearSettings;
+  azureDevops: AzureDevOpsSettings;
   claudeContext: ClaudeContextSettings;
   customThemes?: CustomTheme[];
 }

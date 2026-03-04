@@ -1,13 +1,93 @@
+use std::path::PathBuf;
+
 use crate::error::AppError;
 use crate::models::pr::{
     CreatePrRequest, IssueDetail, IssueListItem, MergeResult, PrCheck, PrComment, PrDetail,
     PrFullData, PrInfo, PrListItem, PrReview, ReviewsAndComments, RunLogsResult, WorkflowJob,
     WorkflowRun,
 };
+use crate::models::repository::GitProvider;
+use crate::services::ado as ado_svc;
 use crate::services::gh as gh_svc;
+use crate::services::provider as provider_svc;
 use crate::state::AppState;
 use tauri::{Emitter, State};
 use uuid::Uuid;
+
+/// Context extracted from workspace + repository state for provider dispatch.
+struct WsContext {
+    worktree_path: PathBuf,
+    branch: String,
+    default_branch: String,
+    provider: GitProvider,
+    remote_url: Option<String>,
+}
+
+/// Extract workspace context (drops locks before returning).
+fn ws_context(state: &State<'_, AppState>, ws_id: Uuid) -> Result<WsContext, AppError> {
+    let workspaces = state.workspaces.read().unwrap();
+    let ws = workspaces
+        .get(&ws_id)
+        .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+    let repos = state.repositories.read().unwrap();
+    let repo = repos
+        .get(&ws.repo_id)
+        .ok_or(AppError::RepoNotFound(ws.repo_id))?;
+    Ok(WsContext {
+        worktree_path: ws.worktree_path.clone(),
+        branch: ws.branch.clone(),
+        default_branch: repo.default_branch.clone(),
+        provider: repo.provider.clone(),
+        remote_url: repo.remote_url.clone(),
+    })
+}
+
+/// Context extracted from a repository for repo-level commands.
+struct RepoContext {
+    path: PathBuf,
+    provider: GitProvider,
+    remote_url: Option<String>,
+}
+
+fn repo_context(state: &State<'_, AppState>, repo_id: Uuid) -> Result<RepoContext, AppError> {
+    let repos = state.repositories.read().unwrap();
+    let repo = repos
+        .get(&repo_id)
+        .ok_or(AppError::RepoNotFound(repo_id))?;
+    Ok(RepoContext {
+        path: repo.path.clone(),
+        provider: repo.provider.clone(),
+        remote_url: repo.remote_url.clone(),
+    })
+}
+
+/// Extract ADO PAT from app settings.
+fn get_ado_pat(state: &State<'_, AppState>) -> Result<String, AppError> {
+    let settings = state.settings.read().unwrap();
+    settings
+        .azure_devops
+        .pat
+        .clone()
+        .filter(|p| !p.is_empty())
+        .ok_or_else(|| {
+            AppError::AzureDevOpsError(
+                "Azure DevOps PAT not configured. Set it in Settings > Azure DevOps.".to_string(),
+            )
+        })
+}
+
+/// Parse ADO remote URL into (org, project, repo) or return error.
+fn parse_ado_url(remote_url: &Option<String>) -> Result<(String, String, String), AppError> {
+    let url = remote_url
+        .as_deref()
+        .ok_or_else(|| AppError::AzureDevOpsError("No remote URL found for repository.".into()))?;
+    provider_svc::parse_ado_remote(url).ok_or_else(|| {
+        AppError::AzureDevOpsError(format!(
+            "Could not parse Azure DevOps remote URL: {}",
+            url
+        ))
+    })
+}
 
 #[tauri::command]
 pub async fn create_pr(
@@ -16,88 +96,132 @@ pub async fn create_pr(
     request: CreatePrRequest,
 ) -> Result<PrInfo, AppError> {
     let ws_id = request.workspace_id;
-
-    let (worktree_path, branch, default_branch) = {
-        let workspaces = state.workspaces.read().unwrap();
-        let ws = workspaces
-            .get(&ws_id)
-            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        let repos = state.repositories.read().unwrap();
-        let repo = repos
-            .get(&ws.repo_id)
-            .ok_or(AppError::RepoNotFound(ws.repo_id))?;
-        (
-            ws.worktree_path.clone(),
-            ws.branch.clone(),
-            repo.default_branch.clone(),
-        )
-    };
+    let ctx = ws_context(&state, ws_id)?;
 
     let draft = request.draft.unwrap_or(false);
     let title = request.title;
     let body = request.body;
 
-    tokio::task::spawn_blocking(move || {
-        gh_svc::check_gh_auth()?;
+    match ctx.provider {
+        GitProvider::GitHub => {
+            tokio::task::spawn_blocking(move || {
+                gh_svc::check_gh_auth()?;
 
-        // Auto-commit uncommitted changes before pushing
-        if gh_svc::has_uncommitted_changes(&worktree_path)? {
-            gh_svc::stage_and_commit(&worktree_path, &title)?;
+                if gh_svc::has_uncommitted_changes(&ctx.worktree_path)? {
+                    gh_svc::stage_and_commit(&ctx.worktree_path, &title)?;
+                }
+
+                gh_svc::push_branch(&ctx.worktree_path, &ctx.branch)?;
+
+                let mut pr_info = gh_svc::create_pr(
+                    &ctx.worktree_path,
+                    &title,
+                    &body,
+                    &ctx.default_branch,
+                    draft,
+                )?;
+                pr_info.workspace_id = ws_id;
+
+                let _ = app.emit(&format!("pr-updated:{}", ws_id), &pr_info);
+                Ok(pr_info)
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
         }
+        GitProvider::AzureDevOps => {
+            let pat = get_ado_pat(&state)?;
+            let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-        gh_svc::push_branch(&worktree_path, &branch)?;
+            tokio::task::spawn_blocking(move || {
+                if gh_svc::has_uncommitted_changes(&ctx.worktree_path)? {
+                    gh_svc::stage_and_commit(&ctx.worktree_path, &title)?;
+                }
 
-        let mut pr_info = gh_svc::create_pr(
-            &worktree_path,
-            &title,
-            &body,
-            &default_branch,
-            draft,
-        )?;
-        pr_info.workspace_id = ws_id;
+                gh_svc::push_branch(&ctx.worktree_path, &ctx.branch)?;
 
-        let _ = app.emit(&format!("pr-updated:{}", ws_id), &pr_info);
+                let pr_info = ado_svc::create_pr(
+                    &pat,
+                    &org,
+                    &project,
+                    &repo_name,
+                    &ctx.branch,
+                    &ctx.default_branch,
+                    &title,
+                    &body,
+                    draft,
+                    ws_id,
+                )?;
 
-        Ok(pr_info)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+                let _ = app.emit(&format!("pr-updated:{}", ws_id), &pr_info);
+                Ok(pr_info)
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        GitProvider::Unknown => Err(AppError::PrError(
+            "Repository provider not detected. Cannot create PR.".into(),
+        )),
+    }
 }
 
 #[tauri::command]
-pub async fn get_pr_info(state: State<'_, AppState>, workspace_id: String) -> Result<PrInfo, AppError> {
+pub async fn get_pr_info(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<PrInfo, AppError> {
     let ws_id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ctx = ws_context(&state, ws_id)?;
 
-    let worktree_path = {
-        let workspaces = state.workspaces.read().unwrap();
-        let ws = workspaces
-            .get(&ws_id)
-            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        ws.worktree_path.clone()
-    };
+    match ctx.provider {
+        GitProvider::GitHub => {
+            tokio::task::spawn_blocking(move || {
+                let (info_result, checks_result) = std::thread::scope(|s| {
+                    let path = &ctx.worktree_path;
+                    let t1 = s.spawn(|| gh_svc::get_pr_info(path));
+                    let t2 = s.spawn(|| gh_svc::get_pr_checks(path));
+                    (t1.join().unwrap(), t2.join().unwrap())
+                });
 
-    tokio::task::spawn_blocking(move || {
-        // Parallelize PR info + checks fetch
-        let (info_result, checks_result) = std::thread::scope(|s| {
-            let path = &worktree_path;
-            let t1 = s.spawn(|| gh_svc::get_pr_info(path));
-            let t2 = s.spawn(|| gh_svc::get_pr_checks(path));
-            (t1.join().unwrap(), t2.join().unwrap())
-        });
-
-        match info_result? {
-            Some(mut info) => {
-                info.workspace_id = ws_id;
-                info.checks = checks_result.unwrap_or_default();
-                Ok(info)
-            }
-            None => Ok(PrInfo::empty(ws_id)),
+                match info_result? {
+                    Some(mut info) => {
+                        info.workspace_id = ws_id;
+                        info.checks = checks_result.unwrap_or_default();
+                        Ok(info)
+                    }
+                    None => Ok(PrInfo::empty(ws_id)),
+                }
+            })
+            .await
+            .map_err(|e| AppError::PrError(format!("task failed: {}", e)))?
         }
-    })
-    .await
-    .map_err(|e| AppError::PrError(format!("task failed: {}", e)))?
+        GitProvider::AzureDevOps => {
+            let pat = get_ado_pat(&state)?;
+            let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
+
+            tokio::task::spawn_blocking(move || {
+                let info = ado_svc::get_pr_by_branch(
+                    &pat, &org, &project, &repo_name, &ctx.branch, ws_id,
+                )?;
+                match info {
+                    Some(mut pr_info) => {
+                        if let Some(pr_id) = pr_info.pr_number {
+                            pr_info.checks = ado_svc::get_pr_checks(
+                                &pat, &org, &project, &repo_name, pr_id,
+                            )
+                            .unwrap_or_default();
+                        }
+                        Ok(pr_info)
+                    }
+                    None => Ok(PrInfo::empty(ws_id)),
+                }
+            })
+            .await
+            .map_err(|e| AppError::PrError(format!("task failed: {}", e)))?
+        }
+        GitProvider::Unknown => Ok(PrInfo::empty(ws_id)),
+    }
 }
 
 #[tauri::command]
@@ -108,20 +232,35 @@ pub async fn get_pr_checks(
     let ws_id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ctx = ws_context(&state, ws_id)?;
 
-    let worktree_path = {
-        let workspaces = state.workspaces.read().unwrap();
-        let ws = workspaces
-            .get(&ws_id)
-            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        ws.worktree_path.clone()
-    };
+    match ctx.provider {
+        GitProvider::GitHub => {
+            tokio::task::spawn_blocking(move || gh_svc::get_pr_checks(&ctx.worktree_path))
+                .await
+                .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        GitProvider::AzureDevOps => {
+            let pat = get_ado_pat(&state)?;
+            let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-    tokio::task::spawn_blocking(move || {
-        gh_svc::get_pr_checks(&worktree_path)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+            tokio::task::spawn_blocking(move || {
+                // Find the PR first to get its ID
+                let info = ado_svc::get_pr_by_branch(
+                    &pat, &org, &project, &repo_name, &ctx.branch, ws_id,
+                )?;
+                match info.and_then(|i| i.pr_number) {
+                    Some(pr_id) => {
+                        ado_svc::get_pr_checks(&pat, &org, &project, &repo_name, pr_id)
+                    }
+                    None => Ok(Vec::new()),
+                }
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        GitProvider::Unknown => Ok(Vec::new()),
+    }
 }
 
 #[tauri::command]
@@ -133,41 +272,76 @@ pub async fn push_changes(
     let ws_id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ctx = ws_context(&state, ws_id)?;
 
-    let (worktree_path, branch) = {
-        let workspaces = state.workspaces.read().unwrap();
-        let ws = workspaces
-            .get(&ws_id)
-            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        (ws.worktree_path.clone(), ws.branch.clone())
-    };
+    match ctx.provider {
+        GitProvider::GitHub => {
+            tokio::task::spawn_blocking(move || {
+                if gh_svc::has_uncommitted_changes(&ctx.worktree_path)? {
+                    gh_svc::stage_and_commit(&ctx.worktree_path, "Update changes")?;
+                }
 
-    tokio::task::spawn_blocking(move || {
-        // Auto-commit uncommitted changes before pushing
-        if gh_svc::has_uncommitted_changes(&worktree_path)? {
-            gh_svc::stage_and_commit(&worktree_path, "Update changes")?;
+                gh_svc::push_branch(&ctx.worktree_path, &ctx.branch)?;
+
+                let (info_result, checks_result) = std::thread::scope(|s| {
+                    let path = &ctx.worktree_path;
+                    let t1 = s.spawn(|| gh_svc::get_pr_info(path));
+                    let t2 = s.spawn(|| gh_svc::get_pr_checks(path));
+                    (t1.join().unwrap(), t2.join().unwrap())
+                });
+
+                if let Ok(Some(mut info)) = info_result {
+                    info.workspace_id = ws_id;
+                    info.checks = checks_result.unwrap_or_default();
+                    let _ = app.emit(&format!("pr-updated:{}", ws_id), &info);
+                }
+
+                Ok(())
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
         }
+        GitProvider::AzureDevOps => {
+            let pat = get_ado_pat(&state)?;
+            let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-        gh_svc::push_branch(&worktree_path, &branch)?;
+            tokio::task::spawn_blocking(move || {
+                if gh_svc::has_uncommitted_changes(&ctx.worktree_path)? {
+                    gh_svc::stage_and_commit(&ctx.worktree_path, "Update changes")?;
+                }
 
-        // Parallelize PR info + checks fetch after push
-        let (info_result, checks_result) = std::thread::scope(|s| {
-            let path = &worktree_path;
-            let t1 = s.spawn(|| gh_svc::get_pr_info(path));
-            let t2 = s.spawn(|| gh_svc::get_pr_checks(path));
-            (t1.join().unwrap(), t2.join().unwrap())
-        });
+                gh_svc::push_branch(&ctx.worktree_path, &ctx.branch)?;
 
-        if let Ok(Some(mut info)) = info_result {
-            info.workspace_id = ws_id;
-            info.checks = checks_result.unwrap_or_default();
-            let _ = app.emit(&format!("pr-updated:{}", ws_id), &info);
+                // Fetch PR info after push
+                if let Ok(Some(mut info)) = ado_svc::get_pr_by_branch(
+                    &pat, &org, &project, &repo_name, &ctx.branch, ws_id,
+                ) {
+                    if let Some(pr_id) = info.pr_number {
+                        info.checks = ado_svc::get_pr_checks(
+                            &pat, &org, &project, &repo_name, pr_id,
+                        )
+                        .unwrap_or_default();
+                    }
+                    let _ = app.emit(&format!("pr-updated:{}", ws_id), &info);
+                }
+
+                Ok(())
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
         }
-
-        Ok(())
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        GitProvider::Unknown => {
+            // Still allow push for unknown providers (pure git operation)
+            tokio::task::spawn_blocking(move || {
+                if gh_svc::has_uncommitted_changes(&ctx.worktree_path)? {
+                    gh_svc::stage_and_commit(&ctx.worktree_path, "Update changes")?;
+                }
+                gh_svc::push_branch(&ctx.worktree_path, &ctx.branch)
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+    }
 }
 
 #[tauri::command]
@@ -178,46 +352,62 @@ pub async fn fix_failing_checks(
     let ws_id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ctx = ws_context(&state, ws_id)?;
 
-    let worktree_path = {
-        let workspaces = state.workspaces.read().unwrap();
-        let ws = workspaces
-            .get(&ws_id)
-            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        ws.worktree_path.clone()
+    let checks = match ctx.provider {
+        GitProvider::GitHub => {
+            let worktree_path = ctx.worktree_path.clone();
+            tokio::task::spawn_blocking(move || gh_svc::get_pr_checks(&worktree_path))
+                .await
+                .map_err(|e| AppError::GitError(format!("task failed: {}", e)))??
+        }
+        GitProvider::AzureDevOps => {
+            let pat = get_ado_pat(&state)?;
+            let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
+            let branch = ctx.branch.clone();
+
+            tokio::task::spawn_blocking(move || {
+                let info =
+                    ado_svc::get_pr_by_branch(&pat, &org, &project, &repo_name, &branch, ws_id)?;
+                match info.and_then(|i| i.pr_number) {
+                    Some(pr_id) => {
+                        ado_svc::get_pr_checks(&pat, &org, &project, &repo_name, pr_id)
+                    }
+                    None => Ok(Vec::new()),
+                }
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))??
+        }
+        GitProvider::Unknown => Vec::new(),
     };
 
-    tokio::task::spawn_blocking(move || {
-        let checks = gh_svc::get_pr_checks(&worktree_path)?;
+    let failing: Vec<_> = checks
+        .iter()
+        .filter(|c| {
+            c.conclusion.as_deref() == Some("FAILURE")
+                || c.conclusion.as_deref() == Some("failure")
+        })
+        .collect();
 
-        let failing: Vec<_> = checks
-            .iter()
-            .filter(|c| {
-                c.conclusion.as_deref() == Some("FAILURE") || c.conclusion.as_deref() == Some("failure")
-            })
-            .collect();
+    if failing.is_empty() {
+        return Ok("No failing checks found.".to_string());
+    }
 
-        if failing.is_empty() {
-            return Ok("No failing checks found.".to_string());
-        }
+    let mut message = String::from(
+        "The following CI checks are failing on the current PR. Please analyze and fix these issues:\n\n",
+    );
+    for check in &failing {
+        message.push_str(&format!(
+            "- **{}**: {}\n  URL: {}\n\n",
+            check.name,
+            check.description.as_deref().unwrap_or("No description"),
+            check.details_url.as_deref().unwrap_or("N/A"),
+        ));
+    }
+    message.push_str("Please investigate the failures, fix the code, and ensure the tests pass.");
 
-        let mut message = String::from(
-            "The following CI checks are failing on the current PR. Please analyze and fix these issues:\n\n",
-        );
-        for check in &failing {
-            message.push_str(&format!(
-                "- **{}**: {}\n  URL: {}\n\n",
-                check.name,
-                check.description.as_deref().unwrap_or("No description"),
-                check.details_url.as_deref().unwrap_or("N/A"),
-            ));
-        }
-        message.push_str("Please investigate the failures, fix the code, and ensure the tests pass.");
-
-        Ok(message)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    Ok(message)
 }
 
 #[tauri::command]
@@ -230,26 +420,44 @@ pub async fn merge_pr(
     let ws_id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
-
-    let worktree_path = {
-        let workspaces = state.workspaces.read().unwrap();
-        let ws = workspaces
-            .get(&ws_id)
-            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        ws.worktree_path.clone()
-    };
-
+    let ctx = ws_context(&state, ws_id)?;
     let method = merge_method.unwrap_or_else(|| "squash".to_string());
 
-    tokio::task::spawn_blocking(move || {
-        let result = gh_svc::merge_pr(&worktree_path, &method)?;
+    match ctx.provider {
+        GitProvider::GitHub => {
+            tokio::task::spawn_blocking(move || {
+                let result = gh_svc::merge_pr(&ctx.worktree_path, &method)?;
+                let _ = app.emit(&format!("pr-merged:{}", ws_id), &result);
+                Ok(result)
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        GitProvider::AzureDevOps => {
+            let pat = get_ado_pat(&state)?;
+            let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-        let _ = app.emit(&format!("pr-merged:{}", ws_id), &result);
+            tokio::task::spawn_blocking(move || {
+                // Find the PR first
+                let info = ado_svc::get_pr_by_branch(
+                    &pat, &org, &project, &repo_name, &ctx.branch, ws_id,
+                )?;
+                let pr_id = info
+                    .and_then(|i| i.pr_number)
+                    .ok_or_else(|| AppError::PrError("No open PR found to merge.".into()))?;
 
-        Ok(result)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+                let result =
+                    ado_svc::merge_pr(&pat, &org, &project, &repo_name, pr_id, &method)?;
+                let _ = app.emit(&format!("pr-merged:{}", ws_id), &result);
+                Ok(result)
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        GitProvider::Unknown => Err(AppError::PrError(
+            "Repository provider not detected. Cannot merge PR.".into(),
+        )),
+    }
 }
 
 #[tauri::command]
@@ -260,20 +468,34 @@ pub async fn get_pr_reviews(
     let ws_id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ctx = ws_context(&state, ws_id)?;
 
-    let worktree_path = {
-        let workspaces = state.workspaces.read().unwrap();
-        let ws = workspaces
-            .get(&ws_id)
-            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        ws.worktree_path.clone()
-    };
+    match ctx.provider {
+        GitProvider::GitHub => {
+            tokio::task::spawn_blocking(move || gh_svc::get_pr_reviews(&ctx.worktree_path))
+                .await
+                .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        GitProvider::AzureDevOps => {
+            let pat = get_ado_pat(&state)?;
+            let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-    tokio::task::spawn_blocking(move || {
-        gh_svc::get_pr_reviews(&worktree_path)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+            tokio::task::spawn_blocking(move || {
+                let info = ado_svc::get_pr_by_branch(
+                    &pat, &org, &project, &repo_name, &ctx.branch, ws_id,
+                )?;
+                match info.and_then(|i| i.pr_number) {
+                    Some(pr_id) => {
+                        ado_svc::get_pr_reviewers(&pat, &org, &project, &repo_name, pr_id)
+                    }
+                    None => Ok(Vec::new()),
+                }
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        GitProvider::Unknown => Ok(Vec::new()),
+    }
 }
 
 #[tauri::command]
@@ -284,26 +506,41 @@ pub async fn get_pr_review_comments(
     let ws_id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ctx = ws_context(&state, ws_id)?;
 
-    let worktree_path = {
-        let workspaces = state.workspaces.read().unwrap();
-        let ws = workspaces
-            .get(&ws_id)
-            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        ws.worktree_path.clone()
-    };
+    match ctx.provider {
+        GitProvider::GitHub => {
+            tokio::task::spawn_blocking(move || {
+                gh_svc::get_pr_review_comments(&ctx.worktree_path)
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        GitProvider::AzureDevOps => {
+            let pat = get_ado_pat(&state)?;
+            let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-    tokio::task::spawn_blocking(move || {
-        gh_svc::get_pr_review_comments(&worktree_path)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+            tokio::task::spawn_blocking(move || {
+                let info = ado_svc::get_pr_by_branch(
+                    &pat, &org, &project, &repo_name, &ctx.branch, ws_id,
+                )?;
+                match info.and_then(|i| i.pr_number) {
+                    Some(pr_id) => {
+                        let (_, comments) =
+                            ado_svc::get_pr_threads(&pat, &org, &project, &repo_name, pr_id)?;
+                        Ok(comments)
+                    }
+                    None => Ok(Vec::new()),
+                }
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        GitProvider::Unknown => Ok(Vec::new()),
+    }
 }
 
-/// Optimized: fetches PR info, checks, reviews, and comments in minimal CLI calls.
-/// Uses thread::scope to parallelize (gh pr view --json all_fields) || (gh pr checks),
-/// then fetches review comments using the PR metadata from the first call.
-/// Reduces 5 CLI spawns to 3, with 2 running in parallel.
+/// Fetches PR info, checks, reviews, and comments.
 #[tauri::command]
 pub fn get_pr_full_data(
     state: State<'_, AppState>,
@@ -312,44 +549,86 @@ pub fn get_pr_full_data(
     let ws_id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ctx = ws_context(&state, ws_id)?;
 
-    let worktree_path = {
-        let workspaces = state.workspaces.read().unwrap();
-        let ws = workspaces
-            .get(&ws_id)
-            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        ws.worktree_path.clone()
-    };
+    match ctx.provider {
+        GitProvider::GitHub => {
+            let (info_reviews_result, checks_result) = std::thread::scope(|s| {
+                let path = &ctx.worktree_path;
+                let t1 = s.spawn(|| gh_svc::get_pr_info_with_reviews(path));
+                let t2 = s.spawn(|| gh_svc::get_pr_checks(path));
+                (t1.join().unwrap(), t2.join().unwrap())
+            });
 
-    // Phase 1: Parallel — combined pr view (info + reviews) alongside pr checks
-    let (info_reviews_result, checks_result) = std::thread::scope(|s| {
-        let path = &worktree_path;
-        let t1 = s.spawn(|| gh_svc::get_pr_info_with_reviews(path));
-        let t2 = s.spawn(|| gh_svc::get_pr_checks(path));
-        (t1.join().unwrap(), t2.join().unwrap())
-    });
+            match info_reviews_result? {
+                Some((mut info, reviews)) => {
+                    info.workspace_id = ws_id;
+                    info.checks = checks_result.unwrap_or_default();
 
-    match info_reviews_result? {
-        Some((mut info, reviews)) => {
-            info.workspace_id = ws_id;
-            info.checks = checks_result.unwrap_or_default();
+                    let review_comments = if let (Some(number), Some(url)) =
+                        (info.pr_number, info.pr_url.as_ref())
+                    {
+                        gh_svc::get_pr_review_comments_for_pr(&ctx.worktree_path, number, url)
+                            .unwrap_or_default()
+                    } else {
+                        Vec::new()
+                    };
 
-            // Phase 2: Fetch review comments using PR metadata (no redundant gh pr view)
-            let review_comments =
-                if let (Some(number), Some(url)) = (info.pr_number, info.pr_url.as_ref()) {
-                    gh_svc::get_pr_review_comments_for_pr(&worktree_path, number, url)
-                        .unwrap_or_default()
-                } else {
-                    Vec::new()
-                };
-
-            Ok(PrFullData {
-                info,
-                reviews,
-                review_comments,
-            })
+                    Ok(PrFullData {
+                        info,
+                        reviews,
+                        review_comments,
+                    })
+                }
+                None => Ok(PrFullData {
+                    info: PrInfo::empty(ws_id),
+                    reviews: Vec::new(),
+                    review_comments: Vec::new(),
+                }),
+            }
         }
-        None => Ok(PrFullData {
+        GitProvider::AzureDevOps => {
+            let pat = get_ado_pat(&state)?;
+            let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
+
+            let info =
+                ado_svc::get_pr_by_branch(&pat, &org, &project, &repo_name, &ctx.branch, ws_id)?;
+
+            match info {
+                Some(mut pr_info) => {
+                    let pr_id = pr_info.pr_number.unwrap_or(0);
+
+                    // Fetch checks, reviewer votes, and threads
+                    let checks =
+                        ado_svc::get_pr_checks(&pat, &org, &project, &repo_name, pr_id)
+                            .unwrap_or_default();
+                    pr_info.checks = checks;
+
+                    let reviewer_reviews =
+                        ado_svc::get_pr_reviewers(&pat, &org, &project, &repo_name, pr_id)
+                            .unwrap_or_default();
+
+                    let (thread_reviews, review_comments) =
+                        ado_svc::get_pr_threads(&pat, &org, &project, &repo_name, pr_id)
+                            .unwrap_or_default();
+
+                    let mut all_reviews = reviewer_reviews;
+                    all_reviews.extend(thread_reviews);
+
+                    Ok(PrFullData {
+                        info: pr_info,
+                        reviews: all_reviews,
+                        review_comments,
+                    })
+                }
+                None => Ok(PrFullData {
+                    info: PrInfo::empty(ws_id),
+                    reviews: Vec::new(),
+                    review_comments: Vec::new(),
+                }),
+            }
+        }
+        GitProvider::Unknown => Ok(PrFullData {
             info: PrInfo::empty(ws_id),
             reviews: Vec::new(),
             review_comments: Vec::new(),
@@ -357,9 +636,7 @@ pub fn get_pr_full_data(
     }
 }
 
-/// Optimized: fetches reviews and comments in a single flow.
-/// Uses one `gh pr view` to get both reviews and PR metadata,
-/// then uses that metadata for the comments API call (no redundant gh pr view).
+/// Fetches reviews and comments.
 #[tauri::command]
 pub fn get_reviews_and_comments(
     state: State<'_, AppState>,
@@ -368,21 +645,52 @@ pub fn get_reviews_and_comments(
     let ws_id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ctx = ws_context(&state, ws_id)?;
 
-    let worktree_path = {
-        let workspaces = state.workspaces.read().unwrap();
-        let ws = workspaces
-            .get(&ws_id)
-            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        ws.worktree_path.clone()
-    };
+    match ctx.provider {
+        GitProvider::GitHub => {
+            let (reviews, review_comments) =
+                gh_svc::get_reviews_and_comments(&ctx.worktree_path)?;
+            Ok(ReviewsAndComments {
+                reviews,
+                review_comments,
+            })
+        }
+        GitProvider::AzureDevOps => {
+            let pat = get_ado_pat(&state)?;
+            let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-    let (reviews, review_comments) = gh_svc::get_reviews_and_comments(&worktree_path)?;
+            let info =
+                ado_svc::get_pr_by_branch(&pat, &org, &project, &repo_name, &ctx.branch, ws_id)?;
 
-    Ok(ReviewsAndComments {
-        reviews,
-        review_comments,
-    })
+            match info.and_then(|i| i.pr_number) {
+                Some(pr_id) => {
+                    let reviewer_reviews =
+                        ado_svc::get_pr_reviewers(&pat, &org, &project, &repo_name, pr_id)
+                            .unwrap_or_default();
+                    let (thread_reviews, review_comments) =
+                        ado_svc::get_pr_threads(&pat, &org, &project, &repo_name, pr_id)
+                            .unwrap_or_default();
+
+                    let mut reviews = reviewer_reviews;
+                    reviews.extend(thread_reviews);
+
+                    Ok(ReviewsAndComments {
+                        reviews,
+                        review_comments,
+                    })
+                }
+                None => Ok(ReviewsAndComments {
+                    reviews: Vec::new(),
+                    review_comments: Vec::new(),
+                }),
+            }
+        }
+        GitProvider::Unknown => Ok(ReviewsAndComments {
+            reviews: Vec::new(),
+            review_comments: Vec::new(),
+        }),
+    }
 }
 
 #[tauri::command]
@@ -393,18 +701,26 @@ pub async fn list_repo_prs(
     let id: Uuid = repo_id
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+    let ctx = repo_context(&state, id)?;
 
-    let repo_path = {
-        let repos = state.repositories.read().unwrap();
-        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
-        repo.path.clone()
-    };
+    match ctx.provider {
+        GitProvider::GitHub => {
+            tokio::task::spawn_blocking(move || gh_svc::list_repo_prs(&ctx.path))
+                .await
+                .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        GitProvider::AzureDevOps => {
+            let pat = get_ado_pat(&state)?;
+            let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-    tokio::task::spawn_blocking(move || {
-        gh_svc::list_repo_prs(&repo_path)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+            tokio::task::spawn_blocking(move || {
+                ado_svc::list_prs(&pat, &org, &project, &repo_name)
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        GitProvider::Unknown => Ok(Vec::new()),
+    }
 }
 
 #[tauri::command]
@@ -415,18 +731,17 @@ pub async fn list_repo_issues(
     let id: Uuid = repo_id
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+    let ctx = repo_context(&state, id)?;
 
-    let repo_path = {
-        let repos = state.repositories.read().unwrap();
-        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
-        repo.path.clone()
-    };
-
-    tokio::task::spawn_blocking(move || {
-        gh_svc::list_repo_issues(&repo_path)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    match ctx.provider {
+        GitProvider::GitHub => {
+            tokio::task::spawn_blocking(move || gh_svc::list_repo_issues(&ctx.path))
+                .await
+                .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        // ADO uses work items, not issues — not supported in MVP
+        _ => Ok(Vec::new()),
+    }
 }
 
 #[tauri::command]
@@ -438,18 +753,19 @@ pub async fn get_pr_details(
     let id: Uuid = repo_id
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+    let ctx = repo_context(&state, id)?;
 
-    let repo_path = {
-        let repos = state.repositories.read().unwrap();
-        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
-        repo.path.clone()
-    };
-
-    tokio::task::spawn_blocking(move || {
-        gh_svc::get_pr_detail(&repo_path, pr_number)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    match ctx.provider {
+        GitProvider::GitHub => {
+            tokio::task::spawn_blocking(move || gh_svc::get_pr_detail(&ctx.path, pr_number))
+                .await
+                .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        // ADO PR details not implemented yet — would need a dedicated ADO function
+        _ => Err(AppError::PrError(
+            "PR details not available for this provider.".into(),
+        )),
+    }
 }
 
 #[tauri::command]
@@ -461,18 +777,19 @@ pub async fn get_issue_details(
     let id: Uuid = repo_id
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+    let ctx = repo_context(&state, id)?;
 
-    let repo_path = {
-        let repos = state.repositories.read().unwrap();
-        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
-        repo.path.clone()
-    };
-
-    tokio::task::spawn_blocking(move || {
-        gh_svc::get_issue_detail(&repo_path, issue_number)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    match ctx.provider {
+        GitProvider::GitHub => {
+            tokio::task::spawn_blocking(move || gh_svc::get_issue_detail(&ctx.path, issue_number))
+                .await
+                .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        // ADO uses work items, not issues
+        _ => Err(AppError::PrError(
+            "Issue details not available for this provider.".into(),
+        )),
+    }
 }
 
 #[tauri::command]
@@ -483,18 +800,28 @@ pub async fn get_workflow_runs(
     let ws_id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ctx = ws_context(&state, ws_id)?;
 
-    let (worktree_path, branch) = {
-        let workspaces = state.workspaces.read().unwrap();
-        let ws = workspaces
-            .get(&ws_id)
-            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        (ws.worktree_path.clone(), ws.branch.clone())
-    };
+    match ctx.provider {
+        GitProvider::GitHub => {
+            tokio::task::spawn_blocking(move || {
+                gh_svc::get_workflow_runs(&ctx.worktree_path, &ctx.branch)
+            })
+            .await
+            .map_err(|e| AppError::PrError(format!("task failed: {}", e)))?
+        }
+        GitProvider::AzureDevOps => {
+            let pat = get_ado_pat(&state)?;
+            let (org, project, _repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-    tokio::task::spawn_blocking(move || gh_svc::get_workflow_runs(&worktree_path, &branch))
-        .await
-        .map_err(|e| AppError::PrError(format!("task failed: {}", e)))?
+            tokio::task::spawn_blocking(move || {
+                ado_svc::get_pipeline_runs(&pat, &org, &project, &ctx.branch)
+            })
+            .await
+            .map_err(|e| AppError::PrError(format!("task failed: {}", e)))?
+        }
+        GitProvider::Unknown => Ok(Vec::new()),
+    }
 }
 
 #[tauri::command]
@@ -506,20 +833,28 @@ pub async fn get_run_jobs(
     let ws_id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ctx = ws_context(&state, ws_id)?;
 
-    let worktree_path = {
-        let workspaces = state.workspaces.read().unwrap();
-        let ws = workspaces
-            .get(&ws_id)
-            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        ws.worktree_path.clone()
-    };
+    match ctx.provider {
+        GitProvider::GitHub => {
+            tokio::task::spawn_blocking(move || {
+                gh_svc::get_run_jobs(&ctx.worktree_path, run_id)
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        GitProvider::AzureDevOps => {
+            let pat = get_ado_pat(&state)?;
+            let (org, project, _repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-    tokio::task::spawn_blocking(move || {
-        gh_svc::get_run_jobs(&worktree_path, run_id)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+            tokio::task::spawn_blocking(move || {
+                ado_svc::get_build_timeline(&pat, &org, &project, run_id)
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        GitProvider::Unknown => Ok(Vec::new()),
+    }
 }
 
 #[tauri::command]
@@ -532,20 +867,22 @@ pub async fn get_run_logs(
     let ws_id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ctx = ws_context(&state, ws_id)?;
 
-    let worktree_path = {
-        let workspaces = state.workspaces.read().unwrap();
-        let ws = workspaces
-            .get(&ws_id)
-            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        ws.worktree_path.clone()
-    };
-
-    tokio::task::spawn_blocking(move || {
-        gh_svc::get_run_logs(&worktree_path, run_id, failed_only)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    match ctx.provider {
+        GitProvider::GitHub => {
+            tokio::task::spawn_blocking(move || {
+                gh_svc::get_run_logs(&ctx.worktree_path, run_id, failed_only)
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        // ADO log fetching not implemented in MVP
+        _ => Ok(RunLogsResult {
+            logs: String::new(),
+            truncated: false,
+        }),
+    }
 }
 
 #[tauri::command]
@@ -558,18 +895,19 @@ pub async fn rerun_workflow(
     let ws_id: Uuid = workspace_id
         .parse()
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ctx = ws_context(&state, ws_id)?;
 
-    let worktree_path = {
-        let workspaces = state.workspaces.read().unwrap();
-        let ws = workspaces
-            .get(&ws_id)
-            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        ws.worktree_path.clone()
-    };
-
-    tokio::task::spawn_blocking(move || {
-        gh_svc::rerun_workflow(&worktree_path, run_id, failed_only)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    match ctx.provider {
+        GitProvider::GitHub => {
+            tokio::task::spawn_blocking(move || {
+                gh_svc::rerun_workflow(&ctx.worktree_path, run_id, failed_only)
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+        // ADO rerun not implemented in MVP
+        _ => Err(AppError::PrError(
+            "Workflow rerun not available for this provider.".into(),
+        )),
+    }
 }

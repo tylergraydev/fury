@@ -122,6 +122,8 @@ mod tests {
             path: std::path::PathBuf::from("/tmp/test"),
             default_branch: "main".to_string(),
             current_branch: None,
+            provider: Default::default(),
+            remote_url: None,
         };
         let id = repo.id;
         state.repositories.write().unwrap().insert(id, repo);
