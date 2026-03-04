@@ -509,5 +509,66 @@ describe("FileTabBar", () => {
       expect(screen.getByText("Workspace A")).toBeInTheDocument();
       expect(screen.getByText("Workspace B")).toBeInTheDocument();
     });
+
+    it("shows split chat button on workspace chat tabs", () => {
+      useUIStore.setState({
+        viewTabs: [
+          { id: "chat", type: "chat", label: "Chat", pinned: true },
+          { id: "chat-ws-1", type: "chat", label: "My Workspace", pinned: true, contextId: "ws-1", contextType: "workspace" },
+        ],
+        activeViewTabId: "chat",
+      });
+      render(<FileTabBar />);
+      expect(screen.getByTitle("Open in split chat view")).toBeInTheDocument();
+    });
+
+    it("clicking split chat button calls splitChat", () => {
+      const splitChat = vi.fn();
+      const showChat = vi.fn();
+      const setActiveViewTab = vi.fn();
+      useUIStore.setState({
+        viewTabs: [
+          { id: "chat", type: "chat", label: "Chat", pinned: true },
+          { id: "chat-ws-1", type: "chat", label: "My Workspace", pinned: true, contextId: "ws-1", contextType: "workspace" },
+        ],
+        activeViewTabId: "chat",
+        splitChat,
+        splitChatActive: false,
+        setActiveViewTab,
+      });
+      useFileViewerStore.setState({ showChat });
+      render(<FileTabBar />);
+      fireEvent.click(screen.getByTitle("Open in split chat view"));
+      expect(splitChat).toHaveBeenCalledWith("ws-1", "workspace");
+      expect(showChat).toHaveBeenCalled();
+      expect(setActiveViewTab).toHaveBeenCalledWith("chat");
+    });
+
+    it("shows close split chat button when split chat is active", () => {
+      useUIStore.setState({
+        viewTabs: [
+          { id: "chat", type: "chat", label: "Chat", pinned: true },
+        ],
+        activeViewTabId: "chat",
+        splitChatActive: true,
+      });
+      render(<FileTabBar />);
+      expect(screen.getByTitle("Close split chat view")).toBeInTheDocument();
+    });
+
+    it("clicking close split chat button calls closeSplitChat", () => {
+      const closeSplitChat = vi.fn();
+      useUIStore.setState({
+        viewTabs: [
+          { id: "chat", type: "chat", label: "Chat", pinned: true },
+        ],
+        activeViewTabId: "chat",
+        splitChatActive: true,
+        closeSplitChat,
+      });
+      render(<FileTabBar />);
+      fireEvent.click(screen.getByTitle("Close split chat view"));
+      expect(closeSplitChat).toHaveBeenCalled();
+    });
   });
 });
