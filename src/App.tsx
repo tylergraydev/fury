@@ -16,6 +16,7 @@ import { DiffPanel } from "./components/diff/DiffPanel";
 import { TeamView } from "./components/team/TeamView";
 import { TestRunnerPanel } from "./components/test-runner/TestRunnerPanel";
 import { SplitEditorLayout } from "./components/file-viewer/SplitEditorLayout";
+import { SplitChatLayout } from "./components/chat/SplitChatLayout";
 import { UsageDashboard } from "./components/usage/UsageDashboard";
 import { ActivityLogView } from "./components/activity-log/ActivityLogView";
 import { useWorkspaceStore } from "./stores/workspaceStore";
@@ -57,6 +58,10 @@ function MainPanel() {
   const activeFileTab = fileTabs.find((t) => t.id === activeTabId) ?? null;
   const splitActive = useFileViewerStore((s) => s.splitActive);
 
+  const splitChatActive = useUIStore((s) => s.splitChatActive);
+  const splitChatContextId = useUIStore((s) => s.splitChatContextId);
+  const splitChatContextType = useUIStore((s) => s.splitChatContextType);
+
   const activeViewTab = viewTabs.find((t) => t.id === activeViewTabId);
   const viewType = activeViewTab?.type ?? "chat";
 
@@ -74,6 +79,13 @@ function MainPanel() {
             <SplitEditorLayout repoId={repoId} contextId={contextId} contextType={contextType} />
           ) : activeFileTab ? (
             <FileViewerPanel tab={activeFileTab} repoId={repoId} />
+          ) : splitChatActive && splitChatContextId && splitChatContextType ? (
+            <SplitChatLayout
+              leftContextId={contextId}
+              leftContextType={contextType}
+              rightContextId={splitChatContextId}
+              rightContextType={splitChatContextType}
+            />
           ) : (
             <ChatPanel contextId={contextId} contextType={contextType} />
           )}
