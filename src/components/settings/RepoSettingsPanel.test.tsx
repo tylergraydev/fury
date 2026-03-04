@@ -9,6 +9,7 @@ const mockGetRepoSettings = vi.fn().mockResolvedValue({
   runScriptMode: "nonconcurrent",
   envVars: {},
   worktreeBasePath: null,
+  providerOverride: null,
 });
 const mockUpdateRepoSettings = vi.fn().mockResolvedValue(undefined);
 
@@ -78,6 +79,7 @@ describe("RepoSettingsPanel", () => {
       runScriptMode: "concurrent",
       envVars: { NODE_ENV: "test" },
       worktreeBasePath: null,
+      providerOverride: null,
     });
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
     expect(mockGetRepoSettings).toHaveBeenCalledWith("r1");
@@ -98,6 +100,7 @@ describe("RepoSettingsPanel", () => {
       runScriptMode: "nonconcurrent",
       envVars: {},
       worktreeBasePath: null,
+      providerOverride: null,
     });
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
     await waitFor(() => {
@@ -149,6 +152,7 @@ describe("RepoSettingsPanel", () => {
       runScriptMode: "nonconcurrent",
       envVars: {},
       worktreeBasePath: null,
+      providerOverride: null,
     });
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
     await waitFor(() => {
@@ -204,6 +208,7 @@ describe("RepoSettingsPanel", () => {
         runScriptMode: "nonconcurrent",
         envVars: {},
         worktreeBasePath: null,
+        providerOverride: null,
       });
     });
     await waitFor(() => {
@@ -311,6 +316,7 @@ describe("RepoSettingsPanel", () => {
       runScriptMode: "nonconcurrent",
       envVars: { EXISTING_KEY: "existing-value" },
       worktreeBasePath: null,
+      providerOverride: null,
     });
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
     await waitFor(() => {
@@ -340,6 +346,7 @@ describe("RepoSettingsPanel", () => {
       runScriptMode: "nonconcurrent",
       envVars: { NODE_ENV: "production", PORT: "3000" },
       worktreeBasePath: null,
+      providerOverride: null,
     });
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
     await waitFor(() => {
@@ -385,6 +392,7 @@ describe("RepoSettingsPanel", () => {
         runScriptMode: "concurrent",
         envVars: { CI: "true" },
         worktreeBasePath: null,
+        providerOverride: null,
       });
     });
     await waitFor(() => {
@@ -499,6 +507,7 @@ describe("RepoSettingsPanel", () => {
       runScriptMode: "nonconcurrent",
       envVars: {},
       worktreeBasePath: "/existing/path",
+      providerOverride: null,
     });
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
     await waitFor(() => {
@@ -513,6 +522,108 @@ describe("RepoSettingsPanel", () => {
     await waitFor(() => {
       expect(mockUpdateRepoSettings).toHaveBeenCalledWith("r1", expect.objectContaining({
         worktreeBasePath: null,
+      }));
+    });
+  });
+
+  it("shows provider override checkbox", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    expect(screen.getByText("Override Provider for this Repository")).toBeInTheDocument();
+  });
+
+  it("shows provider fields when override is enabled", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    const checkbox = screen.getByLabelText("Override Provider for this Repository");
+    fireEvent.click(checkbox);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Enter ANTHROPIC_API_KEY")).toBeInTheDocument();
+    });
+  });
+
+  it("hides provider fields when override is disabled", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    // Enable then disable
+    const checkbox = screen.getByLabelText("Override Provider for this Repository");
+    fireEvent.click(checkbox);
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Enter ANTHROPIC_API_KEY")).toBeInTheDocument();
+    });
+
+    fireEvent.click(checkbox);
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText("Enter ANTHROPIC_API_KEY")).not.toBeInTheDocument();
+    });
+  });
+
+  it("loads existing provider override from settings", async () => {
+    mockGetRepoSettings.mockResolvedValueOnce({
+      setupScript: null,
+      runScript: null,
+      archiveScript: null,
+      runScriptMode: "nonconcurrent",
+      envVars: {},
+      worktreeBasePath: null,
+      providerOverride: {
+        providerType: "Anthropic",
+        envVars: { ANTHROPIC_API_KEY: "sk-work-key" },
+      },
+    });
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      const checkbox = screen.getByLabelText("Override Provider for this Repository");
+      expect(checkbox).toBeChecked();
+    });
+  });
+
+  it("saves with provider override when enabled", async () => {
+    const onClose = vi.fn();
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={onClose} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    const checkbox = screen.getByLabelText("Override Provider for this Repository");
+    fireEvent.click(checkbox);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Enter ANTHROPIC_API_KEY")).toBeInTheDocument();
+    });
+
+    const apiKeyInput = screen.getByPlaceholderText("Enter ANTHROPIC_API_KEY");
+    fireEvent.change(apiKeyInput, { target: { value: "sk-work" } });
+
+    fireEvent.click(screen.getByText("Save"));
+
+    await waitFor(() => {
+      expect(mockUpdateRepoSettings).toHaveBeenCalledWith("r1", expect.objectContaining({
+        providerOverride: {
+          providerType: "Anthropic",
+          envVars: { ANTHROPIC_API_KEY: "sk-work" },
+        },
+      }));
+    });
+  });
+
+  it("saves with null provider override when disabled", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    fireEvent.click(screen.getByText("Save"));
+
+    await waitFor(() => {
+      expect(mockUpdateRepoSettings).toHaveBeenCalledWith("r1", expect.objectContaining({
+        providerOverride: null,
       }));
     });
   });

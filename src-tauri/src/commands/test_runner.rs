@@ -227,7 +227,9 @@ pub async fn run_tests(
             .ok_or(AppError::RepoNotFound(repo_id))?
             .clone();
         let app_settings = state.settings.read().unwrap().clone();
-        claude_process::build_env_vars(&ws, &repo, &app_settings)
+        let repo_settings = crate::commands::script::resolve_settings(&state, &repo_id).ok();
+        let provider_override = repo_settings.as_ref().and_then(|s| s.provider_override.as_ref());
+        claude_process::build_env_vars(&ws, &repo, &app_settings, provider_override)
     } else {
         let repos = state.repositories.read().unwrap();
         let repo = repos
@@ -235,7 +237,9 @@ pub async fn run_tests(
             .ok_or(AppError::RepoNotFound(ctx_id))?
             .clone();
         let app_settings = state.settings.read().unwrap().clone();
-        claude_process::build_repo_env_vars(&repo, &app_settings)
+        let repo_settings = crate::commands::script::resolve_settings(&state, &ctx_id).ok();
+        let provider_override = repo_settings.as_ref().and_then(|s| s.provider_override.as_ref());
+        claude_process::build_repo_env_vars(&repo, &app_settings, provider_override)
     };
 
     // Spawn test process
@@ -463,7 +467,9 @@ pub async fn run_coverage(
             .ok_or(AppError::RepoNotFound(repo_id))?
             .clone();
         let app_settings = state.settings.read().unwrap().clone();
-        claude_process::build_env_vars(&ws, &repo, &app_settings)
+        let repo_settings = crate::commands::script::resolve_settings(&state, &repo_id).ok();
+        let provider_override = repo_settings.as_ref().and_then(|s| s.provider_override.as_ref());
+        claude_process::build_env_vars(&ws, &repo, &app_settings, provider_override)
     } else {
         let repos = state.repositories.read().unwrap();
         let repo = repos
@@ -471,7 +477,9 @@ pub async fn run_coverage(
             .ok_or(AppError::RepoNotFound(ctx_id))?
             .clone();
         let app_settings = state.settings.read().unwrap().clone();
-        claude_process::build_repo_env_vars(&repo, &app_settings)
+        let repo_settings = crate::commands::script::resolve_settings(&state, &ctx_id).ok();
+        let provider_override = repo_settings.as_ref().and_then(|s| s.provider_override.as_ref());
+        claude_process::build_repo_env_vars(&repo, &app_settings, provider_override)
     };
 
     let event_name = format!("test-runner:{}", ctx_id);

@@ -312,12 +312,13 @@ impl Database {
 
     pub fn get_repo_settings(&self, repo_id: &Uuid) -> Result<RepoSettings, AppError> {
         let mut stmt = self.conn.prepare(
-            "SELECT setup_script, run_script, archive_script, run_script_mode, env_vars, worktree_base_path
+            "SELECT setup_script, run_script, archive_script, run_script_mode, env_vars, worktree_base_path, provider_override
              FROM repository_settings WHERE repo_id = ?1",
         )?;
         let result = stmt.query_row(rusqlite::params![repo_id.to_string()], |row| {
             let mode_str: String = row.get(3)?;
             let env_json: String = row.get(4)?;
+            let provider_json: Option<String> = row.get(6)?;
             Ok(RepoSettings {
                 setup_script: row.get(0)?,
                 run_script: row.get(1)?,
@@ -328,6 +329,7 @@ impl Database {
                 },
                 env_vars: serde_json::from_str(&env_json).unwrap_or_default(),
                 worktree_base_path: row.get(5)?,
+                provider_override: provider_json.and_then(|j| serde_json::from_str(&j).ok()),
             })
         });
         match result {
@@ -347,9 +349,19 @@ impl Database {
             RunScriptMode::Nonconcurrent => "nonconcurrent",
         };
         let env_json = serde_json::to_string(&settings.env_vars)?;
+        let provider_json = settings
+            .provider_override
+            .as_ref()
+            .map(serde_json::to_string)
+            .transpose()?;
+        // Use INSERT OR IGNORE + UPDATE to avoid nuking columns managed by other writers
+        // (e.g. test_runner columns on the same table).
         self.conn.execute(
-            "INSERT OR REPLACE INTO repository_settings (repo_id, setup_script, run_script, archive_script, run_script_mode, env_vars, worktree_base_path)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT OR IGNORE INTO repository_settings (repo_id) VALUES (?1)",
+            rusqlite::params![repo_id.to_string()],
+        )?;
+        self.conn.execute(
+            "UPDATE repository_settings SET setup_script = ?2, run_script = ?3, archive_script = ?4, run_script_mode = ?5, env_vars = ?6, worktree_base_path = ?7, provider_override = ?8 WHERE repo_id = ?1",
             rusqlite::params![
                 repo_id.to_string(),
                 settings.setup_script,
@@ -358,6 +370,7 @@ impl Database {
                 mode_str,
                 env_json,
                 settings.worktree_base_path,
+                provider_json,
             ],
         )?;
         Ok(())

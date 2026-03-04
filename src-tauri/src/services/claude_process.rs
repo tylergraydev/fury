@@ -13,7 +13,7 @@ use crate::models::agent::{AgentInfo, AgentStatus, AgentStatusEvent, FrontendStr
 use crate::services::perf_server::{SharedPerfMetrics, StreamEventMetric};
 use crate::state::app_state::PersistentAgentHandle;
 use crate::models::repository::Repository;
-use crate::models::settings::AppSettings;
+use crate::models::settings::{AppSettings, ProviderConfig};
 use crate::models::workspace::Workspace;
 
 /// Locate the `claude` binary in PATH.
@@ -30,6 +30,7 @@ pub fn build_env_vars(
     workspace: &Workspace,
     repo: &Repository,
     settings: &AppSettings,
+    provider_override: Option<&ProviderConfig>,
 ) -> HashMap<String, String> {
     let mut env = HashMap::new();
 
@@ -55,8 +56,9 @@ pub fn build_env_vars(
         workspace.port_base.to_string(),
     );
 
-    // Provider env vars from settings
-    for (key, value) in &settings.provider.env_vars {
+    // Provider env vars: use per-repo override if set, else global
+    let provider = provider_override.unwrap_or(&settings.provider);
+    for (key, value) in &provider.env_vars {
         env.insert(key.clone(), value.clone());
     }
 
@@ -72,6 +74,7 @@ pub fn build_env_vars(
 pub fn build_repo_env_vars(
     repo: &Repository,
     settings: &AppSettings,
+    provider_override: Option<&ProviderConfig>,
 ) -> HashMap<String, String> {
     let mut env = HashMap::new();
 
@@ -84,7 +87,8 @@ pub fn build_repo_env_vars(
         repo.default_branch.clone(),
     );
 
-    for (key, value) in &settings.provider.env_vars {
+    let provider = provider_override.unwrap_or(&settings.provider);
+    for (key, value) in &provider.env_vars {
         env.insert(key.clone(), value.clone());
     }
 
@@ -995,7 +999,7 @@ mod tests {
         let ws = crate::test_helpers::test_workspace(uuid::Uuid::new_v4());
         let repo = crate::test_helpers::test_repo();
         let settings = crate::test_helpers::test_settings();
-        let env = build_env_vars(&ws, &repo, &settings);
+        let env = build_env_vars(&ws, &repo, &settings, None);
         assert_eq!(env.get("FURY_WORKSPACE_NAME").unwrap(), "test-workspace");
         assert_eq!(env.get("FURY_DEFAULT_BRANCH").unwrap(), "main");
         assert!(env.contains_key("FURY_PORT"));
@@ -1009,18 +1013,45 @@ mod tests {
         let repo = crate::test_helpers::test_repo();
         let mut settings = crate::test_helpers::test_settings();
         settings.provider.env_vars.insert("ANTHROPIC_API_KEY".to_string(), "sk-test".to_string());
-        let env = build_env_vars(&ws, &repo, &settings);
+        let env = build_env_vars(&ws, &repo, &settings, None);
         assert_eq!(env.get("ANTHROPIC_API_KEY").unwrap(), "sk-test");
+    }
+
+    #[test]
+    fn test_build_env_vars_with_provider_override() {
+        let ws = crate::test_helpers::test_workspace(uuid::Uuid::new_v4());
+        let repo = crate::test_helpers::test_repo();
+        let mut settings = crate::test_helpers::test_settings();
+        settings.provider.env_vars.insert("ANTHROPIC_API_KEY".to_string(), "sk-global".to_string());
+        let override_config = ProviderConfig {
+            provider_type: crate::models::settings::ProviderType::Anthropic,
+            env_vars: std::collections::HashMap::from([("ANTHROPIC_API_KEY".to_string(), "sk-repo".to_string())]),
+        };
+        let env = build_env_vars(&ws, &repo, &settings, Some(&override_config));
+        assert_eq!(env.get("ANTHROPIC_API_KEY").unwrap(), "sk-repo");
     }
 
     #[test]
     fn test_build_repo_env_vars() {
         let repo = crate::test_helpers::test_repo();
         let settings = crate::test_helpers::test_settings();
-        let env = build_repo_env_vars(&repo, &settings);
+        let env = build_repo_env_vars(&repo, &settings, None);
         assert!(env.contains_key("FURY_ROOT_PATH"));
         assert_eq!(env.get("FURY_DEFAULT_BRANCH").unwrap(), "main");
         assert!(!env.contains_key("FURY_WORKSPACE_NAME")); // repo mode doesn't have this
+    }
+
+    #[test]
+    fn test_build_repo_env_vars_with_provider_override() {
+        let repo = crate::test_helpers::test_repo();
+        let mut settings = crate::test_helpers::test_settings();
+        settings.provider.env_vars.insert("ANTHROPIC_API_KEY".to_string(), "sk-global".to_string());
+        let override_config = ProviderConfig {
+            provider_type: crate::models::settings::ProviderType::Anthropic,
+            env_vars: std::collections::HashMap::from([("ANTHROPIC_API_KEY".to_string(), "sk-repo".to_string())]),
+        };
+        let env = build_repo_env_vars(&repo, &settings, Some(&override_config));
+        assert_eq!(env.get("ANTHROPIC_API_KEY").unwrap(), "sk-repo");
     }
 
     // --- build_common_args tests ---

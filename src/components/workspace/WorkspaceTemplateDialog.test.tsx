@@ -25,6 +25,7 @@ beforeEach(() => {
     archiveScript: null,
     runScriptMode: "nonconcurrent",
     envVars: { NODE_ENV: "development" },
+    providerOverride: null,
   });
   mockCreateWorkspaceTemplate.mockReset();
   mockCreateWorkspaceTemplate.mockResolvedValue({

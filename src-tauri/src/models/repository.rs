@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use uuid::Uuid;
 
+use crate::models::settings::ProviderConfig;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum GitProvider {
@@ -54,6 +56,8 @@ pub struct RepoSettings {
     pub run_script_mode: RunScriptMode,
     pub env_vars: std::collections::HashMap<String, String>,
     pub worktree_base_path: Option<String>,
+    #[serde(default)]
+    pub provider_override: Option<ProviderConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

@@ -1,11 +1,32 @@
 import { useEffect, useState } from "react";
 import {
   type RepoSettings,
+  type ProviderType,
   getRepoSettings,
   updateRepoSettings,
 } from "../../lib/tauri";
 import { WorkspaceTemplateDialog } from "../workspace/WorkspaceTemplateDialog";
 import { useWorkspaceTemplateStore } from "../../stores/workspaceTemplateStore";
+
+const PROVIDER_ENV_HINTS: Record<ProviderType, string[]> = {
+  Anthropic: ["ANTHROPIC_API_KEY"],
+  OpenRouter: ["OPENROUTER_API_KEY"],
+  VercelAIGateway: ["VERCEL_API_KEY"],
+  Bedrock: ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION"],
+  Vertex: ["GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_PROJECT_ID"],
+  AzureFoundry: ["AZURE_API_KEY", "AZURE_ENDPOINT"],
+  Custom: [],
+};
+
+const PROVIDER_LABELS: Record<ProviderType, string> = {
+  Anthropic: "Anthropic",
+  OpenRouter: "OpenRouter",
+  VercelAIGateway: "Vercel AI Gateway",
+  Bedrock: "AWS Bedrock",
+  Vertex: "Google Vertex",
+  AzureFoundry: "Azure Foundry",
+  Custom: "Custom",
+};
 
 interface RepoSettingsPanelProps {
   repoId: string;
@@ -25,7 +46,9 @@ export function RepoSettingsPanel({
     runScriptMode: "nonconcurrent",
     envVars: {},
     worktreeBasePath: null,
+    providerOverride: null,
   });
+  const [showProviderKeys, setShowProviderKeys] = useState<Record<string, boolean>>({});
   const [newEnvKey, setNewEnvKey] = useState("");
   const [newEnvValue, setNewEnvValue] = useState("");
   const [saving, setSaving] = useState(false);
@@ -279,6 +302,137 @@ export function RepoSettingsPanel({
                 Add
               </button>
             </div>
+          </div>
+
+          {/* Provider Override */}
+          <div>
+            <label
+              className="mb-1 flex items-center gap-2 text-xs font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              <input
+                type="checkbox"
+                checked={settings.providerOverride !== null}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setSettings((s) => ({
+                      ...s,
+                      providerOverride: {
+                        providerType: "Anthropic",
+                        envVars: {},
+                      },
+                    }));
+                  } else {
+                    setSettings((s) => ({ ...s, providerOverride: null }));
+                  }
+                }}
+              />
+              Override Provider for this Repository
+            </label>
+            <p
+              className="mt-1 text-xs"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Use a different API key or provider for this repo instead of the
+              global setting.
+            </p>
+            {settings.providerOverride && (
+              <div
+                className="mt-2 space-y-3 rounded p-3"
+                style={{
+                  backgroundColor: "var(--bg-surface)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <div>
+                  <label
+                    className="mb-0.5 block text-[10px] font-medium"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Provider
+                  </label>
+                  <select
+                    value={settings.providerOverride.providerType}
+                    onChange={(e) =>
+                      setSettings((s) => ({
+                        ...s,
+                        providerOverride: {
+                          ...s.providerOverride!,
+                          providerType: e.target.value as ProviderType,
+                        },
+                      }))
+                    }
+                    className="w-full rounded px-2 py-1.5 text-xs"
+                    style={{
+                      backgroundColor: "var(--bg-primary)",
+                      color: "var(--text-primary)",
+                      border: "1px solid var(--border)",
+                    }}
+                  >
+                    {Object.entries(PROVIDER_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {PROVIDER_ENV_HINTS[settings.providerOverride.providerType].map(
+                  (key) => (
+                    <div key={key}>
+                      <label
+                        className="mb-0.5 block text-[10px] font-mono"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        {key}
+                      </label>
+                      <div className="flex gap-1">
+                        <input
+                          type={showProviderKeys[key] ? "text" : "password"}
+                          value={
+                            settings.providerOverride!.envVars[key] ?? ""
+                          }
+                          onChange={(e) =>
+                            setSettings((s) => ({
+                              ...s,
+                              providerOverride: {
+                                ...s.providerOverride!,
+                                envVars: {
+                                  ...s.providerOverride!.envVars,
+                                  [key]: e.target.value,
+                                },
+                              },
+                            }))
+                          }
+                          placeholder={`Enter ${key}`}
+                          className="flex-1 rounded px-2 py-1 font-mono text-xs"
+                          style={{
+                            backgroundColor: "var(--bg-primary)",
+                            color: "var(--text-primary)",
+                            border: "1px solid var(--border)",
+                          }}
+                        />
+                        <button
+                          onClick={() =>
+                            setShowProviderKeys((s) => ({
+                              ...s,
+                              [key]: !s[key],
+                            }))
+                          }
+                          className="rounded px-2 py-1 text-[10px]"
+                          style={{
+                            backgroundColor: "var(--bg-primary)",
+                            color: "var(--text-muted)",
+                            border: "1px solid var(--border)",
+                          }}
+                        >
+                          {showProviderKeys[key] ? "Hide" : "Show"}
+                        </button>
+                      </div>
+                    </div>
+                  ),
+                )}
+              </div>
+            )}
           </div>
 
           {/* Workspace Templates */}

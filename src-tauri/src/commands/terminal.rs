@@ -36,7 +36,9 @@ pub async fn create_terminal(
             .ok_or(AppError::RepoNotFound(ws.repo_id))?
             .clone();
         let app_settings = state.settings.read().unwrap().clone();
-        let env = claude_process::build_env_vars(&ws, &repo, &app_settings);
+        let repo_settings = crate::commands::script::resolve_settings(&state, &ws.repo_id).ok();
+        let provider_override = repo_settings.as_ref().and_then(|s| s.provider_override.as_ref());
+        let env = claude_process::build_env_vars(&ws, &repo, &app_settings, provider_override);
         (ws.worktree_path.clone(), env)
     };
 
@@ -186,7 +188,9 @@ pub async fn create_repo_terminal(
             .ok_or(AppError::RepoNotFound(id))?
             .clone();
         let app_settings = state.settings.read().unwrap().clone();
-        let env = claude_process::build_repo_env_vars(&repo, &app_settings);
+        let repo_settings = crate::commands::script::resolve_settings(&state, &id).ok();
+        let provider_override = repo_settings.as_ref().and_then(|s| s.provider_override.as_ref());
+        let env = claude_process::build_repo_env_vars(&repo, &app_settings, provider_override);
         (repo.path.clone(), env)
     };
 
