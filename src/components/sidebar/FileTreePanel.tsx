@@ -182,7 +182,7 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick }: Props
   if (loading && files.length === 0) {
     return (
       <div
-        className="flex h-full items-center justify-center text-xs"
+        className="flex h-full items-center justify-center text-sm"
         style={{ color: "var(--text-muted)" }}
       >
         Loading files...
@@ -192,7 +192,7 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick }: Props
 
   if (error) {
     return (
-      <div className="p-3 text-xs" style={{ color: "var(--error)" }}>
+      <div className="p-3 text-sm" style={{ color: "var(--error)" }}>
         {error}
       </div>
     );

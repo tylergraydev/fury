@@ -119,11 +119,11 @@ export function BookmarksPanel({ context }: Props) {
           className="h-8 w-8"
           style={{ color: "var(--text-muted)" }}
         />
-        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
           No bookmarks yet
         </p>
         <p
-          className="text-xs"
+          className="text-sm"
           style={{ color: "var(--text-muted)", opacity: 0.7 }}
         >
           Click the gutter margin in the editor to add a bookmark
@@ -137,7 +137,7 @@ export function BookmarksPanel({ context }: Props) {
       {grouped.map((group) => (
         <div key={group.filePath}>
           <div
-            className="sticky top-0 flex items-center gap-1 px-4 py-2 text-xs font-medium"
+            className="sticky top-0 flex items-center gap-1 px-4 py-2 text-sm font-medium"
             style={{
               color: "var(--text-secondary)",
               backgroundColor: "var(--bg-secondary)",
@@ -168,13 +168,13 @@ export function BookmarksPanel({ context }: Props) {
                 style={{ backgroundColor: bookmarkColorDot(bm.color) }}
               />
               <span
-                className="flex-shrink-0 text-xs tabular-nums"
+                className="flex-shrink-0 text-sm tabular-nums"
                 style={{ color: "var(--text-muted)", minWidth: "2rem" }}
               >
                 L{bm.lineNumber}
               </span>
               <span
-                className="flex-1 truncate text-xs"
+                className="flex-1 truncate text-sm"
                 style={{
                   color: bm.note
                     ? "var(--text-secondary)"
