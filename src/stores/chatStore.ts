@@ -520,10 +520,8 @@ function appendContentBlock(
         [workspaceId]: [...messages.slice(0, -1), updated],
       },
     }));
-    // Persist after each tool result for crash durability
-    if (block.type === "toolResult") {
-      persistMessage(workspaceId, updated);
-    }
+    // Persist after every content block for crash durability
+    persistMessage(workspaceId, updated);
   } else {
     const msg: ChatMessage = {
       id: crypto.randomUUID(),
@@ -537,6 +535,7 @@ function appendContentBlock(
         [workspaceId]: [...(state.messages[workspaceId] ?? []), msg],
       },
     }));
+    persistMessage(workspaceId, msg);
   }
 }
 

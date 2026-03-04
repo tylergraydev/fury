@@ -489,6 +489,33 @@ describe("chatStore - stream events", () => {
     });
   });
 
+  it("persists new assistant message created by toolUse", () => {
+    vi.mocked(saveChatMessage).mockClear();
+    handleEvent({
+      payload: {
+        type: "toolUse",
+        id: "tool-1",
+        name: "write_file",
+        input: {},
+      },
+    });
+    expect(saveChatMessage).toHaveBeenCalled();
+  });
+
+  it("persists assistant message when toolUse appends to existing message", () => {
+    handleEvent({ payload: { type: "assistantText", text: "thinking..." } });
+    vi.mocked(saveChatMessage).mockClear();
+    handleEvent({
+      payload: {
+        type: "toolUse",
+        id: "tool-1",
+        name: "read_file",
+        input: { path: "/test" },
+      },
+    });
+    expect(saveChatMessage).toHaveBeenCalled();
+  });
+
   it("handles result event - persists last assistant message", () => {
     // First create an assistant message via streaming text
     handleEvent({ payload: { type: "assistantText", text: "final answer" } });

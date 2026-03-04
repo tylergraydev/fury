@@ -39,6 +39,12 @@ pub async fn create_pr(
 
     tokio::task::spawn_blocking(move || {
         gh_svc::check_gh_auth()?;
+
+        // Auto-commit uncommitted changes before pushing
+        if gh_svc::has_uncommitted_changes(&worktree_path)? {
+            gh_svc::stage_and_commit(&worktree_path, &title)?;
+        }
+
         gh_svc::push_branch(&worktree_path, &branch)?;
 
         let mut pr_info = gh_svc::create_pr(
@@ -137,6 +143,11 @@ pub async fn push_changes(
     };
 
     tokio::task::spawn_blocking(move || {
+        // Auto-commit uncommitted changes before pushing
+        if gh_svc::has_uncommitted_changes(&worktree_path)? {
+            gh_svc::stage_and_commit(&worktree_path, "Update changes")?;
+        }
+
         gh_svc::push_branch(&worktree_path, &branch)?;
 
         // Parallelize PR info + checks fetch after push
