@@ -525,6 +525,7 @@ export interface RepoSettings {
   runScriptMode: "concurrent" | "nonconcurrent";
   envVars: Record<string, string>;
   worktreeBasePath: string | null;
+  providerOverride: ProviderConfig | null;
 }
 
 // Script commands

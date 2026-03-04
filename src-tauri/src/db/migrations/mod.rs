@@ -228,6 +228,10 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
     // Coverage command column (idempotent)
     let _ = conn.execute_batch("ALTER TABLE repository_settings ADD COLUMN coverage_command TEXT;");
 
+    // Per-repo provider override (idempotent)
+    let _ =
+        conn.execute_batch("ALTER TABLE repository_settings ADD COLUMN provider_override TEXT;");
+
     // Test run history table
     conn.execute_batch(
         "

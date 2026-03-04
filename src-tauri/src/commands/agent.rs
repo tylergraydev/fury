@@ -108,9 +108,11 @@ pub async fn send_message(
             (ws, repo)
         };
         let settings = state.settings.read().unwrap().clone();
+        let repo_settings = crate::commands::script::resolve_settings(&state, &repo.id).ok();
+        let provider_override = repo_settings.as_ref().and_then(|s| s.provider_override.as_ref());
         let mut env = match agent_type {
-            AgentType::ClaudeCode => claude_process::build_env_vars(&workspace, &repo, &settings),
-            AgentType::CodexCli => codex_process::build_env_vars(&workspace, &repo, &settings),
+            AgentType::ClaudeCode => claude_process::build_env_vars(&workspace, &repo, &settings, provider_override),
+            AgentType::CodexCli => codex_process::build_env_vars(&workspace, &repo, &settings, provider_override),
         };
 
         // Agent teams: add sibling workspace names (env var is harmless for Codex,
@@ -142,9 +144,11 @@ pub async fn send_message(
                 .clone()
         };
         let settings = state.settings.read().unwrap().clone();
+        let repo_settings = crate::commands::script::resolve_settings(&state, &repo_id).ok();
+        let provider_override = repo_settings.as_ref().and_then(|s| s.provider_override.as_ref());
         let env = match agent_type {
-            AgentType::ClaudeCode => claude_process::build_repo_env_vars(&repo, &settings),
-            AgentType::CodexCli => codex_process::build_repo_env_vars(&repo, &settings),
+            AgentType::ClaudeCode => claude_process::build_repo_env_vars(&repo, &settings, provider_override),
+            AgentType::CodexCli => codex_process::build_repo_env_vars(&repo, &settings, provider_override),
         };
         (repo.path.clone(), env)
     };

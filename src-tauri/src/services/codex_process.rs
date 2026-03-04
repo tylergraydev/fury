@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::error::AppError;
 use crate::models::agent::{AgentInfo, AgentStatus, AgentStatusEvent, FrontendStreamEvent};
 use crate::models::repository::Repository;
-use crate::models::settings::AppSettings;
+use crate::models::settings::{AppSettings, ProviderConfig};
 use crate::models::workspace::Workspace;
 
 /// Locate the `codex` binary in PATH.
@@ -28,6 +28,7 @@ pub fn build_env_vars(
     workspace: &Workspace,
     repo: &Repository,
     settings: &AppSettings,
+    provider_override: Option<&ProviderConfig>,
 ) -> HashMap<String, String> {
     let mut env = HashMap::new();
 
@@ -52,7 +53,8 @@ pub fn build_env_vars(
         workspace.port_base.to_string(),
     );
 
-    for (key, value) in &settings.provider.env_vars {
+    let provider = provider_override.unwrap_or(&settings.provider);
+    for (key, value) in &provider.env_vars {
         env.insert(key.clone(), value.clone());
     }
 
@@ -63,6 +65,7 @@ pub fn build_env_vars(
 pub fn build_repo_env_vars(
     repo: &Repository,
     settings: &AppSettings,
+    provider_override: Option<&ProviderConfig>,
 ) -> HashMap<String, String> {
     let mut env = HashMap::new();
 
@@ -75,7 +78,8 @@ pub fn build_repo_env_vars(
         repo.default_branch.clone(),
     );
 
-    for (key, value) in &settings.provider.env_vars {
+    let provider = provider_override.unwrap_or(&settings.provider);
+    for (key, value) in &provider.env_vars {
         env.insert(key.clone(), value.clone());
     }
 

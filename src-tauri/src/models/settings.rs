@@ -75,7 +75,7 @@ pub struct CustomTheme {
     pub created_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderConfig {
     pub provider_type: ProviderType,
@@ -91,7 +91,7 @@ impl Default for ProviderConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub enum ProviderType {
     #[default]
     Anthropic,

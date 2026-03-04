@@ -86,7 +86,7 @@ pub async fn run_script(
             .ok_or(AppError::RepoNotFound(repo_id))?
             .clone();
         let app_settings = state.settings.read().unwrap().clone();
-        let mut env = claude_process::build_env_vars(&ws, &repo, &app_settings);
+        let mut env = claude_process::build_env_vars(&ws, &repo, &app_settings, settings.provider_override.as_ref());
         // Add repo-specific env vars
         for (k, v) in &settings.env_vars {
             env.insert(k.clone(), v.clone());
@@ -212,7 +212,7 @@ pub async fn run_repo_script(
         let repos = state.repositories.read().unwrap();
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?.clone();
         let app_settings = state.settings.read().unwrap().clone();
-        let mut env = claude_process::build_repo_env_vars(&repo, &app_settings);
+        let mut env = claude_process::build_repo_env_vars(&repo, &app_settings, settings.provider_override.as_ref());
         for (k, v) in &settings.env_vars {
             env.insert(k.clone(), v.clone());
         }

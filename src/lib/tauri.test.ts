@@ -616,6 +616,7 @@ describe("Script commands", () => {
       runScriptMode: "concurrent" as const,
       envVars: {},
       worktreeBasePath: null,
+      providerOverride: null,
     };
     (invoke as any).mockResolvedValueOnce(settings);
     const result = await getRepoSettings("r1");
@@ -631,6 +632,7 @@ describe("Script commands", () => {
       runScriptMode: "nonconcurrent" as const,
       envVars: { NODE_ENV: "production" },
       worktreeBasePath: "/base",
+      providerOverride: null,
     };
     await updateRepoSettings("r1", settings);
     expect(invoke).toHaveBeenCalledWith("update_repo_settings", { repoId: "r1", settings });
