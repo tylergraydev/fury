@@ -24,6 +24,7 @@ export type ShortcutAction =
   | "right-sidebar-bookmarks"
   | "view-team"
   | "view-tests"
+  | "run-tests"
   | "view-usage"
   | "toggle-split-editor"
   | "open-snippets"
@@ -53,6 +54,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { key: "5", mod: true, action: "view-team", label: "Team View" },
   { key: "6", mod: true, action: "right-sidebar-bookmarks", label: "Bookmarks" },
   { key: "t", mod: true, shift: true, action: "view-tests", label: "Test Runner" },
+  { key: "r", mod: true, shift: true, action: "run-tests", label: "Run Tests" },
   { key: "u", mod: true, shift: true, action: "view-usage", label: "Usage Dashboard" },
   { key: "s", mod: true, shift: true, action: "open-snippets", label: "Snippets" },
   { key: "a", mod: true, shift: true, action: "view-activity", label: "Activity Log" },

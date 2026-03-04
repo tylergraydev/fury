@@ -17,6 +17,10 @@ const selectTest = vi.fn();
 
 let storeValues: Record<string, any> = {};
 
+const loadHistory = vi.fn().mockResolvedValue(undefined);
+const toggleWatchMode = vi.fn().mockResolvedValue(undefined);
+const runCoverage = vi.fn().mockResolvedValue(undefined);
+
 function getFullState() {
   return {
     suites: {},
@@ -29,10 +33,16 @@ function getFullState() {
     expandedSuites: {},
     selectedTest: {},
     showOutput: {},
+    watchMode: {},
+    history: {},
+    coverage: {},
+    coverageRunning: {},
     subscriptions: {},
+    watchSubscriptions: {},
     subscribe,
     unsubscribe,
     loadConfig,
+    loadHistory,
     runTests,
     stopTests,
     clearResults,
@@ -40,6 +50,8 @@ function getFullState() {
     toggleOutput,
     toggleSuite,
     selectTest,
+    toggleWatchMode,
+    runCoverage,
     ...storeValues,
   };
 }
@@ -128,6 +140,7 @@ function makeConfig(overrides: Partial<TestRunnerConfig> = {}): TestRunnerConfig
     testCommand: "npx vitest --run",
     testFileCommand: null,
     workingDir: null,
+    coverageCommand: null,
     ...overrides,
   };
 }

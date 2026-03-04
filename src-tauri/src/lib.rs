@@ -213,6 +213,10 @@ pub fn run() {
             commands::test_runner::save_test_runner_config,
             commands::test_runner::run_tests,
             commands::test_runner::stop_tests,
+            commands::test_runner::start_test_watch,
+            commands::test_runner::stop_test_watch,
+            commands::test_runner::list_test_history,
+            commands::test_runner::run_coverage,
             // Performance monitor commands
             commands::perf::push_ipc_metrics,
             commands::perf::push_frame_metrics,

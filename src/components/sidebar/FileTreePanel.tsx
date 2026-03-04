@@ -1,4 +1,5 @@
-import { memo, useCallback, useEffect, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Play } from "lucide-react";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
 import { getFileIcon, FolderIcon, FolderOpenIcon } from "../icons/FileIcons";
 import type { SidebarContext } from "../../App";
@@ -10,6 +11,7 @@ interface Props {
   context: SidebarContext;
   onFileClick?: (filePath: string) => void;
   onFileDoubleClick?: (filePath: string) => void;
+  onRunTestFile?: (filePath: string) => void;
 }
 
 interface TreeNode {
@@ -69,6 +71,7 @@ const TreeItem = memo(function TreeItem({
   onToggle,
   onFileClick,
   onFileDoubleClick,
+  onContextMenu,
 }: {
   node: TreeNode;
   depth: number;
@@ -76,6 +79,7 @@ const TreeItem = memo(function TreeItem({
   onToggle: (path: string) => void;
   onFileClick?: (path: string) => void;
   onFileDoubleClick?: (path: string) => void;
+  onContextMenu?: (path: string, e: React.MouseEvent) => void;
 }) {
   const isExpanded = expanded.has(node.path);
 
@@ -92,6 +96,12 @@ const TreeItem = memo(function TreeItem({
         onDoubleClick={() => {
           if (!node.isDir && onFileDoubleClick) {
             onFileDoubleClick(node.path);
+          }
+        }}
+        onContextMenu={(e) => {
+          if (!node.isDir && onContextMenu) {
+            e.preventDefault();
+            onContextMenu(node.path, e);
           }
         }}
         className="flex w-full items-center gap-1 py-0.5 text-left text-sm hover:bg-[var(--bg-hover)]"
@@ -119,6 +129,7 @@ const TreeItem = memo(function TreeItem({
             onToggle={onToggle}
             onFileClick={onFileClick}
             onFileDoubleClick={onFileDoubleClick}
+            onContextMenu={onContextMenu}
           />
         ))}
     </>
@@ -129,6 +140,7 @@ const TreeItem = memo(function TreeItem({
   if (prev.onToggle !== next.onToggle) return false;
   if (prev.onFileClick !== next.onFileClick) return false;
   if (prev.onFileDoubleClick !== next.onFileDoubleClick) return false;
+  if (prev.onContextMenu !== next.onContextMenu) return false;
   // For files, only the above props matter
   if (!prev.node.isDir) return true;
   // For directories, re-render if our own expansion state changed
@@ -143,7 +155,64 @@ const TreeItem = memo(function TreeItem({
   /* v8 ignore stop */
 });
 
-export function FileTreePanel({ context, onFileClick, onFileDoubleClick }: Props) {
+function FileTreeContextMenu({
+  x,
+  y,
+  onRunTests,
+  onClose,
+}: {
+  x: number;
+  y: number;
+  filePath?: string;
+  onRunTests: () => void;
+  onClose: () => void;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleMouseDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={menuRef}
+      className="fixed z-50 min-w-[160px] rounded-md py-1 shadow-lg"
+      style={{
+        left: x,
+        top: y,
+        backgroundColor: "var(--bg-secondary)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      <button
+        onClick={() => {
+          onRunTests();
+          onClose();
+        }}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--bg-hover)]"
+        style={{ color: "var(--text-primary)" }}
+      >
+        <Play className="h-3 w-3" style={{ color: "var(--accent)" }} />
+        Run Tests
+      </button>
+    </div>
+  );
+}
+
+export function FileTreePanel({ context, onFileClick, onFileDoubleClick, onRunTestFile }: Props) {
   const contextId = context.id;
   const files = useFileTreeStore((s) => s.files[contextId] ?? EMPTY_FILES);
   const expandedDirs = useFileTreeStore(
@@ -151,6 +220,12 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick }: Props
   );
   const loading = useFileTreeStore((s) => s.loading[contextId] ?? false);
   const error = useFileTreeStore((s) => s.error[contextId] ?? null);
+
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    path: string;
+  } | null>(null);
 
   // Double-rAF: defer file tree loading to Tier 3 so chat data loads first.
   useEffect(() => {
@@ -175,6 +250,13 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick }: Props
   const handleToggle = useCallback(
     (dir: string) => useFileTreeStore.getState().toggleDir(contextId, dir),
     [contextId],
+  );
+
+  const handleContextMenu = useCallback(
+    (path: string, e: React.MouseEvent) => {
+      setContextMenu({ x: e.clientX, y: e.clientY, path });
+    },
+    [],
   );
 
   const tree = useMemo(() => buildTree(files), [files]);
@@ -209,8 +291,19 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick }: Props
           onToggle={handleToggle}
           onFileClick={onFileClick}
           onFileDoubleClick={onFileDoubleClick}
+          onContextMenu={onRunTestFile ? handleContextMenu : undefined}
         />
       ))}
+
+      {contextMenu && onRunTestFile && (
+        <FileTreeContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          filePath={contextMenu.path}
+          onRunTests={() => onRunTestFile(contextMenu.path)}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 }

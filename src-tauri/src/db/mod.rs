@@ -11,7 +11,7 @@ use crate::models::prompt::Prompt;
 use crate::models::repository::{RepoSettings, Repository, RunScriptMode};
 use crate::models::settings::AppSettings;
 use crate::models::snippet::Snippet;
-use crate::models::test_runner::{TestFramework, TestRunnerConfig};
+use crate::models::test_runner::{TestFramework, TestRunRecord, TestRunSummary, TestRunnerConfig};
 use crate::models::todo::TodoItem;
 use crate::models::workspace::{Workspace, WorkspaceStatus};
 use crate::models::workspace_template::WorkspaceTemplate;
@@ -360,7 +360,7 @@ impl Database {
 
     pub fn get_test_runner_config(&self, repo_id: &Uuid) -> Result<TestRunnerConfig, AppError> {
         let mut stmt = self.conn.prepare(
-            "SELECT test_framework, test_command, test_file_command, test_working_dir
+            "SELECT test_framework, test_command, test_file_command, test_working_dir, coverage_command
              FROM repository_settings WHERE repo_id = ?1",
         )?;
         let result = stmt.query_row(rusqlite::params![repo_id.to_string()], |row| {
@@ -372,6 +372,7 @@ impl Database {
                 test_command: row.get(1)?,
                 test_file_command: row.get(2)?,
                 working_dir: row.get(3)?,
+                coverage_command: row.get(4)?,
             })
         });
         match result {
@@ -396,16 +397,69 @@ impl Database {
             rusqlite::params![repo_id.to_string()],
         )?;
         self.conn.execute(
-            "UPDATE repository_settings SET test_framework = ?2, test_command = ?3, test_file_command = ?4, test_working_dir = ?5 WHERE repo_id = ?1",
+            "UPDATE repository_settings SET test_framework = ?2, test_command = ?3, test_file_command = ?4, test_working_dir = ?5, coverage_command = ?6 WHERE repo_id = ?1",
             rusqlite::params![
                 repo_id.to_string(),
                 fw_str,
                 config.test_command,
                 config.test_file_command,
                 config.working_dir,
+                config.coverage_command,
             ],
         )?;
         Ok(())
+    }
+
+    pub fn insert_test_run(
+        &self,
+        repo_id: &Uuid,
+        summary: &TestRunSummary,
+    ) -> Result<(), AppError> {
+        let id = Uuid::new_v4().to_string();
+        self.conn.execute(
+            "INSERT INTO test_run_history (id, repo_id, total, passed, failed, skipped, duration_ms) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![
+                id,
+                repo_id.to_string(),
+                summary.total as i64,
+                summary.passed as i64,
+                summary.failed as i64,
+                summary.skipped as i64,
+                summary.duration_ms,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_test_runs(
+        &self,
+        repo_id: &Uuid,
+        limit: usize,
+    ) -> Result<Vec<TestRunRecord>, AppError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, repo_id, ran_at, total, passed, failed, skipped, duration_ms
+             FROM test_run_history WHERE repo_id = ?1 ORDER BY ran_at DESC LIMIT ?2",
+        )?;
+        let rows = stmt.query_map(
+            rusqlite::params![repo_id.to_string(), limit as i64],
+            |row| {
+                Ok(TestRunRecord {
+                    id: row.get(0)?,
+                    repo_id: row.get(1)?,
+                    ran_at: row.get(2)?,
+                    total: row.get::<_, i64>(3)? as usize,
+                    passed: row.get::<_, i64>(4)? as usize,
+                    failed: row.get::<_, i64>(5)? as usize,
+                    skipped: row.get::<_, i64>(6)? as usize,
+                    duration_ms: row.get(7)?,
+                })
+            },
+        )?;
+        let mut records = Vec::new();
+        for row in rows {
+            records.push(row.map_err(|e| AppError::DbError(e.to_string()))?);
+        }
+        Ok(records)
     }
 
     pub fn get_next_turn_index(&self, workspace_id: &Uuid) -> Result<u32, AppError> {

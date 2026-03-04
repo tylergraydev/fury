@@ -69,6 +69,7 @@ function makeConfig(overrides: Partial<TestRunnerConfig> = {}): TestRunnerConfig
     testCommand: "npx vitest --run",
     testFileCommand: null,
     workingDir: null,
+    coverageCommand: null,
     ...overrides,
   };
 }

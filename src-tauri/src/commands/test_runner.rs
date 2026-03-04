@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::error::AppError;
-use crate::models::test_runner::TestRunnerConfig;
-use crate::services::{claude_process, test_runner};
+use crate::models::test_runner::{TestRunEvent, TestRunRecord, TestRunnerConfig};
+use crate::services::{claude_process, diff_watcher, test_runner};
 use crate::state::AppState;
 use tauri::{Emitter, State};
 use uuid::Uuid;
@@ -239,6 +239,7 @@ pub async fn run_tests(
     };
 
     // Spawn test process
+    let db_ref = Arc::clone(&state.db);
     let mut child = test_runner::spawn_test_run(
         ctx_id,
         &command,
@@ -246,6 +247,8 @@ pub async fn run_tests(
         &framework,
         env_vars,
         app.clone(),
+        db_ref,
+        repo_id,
     )
     .await?;
 
@@ -302,4 +305,229 @@ pub async fn stop_tests(
     })
     .await
     .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+}
+
+#[tauri::command]
+pub async fn start_test_watch(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    context_id: String,
+    context_type: String,
+) -> Result<(), AppError> {
+    let ctx_id: Uuid = context_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    // Resolve working directory
+    let watch_path = if context_type == "workspace" {
+        let workspaces = state.workspaces.read().unwrap();
+        let ws = workspaces
+            .get(&ctx_id)
+            .ok_or(AppError::WorkspaceNotFound(ctx_id))?;
+        ws.worktree_path.clone()
+    } else {
+        let repos = state.repositories.read().unwrap();
+        let repo = repos.get(&ctx_id).ok_or(AppError::RepoNotFound(ctx_id))?;
+        repo.path.clone()
+    };
+
+    // Stop any existing watcher first
+    {
+        let mut watchers = state.test_watchers.lock().unwrap();
+        if let Some(handle) = watchers.remove(&context_id) {
+            handle.stop();
+        }
+    }
+
+    // Start a new file watcher emitting on test-watch:{context_id}
+    let handle = diff_watcher::start_diff_watcher(
+        watch_path,
+        app,
+        format!("test-watch:{}", context_id),
+    )?;
+
+    let mut watchers = state.test_watchers.lock().unwrap();
+    watchers.insert(context_id, handle);
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn stop_test_watch(
+    state: State<'_, AppState>,
+    context_id: String,
+) -> Result<(), AppError> {
+    let mut watchers = state.test_watchers.lock().unwrap();
+    if let Some(handle) = watchers.remove(&context_id) {
+        handle.stop();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn list_test_history(
+    state: State<'_, AppState>,
+    repo_id: String,
+    limit: Option<usize>,
+) -> Result<Vec<TestRunRecord>, AppError> {
+    let id: Uuid = repo_id
+        .parse()
+        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+
+    let db = state.db.lock().unwrap();
+    match db.as_ref() {
+        Some(db) => db.list_test_runs(&id, limit.unwrap_or(20)),
+        None => Ok(vec![]),
+    }
+}
+
+#[tauri::command]
+pub async fn run_coverage(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    context_id: String,
+    context_type: String,
+) -> Result<(), AppError> {
+    let ctx_id: Uuid = context_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    // Resolve working directory and repo ID
+    let (working_dir, repo_id) = if context_type == "workspace" {
+        let workspaces = state.workspaces.read().unwrap();
+        let ws = workspaces
+            .get(&ctx_id)
+            .ok_or(AppError::WorkspaceNotFound(ctx_id))?;
+        (ws.worktree_path.clone(), ws.repo_id)
+    } else {
+        let repos = state.repositories.read().unwrap();
+        let repo = repos.get(&ctx_id).ok_or(AppError::RepoNotFound(ctx_id))?;
+        (repo.path.clone(), ctx_id)
+    };
+
+    // Get coverage command from config or use default
+    let (coverage_cmd, framework) = {
+        let db = state.db.lock().unwrap();
+        let db_config = match db.as_ref() {
+            Some(db) => db.get_test_runner_config(&repo_id)?,
+            None => TestRunnerConfig::default(),
+        };
+        drop(db);
+
+        let fw = db_config
+            .framework
+            .clone()
+            .unwrap_or_else(|| {
+                let repos = state.repositories.read().unwrap();
+                repos
+                    .get(&repo_id)
+                    .and_then(|r| test_runner::detect_framework(&r.path))
+                    .unwrap_or(crate::models::test_runner::TestFramework::Custom)
+            });
+
+        let cmd = db_config
+            .coverage_command
+            .or_else(|| test_runner::default_coverage_command(&fw));
+
+        (cmd, fw)
+    };
+
+    let command = coverage_cmd.ok_or_else(|| {
+        AppError::ScriptError("No coverage command configured for this framework".to_string())
+    })?;
+
+    // Resolve effective working directory
+    let effective_dir = {
+        let db = state.db.lock().unwrap();
+        let wd = db
+            .as_ref()
+            .and_then(|d| d.get_test_runner_config(&repo_id).ok())
+            .and_then(|c| c.working_dir);
+        if let Some(ref wd) = wd {
+            working_dir.join(wd)
+        } else {
+            working_dir.clone()
+        }
+    };
+
+    // Build env vars
+    let env_vars = if context_type == "workspace" {
+        let workspaces = state.workspaces.read().unwrap();
+        let ws = workspaces
+            .get(&ctx_id)
+            .ok_or(AppError::WorkspaceNotFound(ctx_id))?
+            .clone();
+        let repos = state.repositories.read().unwrap();
+        let repo = repos
+            .get(&repo_id)
+            .ok_or(AppError::RepoNotFound(repo_id))?
+            .clone();
+        let app_settings = state.settings.read().unwrap().clone();
+        claude_process::build_env_vars(&ws, &repo, &app_settings)
+    } else {
+        let repos = state.repositories.read().unwrap();
+        let repo = repos
+            .get(&ctx_id)
+            .ok_or(AppError::RepoNotFound(ctx_id))?
+            .clone();
+        let app_settings = state.settings.read().unwrap().clone();
+        claude_process::build_repo_env_vars(&repo, &app_settings)
+    };
+
+    let event_name = format!("test-runner:{}", ctx_id);
+    let framework_clone = framework.clone();
+
+    // Spawn coverage process
+    let shell = crate::platform::default_shell();
+    let flag = crate::platform::shell_exec_flag();
+
+    let output = tokio::process::Command::new(shell)
+        .arg(flag)
+        .arg(&command)
+        .current_dir(&effective_dir)
+        .envs(&env_vars)
+        .output()
+        .await
+        .map_err(|e| AppError::ScriptError(format!("Failed to run coverage: {}", e)))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+
+    // Try to parse coverage output
+    let report = match framework_clone {
+        crate::models::test_runner::TestFramework::Vitest
+        | crate::models::test_runner::TestFramework::Jest => {
+            // Try reading coverage-final.json first
+            let coverage_path = effective_dir.join("coverage/coverage-final.json");
+            if let Ok(json) = std::fs::read_to_string(&coverage_path) {
+                test_runner::parse_istanbul_coverage(&json)
+            } else {
+                // Fall back to parsing stdout
+                test_runner::parse_istanbul_coverage(&stdout)
+            }
+        }
+        crate::models::test_runner::TestFramework::Pytest => {
+            test_runner::parse_pytest_cov(&stdout)
+        }
+        _ => {
+            // Try Istanbul format first, then pytest-cov format
+            test_runner::parse_istanbul_coverage(&stdout)
+                .or_else(|_| test_runner::parse_pytest_cov(&stdout))
+        }
+    };
+
+    match report {
+        Ok(report) => {
+            let _ = app.emit(&event_name, &TestRunEvent::CoverageResult { report });
+        }
+        Err(e) => {
+            let _ = app.emit(
+                &event_name,
+                &TestRunEvent::Error {
+                    message: format!("Failed to parse coverage: {}", e),
+                },
+            );
+        }
+    }
+
+    Ok(())
 }

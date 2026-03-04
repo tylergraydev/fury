@@ -94,6 +94,7 @@ describe("TestConfigDialog", () => {
       testCommand: null,
       testFileCommand: null,
       workingDir: null,
+      coverageCommand: null,
     });
     expect(loadConfig).toHaveBeenCalledWith(CTX, REPO);
     expect(onClose).toHaveBeenCalled();
@@ -152,6 +153,7 @@ describe("TestConfigDialog", () => {
       testCommand: null,
       testFileCommand: null,
       workingDir: null,
+      coverageCommand: null,
     });
   });
 
