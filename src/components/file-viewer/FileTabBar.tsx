@@ -29,6 +29,9 @@ export function FileTabBar() {
   const setActiveViewTab = useUIStore((s) => s.setActiveViewTab);
   const closeViewTab = useUIStore((s) => s.closeViewTab);
   const pinViewTab = useUIStore((s) => s.pinViewTab);
+  const splitChat = useUIStore((s) => s.splitChat);
+  const splitChatActive = useUIStore((s) => s.splitChatActive);
+  const closeSplitChat = useUIStore((s) => s.closeSplitChat);
 
   const activeViewTab = viewTabs.find((t) => t.id === activeViewTabId);
   const viewType = activeViewTab?.type ?? "chat";
@@ -88,7 +91,7 @@ export function FileTabBar() {
         return (
           <span
             key={tab.id}
-            className="flex flex-shrink-0 items-center gap-1 py-1.5 pl-3 pr-1 transition-colors"
+            className="group flex flex-shrink-0 items-center gap-1 py-1.5 pl-3 pr-1 transition-colors"
             style={{
               color: isActive ? "var(--accent)" : "var(--text-muted)",
               borderBottom: isActive
@@ -107,6 +110,21 @@ export function FileTabBar() {
             >
               {tab.label}
             </span>
+            {tab.contextId && tab.contextType && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  splitChat(tab.contextId!, tab.contextType!);
+                  showChat();
+                  setActiveViewTab("chat");
+                }}
+                className="ml-0.5 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-[var(--bg-hover)]"
+                style={{ color: "var(--text-muted)" }}
+                title="Open in split chat view"
+              >
+                <Columns2 className="h-3 w-3" />
+              </button>
+            )}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -207,6 +225,16 @@ export function FileTabBar() {
 
       {/* Split toggle + spacer */}
       <div className="flex flex-1 items-center justify-end">
+        {splitChatActive && (
+          <button
+            onClick={() => closeSplitChat()}
+            className="flex-shrink-0 rounded p-1 hover:bg-[var(--bg-hover)]"
+            style={{ color: "var(--accent)" }}
+            title="Close split chat view"
+          >
+            <Columns2 className="h-3.5 w-3.5" />
+          </button>
+        )}
         {fileTabs.length >= 2 && (
           <button
             onClick={() => {

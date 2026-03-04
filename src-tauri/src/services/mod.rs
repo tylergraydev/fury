@@ -1,3 +1,4 @@
+pub mod ado;
 pub mod branch;
 pub mod checkpoint;
 pub mod claude_context;
@@ -14,6 +15,7 @@ pub mod lsp;
 pub mod mcp;
 pub mod perf_server;
 pub mod port_allocator;
+pub mod provider;
 pub mod spotlight;
 pub mod stash;
 pub mod script_runner;

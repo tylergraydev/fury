@@ -36,6 +36,7 @@ base64 = "0.22"
 notify = "7"
 notify-debouncer-full = "0.4"
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "blocking"] }
+url = "2"
 axum = "0.8"
 tauri-plugin-mcp-bridge = "0.9"
 

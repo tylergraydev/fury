@@ -868,6 +868,7 @@ describe("App settings commands", () => {
       copilot: { enabled: true },
       linear: { apiKey: null },
       claudeContext: { enabled: false, openaiApiKey: null, zillizUri: null, zillizToken: null },
+      azureDevops: { pat: null, defaultOrg: null },
     };
     await updateAppSettings(settings);
     expect(invoke).toHaveBeenCalledWith("update_app_settings", { settings });

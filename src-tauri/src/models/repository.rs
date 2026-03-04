@@ -2,6 +2,33 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use uuid::Uuid;
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum GitProvider {
+    #[default]
+    GitHub,
+    AzureDevOps,
+    Unknown,
+}
+
+impl GitProvider {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            GitProvider::GitHub => "github",
+            GitProvider::AzureDevOps => "azure_devops",
+            GitProvider::Unknown => "unknown",
+        }
+    }
+
+    pub fn from_db_str(s: &str) -> Self {
+        match s {
+            "azure_devops" => GitProvider::AzureDevOps,
+            "unknown" => GitProvider::Unknown,
+            _ => GitProvider::GitHub,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Repository {
@@ -12,6 +39,10 @@ pub struct Repository {
     /// Current checked-out branch, populated at query time.
     #[serde(default)]
     pub current_branch: Option<String>,
+    #[serde(default)]
+    pub provider: GitProvider,
+    #[serde(default)]
+    pub remote_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -72,6 +103,38 @@ mod tests {
 
         let nonconcurrent: RunScriptMode = serde_json::from_str("\"nonconcurrent\"").unwrap();
         assert!(matches!(nonconcurrent, RunScriptMode::Nonconcurrent));
+    }
+
+    #[test]
+    fn test_git_provider_serde() {
+        let gh: GitProvider = serde_json::from_str("\"git_hub\"").unwrap();
+        assert_eq!(gh, GitProvider::GitHub);
+
+        let ado: GitProvider = serde_json::from_str("\"azure_dev_ops\"").unwrap();
+        assert_eq!(ado, GitProvider::AzureDevOps);
+
+        let unknown: GitProvider = serde_json::from_str("\"unknown\"").unwrap();
+        assert_eq!(unknown, GitProvider::Unknown);
+    }
+
+    #[test]
+    fn test_git_provider_default() {
+        let p = GitProvider::default();
+        assert_eq!(p, GitProvider::GitHub);
+    }
+
+    #[test]
+    fn test_git_provider_db_roundtrip() {
+        assert_eq!(GitProvider::from_db_str("github"), GitProvider::GitHub);
+        assert_eq!(
+            GitProvider::from_db_str("azure_devops"),
+            GitProvider::AzureDevOps
+        );
+        assert_eq!(GitProvider::from_db_str("unknown"), GitProvider::Unknown);
+        assert_eq!(
+            GitProvider::from_db_str("anything_else"),
+            GitProvider::GitHub
+        );
     }
 
     #[test]

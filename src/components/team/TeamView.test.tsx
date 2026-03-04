@@ -30,6 +30,7 @@ const defaultSettings = {
   copilot: { enabled: false },
   linear: { apiKey: null },
   claudeContext: { enabled: false, openaiApiKey: null, zillizUri: null, zillizToken: null },
+  azureDevops: { pat: null, defaultOrg: null },
 };
 
 beforeEach(() => {
@@ -63,7 +64,7 @@ describe("TeamView", () => {
       ] as any[],
     });
     useRepositoryStore.setState({
-      repositories: [{ id: "repo-1", name: "my-app", path: "/tmp/app", defaultBranch: "main", currentBranch: "main" }],
+      repositories: [{ id: "repo-1", name: "my-app", path: "/tmp/app", defaultBranch: "main", currentBranch: "main", provider: "git_hub" as const, remoteUrl: null }],
     });
     render(<TeamView />);
     // Names appear in both card and broadcast composer checkbox
@@ -84,8 +85,8 @@ describe("TeamView", () => {
     });
     useRepositoryStore.setState({
       repositories: [
-        { id: "repo-1", name: "my-app", path: "/tmp/app", defaultBranch: "main", currentBranch: "main" },
-        { id: "repo-2", name: "other", path: "/tmp/other", defaultBranch: "main", currentBranch: "main" },
+        { id: "repo-1", name: "my-app", path: "/tmp/app", defaultBranch: "main", currentBranch: "main", provider: "git_hub" as const, remoteUrl: null },
+        { id: "repo-2", name: "other", path: "/tmp/other", defaultBranch: "main", currentBranch: "main", provider: "git_hub" as const, remoteUrl: null },
       ],
     });
     render(<TeamView />);
@@ -104,7 +105,7 @@ describe("TeamView", () => {
       ] as any[],
     });
     useRepositoryStore.setState({
-      repositories: [{ id: "repo-1", name: "my-app", path: "/tmp/app", defaultBranch: "main", currentBranch: "main" }],
+      repositories: [{ id: "repo-1", name: "my-app", path: "/tmp/app", defaultBranch: "main", currentBranch: "main", provider: "git_hub" as const, remoteUrl: null }],
     });
     useAgentStore.setState({
       agents: {
@@ -127,7 +128,7 @@ describe("TeamView", () => {
       ] as any[],
     });
     useRepositoryStore.setState({
-      repositories: [{ id: "repo-1", name: "my-app", path: "/tmp/app", defaultBranch: "main", currentBranch: "main" }],
+      repositories: [{ id: "repo-1", name: "my-app", path: "/tmp/app", defaultBranch: "main", currentBranch: "main", provider: "git_hub" as const, remoteUrl: null }],
     });
     useAgentStore.setState({
       agents: {
@@ -148,7 +149,7 @@ describe("TeamView", () => {
       ] as any[],
     });
     useRepositoryStore.setState({
-      repositories: [{ id: "repo-1", name: "my-app", path: "/tmp/app", defaultBranch: "main", currentBranch: "main" }],
+      repositories: [{ id: "repo-1", name: "my-app", path: "/tmp/app", defaultBranch: "main", currentBranch: "main", provider: "git_hub" as const, remoteUrl: null }],
     });
     render(<TeamView />);
     expect(screen.queryByText("Stop All")).not.toBeInTheDocument();
@@ -164,7 +165,7 @@ describe("TeamView", () => {
       ] as any[],
     });
     useRepositoryStore.setState({
-      repositories: [{ id: "repo-1", name: "my-app", path: "/tmp/app", defaultBranch: "main", currentBranch: "main" }],
+      repositories: [{ id: "repo-1", name: "my-app", path: "/tmp/app", defaultBranch: "main", currentBranch: "main", provider: "git_hub" as const, remoteUrl: null }],
     });
     useSettingsStore.setState({
       appSettings: { ...defaultSettings, experimental: { ...defaultSettings.experimental, agentTeams: false } },
@@ -188,7 +189,7 @@ describe("TeamView", () => {
       ] as any[],
     });
     useRepositoryStore.setState({
-      repositories: [{ id: "repo-1", name: "my-app", path: "/tmp/app", defaultBranch: "main", currentBranch: "main" }],
+      repositories: [{ id: "repo-1", name: "my-app", path: "/tmp/app", defaultBranch: "main", currentBranch: "main", provider: "git_hub" as const, remoteUrl: null }],
     });
     useSettingsStore.setState({
       appSettings: { ...defaultSettings, experimental: { ...defaultSettings.experimental, agentTeams: true } },
@@ -206,7 +207,7 @@ describe("TeamView", () => {
       ] as any[],
     });
     useRepositoryStore.setState({
-      repositories: [{ id: "repo-1", name: "my-app", path: "/tmp/app", defaultBranch: "main", currentBranch: "main" }],
+      repositories: [{ id: "repo-1", name: "my-app", path: "/tmp/app", defaultBranch: "main", currentBranch: "main", provider: "git_hub" as const, remoteUrl: null }],
     });
     render(<TeamView />);
     expect(screen.getByPlaceholderText("Broadcast message to selected workspaces...")).toBeInTheDocument();

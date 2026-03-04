@@ -27,6 +27,8 @@ pub fn test_repo() -> Repository {
         path: PathBuf::from("/tmp/test-repo"),
         default_branch: "main".to_string(),
         current_branch: None,
+        provider: Default::default(),
+        remote_url: None,
     }
 }
 

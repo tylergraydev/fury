@@ -7,6 +7,7 @@ use crate::models::repository::Repository;
 use crate::models::settings::ClaudeContextSettings;
 use crate::platform;
 use crate::services::claude_context as ctx_svc;
+use crate::services::provider as provider_svc;
 use crate::services::worktree;
 use crate::state::AppState;
 use std::fs;
@@ -98,8 +99,8 @@ pub async fn add_repository(
     let path_clone = path.clone();
 
     // Run all git I/O off the main thread
-    let (name, default_branch, current_branch) =
-        tokio::task::spawn_blocking(move || -> Result<(String, String, Option<String>), AppError> {
+    let (name, default_branch, current_branch, provider, remote_url) =
+        tokio::task::spawn_blocking(move || -> Result<_, AppError> {
             let path = PathBuf::from(&path_clone);
 
             // Validate it's a git repository
@@ -124,8 +125,9 @@ pub async fn add_repository(
             // Detect default branch
             let default_branch = worktree::detect_default_branch(&path);
             let current_branch = detect_current_branch(&path);
+            let (provider, remote_url) = provider_svc::detect_provider(&path);
 
-            Ok((name, default_branch, current_branch))
+            Ok((name, default_branch, current_branch, provider, remote_url))
         })
         .await
         .map_err(|e| AppError::GitError(format!("task failed: {}", e)))??;
@@ -137,6 +139,8 @@ pub async fn add_repository(
         path: path.clone(),
         default_branch,
         current_branch,
+        provider,
+        remote_url,
     };
 
     // Persist to database
@@ -260,6 +264,7 @@ fn register_repository(state: &State<'_, AppState>, path: PathBuf) -> Result<Rep
 
     let default_branch = worktree::detect_default_branch(&path);
     let current_branch = detect_current_branch(&path);
+    let (provider, remote_url) = provider_svc::detect_provider(&path);
 
     let repo = Repository {
         id: Uuid::new_v4(),
@@ -267,6 +272,8 @@ fn register_repository(state: &State<'_, AppState>, path: PathBuf) -> Result<Rep
         path: path.clone(),
         default_branch,
         current_branch,
+        provider,
+        remote_url,
     };
 
     {

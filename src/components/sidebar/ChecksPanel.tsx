@@ -3,6 +3,8 @@ import { usePrStore } from "../../stores/prStore";
 import { useTodoStore } from "../../stores/todoStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useRepositoryStore } from "../../stores/repositoryStore";
 import { ExternalLink, ChevronRight, ChevronDown, X, RotateCw } from "lucide-react";
 import type {
   PrCheck,
@@ -508,6 +510,12 @@ export function ChecksPanel({ workspaceId }: Props) {
   const error = usePrStore((s) => s.error[workspaceId] ?? null);
   const workflowRuns = usePrStore((s) => s.workflowRuns[workspaceId] ?? EMPTY_RUNS);
   const workflowLoading = usePrStore((s) => s.workflowLoading[workspaceId] ?? false);
+  const isAdo = useWorkspaceStore((s) => {
+    const ws = s.workspaces.find((w) => w.id === workspaceId);
+    if (!ws) return false;
+    const repo = useRepositoryStore.getState().repositories.find((r) => r.id === ws.repoId);
+    return repo?.provider === "azure_dev_ops";
+  });
 
   const [mergeMethod, setMergeMethod] = useState("squash");
   const [expandedRunId, setExpandedRunId] = useState<number | null>(null);
@@ -749,7 +757,7 @@ export function ChecksPanel({ workspaceId }: Props) {
           className="mb-1 flex items-center justify-between text-[10px]"
           style={{ color: "var(--text-muted)" }}
         >
-          <span>Actions {workflowRuns.length > 0 && `(${workflowRuns.length})`}</span>
+          <span>{isAdo ? "Pipelines" : "Actions"} {workflowRuns.length > 0 && `(${workflowRuns.length})`}</span>
           <button
             onClick={() => usePrStore.getState().loadWorkflowRuns(workspaceId)}
             className="rounded px-1.5 py-0.5"

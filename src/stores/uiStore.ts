@@ -4,6 +4,7 @@ import { applyTheme } from "../lib/themes";
 export type RightSidebarTab = "files" | "changes" | "checks" | "bookmarks";
 export type BottomTab = "setup" | "terminal" | "run";
 export type ViewType = "chat" | "settings" | "merge" | "history" | "diff" | "team" | "tests" | "usage" | "activity";
+export type ChatPaneId = "left" | "right";
 
 export interface ViewTab {
   id: string;
@@ -44,6 +45,13 @@ interface UIStore {
   pinViewTab: (tabId: string) => void;
   openChatTab: (contextId: string, label: string, contextType: "workspace" | "repo") => void;
   closeChatTabsForContext: (contextId: string) => void;
+  splitChatActive: boolean;
+  splitChatContextId: string | null;
+  splitChatContextType: "workspace" | "repo" | null;
+  splitChatFocusedPane: ChatPaneId;
+  splitChat: (contextId: string, contextType: "workspace" | "repo") => void;
+  closeSplitChat: () => void;
+  setSplitChatFocusedPane: (pane: ChatPaneId) => void;
   settingsInitialTab: string | null;
   setSettingsInitialTab: (tab: string | null) => void;
 }
@@ -101,16 +109,20 @@ export const useUIStore = create<UIStore>((set, get) => ({
 
   closeViewTab: (tabId) => {
     if (tabId === "chat") return;
-    const { viewTabs, activeViewTabId } = get();
+    const { viewTabs, activeViewTabId, splitChatContextId } = get();
     const idx = viewTabs.findIndex((t) => t.id === tabId);
     if (idx === -1) return;
+    const closedTab = viewTabs[idx];
     const updated = viewTabs.filter((t) => t.id !== tabId);
     let nextActive = activeViewTabId;
     if (activeViewTabId === tabId) {
       const neighbor = updated[Math.min(idx, updated.length - 1)];
       nextActive = neighbor?.id ?? "chat";
     }
-    set({ viewTabs: updated, activeViewTabId: nextActive });
+    const splitUpdates = (closedTab.contextId && closedTab.contextId === splitChatContextId)
+      ? { splitChatActive: false, splitChatContextId: null, splitChatContextType: null, splitChatFocusedPane: "left" as const }
+      : {};
+    set({ viewTabs: updated, activeViewTabId: nextActive, ...splitUpdates });
   },
 
   setActiveViewTab: (tabId) => {
@@ -147,12 +159,40 @@ export const useUIStore = create<UIStore>((set, get) => ({
   },
 
   closeChatTabsForContext: (contextId) => {
-    const { viewTabs, activeViewTabId } = get();
+    const { viewTabs, activeViewTabId, splitChatContextId } = get();
     const tabId = `chat-${contextId}`;
     const updated = viewTabs.filter((t) => t.id !== tabId);
     const nextActive = activeViewTabId === tabId ? "chat" : activeViewTabId;
-    set({ viewTabs: updated, activeViewTabId: nextActive });
+    const splitUpdates = splitChatContextId === contextId
+      ? { splitChatActive: false, splitChatContextId: null, splitChatContextType: null, splitChatFocusedPane: "left" as const }
+      : {};
+    set({ viewTabs: updated, activeViewTabId: nextActive, ...splitUpdates });
   },
+
+  splitChatActive: false,
+  splitChatContextId: null,
+  splitChatContextType: null,
+  splitChatFocusedPane: "left" as ChatPaneId,
+
+  splitChat: (contextId, contextType) => {
+    set({
+      splitChatActive: true,
+      splitChatContextId: contextId,
+      splitChatContextType: contextType,
+      splitChatFocusedPane: "right",
+    });
+  },
+
+  closeSplitChat: () => {
+    set({
+      splitChatActive: false,
+      splitChatContextId: null,
+      splitChatContextType: null,
+      splitChatFocusedPane: "left",
+    });
+  },
+
+  setSplitChatFocusedPane: (pane) => set({ splitChatFocusedPane: pane }),
 
   settingsInitialTab: null,
   setSettingsInitialTab: (tab) => set({ settingsInitialTab: tab }),
