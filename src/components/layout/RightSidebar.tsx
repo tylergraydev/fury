@@ -22,6 +22,7 @@ import { SetupPanel } from "../terminal/SetupPanel";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
 import { useMergeStore } from "../../stores/mergeStore";
+import { useTestRunnerStore } from "../../stores/testRunnerStore";
 import { isMac } from "../../lib/keybindings";
 import type { SidebarContext } from "../../App";
 
@@ -177,6 +178,16 @@ export function RightSidebar({ context }: Props) {
     [context.id, context.type],
   );
 
+  const handleRunTestFile = useCallback(
+    (filePath: string) => {
+      useTestRunnerStore
+        .getState()
+        .runTests(context.id, context.type, filePath);
+      useUIStore.getState().openViewTab("tests");
+    },
+    [context.id, context.type],
+  );
+
   const toggleBottomPanel = useCallback(() => {
     const panel = bottomPanelRef.current;
     if (!panel) return;
@@ -245,6 +256,7 @@ export function RightSidebar({ context }: Props) {
                     context={context}
                     onFileClick={handleFileClick}
                     onFileDoubleClick={handleFileDoubleClick}
+                    onRunTestFile={handleRunTestFile}
                   />
                 </ErrorBoundary>
               </div>

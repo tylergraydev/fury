@@ -23,6 +23,7 @@ import { useWorkspaceStore } from "./stores/workspaceStore";
 import { useRepositoryStore } from "./stores/repositoryStore";
 import { useUIStore } from "./stores/uiStore";
 import { useFileViewerStore } from "./stores/fileViewerStore";
+import { useTestRunnerStore } from "./stores/testRunnerStore";
 import { useKeyboardShortcuts } from "./lib/keybindings";
 import { clearSession, getAppSettings } from "./lib/tauri";
 import { useChatStore } from "./stores/chatStore";
@@ -337,6 +338,16 @@ function App() {
       case "view-tests":
         ui.openViewTab("tests");
         break;
+      case "run-tests": {
+        const ws = useWorkspaceStore.getState();
+        const testContextId = ws.activeWorkspaceId ?? ws.activeRepoId;
+        const testContextType = ws.activeWorkspaceId ? "workspace" : "repo";
+        ui.openViewTab("tests");
+        if (testContextId) {
+          useTestRunnerStore.getState().runTests(testContextId, testContextType as "workspace" | "repo");
+        }
+        break;
+      }
       case "view-usage":
         ui.openViewTab("usage");
         break;

@@ -6,6 +6,8 @@ import type {
   TestSuite,
   TestRunnerConfig,
   TestStatus,
+  TestRunRecord,
+  CoverageReport,
 } from "../lib/tauri";
 import {
   runTests as runTestsCmd,
@@ -13,6 +15,10 @@ import {
   getTestRunnerConfig as getConfigCmd,
   detectTestFramework as detectCmd,
   saveTestRunnerConfig as saveConfigCmd,
+  startTestWatch as startWatchCmd,
+  stopTestWatch as stopWatchCmd,
+  listTestHistory as listHistoryCmd,
+  runCoverage as runCoverageCmd,
 } from "../lib/tauri";
 
 type FilterValue = "all" | "failed" | "passed" | "skipped";
@@ -31,9 +37,14 @@ interface TestRunnerStore {
   expandedSuites: Record<string, Set<string>>;
   selectedTest: Record<string, { suite: string; name: string } | null>;
   showOutput: Record<string, boolean>;
+  watchMode: Record<string, boolean>;
+  history: Record<string, TestRunRecord[]>;
+  coverage: Record<string, CoverageReport | null>;
+  coverageRunning: Record<string, boolean>;
 
   // Event subscriptions
   subscriptions: Record<string, UnlistenFn[]>;
+  watchSubscriptions: Record<string, UnlistenFn>;
 
   // Actions
   subscribe: (contextId: string) => Promise<void>;
@@ -56,6 +67,15 @@ interface TestRunnerStore {
   ) => void;
   toggleOutput: (contextId: string) => void;
   clearResults: (contextId: string) => void;
+  toggleWatchMode: (
+    contextId: string,
+    contextType: "workspace" | "repo",
+  ) => Promise<void>;
+  loadHistory: (contextId: string, repoId: string) => Promise<void>;
+  runCoverage: (
+    contextId: string,
+    contextType: "workspace" | "repo",
+  ) => Promise<void>;
 }
 
 export const useTestRunnerStore = create<TestRunnerStore>((set, get) => ({
@@ -69,7 +89,12 @@ export const useTestRunnerStore = create<TestRunnerStore>((set, get) => ({
   expandedSuites: {},
   selectedTest: {},
   showOutput: {},
+  watchMode: {},
+  history: {},
+  coverage: {},
+  coverageRunning: {},
   subscriptions: {},
+  watchSubscriptions: {},
 
   subscribe: async (contextId: string) => {
     if (get().subscriptions[contextId]) return;
@@ -122,6 +147,13 @@ export const useTestRunnerStore = create<TestRunnerStore>((set, get) => ({
             }));
             break;
           }
+          case "coverageResult": {
+            set((state) => ({
+              coverage: { ...state.coverage, [contextId]: payload.report },
+              coverageRunning: { ...state.coverageRunning, [contextId]: false },
+            }));
+            break;
+          }
         }
       },
     );
@@ -141,6 +173,19 @@ export const useTestRunnerStore = create<TestRunnerStore>((set, get) => ({
       set((state) => {
         const { [contextId]: _, ...rest } = state.subscriptions;
         return { subscriptions: rest };
+      });
+    }
+    // Also clean up watch mode if active
+    const watchUnsub = get().watchSubscriptions[contextId];
+    if (watchUnsub) {
+      watchUnsub();
+      stopWatchCmd(contextId).catch(() => {});
+      set((state) => {
+        const { [contextId]: _w, ...restWatch } = state.watchSubscriptions;
+        return {
+          watchSubscriptions: restWatch,
+          watchMode: { ...state.watchMode, [contextId]: false },
+        };
       });
     }
   },
@@ -266,5 +311,81 @@ export const useTestRunnerStore = create<TestRunnerStore>((set, get) => ({
       error: { ...state.error, [contextId]: null },
       selectedTest: { ...state.selectedTest, [contextId]: null },
     }));
+  },
+
+  toggleWatchMode: async (
+    contextId: string,
+    contextType: "workspace" | "repo",
+  ) => {
+    const isActive = get().watchMode[contextId] ?? false;
+
+    if (isActive) {
+      // Disable watch mode
+      const unsub = get().watchSubscriptions[contextId];
+      if (unsub) unsub();
+      await stopWatchCmd(contextId).catch(() => {});
+      set((state) => {
+        const { [contextId]: _w, ...restWatch } = state.watchSubscriptions;
+        return {
+          watchSubscriptions: restWatch,
+          watchMode: { ...state.watchMode, [contextId]: false },
+        };
+      });
+    } else {
+      // Enable watch mode
+      try {
+        await startWatchCmd(contextId, contextType);
+        const unlisten = await listen(
+          `test-watch:${contextId}`,
+          () => {
+            // Only re-run if not already running
+            if (!get().running[contextId]) {
+              get().runTests(contextId, contextType);
+            }
+          },
+        );
+        set((state) => ({
+          watchMode: { ...state.watchMode, [contextId]: true },
+          watchSubscriptions: {
+            ...state.watchSubscriptions,
+            [contextId]: unlisten,
+          },
+        }));
+      } catch (e) {
+        console.error("[testRunnerStore] Failed to start watch mode:", e);
+      }
+    }
+  },
+
+  loadHistory: async (contextId: string, repoId: string) => {
+    try {
+      const records = await listHistoryCmd(repoId, 20);
+      set((state) => ({
+        history: { ...state.history, [contextId]: records },
+      }));
+    } catch (e) {
+      console.error("[testRunnerStore] Failed to load history:", e);
+    }
+  },
+
+  runCoverage: async (
+    contextId: string,
+    contextType: "workspace" | "repo",
+  ) => {
+    set((state) => ({
+      coverageRunning: { ...state.coverageRunning, [contextId]: true },
+      coverage: { ...state.coverage, [contextId]: null },
+    }));
+    try {
+      await runCoverageCmd(contextId, contextType);
+    } catch (e) {
+      set((state) => ({
+        coverageRunning: { ...state.coverageRunning, [contextId]: false },
+        error: {
+          ...state.error,
+          [contextId]: `Coverage failed: ${String(e)}`,
+        },
+      }));
+    }
   },
 }));

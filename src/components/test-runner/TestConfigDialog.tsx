@@ -20,6 +20,9 @@ export function TestConfigDialog({ contextId, repoId, onClose }: Props) {
     config?.testFileCommand ?? "",
   );
   const [workingDir, setWorkingDir] = useState(config?.workingDir ?? "");
+  const [coverageCommand, setCoverageCommand] = useState(
+    config?.coverageCommand ?? "",
+  );
   const [saving, setSaving] = useState(false);
   const [detecting, setDetecting] = useState(false);
 
@@ -29,6 +32,7 @@ export function TestConfigDialog({ contextId, repoId, onClose }: Props) {
       setTestCommand(config.testCommand ?? "");
       setTestFileCommand(config.testFileCommand ?? "");
       setWorkingDir(config.workingDir ?? "");
+      setCoverageCommand(config.coverageCommand ?? "");
     }
   }, [config]);
 
@@ -45,6 +49,7 @@ export function TestConfigDialog({ contextId, repoId, onClose }: Props) {
       testCommand: testCommand || null,
       testFileCommand: testFileCommand || null,
       workingDir: workingDir || null,
+      coverageCommand: coverageCommand || null,
     };
     await useTestRunnerStore.getState().saveConfig(repoId, newConfig);
     await useTestRunnerStore.getState().loadConfig(contextId, repoId);
@@ -189,6 +194,28 @@ export function TestConfigDialog({ contextId, repoId, onClose }: Props) {
               value={workingDir}
               onChange={(e) => setWorkingDir(e.target.value)}
               placeholder="e.g., packages/core"
+              className="rounded px-2 py-1 text-xs outline-none"
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border)",
+              }}
+            />
+          </div>
+
+          {/* Coverage Command */}
+          <div className="flex flex-col gap-1">
+            <label
+              className="text-[10px]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Coverage Command (optional, auto-detected for vitest/jest/pytest)
+            </label>
+            <input
+              type="text"
+              value={coverageCommand}
+              onChange={(e) => setCoverageCommand(e.target.value)}
+              placeholder="e.g., npx vitest --coverage --reporter=json --run"
               className="rounded px-2 py-1 text-xs outline-none"
               style={{
                 backgroundColor: "var(--bg-surface)",

@@ -225,5 +225,26 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
     );
     let _ = conn.execute_batch("ALTER TABLE repositories ADD COLUMN remote_url TEXT;");
 
+    // Coverage command column (idempotent)
+    let _ = conn.execute_batch("ALTER TABLE repository_settings ADD COLUMN coverage_command TEXT;");
+
+    // Test run history table
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS test_run_history (
+            id TEXT PRIMARY KEY,
+            repo_id TEXT NOT NULL,
+            ran_at TEXT NOT NULL DEFAULT (datetime('now')),
+            total INTEGER NOT NULL,
+            passed INTEGER NOT NULL,
+            failed INTEGER NOT NULL,
+            skipped INTEGER NOT NULL,
+            duration_ms REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_test_history_repo ON test_run_history(repo_id, ran_at);
+        ",
+    )
+    .map_err(|e| AppError::DbError(e.to_string()))?;
+
     Ok(())
 }

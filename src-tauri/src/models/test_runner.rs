@@ -20,6 +20,7 @@ pub struct TestRunnerConfig {
     pub test_command: Option<String>,
     pub test_file_command: Option<String>,
     pub working_dir: Option<String>,
+    pub coverage_command: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -74,6 +75,38 @@ pub enum TestRunEvent {
     OutputLine { line: String, stream: String },
     #[serde(rename_all = "camelCase")]
     Error { message: String },
+    #[serde(rename_all = "camelCase")]
+    CoverageResult { report: CoverageReport },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileCoverage {
+    pub file: String,
+    pub lines_pct: f32,
+    pub branches_pct: f32,
+    pub uncovered_lines: Vec<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoverageReport {
+    pub files: Vec<FileCoverage>,
+    pub total_lines_pct: f32,
+    pub total_branches_pct: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TestRunRecord {
+    pub id: String,
+    pub repo_id: String,
+    pub ran_at: String,
+    pub total: usize,
+    pub passed: usize,
+    pub failed: usize,
+    pub skipped: usize,
+    pub duration_ms: f64,
 }
 
 #[cfg(test)]

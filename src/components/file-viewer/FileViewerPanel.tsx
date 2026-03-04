@@ -5,6 +5,8 @@ import { MONACO_THEME, configureMonacoTheme } from "../../lib/monacoTheme";
 import type { FileTab } from "../../stores/fileViewerStore";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
 import { useBookmarkStore } from "../../stores/bookmarkStore";
+import { useTestRunnerStore } from "../../stores/testRunnerStore";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
 import {
   notifyDocumentOpened,
   notifyDocumentChanged,
@@ -118,6 +120,68 @@ export function FileViewerPanel({ tab, repoId }: Props) {
 
     decorationsRef.current = editor.createDecorationsCollection(decorations);
   }, [fileBookmarks]);
+
+  // Apply test failure markers from test runner results
+  useEffect(() => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!editor || !monaco) return;
+
+    const model = editor.getModel();
+    if (!model) return;
+
+    const updateMarkers = () => {
+      const state = useTestRunnerStore.getState();
+      // Find the active context — try workspace first, then use repoId
+      const activeWsId = useWorkspaceStore.getState().activeWorkspaceId;
+      const contextId = activeWsId ?? repoId;
+      if (!contextId) {
+        monaco.editor.setModelMarkers(model, "test-runner", []);
+        return;
+      }
+
+      const suites = state.suites[contextId] ?? [];
+      const markers: Monaco.editor.IMarkerData[] = [];
+
+      for (const suite of suites) {
+        // Match suite name to current file (suite name is a relative path)
+        if (!tab.filePath.endsWith(suite.name)) continue;
+
+        for (const test of suite.tests) {
+          if (test.status !== "failed" || !test.failureMessage) continue;
+
+          // Extract line number from failure message
+          const lineMatch = test.failureMessage.match(/(?:line |:)(\d+)(?::|$)/);
+          const line = lineMatch ? parseInt(lineMatch[1], 10) : 1;
+
+          markers.push({
+            severity: monaco.MarkerSeverity.Error,
+            message: `Test failed: ${test.name}\n${test.failureMessage.slice(0, 200)}`,
+            startLineNumber: line,
+            startColumn: 1,
+            endLineNumber: line,
+            endColumn: model.getLineMaxColumn(line),
+          });
+        }
+      }
+
+      monaco.editor.setModelMarkers(model, "test-runner", markers);
+    };
+
+    updateMarkers();
+
+    const unsub = useTestRunnerStore.subscribe(updateMarkers);
+    return () => {
+      unsub();
+      if (monacoRef.current && editor.getModel()) {
+        monacoRef.current.editor.setModelMarkers(
+          editor.getModel()!,
+          "test-runner",
+          [],
+        );
+      }
+    };
+  }, [tab.filePath, repoId]);
 
   // Handle revealLine from bookmarks panel
   useEffect(() => {

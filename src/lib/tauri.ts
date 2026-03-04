@@ -1776,6 +1776,7 @@ export interface TestRunnerConfig {
   testCommand: string | null;
   testFileCommand: string | null;
   workingDir: string | null;
+  coverageCommand: string | null;
 }
 
 export interface TestResult {
@@ -1806,7 +1807,8 @@ export type TestRunEvent =
   | { type: "suiteUpdate"; suite: TestSuite }
   | { type: "runComplete"; summary: TestRunSummary }
   | { type: "outputLine"; line: string; stream: string }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | { type: "coverageResult"; report: CoverageReport };
 
 // Test runner commands
 export async function detectTestFramework(
@@ -1838,6 +1840,55 @@ export async function runTests(
 
 export async function stopTests(contextId: string): Promise<void> {
   return invoke("stop_tests", { contextId });
+}
+
+export async function startTestWatch(
+  contextId: string,
+  contextType: string,
+): Promise<void> {
+  return invoke("start_test_watch", { contextId, contextType });
+}
+
+export async function stopTestWatch(contextId: string): Promise<void> {
+  return invoke("stop_test_watch", { contextId });
+}
+
+export interface TestRunRecord {
+  id: string;
+  repoId: string;
+  ranAt: string;
+  total: number;
+  passed: number;
+  failed: number;
+  skipped: number;
+  durationMs: number;
+}
+
+export async function listTestHistory(
+  repoId: string,
+  limit?: number,
+): Promise<TestRunRecord[]> {
+  return invoke("list_test_history", { repoId, limit });
+}
+
+export async function runCoverage(
+  contextId: string,
+  contextType: string,
+): Promise<void> {
+  return invoke("run_coverage", { contextId, contextType });
+}
+
+export interface FileCoverage {
+  file: string;
+  linesPct: number;
+  branchesPct: number;
+  uncoveredLines: number[];
+}
+
+export interface CoverageReport {
+  files: FileCoverage[];
+  totalLinesPct: number;
+  totalBranchesPct: number;
 }
 
 // Usage dashboard types

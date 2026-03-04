@@ -27,7 +27,7 @@ pub struct AppState {
     pub workspaces: RwLock<HashMap<Uuid, Workspace>>,
     pub settings: RwLock<AppSettings>,
     pub port_allocator: Mutex<PortAllocator>,
-    pub db: Mutex<Option<Database>>,
+    pub db: Arc<Mutex<Option<Database>>>,
     /// Agent metadata — Arc-wrapped so async tasks can hold a reference
     pub agents: Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
     /// Agent process handles — Arc-wrapped so async tasks can hold a reference
@@ -54,6 +54,8 @@ pub struct AppState {
     pub indexing_status: Arc<Mutex<HashMap<Uuid, IndexingStatus>>>,
     /// Test runner process PIDs — keyed by "test:{context_id}"
     pub test_processes: Arc<Mutex<HashMap<String, u32>>>,
+    /// Test watch mode file watchers — keyed by context_id string
+    pub test_watchers: Arc<Mutex<HashMap<String, DiffWatcherHandle>>>,
 }
 
 impl AppState {
@@ -63,7 +65,7 @@ impl AppState {
             workspaces: RwLock::new(HashMap::new()),
             settings: RwLock::new(AppSettings::default()),
             port_allocator: Mutex::new(PortAllocator::new(10000, 60000)),
-            db: Mutex::new(None),
+            db: Arc::new(Mutex::new(None)),
             agents: Arc::new(Mutex::new(HashMap::new())),
             agent_processes: Arc::new(Mutex::new(HashMap::new())),
             persistent_agents: Arc::new(Mutex::new(HashMap::new())),
@@ -76,6 +78,7 @@ impl AppState {
             perf_metrics: Arc::new(Mutex::new(PerfMetrics::new())),
             indexing_status: Arc::new(Mutex::new(HashMap::new())),
             test_processes: Arc::new(Mutex::new(HashMap::new())),
+            test_watchers: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -102,6 +105,7 @@ mod tests {
         assert!(state.db.lock().unwrap().is_none());
         assert!(state.indexing_status.lock().unwrap().is_empty());
         assert!(state.test_processes.lock().unwrap().is_empty());
+        assert!(state.test_watchers.lock().unwrap().is_empty());
     }
 
     #[test]
