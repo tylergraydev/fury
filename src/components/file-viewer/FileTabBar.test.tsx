@@ -17,6 +17,7 @@ vi.mock("lucide-react", () => ({
   Users: ({ className }: { className?: string }) => <span className={className} data-testid="team-icon" />,
   Columns2: ({ className }: { className?: string }) => <span className={className} data-testid="columns-icon" />,
   BarChart3: ({ className }: { className?: string }) => <span className={className} data-testid="barchart-icon" />,
+  MessageSquare: ({ className }: { className?: string }) => <span className={className} data-testid="message-icon" />,
 }));
 
 import { FileTabBar } from "./FileTabBar";
@@ -430,6 +431,83 @@ describe("FileTabBar", () => {
       render(<FileTabBar />);
       expect(screen.getByText("Usage")).toBeInTheDocument();
       expect(screen.getByTestId("barchart-icon")).toBeInTheDocument();
+    });
+  });
+
+  describe("workspace chat tabs", () => {
+    it("renders workspace-specific chat tabs with label and icon", () => {
+      useUIStore.setState({
+        viewTabs: [
+          { id: "chat", type: "chat", label: "Chat", pinned: true },
+          { id: "chat-ws-1", type: "chat", label: "My Workspace", pinned: true, contextId: "ws-1", contextType: "workspace" },
+        ],
+        activeViewTabId: "chat",
+      });
+      render(<FileTabBar />);
+      expect(screen.getByText("My Workspace")).toBeInTheDocument();
+      expect(screen.getByTestId("message-icon")).toBeInTheDocument();
+    });
+
+    it("workspace chat tab has accent styling when active", () => {
+      useUIStore.setState({
+        viewTabs: [
+          { id: "chat", type: "chat", label: "Chat", pinned: true },
+          { id: "chat-ws-1", type: "chat", label: "My Workspace", pinned: true, contextId: "ws-1", contextType: "workspace" },
+        ],
+        activeViewTabId: "chat-ws-1",
+      });
+      render(<FileTabBar />);
+      const wsTab = screen.getByText("My Workspace").closest("span.flex");
+      expect(wsTab).toHaveStyle({ color: "var(--accent)" });
+    });
+
+    it("clicking workspace chat tab calls showChat and setActiveViewTab", () => {
+      const showChat = vi.fn();
+      const setActiveViewTab = vi.fn();
+      useFileViewerStore.setState({ showChat });
+      useUIStore.setState({
+        viewTabs: [
+          { id: "chat", type: "chat", label: "Chat", pinned: true },
+          { id: "chat-ws-1", type: "chat", label: "My Workspace", pinned: true, contextId: "ws-1", contextType: "workspace" },
+        ],
+        activeViewTabId: "chat",
+        setActiveViewTab,
+      });
+      render(<FileTabBar />);
+      fireEvent.click(screen.getByText("My Workspace"));
+      expect(showChat).toHaveBeenCalled();
+      expect(setActiveViewTab).toHaveBeenCalledWith("chat-ws-1");
+    });
+
+    it("closing workspace chat tab calls closeViewTab", () => {
+      const closeViewTab = vi.fn();
+      useUIStore.setState({
+        viewTabs: [
+          { id: "chat", type: "chat", label: "Chat", pinned: true },
+          { id: "chat-ws-1", type: "chat", label: "My Workspace", pinned: true, contextId: "ws-1", contextType: "workspace" },
+        ],
+        activeViewTabId: "chat",
+        closeViewTab,
+      });
+      render(<FileTabBar />);
+      // Find the close button on the workspace chat tab (first x-icon)
+      const closeButtons = screen.getAllByTestId("x-icon");
+      fireEvent.click(closeButtons[0].closest("button")!);
+      expect(closeViewTab).toHaveBeenCalledWith("chat-ws-1");
+    });
+
+    it("renders multiple workspace chat tabs", () => {
+      useUIStore.setState({
+        viewTabs: [
+          { id: "chat", type: "chat", label: "Chat", pinned: true },
+          { id: "chat-ws-1", type: "chat", label: "Workspace A", pinned: true, contextId: "ws-1", contextType: "workspace" },
+          { id: "chat-ws-2", type: "chat", label: "Workspace B", pinned: true, contextId: "ws-2", contextType: "workspace" },
+        ],
+        activeViewTabId: "chat",
+      });
+      render(<FileTabBar />);
+      expect(screen.getByText("Workspace A")).toBeInTheDocument();
+      expect(screen.getByText("Workspace B")).toBeInTheDocument();
     });
   });
 });

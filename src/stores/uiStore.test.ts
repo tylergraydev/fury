@@ -195,4 +195,79 @@ describe("uiStore - view tabs", () => {
     useUIStore.getState().pinViewTab("settings");
     expect(useUIStore.getState().viewTabs[1].pinned).toBe(true);
   });
+
+  it("openViewTab('chat') activates the default chat tab without creating a new one", () => {
+    useUIStore.getState().openViewTab("settings");
+    expect(useUIStore.getState().activeViewTabId).toBe("settings");
+    useUIStore.getState().openViewTab("chat");
+    expect(useUIStore.getState().activeViewTabId).toBe("chat");
+    expect(useUIStore.getState().viewTabs).toHaveLength(2);
+  });
+});
+
+describe("uiStore - workspace chat tabs", () => {
+  it("openChatTab creates a new tab with contextId", () => {
+    useUIStore.getState().openChatTab("ws-1", "My Workspace", "workspace");
+    const { viewTabs, activeViewTabId } = useUIStore.getState();
+    expect(viewTabs).toHaveLength(2);
+    expect(viewTabs[1]).toMatchObject({
+      id: "chat-ws-1",
+      type: "chat",
+      contextId: "ws-1",
+      contextType: "workspace",
+      label: "My Workspace",
+      pinned: true,
+    });
+    expect(activeViewTabId).toBe("chat-ws-1");
+  });
+
+  it("openChatTab activates existing tab if already open", () => {
+    useUIStore.getState().openChatTab("ws-1", "My Workspace", "workspace");
+    useUIStore.getState().setActiveViewTab("chat");
+    useUIStore.getState().openChatTab("ws-1", "My Workspace", "workspace");
+    expect(useUIStore.getState().viewTabs).toHaveLength(2);
+    expect(useUIStore.getState().activeViewTabId).toBe("chat-ws-1");
+  });
+
+  it("closeViewTab closes a workspace chat tab", () => {
+    useUIStore.getState().openChatTab("ws-1", "My Workspace", "workspace");
+    useUIStore.getState().closeViewTab("chat-ws-1");
+    expect(useUIStore.getState().viewTabs).toHaveLength(1);
+    expect(useUIStore.getState().activeViewTabId).toBe("chat");
+  });
+
+  it("closeViewTab cannot close the default chat tab", () => {
+    useUIStore.getState().closeViewTab("chat");
+    expect(useUIStore.getState().viewTabs).toHaveLength(1);
+  });
+
+  it("closeChatTabsForContext removes tabs for a workspace", () => {
+    useUIStore.getState().openChatTab("ws-1", "My Workspace", "workspace");
+    useUIStore.getState().closeChatTabsForContext("ws-1");
+    expect(useUIStore.getState().viewTabs).toHaveLength(1);
+    expect(useUIStore.getState().activeViewTabId).toBe("chat");
+  });
+
+  it("closeChatTabsForContext falls back to chat when active tab is removed", () => {
+    useUIStore.getState().openChatTab("ws-1", "My Workspace", "workspace");
+    expect(useUIStore.getState().activeViewTabId).toBe("chat-ws-1");
+    useUIStore.getState().closeChatTabsForContext("ws-1");
+    expect(useUIStore.getState().activeViewTabId).toBe("chat");
+  });
+
+  it("closeChatTabsForContext preserves active tab when non-active tab is removed", () => {
+    useUIStore.getState().openChatTab("ws-1", "Workspace A", "workspace");
+    useUIStore.getState().openChatTab("ws-2", "Workspace B", "workspace");
+    expect(useUIStore.getState().activeViewTabId).toBe("chat-ws-2");
+    useUIStore.getState().closeChatTabsForContext("ws-1");
+    expect(useUIStore.getState().activeViewTabId).toBe("chat-ws-2");
+    expect(useUIStore.getState().viewTabs).toHaveLength(2);
+  });
+
+  it("closeChatTabsForContext is a no-op for non-existent context", () => {
+    useUIStore.getState().openChatTab("ws-1", "My Workspace", "workspace");
+    useUIStore.getState().closeChatTabsForContext("ws-999");
+    expect(useUIStore.getState().viewTabs).toHaveLength(2);
+    expect(useUIStore.getState().activeViewTabId).toBe("chat-ws-1");
+  });
 });

@@ -57,12 +57,13 @@ function MainPanel() {
   const activeFileTab = fileTabs.find((t) => t.id === activeTabId) ?? null;
   const splitActive = useFileViewerStore((s) => s.splitActive);
 
-  const contextId = activeWorkspaceId ?? activeRepoId!;
-  const contextType = activeWorkspaceId ? "workspace" : "repo";
   const activeViewTab = viewTabs.find((t) => t.id === activeViewTabId);
   const viewType = activeViewTab?.type ?? "chat";
 
-  const activeWs = workspaces.find((w) => w.id === activeWorkspaceId);
+  const contextId = activeViewTab?.contextId ?? activeWorkspaceId ?? activeRepoId!;
+  const contextType = activeViewTab?.contextType ?? (activeWorkspaceId ? "workspace" : "repo");
+
+  const activeWs = workspaces.find((w) => w.id === (activeViewTab?.contextId ?? activeWorkspaceId));
   const repoId = activeWs?.repoId ?? activeRepoId ?? null;
 
   return (
