@@ -104,6 +104,7 @@ fn build_common_args(
         "--output-format".to_string(),
         "stream-json".to_string(),
         "--verbose".to_string(),
+        "--sandbox".to_string(),
     ];
 
     if !safe_mode {
@@ -1030,6 +1031,7 @@ mod tests {
         assert!(args.contains(&"--output-format".to_string()));
         assert!(args.contains(&"stream-json".to_string()));
         assert!(args.contains(&"--verbose".to_string()));
+        assert!(args.contains(&"--sandbox".to_string()));
         assert!(args.contains(&"--dangerously-skip-permissions".to_string()));
     }
 
