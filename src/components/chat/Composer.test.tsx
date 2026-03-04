@@ -123,9 +123,9 @@ describe("Composer", () => {
     expect(screen.getByTitle("Stop")).toBeInTheDocument();
   });
 
-  it("keeps textarea enabled when agent is running for follow-up messages", () => {
+  it("disables textarea when agent is running", () => {
     render(<Composer {...defaultProps} agentStatus="Running" />);
-    expect(screen.getByRole("textbox")).toBeEnabled();
+    expect(screen.getByRole("textbox")).toBeDisabled();
   });
 
   it("calls onStop when stop button is clicked", async () => {
