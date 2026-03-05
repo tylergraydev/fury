@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { UpdateDialog } from "./UpdateDialog";
 import {
   X,
   Key,
@@ -44,7 +45,6 @@ import type {
 import {
   detectCursorrules,
   importCursorrules,
-  checkForUpdate,
   indexRepository,
   listIndexingStatuses,
 } from "../../lib/tauri";
@@ -2074,8 +2074,7 @@ function ExperimentalTab() {
 }
 
 function UpdatesTab() {
-  const [checking, setChecking] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const [showDialog, setShowDialog] = useState(false);
   const [appVersion, setAppVersion] = useState<string | null>(null);
 
   useEffect(() => {
@@ -2084,25 +2083,6 @@ function UpdatesTab() {
       .then((v) => setAppVersion(v))
       .catch(() => {});
   }, []);
-
-  const checkForUpdates = async () => {
-    setChecking(true);
-    setStatus(null);
-    try {
-      const update = await checkForUpdate();
-      if (update) {
-        setStatus(`Update available: v${update.version}`);
-        await update.downloadAndInstall();
-        setStatus("Update installed. Restart the app to apply.");
-      } else {
-        setStatus("You are on the latest version.");
-      }
-    } catch (e) {
-      setStatus(`Update check failed: ${e}`);
-    } finally {
-      setChecking(false);
-    }
-  };
 
   return (
     <div className="p-4 space-y-4">
@@ -2123,38 +2103,22 @@ function UpdatesTab() {
           <div className="mb-2 text-xs" style={{ color: "var(--text-primary)" }}>
             Current version: v{appVersion ?? "..."}
           </div>
-          {status && (
-            <div
-              className="mb-2 text-xs"
-              style={{
-                color: status.includes("failed")
-                  ? "var(--error)"
-                  : status.includes("latest")
-                    ? "var(--success)"
-                    : "var(--accent)",
-              }}
-            >
-              {status}
-            </div>
-          )}
           <button
-            onClick={checkForUpdates}
-            disabled={checking}
+            onClick={() => setShowDialog(true)}
             className="rounded px-3 py-1.5 text-xs"
             style={{
               backgroundColor: "var(--accent)",
               color: "var(--bg-primary)",
-              opacity: checking ? 0.5 : 1,
             }}
           >
-            {checking ? "Checking..." : "Check for Updates"}
+            Check for Updates
           </button>
         </div>
       </div>
       <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-        Updates are downloaded from GitHub Releases. Configure the updater
-        endpoint in tauri.conf.json.
+        Updates are downloaded from GitHub Releases.
       </div>
+      {showDialog && <UpdateDialog onClose={() => setShowDialog(false)} />}
     </div>
   );
 }

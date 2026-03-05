@@ -13,6 +13,11 @@ vi.mock("../../lib/copilot", () => ({
   disposeCopilotProvider: vi.fn(),
 }));
 
+vi.mock("../../lib/autoUpdate", () => ({
+  checkForAppUpdate: vi.fn().mockResolvedValue(null),
+  getAppVersion: vi.fn().mockResolvedValue("1.4.1"),
+}));
+
 const mockDetectCursorrules = vi.fn().mockResolvedValue(false);
 const mockImportCursorrules = vi.fn().mockResolvedValue({
   rulesFound: true,
@@ -20,7 +25,6 @@ const mockImportCursorrules = vi.fn().mockResolvedValue({
   written: true,
   claudeMdPath: "/repo/CLAUDE.md",
 });
-const mockCheckForUpdate = vi.fn();
 const mockIndexRepository = vi.fn().mockResolvedValue(undefined);
 const mockListIndexingStatuses = vi.fn().mockResolvedValue([]);
 
@@ -55,7 +59,6 @@ vi.mock("../../lib/tauri", () => ({
   listWorkspaces: vi.fn().mockResolvedValue([]),
   listMcpServers: vi.fn().mockResolvedValue([]),
   checkCursorConfig: vi.fn().mockResolvedValue(false),
-  checkForUpdate: (...args: unknown[]) => mockCheckForUpdate(...args),
   indexRepository: (...args: unknown[]) => mockIndexRepository(...args),
   listIndexingStatuses: (...args: unknown[]) => mockListIndexingStatuses(...args),
   getLspCatalog: vi.fn().mockResolvedValue([]),
@@ -105,6 +108,8 @@ vi.mock("lucide-react", () => ({
   Blocks: () => <span data-testid="blocks-icon" />,
   Check: () => <span data-testid="check-icon-lsp" />,
   AlertTriangle: () => <span data-testid="alert-triangle-icon" />,
+  CheckCircle: () => <span data-testid="check-circle-icon" />,
+  RotateCcw: () => <span data-testid="rotate-icon" />,
 }));
 
 const fullSettings = {
@@ -158,7 +163,6 @@ beforeEach(() => {
     written: true,
     claudeMdPath: "/repo/CLAUDE.md",
   });
-  mockCheckForUpdate.mockResolvedValue(null);
   mockIndexRepository.mockResolvedValue(undefined);
   mockListIndexingStatuses.mockResolvedValue([]);
 });
@@ -2251,71 +2255,11 @@ describe("UpdatesTab", () => {
     expect(screen.getByText("Check for Updates")).toBeInTheDocument();
   });
 
-  it("shows Checking... while checking for updates", async () => {
-    let resolverFn: () => void;
-    mockCheckForUpdate.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolverFn = () => resolve(null);
-        }),
-    );
-
+  it("opens update dialog when button is clicked", async () => {
     goToUpdatesTab();
-    await act(async () => {
-      fireEvent.click(screen.getByText("Check for Updates"));
-    });
+    fireEvent.click(screen.getByText("Check for Updates"));
     await waitFor(() => {
-      expect(screen.getByText("Checking...")).toBeInTheDocument();
-    });
-    await act(async () => {
-      resolverFn!();
-    });
-  });
-
-  it("shows latest version message when no update available", async () => {
-    mockCheckForUpdate.mockResolvedValue(null);
-
-    goToUpdatesTab();
-    await act(async () => {
-      fireEvent.click(screen.getByText("Check for Updates"));
-    });
-    await waitFor(() => {
-      expect(
-        screen.getByText("You are on the latest version."),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("shows update available and installs", async () => {
-    const downloadAndInstall = vi.fn().mockResolvedValue(undefined);
-    mockCheckForUpdate.mockResolvedValue({
-      version: "1.0.0",
-      downloadAndInstall,
-    });
-
-    goToUpdatesTab();
-    await act(async () => {
-      fireEvent.click(screen.getByText("Check for Updates"));
-    });
-    await waitFor(() => {
-      expect(
-        screen.getByText("Update installed. Restart the app to apply."),
-      ).toBeInTheDocument();
-    });
-    expect(downloadAndInstall).toHaveBeenCalled();
-  });
-
-  it("shows error when update check fails", async () => {
-    mockCheckForUpdate.mockRejectedValue(new Error("Network error"));
-
-    goToUpdatesTab();
-    await act(async () => {
-      fireEvent.click(screen.getByText("Check for Updates"));
-    });
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Update check failed/),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Software Update")).toBeInTheDocument();
     });
   });
 
