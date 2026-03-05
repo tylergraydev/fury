@@ -32,7 +32,7 @@
       "endpoints": [
         "https://github.com/tylergraydev/fury/releases/latest/download/latest.json"
       ],
-      "pubkey": ""
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY3RkNCOTc4OUQ2ODYyMTUKUldRVlltaWRlTG44WjlhWVg0b0tNTmEvZzBDa0VSSWIwNEUzZmE4S0J6YXN1SEI4ejhtaUN2TlcK"
     }
   },
   "bundle": {

@@ -29,8 +29,6 @@ import { clearSession, getAppSettings } from "./lib/tauri";
 import { useChatStore } from "./stores/chatStore";
 import { useCopilotStore } from "./stores/copilotStore";
 import { ToastContainer } from "./components/Toast";
-import { UpdateBanner } from "./components/UpdateBanner";
-import { useAutoUpdate } from "./lib/autoUpdate";
 import { applyTheme, registerCustomTheme, type ThemeVars } from "./lib/themes";
 import { startIpcFlush, stopIpcFlush } from "./lib/ipcInstrumentation";
 import { startFrameMonitor, stopFrameMonitor } from "./lib/frameMonitor";
@@ -149,7 +147,6 @@ function App() {
   const [paletteMode, setPaletteMode] = useState<PaletteMode>("default");
   const [showSnippets, setShowSnippets] = useState(false);
   const [showExport, setShowExport] = useState(false);
-  const autoUpdate = useAutoUpdate();
   const settingsRef = useRef<{ copilotEnabled?: boolean } | null>(null);
 
   // Apply theme on mount and when it changes
@@ -409,16 +406,6 @@ function App() {
 
     return (
       <div className="h-screen flex flex-col">
-        {autoUpdate.update && (
-          <UpdateBanner
-            version={autoUpdate.update.version}
-            installing={autoUpdate.installing}
-            installed={autoUpdate.installed}
-            error={autoUpdate.error}
-            onInstall={autoUpdate.install}
-            onDismiss={autoUpdate.dismiss}
-          />
-        )}
         <LandingPage onOpenSettings={() => handleAction("open-settings")} />
 
         {showSettingsOverlay && (
@@ -460,16 +447,6 @@ function App() {
 
   return (
     <div className="h-screen flex flex-col">
-      {autoUpdate.update && (
-        <UpdateBanner
-          version={autoUpdate.update.version}
-          installing={autoUpdate.installing}
-          installed={autoUpdate.installed}
-          error={autoUpdate.error}
-          onInstall={autoUpdate.install}
-          onDismiss={autoUpdate.dismiss}
-        />
-      )}
       <PanelGroup direction="horizontal">
         <Panel order={1} defaultSize={20} minSize={12} maxSize={30}>
           <ErrorBoundary label="Sidebar">
