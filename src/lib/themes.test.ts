@@ -49,14 +49,14 @@ describe("applyTheme", () => {
     expect(document.documentElement.style.getPropertyValue("--accent")).toBe("#ffffff");
   });
 
-  it("sets all 17 expected CSS variables", () => {
+  it("sets all 19 expected CSS variables", () => {
     applyTheme("blend");
     const root = document.documentElement;
     const expectedVars = Object.keys(builtInThemes.blend);
     for (const v of expectedVars) {
       expect(root.style.getPropertyValue(v)).toBeTruthy();
     }
-    expect(expectedVars).toHaveLength(17);
+    expect(expectedVars).toHaveLength(19);
   });
 
   it("falls back to blend for unknown theme names", () => {
@@ -142,7 +142,7 @@ describe("custom theme registry", () => {
 });
 
 describe("THEME_VAR_GROUPS", () => {
-  it("covers all 17 CSS variables", () => {
+  it("covers all 19 CSS variables", () => {
     const allVars = THEME_VAR_GROUPS.flatMap((g) => [...g.vars]);
     const expected = Object.keys(builtInThemes.blend);
     expect(allVars.sort()).toEqual(expected.sort());

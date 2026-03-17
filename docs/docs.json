@@ -80,7 +80,8 @@
               "core/linear-integration",
               "core/copilot",
               "core/command-palette",
-              "core/merge-view"
+              "core/merge-view",
+              "core/dev-containers"
             ]
           }
         ]

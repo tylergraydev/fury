@@ -228,9 +228,11 @@ export const usePrStore = create<PrStore>((set, get) => ({
         };
       });
 
-      // Also refresh reviews and workflow runs
-      get().loadReviews(workspaceId);
-      get().loadWorkflowRuns(workspaceId);
+      // Refresh reviews and workflow runs in parallel
+      await Promise.all([
+        get().loadReviews(workspaceId),
+        get().loadWorkflowRuns(workspaceId),
+      ]);
 
       // Stop polling if all checks are completed
       const allDone = checks.every(

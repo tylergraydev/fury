@@ -19,6 +19,8 @@ export interface ThemeVars {
   "--warning": string;
   "--error": string;
   "--composer-border": string;
+  "--overlay": string;
+  "--overlay-heavy": string;
 }
 
 export const THEME_VAR_GROUPS = [
@@ -36,7 +38,7 @@ export const THEME_VAR_GROUPS = [
   },
   {
     label: "Borders & Status",
-    vars: ["--border", "--composer-border", "--success", "--warning", "--error"] as const,
+    vars: ["--border", "--composer-border", "--overlay", "--overlay-heavy", "--success", "--warning", "--error"] as const,
   },
 ] as const;
 
@@ -60,6 +62,8 @@ export const builtInThemes: Record<BuiltInThemeName, ThemeVars> = {
     "--warning": "#facc15",
     "--error": "#f87171",
     "--composer-border": "#8B6E5A",
+    "--overlay": "rgba(0, 0, 0, 0.5)",
+    "--overlay-heavy": "rgba(0, 0, 0, 0.8)",
   },
 
   // Midnight: original Fury pure-black theme
@@ -81,6 +85,8 @@ export const builtInThemes: Record<BuiltInThemeName, ThemeVars> = {
     "--warning": "#facc15",
     "--error": "#f87171",
     "--composer-border": "#8B6E5A",
+    "--overlay": "rgba(0, 0, 0, 0.5)",
+    "--overlay-heavy": "rgba(0, 0, 0, 0.8)",
   },
 
   // GitHub: full GitHub dark theme from Figma
@@ -102,6 +108,8 @@ export const builtInThemes: Record<BuiltInThemeName, ThemeVars> = {
     "--warning": "#facc15",
     "--error": "#f87171",
     "--composer-border": "#8B6E5A",
+    "--overlay": "rgba(0, 0, 0, 0.5)",
+    "--overlay-heavy": "rgba(0, 0, 0, 0.8)",
   },
 };
 

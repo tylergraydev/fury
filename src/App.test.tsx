@@ -306,7 +306,7 @@ describe("App", () => {
       expect(screen.getByTestId("merge-wrapper")).toBeInTheDocument();
     });
 
-    it("shows HistoryView when viewTab is history", () => {
+    it("shows HistoryView when viewTab is history", async () => {
       setWorkspaceContext();
       useUIStore.setState({
         ...useUIStore.getState(),
@@ -317,7 +317,7 @@ describe("App", () => {
         activeViewTabId: "history",
       });
       render(<App />);
-      expect(screen.getByTestId("history-view")).toBeInTheDocument();
+      expect(await screen.findByTestId("history-view")).toBeInTheDocument();
       expect(screen.queryByTestId("chat-panel")).not.toBeInTheDocument();
     });
 

@@ -140,9 +140,9 @@ function QuickActions({
         <div
           className="mb-3 rounded-lg px-3 py-2 text-xs"
           style={{
-            backgroundColor: "rgba(239, 68, 68, 0.1)",
+            backgroundColor: "var(--error-bg)",
             color: "#ef4444",
-            border: "1px solid rgba(239, 68, 68, 0.2)",
+            border: "1px solid var(--error-border)",
           }}
         >
           {error}

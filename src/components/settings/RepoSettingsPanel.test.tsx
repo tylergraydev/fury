@@ -26,7 +26,7 @@ beforeEach(() => {
 describe("RepoSettingsPanel", () => {
   it("renders dialog with repo name in header", async () => {
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
-    expect(screen.getByText("Settings: My Repo")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Settings: My Repo" })).toBeInTheDocument();
   });
 
   it("shows script fields", async () => {
@@ -403,7 +403,7 @@ describe("RepoSettingsPanel", () => {
   it("calls onClose when clicking backdrop overlay", () => {
     const onClose = vi.fn();
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={onClose} />);
-    const backdrop = screen.getByText("Settings: My Repo").closest(".fixed")!;
+    const backdrop = screen.getByRole("dialog", { name: "Settings: My Repo" }).closest(".fixed")!;
     fireEvent.click(backdrop);
     expect(onClose).toHaveBeenCalled();
   });
@@ -411,7 +411,7 @@ describe("RepoSettingsPanel", () => {
   it("does not call onClose when clicking inside the dialog", () => {
     const onClose = vi.fn();
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={onClose} />);
-    fireEvent.click(screen.getByText("Settings: My Repo"));
+    fireEvent.click(screen.getByRole("dialog", { name: "Settings: My Repo" }));
     expect(onClose).not.toHaveBeenCalled();
   });
 

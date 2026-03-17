@@ -47,6 +47,7 @@ export function RepoSettingsPanel({
     envVars: {},
     worktreeBasePath: null,
     providerOverride: null,
+    devcontainer: null,
   });
   const [showProviderKeys, setShowProviderKeys] = useState<Record<string, boolean>>({});
   const [newEnvKey, setNewEnvKey] = useState("");
@@ -96,11 +97,15 @@ export function RepoSettingsPanel({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+      style={{ backgroundColor: "var(--overlay)" }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
+      onKeyDown={(e) => e.key === "Escape" && onClose()}
     >
       <div
-        className="flex w-[500px] max-h-[80vh] flex-col rounded-lg"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Settings: ${repoName}`}
+        className="flex w-[500px] max-w-[90vw] max-h-[80vh] flex-col rounded-lg"
         style={{
           backgroundColor: "var(--bg-primary)",
           border: "1px solid var(--border)",
@@ -112,15 +117,16 @@ export function RepoSettingsPanel({
           style={{ borderBottom: "1px solid var(--border)" }}
         >
           <h2
-            className="text-sm font-semibold"
+            className="text-sm font-semibold min-w-0"
             style={{ color: "var(--text-primary)" }}
           >
-            Settings: {repoName}
+            Settings: <span className="truncate">{repoName}</span>
           </h2>
           <button
             onClick={onClose}
             className="text-sm"
             style={{ color: "var(--text-muted)" }}
+            aria-label="Close settings"
           >
             x
           </button>
@@ -129,7 +135,14 @@ export function RepoSettingsPanel({
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {error && (
-            <div className="text-xs" style={{ color: "var(--error)" }}>
+            <div
+              className="rounded-lg px-3 py-2 text-xs break-words"
+              style={{
+                backgroundColor: "var(--error-bg)",
+                color: "var(--error)",
+                border: "1px solid var(--error-border)",
+              }}
+            >
               {error}
             </div>
           )}
@@ -433,6 +446,121 @@ export function RepoSettingsPanel({
                 )}
               </div>
             )}
+          </div>
+
+          {/* Dev Container */}
+          <div>
+            <label
+              className="mb-1 block text-xs font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Dev Container
+            </label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-primary)" }}>
+                <input
+                  type="checkbox"
+                  checked={settings.devcontainer?.enabled ?? false}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      devcontainer: {
+                        ...(s.devcontainer ?? {
+                          enabled: false,
+                          backend: "devcontainerCli" as const,
+                          agentExecMode: "host" as const,
+                          image: null,
+                          composeFile: null,
+                          composeService: null,
+                          devcontainerPath: null,
+                          containerWorkspacePath: null,
+                          extraDockerArgs: [],
+                          containerEnvVars: {},
+                        }),
+                        enabled: e.target.checked,
+                      },
+                    }))
+                  }
+                />
+                Enable dev container for new workspaces
+              </label>
+              {settings.devcontainer?.enabled && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[11px] w-20" style={{ color: "var(--text-secondary)" }}>Backend</label>
+                    <select
+                      value={settings.devcontainer.backend}
+                      onChange={(e) =>
+                        setSettings((s) => ({
+                          ...s,
+                          devcontainer: s.devcontainer
+                            ? { ...s.devcontainer, backend: e.target.value as "devcontainerCli" | "rawDocker" }
+                            : s.devcontainer,
+                        }))
+                      }
+                      className="rounded px-2 py-1 text-xs flex-1"
+                      style={{
+                        backgroundColor: "var(--bg-surface)",
+                        color: "var(--text-primary)",
+                        border: "1px solid var(--border)",
+                      }}
+                    >
+                      <option value="devcontainerCli">devcontainer CLI</option>
+                      <option value="rawDocker">Raw Docker</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[11px] w-20" style={{ color: "var(--text-secondary)" }}>Agent exec</label>
+                    <select
+                      value={settings.devcontainer.agentExecMode}
+                      onChange={(e) =>
+                        setSettings((s) => ({
+                          ...s,
+                          devcontainer: s.devcontainer
+                            ? { ...s.devcontainer, agentExecMode: e.target.value as "host" | "container" }
+                            : s.devcontainer,
+                        }))
+                      }
+                      className="rounded px-2 py-1 text-xs flex-1"
+                      style={{
+                        backgroundColor: "var(--bg-surface)",
+                        color: "var(--text-primary)",
+                        border: "1px solid var(--border)",
+                      }}
+                    >
+                      <option value="host">Host (default)</option>
+                      <option value="container">Container</option>
+                    </select>
+                  </div>
+                  {settings.devcontainer.devcontainerPath && (
+                    <div className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+                      Detected: {settings.devcontainer.devcontainerPath}
+                    </div>
+                  )}
+                  {settings.devcontainer.backend === "rawDocker" && (
+                    <input
+                      type="text"
+                      placeholder="Docker image (e.g. node:20)"
+                      value={settings.devcontainer.image ?? ""}
+                      onChange={(e) =>
+                        setSettings((s) => ({
+                          ...s,
+                          devcontainer: s.devcontainer
+                            ? { ...s.devcontainer, image: e.target.value || null }
+                            : s.devcontainer,
+                        }))
+                      }
+                      className="w-full rounded px-2 py-1 text-xs"
+                      style={{
+                        backgroundColor: "var(--bg-surface)",
+                        color: "var(--text-primary)",
+                        border: "1px solid var(--border)",
+                      }}
+                    />
+                  )}
+                </>
+              )}
+            </div>
           </div>
 
           {/* Workspace Templates */}

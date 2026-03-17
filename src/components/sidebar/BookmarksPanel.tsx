@@ -160,8 +160,11 @@ export function BookmarksPanel({ context }: Props) {
           {group.bookmarks.map((bm) => (
             <div
               key={bm.id}
+              role="button"
+              tabIndex={0}
               className="group flex cursor-pointer items-center gap-2 px-4 py-1.5 transition-colors hover:bg-[var(--bg-hover)]"
               onClick={() => handleBookmarkClick(bm)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleBookmarkClick(bm); } }}
             >
               <span
                 className="h-2 w-2 flex-shrink-0 rounded-full"
@@ -190,11 +193,12 @@ export function BookmarksPanel({ context }: Props) {
                     e.stopPropagation();
                     handleEdit(bm);
                   }}
-                  className="rounded p-0.5 hover:bg-[var(--bg-surface)]"
+                  className="rounded p-1 hover:bg-[var(--bg-surface)]"
                   title="Edit bookmark"
+                  aria-label="Edit bookmark"
                 >
                   <Pencil
-                    className="h-3 w-3"
+                    className="h-3.5 w-3.5"
                     style={{ color: "var(--text-muted)" }}
                   />
                 </button>
@@ -203,11 +207,12 @@ export function BookmarksPanel({ context }: Props) {
                     e.stopPropagation();
                     handleDelete(bm);
                   }}
-                  className="rounded p-0.5 hover:bg-[var(--bg-surface)]"
+                  className="rounded p-1 hover:bg-[var(--bg-surface)]"
                   title="Delete bookmark"
+                  aria-label="Delete bookmark"
                 >
                   <Trash2
-                    className="h-3 w-3"
+                    className="h-3.5 w-3.5"
                     style={{ color: "var(--error)" }}
                   />
                 </button>

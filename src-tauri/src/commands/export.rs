@@ -166,6 +166,7 @@ mod tests {
             pinned: false,
             created_at: Utc::now(),
             archived_at: None,
+            devcontainer_config: None,
         };
 
         let workspace_config = WorkspaceExportConfig {

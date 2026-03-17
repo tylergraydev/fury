@@ -30,6 +30,8 @@ vi.mock("../../lib/themes", () => ({
       "--warning": "#facc15",
       "--error": "#f87171",
       "--composer-border": "#8B6E5A",
+      "--overlay": "rgba(0, 0, 0, 0.5)",
+      "--overlay-heavy": "rgba(0, 0, 0, 0.8)",
     },
     midnight: {
       "--bg-primary": "#000000",
@@ -49,6 +51,8 @@ vi.mock("../../lib/themes", () => ({
       "--warning": "#facc15",
       "--error": "#f87171",
       "--composer-border": "#8B6E5A",
+      "--overlay": "rgba(0, 0, 0, 0.5)",
+      "--overlay-heavy": "rgba(0, 0, 0, 0.8)",
     },
   },
   applyThemeVars: vi.fn(),
@@ -57,7 +61,7 @@ vi.mock("../../lib/themes", () => ({
     { label: "Backgrounds", vars: ["--bg-primary", "--bg-secondary", "--bg-surface", "--bg-hover"] },
     { label: "Text", vars: ["--text-primary", "--text-secondary", "--text-muted"] },
     { label: "Accents", vars: ["--accent", "--accent-hover", "--accent-green", "--accent-purple", "--accent-orange"] },
-    { label: "Borders & Status", vars: ["--border", "--composer-border", "--success", "--warning", "--error"] },
+    { label: "Borders & Status", vars: ["--border", "--composer-border", "--overlay", "--overlay-heavy", "--success", "--warning", "--error"] },
   ],
 }));
 
@@ -82,6 +86,8 @@ const existingTheme: CustomTheme = {
     "--warning": "#ffff00",
     "--error": "#ff0000",
     "--composer-border": "#666666",
+    "--overlay": "rgba(0, 0, 0, 0.5)",
+    "--overlay-heavy": "rgba(0, 0, 0, 0.8)",
   },
   baseTheme: "blend",
   createdAt: "2026-01-01T00:00:00Z",

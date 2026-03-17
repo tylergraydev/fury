@@ -1,6 +1,7 @@
 pub mod ado;
 pub mod branch;
 pub mod checkpoint;
+pub mod devcontainer;
 pub mod claude_context;
 pub mod claude_process;
 pub mod codex_process;

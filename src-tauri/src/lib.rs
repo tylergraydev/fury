@@ -228,6 +228,13 @@ pub fn run() {
             commands::usage::get_usage_data,
             // Export commands
             commands::export::export_workspace,
+            // Dev container commands
+            commands::devcontainer::start_container,
+            commands::devcontainer::stop_container,
+            commands::devcontainer::rebuild_container,
+            commands::devcontainer::get_container_status,
+            commands::devcontainer::update_devcontainer_config,
+            commands::devcontainer::detect_devcontainer,
         ])
         .setup(|app| {
             let app_data_dir = app

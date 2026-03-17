@@ -167,6 +167,22 @@ pub async fn add_repository(
         state.indexing_status.clone(),
     );
 
+    // Auto-detect devcontainer.json — pre-populate repo settings if found
+    if let Some(dc_path) = crate::services::devcontainer::detect_devcontainer_json(&path) {
+        let db = state.db.lock().unwrap();
+        if let Some(db) = db.as_ref() {
+            let mut settings = db.get_repo_settings(&repo.id).unwrap_or_default();
+            if settings.devcontainer.is_none() {
+                settings.devcontainer = Some(crate::models::devcontainer::DevContainerConfig {
+                    enabled: false,
+                    devcontainer_path: Some(dc_path),
+                    ..Default::default()
+                });
+                let _ = db.upsert_repo_settings(&repo.id, &settings);
+            }
+        }
+    }
+
     Ok(repo)
 }
 

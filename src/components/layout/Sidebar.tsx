@@ -80,7 +80,8 @@ export function Sidebar() {
   };
 
   return (
-    <div
+    <nav
+      aria-label="Worktrees"
       className="flex h-full flex-col"
       style={{ backgroundColor: "var(--bg-secondary)" }}
     >
@@ -104,9 +105,10 @@ export function Sidebar() {
               onClick={() => {
                 useWorkspaceStore.setState({ activeWorkspaceId: null, activeRepoId: null });
               }}
-              className="rounded-md p-1 transition-colors hover:bg-[var(--bg-hover)]"
+              className="rounded-md p-1.5 transition-colors hover:bg-[var(--bg-hover)]"
               style={{ color: "var(--text-muted)" }}
               title="Back to home"
+              aria-label="Back to home"
             >
               <Home className="h-4 w-4" />
             </button>
@@ -118,9 +120,10 @@ export function Sidebar() {
                   setNewWsRepoId(repoId);
                 }
               }}
-              className="rounded-md p-1 transition-colors hover:bg-[var(--bg-hover)]"
+              className="rounded-md p-1.5 transition-colors hover:bg-[var(--bg-hover)]"
               style={{ color: "var(--text-muted)" }}
               title="New worktree"
+              aria-label="New worktree"
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -133,7 +136,7 @@ export function Sidebar() {
         <div
           className="flex items-start gap-2 px-4 py-2 text-xs"
           style={{
-            backgroundColor: "rgba(248, 113, 113, 0.1)",
+            backgroundColor: "var(--error-bg)",
             borderBottom: "1px solid var(--border)",
             color: "var(--error)",
           }}
@@ -183,9 +186,10 @@ export function Sidebar() {
                       e.stopPropagation();
                       setSettingsRepoId(repo.id);
                     }}
-                    className="rounded p-1 transition-colors hover:bg-[var(--bg-hover)]"
+                    className="rounded p-1.5 transition-colors hover:bg-[var(--bg-hover)]"
                     style={{ color: "var(--text-muted)" }}
                     title="Settings"
+                    aria-label="Repository settings"
                   >
                     <Settings className="h-3.5 w-3.5" />
                   </button>
@@ -310,6 +314,7 @@ export function Sidebar() {
             className="flex-shrink-0 rounded-lg p-2 text-sm transition-colors hover:bg-[var(--bg-hover)]"
             style={{ color: "var(--text-muted)" }}
             title="Settings"
+            aria-label="Settings"
           >
             <Settings className="h-4 w-4" />
           </button>
@@ -345,7 +350,7 @@ export function Sidebar() {
           onClose={() => setLinkWs(null)}
         />
       )}
-    </div>
+    </nav>
   );
 }
 
@@ -379,7 +384,10 @@ function RepoBranchItem({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={handleClick}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleClick(); } }}
       className="group mx-3 my-1.5 cursor-pointer rounded-lg px-4 py-3.5 text-left text-sm transition-colors hover:bg-[var(--bg-hover)]"
       style={{
         backgroundColor: isActive ? "var(--bg-surface)" : "transparent",
@@ -484,7 +492,10 @@ function WorkspaceItem({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={handleClick}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleClick(); } }}
       className="group mx-3 my-1.5 cursor-pointer rounded-lg px-4 py-3.5 text-left text-sm transition-colors hover:bg-[var(--bg-hover)]"
       style={{
         backgroundColor: isActive ? "var(--bg-surface)" : "transparent",
@@ -532,9 +543,10 @@ function WorkspaceItem({
               e.stopPropagation();
               onTogglePin();
             }}
-            className="rounded p-1 hover:bg-[var(--bg-surface)]"
+            className="rounded p-1.5 hover:bg-[var(--bg-surface)]"
             style={{ color: pinned ? "var(--accent)" : "var(--text-muted)" }}
             title={pinned ? "Unpin workspace" : "Pin workspace"}
+            aria-label={pinned ? "Unpin workspace" : "Pin workspace"}
           >
             <Pin className="h-3.5 w-3.5" />
           </button>
@@ -543,9 +555,10 @@ function WorkspaceItem({
               e.stopPropagation();
               onOpenChatTab();
             }}
-            className="rounded p-1 hover:bg-[var(--bg-surface)]"
+            className="rounded p-1.5 hover:bg-[var(--bg-surface)]"
             style={{ color: "var(--text-muted)" }}
             title="Open in new chat tab"
+            aria-label="Open in new chat tab"
           >
             <MessageSquare className="h-3.5 w-3.5" />
           </button>
@@ -554,9 +567,10 @@ function WorkspaceItem({
               e.stopPropagation();
               onLink();
             }}
-            className="rounded p-1 hover:bg-[var(--bg-surface)]"
+            className="rounded p-1.5 hover:bg-[var(--bg-surface)]"
             style={{ color: "var(--text-muted)" }}
             title="Link workspaces"
+            aria-label="Link workspaces"
           >
             <Link2 className="h-3.5 w-3.5" />
           </button>
@@ -565,9 +579,10 @@ function WorkspaceItem({
               e.stopPropagation();
               onArchive();
             }}
-            className="rounded p-1 hover:bg-[var(--bg-surface)]"
+            className="rounded p-1.5 hover:bg-[var(--bg-surface)]"
             style={{ color: "var(--text-muted)" }}
             title="Archive worktree"
+            aria-label="Archive worktree"
           >
             <Archive className="h-3.5 w-3.5" />
           </button>
@@ -636,7 +651,7 @@ function ArchivedWorkspaceItem({
       <button
         onClick={handleRestore}
         disabled={restoring}
-        className="hidden flex-shrink-0 items-center gap-1 rounded px-2 py-0.5 text-xs group-hover:flex"
+        className="hidden flex-shrink-0 items-center gap-1 rounded px-2 py-1 text-xs group-hover:flex"
         style={{ color: error ? "var(--error)" : "var(--accent)" }}
       >
         <RotateCcw className="h-3 w-3" />

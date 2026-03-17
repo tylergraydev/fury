@@ -1,5 +1,6 @@
 use crate::db::Database;
 use crate::models::agent::AgentInfo;
+use crate::models::devcontainer::ContainerState;
 use crate::models::mcp::IndexingStatus;
 use crate::models::repository::Repository;
 use crate::models::settings::AppSettings;
@@ -56,6 +57,8 @@ pub struct AppState {
     pub test_processes: Arc<Mutex<HashMap<String, u32>>>,
     /// Test watch mode file watchers — keyed by context_id string
     pub test_watchers: Arc<Mutex<HashMap<String, DiffWatcherHandle>>>,
+    /// Dev container runtime state — keyed by workspace UUID
+    pub container_states: Arc<Mutex<HashMap<Uuid, ContainerState>>>,
 }
 
 impl AppState {
@@ -79,6 +82,7 @@ impl AppState {
             indexing_status: Arc::new(Mutex::new(HashMap::new())),
             test_processes: Arc::new(Mutex::new(HashMap::new())),
             test_watchers: Arc::new(Mutex::new(HashMap::new())),
+            container_states: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -106,6 +110,7 @@ mod tests {
         assert!(state.indexing_status.lock().unwrap().is_empty());
         assert!(state.test_processes.lock().unwrap().is_empty());
         assert!(state.test_watchers.lock().unwrap().is_empty());
+        assert!(state.container_states.lock().unwrap().is_empty());
     }
 
     #[test]

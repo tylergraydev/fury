@@ -252,6 +252,50 @@ pub async fn send_message(
         .filter(|d| d.exists())
         .collect();
 
+    // Resolve container execution context if workspace has container mode enabled
+    let container_ctx = if let Some(workspace_id) = request.workspace_id {
+        let workspaces = state.workspaces.read().unwrap();
+        if let Some(ws) = workspaces.get(&workspace_id) {
+            if let Some(ref config) = ws.devcontainer_config {
+                if config.enabled
+                    && config.agent_exec_mode
+                        == crate::models::devcontainer::AgentExecMode::Container
+                {
+                    let repos = state.repositories.read().unwrap();
+                    let repo_name = repos
+                        .get(&ws.repo_id)
+                        .map(|r| r.name.clone())
+                        .unwrap_or_else(|| "workspace".to_string());
+                    let container_working_dir =
+                        crate::services::devcontainer::resolve_container_workspace_path(
+                            config,
+                            &repo_name,
+                        );
+                    let container_id = {
+                        let states = state.container_states.lock().unwrap();
+                        states
+                            .get(&workspace_id)
+                            .and_then(|cs| cs.container_id.clone())
+                    };
+                    container_id.map(|cid| {
+                        crate::models::devcontainer::ContainerExecContext {
+                            container_id: cid,
+                            container_working_dir,
+                        }
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     match agent_type {
     AgentType::ClaudeCode => {
     if persistent_mode {
@@ -308,6 +352,7 @@ pub async fn send_message(
                 Arc::clone(&state.agents),
                 Arc::clone(&state.persistent_agents),
                 Arc::clone(&state.perf_metrics),
+                container_ctx.clone(),
             )
             .await
             {
@@ -449,6 +494,7 @@ pub async fn send_message(
             app.clone(),
             Arc::clone(&state.agents),
             Arc::clone(&state.perf_metrics),
+            container_ctx.clone(),
         )
         .await
         {
@@ -599,6 +645,7 @@ pub async fn send_message(
             request.model.as_deref(),
             app.clone(),
             Arc::clone(&state.agents),
+            container_ctx,
         )
         .await
         {

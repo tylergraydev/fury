@@ -393,6 +393,10 @@ describe("prStore - refreshChecks", () => {
       { name: "ci", status: "COMPLETED", conclusion: "SUCCESS", detailsUrl: null, description: null },
     ];
     vi.mocked(getPrChecks).mockResolvedValue(checks as any);
+    // Mock loadWorkflowRuns to keep returning in-progress runs
+    vi.mocked(getWorkflowRuns).mockResolvedValue(
+      [{ id: 1, name: "ci", workflowName: "CI", status: "in_progress", conclusion: null, event: "push", createdAt: "" }] as any,
+    );
 
     await usePrStore.getState().refreshChecks("ws-1");
 

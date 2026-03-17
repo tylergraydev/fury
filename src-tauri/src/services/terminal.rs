@@ -71,3 +71,66 @@ pub fn create_session(
 
     Ok((session, reader))
 }
+
+/// Create a new PTY terminal session that executes inside a Docker container.
+/// Uses `docker exec -it` to attach a shell inside the container.
+pub fn create_session_in_container(
+    workspace_id: Uuid,
+    container_id: &str,
+    container_working_dir: &str,
+    env_vars: HashMap<String, String>,
+    cols: u16,
+    rows: u16,
+) -> Result<(TerminalSession, Box<dyn Read + Send>), AppError> {
+    let pty_system = native_pty_system();
+
+    let pair = pty_system
+        .openpty(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| AppError::ScriptError(format!("Failed to open PTY: {}", e)))?;
+
+    let docker_bin = which::which("docker")
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| "docker".to_string());
+
+    let mut cmd = CommandBuilder::new(&docker_bin);
+    cmd.arg("exec");
+    cmd.arg("-it");
+    cmd.arg("-w");
+    cmd.arg(container_working_dir);
+    for (k, v) in &env_vars {
+        cmd.arg("-e");
+        cmd.arg(format!("{}={}", k, v));
+    }
+    cmd.arg(container_id);
+    cmd.arg("/bin/bash");
+
+    let child = pair
+        .slave
+        .spawn_command(cmd)
+        .map_err(|e| AppError::ScriptError(format!("Failed to spawn container shell: {}", e)))?;
+
+    let reader = pair
+        .master
+        .try_clone_reader()
+        .map_err(|e| AppError::ScriptError(format!("Failed to get PTY reader: {}", e)))?;
+
+    let writer = pair
+        .master
+        .take_writer()
+        .map_err(|e| AppError::ScriptError(format!("Failed to get PTY writer: {}", e)))?;
+
+    let session = TerminalSession {
+        id: Uuid::new_v4(),
+        workspace_id,
+        master: pair.master,
+        writer,
+        child,
+    };
+
+    Ok((session, reader))
+}

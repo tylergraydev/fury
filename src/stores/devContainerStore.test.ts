@@ -1,0 +1,228 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { useDevContainerStore } from "./devContainerStore";
+
+vi.mock("../lib/tauri", () => ({
+  getContainerStatus: vi.fn(),
+  startContainer: vi.fn(),
+  stopContainer: vi.fn(),
+  rebuildContainer: vi.fn(),
+  updateDevcontainerConfig: vi.fn(),
+}));
+
+import {
+  getContainerStatus,
+  startContainer,
+  stopContainer,
+  rebuildContainer,
+  updateDevcontainerConfig,
+} from "../lib/tauri";
+
+function makeContainerState(workspaceId: string) {
+  return {
+    workspaceId,
+    status: "running" as const,
+    containerId: "abc123",
+    containerName: "fury-test",
+    logTail: [],
+  };
+}
+
+describe("devContainerStore", () => {
+  beforeEach(() => {
+    useDevContainerStore.setState({
+      containerStates: {},
+      loading: {},
+      error: {},
+    });
+    vi.clearAllMocks();
+  });
+
+  describe("fetchStatus", () => {
+    it("fetches and stores container state", async () => {
+      const state = makeContainerState("ws-1");
+      vi.mocked(getContainerStatus).mockResolvedValue(state);
+
+      await useDevContainerStore.getState().fetchStatus("ws-1");
+
+      expect(getContainerStatus).toHaveBeenCalledWith("ws-1");
+      expect(
+        useDevContainerStore.getState().containerStates["ws-1"],
+      ).toEqual(state);
+    });
+
+    it("stores error on failure", async () => {
+      vi.mocked(getContainerStatus).mockRejectedValue(
+        new Error("fetch failed"),
+      );
+
+      await useDevContainerStore.getState().fetchStatus("ws-1");
+
+      expect(useDevContainerStore.getState().error["ws-1"]).toBe(
+        "fetch failed",
+      );
+    });
+  });
+
+  describe("start", () => {
+    it("starts container and updates state", async () => {
+      const state = makeContainerState("ws-1");
+      vi.mocked(startContainer).mockResolvedValue(state);
+
+      await useDevContainerStore.getState().start("ws-1");
+
+      expect(startContainer).toHaveBeenCalledWith("ws-1");
+      expect(
+        useDevContainerStore.getState().containerStates["ws-1"],
+      ).toEqual(state);
+      expect(useDevContainerStore.getState().loading["ws-1"]).toBe(false);
+    });
+
+    it("sets loading state during start", async () => {
+      let _resolve: (v: ReturnType<typeof makeContainerState>) => void;
+      const promise = new Promise<ReturnType<typeof makeContainerState>>(
+        (r) => {
+          _resolve = r;
+        },
+      );
+      vi.mocked(startContainer).mockImplementation(() => promise);
+
+      const startPromise = useDevContainerStore.getState().start("ws-1");
+
+      expect(useDevContainerStore.getState().loading["ws-1"]).toBe(true);
+
+      _resolve!(makeContainerState("ws-1"));
+      await startPromise;
+
+      expect(useDevContainerStore.getState().loading["ws-1"]).toBe(false);
+    });
+
+    it("stores error on start failure", async () => {
+      vi.mocked(startContainer).mockRejectedValue(
+        new Error("start failed"),
+      );
+
+      await useDevContainerStore.getState().start("ws-1");
+
+      expect(useDevContainerStore.getState().error["ws-1"]).toBe(
+        "start failed",
+      );
+      expect(useDevContainerStore.getState().loading["ws-1"]).toBe(false);
+    });
+  });
+
+  describe("stop", () => {
+    it("stops container and updates status", async () => {
+      useDevContainerStore.setState({
+        containerStates: { "ws-1": makeContainerState("ws-1") },
+      });
+      vi.mocked(stopContainer).mockResolvedValue(undefined);
+
+      await useDevContainerStore.getState().stop("ws-1");
+
+      expect(stopContainer).toHaveBeenCalledWith("ws-1");
+      expect(
+        useDevContainerStore.getState().containerStates["ws-1"]?.status,
+      ).toBe("stopped");
+      expect(useDevContainerStore.getState().loading["ws-1"]).toBe(false);
+    });
+  });
+
+  describe("rebuild", () => {
+    it("rebuilds container and updates state", async () => {
+      const state = makeContainerState("ws-1");
+      vi.mocked(rebuildContainer).mockResolvedValue(state);
+
+      await useDevContainerStore.getState().rebuild("ws-1");
+
+      expect(rebuildContainer).toHaveBeenCalledWith("ws-1");
+      expect(
+        useDevContainerStore.getState().containerStates["ws-1"],
+      ).toEqual(state);
+    });
+  });
+
+  describe("updateConfig", () => {
+    it("calls updateDevcontainerConfig", async () => {
+      vi.mocked(updateDevcontainerConfig).mockResolvedValue(undefined);
+
+      const config = {
+        enabled: true,
+        backend: "devcontainerCli" as const,
+        agentExecMode: "host" as const,
+        image: null,
+        composeFile: null,
+        composeService: null,
+        devcontainerPath: null,
+        containerWorkspacePath: null,
+        extraDockerArgs: [],
+        containerEnvVars: {},
+      };
+
+      await useDevContainerStore.getState().updateConfig("ws-1", config);
+
+      expect(updateDevcontainerConfig).toHaveBeenCalledWith("ws-1", config);
+    });
+
+    it("stores error and re-throws on failure", async () => {
+      vi.mocked(updateDevcontainerConfig).mockRejectedValue(
+        new Error("update failed"),
+      );
+
+      await expect(
+        useDevContainerStore.getState().updateConfig("ws-1", {
+          enabled: true,
+          backend: "devcontainerCli",
+          agentExecMode: "host",
+          image: null,
+          composeFile: null,
+          composeService: null,
+          devcontainerPath: null,
+          containerWorkspacePath: null,
+          extraDockerArgs: [],
+          containerEnvVars: {},
+        }),
+      ).rejects.toThrow("update failed");
+
+      expect(useDevContainerStore.getState().error["ws-1"]).toBe(
+        "update failed",
+      );
+    });
+  });
+
+  describe("handleStatusEvent", () => {
+    it("updates container state from event", () => {
+      useDevContainerStore
+        .getState()
+        .handleStatusEvent("ws-1", "running", "container-abc");
+
+      const state =
+        useDevContainerStore.getState().containerStates["ws-1"];
+      expect(state?.status).toBe("running");
+      expect(state?.containerId).toBe("container-abc");
+    });
+
+    it("preserves existing state fields not in event", () => {
+      useDevContainerStore.setState({
+        containerStates: {
+          "ws-1": {
+            workspaceId: "ws-1",
+            status: "running",
+            containerId: "old-id",
+            containerName: "my-container",
+            logTail: ["line1"],
+          },
+        },
+      });
+
+      useDevContainerStore
+        .getState()
+        .handleStatusEvent("ws-1", "stopped", null);
+
+      const state =
+        useDevContainerStore.getState().containerStates["ws-1"];
+      expect(state?.status).toBe("stopped");
+      expect(state?.containerId).toBe("old-id");
+      expect(state?.containerName).toBe("my-container");
+    });
+  });
+});

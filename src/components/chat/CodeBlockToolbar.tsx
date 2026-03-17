@@ -70,7 +70,7 @@ export function CodeBlockToolbar({
     >
       <button
         onClick={handleCopy}
-        className="flex h-6 w-6 items-center justify-center rounded transition-colors"
+        className="flex h-7 w-7 items-center justify-center rounded transition-colors"
         style={{ color: copied ? "var(--success)" : "var(--text-muted)" }}
         title="Copy code"
       >
@@ -85,7 +85,7 @@ export function CodeBlockToolbar({
         <button
           onClick={handleApply}
           disabled={applyStatus === "applying"}
-          className="flex h-6 items-center gap-1 rounded px-1.5 text-[10px] font-medium transition-colors disabled:opacity-50"
+          className="flex h-7 items-center gap-1 rounded px-1.5 text-[10px] font-medium transition-colors disabled:opacity-50"
           style={{
             color:
               applyStatus === "applied"

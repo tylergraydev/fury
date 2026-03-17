@@ -51,6 +51,9 @@ pub enum AppError {
     #[error("Azure DevOps error: {0}")]
     AzureDevOpsError(String),
 
+    #[error("Container error: {0}")]
+    ContainerError(String),
+
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
 }

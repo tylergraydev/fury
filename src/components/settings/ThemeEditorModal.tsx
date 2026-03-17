@@ -143,11 +143,14 @@ export function ThemeEditorModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+      style={{ backgroundColor: "var(--overlay)" }}
       onClick={(e) => e.target === e.currentTarget && handleCancel()}
     >
       <div
-        className="flex max-h-[85vh] w-[520px] flex-col rounded-lg"
+        className="flex max-h-[85vh] w-[520px] max-w-[90vw] flex-col rounded-lg"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Theme editor"
         style={{
           backgroundColor: "var(--bg-secondary)",
           border: "1px solid var(--border)",

@@ -46,6 +46,7 @@ pub fn merge_settings(db_settings: &RepoSettings, fury_json: Option<&FuryJson>) 
         env_vars: db_settings.env_vars.clone(),
         worktree_base_path: db_settings.worktree_base_path.clone(),
         provider_override: db_settings.provider_override.clone(),
+        devcontainer: db_settings.devcontainer.clone(),
     }
 }
 

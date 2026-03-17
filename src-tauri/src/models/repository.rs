@@ -1,3 +1,4 @@
+use crate::models::devcontainer::DevContainerConfig;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use uuid::Uuid;
@@ -58,6 +59,8 @@ pub struct RepoSettings {
     pub worktree_base_path: Option<String>,
     #[serde(default)]
     pub provider_override: Option<ProviderConfig>,
+    #[serde(default)]
+    pub devcontainer: Option<DevContainerConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

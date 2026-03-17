@@ -232,6 +232,11 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
     let _ =
         conn.execute_batch("ALTER TABLE repository_settings ADD COLUMN provider_override TEXT;");
 
+    // Dev container config columns (idempotent) — stored as JSON TEXT
+    let _ = conn.execute_batch("ALTER TABLE workspaces ADD COLUMN devcontainer_config TEXT;");
+    let _ =
+        conn.execute_batch("ALTER TABLE repository_settings ADD COLUMN devcontainer_config TEXT;");
+
     // Test run history table
     conn.execute_batch(
         "

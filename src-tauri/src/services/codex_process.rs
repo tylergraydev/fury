@@ -116,6 +116,7 @@ fn build_args(
 /// Uses `codex exec --json --full-auto` (one-shot mode). The process exits
 /// after completing the task. Returns a tuple of the child process handle
 /// and its stdin handle.
+#[allow(clippy::too_many_arguments)]
 pub async fn spawn_and_stream(
     workspace_id: Uuid,
     message: &str,
@@ -124,15 +125,35 @@ pub async fn spawn_and_stream(
     model: Option<&str>,
     app_handle: AppHandle,
     agents: Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
+    container_ctx: Option<crate::models::devcontainer::ContainerExecContext>,
 ) -> Result<(Child, ChildStdin), AppError> {
     let codex_bin = find_codex_binary()?;
     let args = build_args(message, model);
 
-    let mut cmd = Command::new(&codex_bin);
-    cmd.args(&args)
-        .current_dir(worktree_path)
-        .envs(&env_vars)
-        .stdin(std::process::Stdio::piped())
+    let mut cmd = if let Some(ref ctx) = container_ctx {
+        let docker_bin = which::which("docker").unwrap_or_else(|_| std::path::PathBuf::from("docker"));
+        let mut docker_args = vec![
+            "exec".to_string(), "-i".to_string(),
+            "-w".to_string(), ctx.container_working_dir.clone(),
+        ];
+        for (key, value) in &env_vars {
+            docker_args.push("-e".to_string());
+            docker_args.push(format!("{}={}", key, value));
+        }
+        docker_args.push(ctx.container_id.clone());
+        docker_args.push(codex_bin.to_string_lossy().to_string());
+        docker_args.extend(args.iter().cloned());
+        let mut c = Command::new(&docker_bin);
+        c.args(&docker_args);
+        c
+    } else {
+        let mut c = Command::new(&codex_bin);
+        c.args(&args)
+            .current_dir(worktree_path)
+            .envs(&env_vars);
+        c
+    };
+    cmd.stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 

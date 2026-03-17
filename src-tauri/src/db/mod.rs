@@ -105,8 +105,8 @@ impl Database {
 
     pub fn insert_workspace(&self, ws: &Workspace) -> Result<(), AppError> {
         self.conn.execute(
-            "INSERT INTO workspaces (id, repo_id, name, branch, worktree_path, status, port_base, sparse_dirs, notes, created_at, auto_commit, pinned)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            "INSERT INTO workspaces (id, repo_id, name, branch, worktree_path, status, port_base, sparse_dirs, notes, created_at, auto_commit, pinned, devcontainer_config)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             rusqlite::params![
                 ws.id.to_string(),
                 ws.repo_id.to_string(),
@@ -120,6 +120,7 @@ impl Database {
                 ws.created_at.to_rfc3339(),
                 ws.auto_commit as i32,
                 ws.pinned as i32,
+                ws.devcontainer_config.as_ref().map(|c| serde_json::to_string(c).unwrap_or_default()),
             ],
         )?;
         Ok(())
@@ -146,7 +147,7 @@ impl Database {
 
     pub fn list_workspaces(&self) -> Result<Vec<Workspace>, AppError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, repo_id, name, branch, worktree_path, status, port_base, sparse_dirs, notes, created_at, archived_at, error_message, auto_commit, pinned
+            "SELECT id, repo_id, name, branch, worktree_path, status, port_base, sparse_dirs, notes, created_at, archived_at, error_message, auto_commit, pinned, devcontainer_config
              FROM workspaces WHERE status != 'archived'",
         )?;
         let workspaces = stmt
@@ -174,6 +175,9 @@ impl Database {
                     archived_at: row
                         .get::<_, Option<String>>(10)?
                         .and_then(|s| s.parse().ok()),
+                    devcontainer_config: row
+                        .get::<_, Option<String>>(14)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                 })
             })?
             .filter_map(|r| r.ok())
@@ -183,7 +187,7 @@ impl Database {
 
     pub fn list_archived_workspaces(&self) -> Result<Vec<Workspace>, AppError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, repo_id, name, branch, worktree_path, status, port_base, sparse_dirs, notes, created_at, archived_at, error_message, auto_commit, pinned
+            "SELECT id, repo_id, name, branch, worktree_path, status, port_base, sparse_dirs, notes, created_at, archived_at, error_message, auto_commit, pinned, devcontainer_config
              FROM workspaces WHERE status = 'archived' ORDER BY archived_at DESC",
         )?;
         let workspaces = stmt
@@ -211,6 +215,9 @@ impl Database {
                     archived_at: row
                         .get::<_, Option<String>>(10)?
                         .and_then(|s| s.parse().ok()),
+                    devcontainer_config: row
+                        .get::<_, Option<String>>(14)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                 })
             })?
             .filter_map(|r| r.ok())
@@ -222,6 +229,19 @@ impl Database {
         self.conn.execute(
             "DELETE FROM workspaces WHERE id = ?1",
             rusqlite::params![id.to_string()],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_workspace_devcontainer_config(
+        &self,
+        id: &Uuid,
+        config: Option<&crate::models::devcontainer::DevContainerConfig>,
+    ) -> Result<(), AppError> {
+        let json = config.map(|c| serde_json::to_string(c).unwrap_or_default());
+        self.conn.execute(
+            "UPDATE workspaces SET devcontainer_config = ?1 WHERE id = ?2",
+            rusqlite::params![json, id.to_string()],
         )?;
         Ok(())
     }
@@ -312,7 +332,7 @@ impl Database {
 
     pub fn get_repo_settings(&self, repo_id: &Uuid) -> Result<RepoSettings, AppError> {
         let mut stmt = self.conn.prepare(
-            "SELECT setup_script, run_script, archive_script, run_script_mode, env_vars, worktree_base_path, provider_override
+            "SELECT setup_script, run_script, archive_script, run_script_mode, env_vars, worktree_base_path, provider_override, devcontainer_config
              FROM repository_settings WHERE repo_id = ?1",
         )?;
         let result = stmt.query_row(rusqlite::params![repo_id.to_string()], |row| {
@@ -330,6 +350,9 @@ impl Database {
                 env_vars: serde_json::from_str(&env_json).unwrap_or_default(),
                 worktree_base_path: row.get(5)?,
                 provider_override: provider_json.and_then(|j| serde_json::from_str(&j).ok()),
+                devcontainer: row
+                    .get::<_, Option<String>>(7)?
+                    .and_then(|s| serde_json::from_str(&s).ok()),
             })
         });
         match result {
@@ -354,6 +377,10 @@ impl Database {
             .as_ref()
             .map(serde_json::to_string)
             .transpose()?;
+        let devcontainer_json = settings
+            .devcontainer
+            .as_ref()
+            .map(|c| serde_json::to_string(c).unwrap_or_default());
         // Use INSERT OR IGNORE + UPDATE to avoid nuking columns managed by other writers
         // (e.g. test_runner columns on the same table).
         self.conn.execute(
@@ -361,7 +388,7 @@ impl Database {
             rusqlite::params![repo_id.to_string()],
         )?;
         self.conn.execute(
-            "UPDATE repository_settings SET setup_script = ?2, run_script = ?3, archive_script = ?4, run_script_mode = ?5, env_vars = ?6, worktree_base_path = ?7, provider_override = ?8 WHERE repo_id = ?1",
+            "UPDATE repository_settings SET setup_script = ?2, run_script = ?3, archive_script = ?4, run_script_mode = ?5, env_vars = ?6, worktree_base_path = ?7, provider_override = ?8, devcontainer_config = ?9 WHERE repo_id = ?1",
             rusqlite::params![
                 repo_id.to_string(),
                 settings.setup_script,
@@ -371,6 +398,7 @@ impl Database {
                 env_json,
                 settings.worktree_base_path,
                 provider_json,
+                devcontainer_json,
             ],
         )?;
         Ok(())

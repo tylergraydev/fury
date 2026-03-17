@@ -210,8 +210,8 @@ describe("FileTabBar", () => {
       activeViewTabId: "chat",
     });
     render(<FileTabBar />);
-    // The tab wrapper span should have accent color when active
-    const tabWrapper = screen.getByText("main.ts").closest("span.flex");
+    // The tab wrapper div should have accent color when active
+    const tabWrapper = screen.getByText("main.ts").closest("[role='tab']");
     expect(tabWrapper).toHaveStyle({ color: "var(--accent)" });
   });
 
@@ -271,9 +271,9 @@ describe("FileTabBar", () => {
       activeViewTabId: "merge-1",
     });
     render(<FileTabBar />);
-    const mergeTab = screen.getByText("Merge").closest("span[class*='flex']");
-    // The parent span should have accent color
-    expect(mergeTab?.closest("span")).toHaveStyle({ color: "var(--accent)" });
+    const mergeTab = screen.getByText("Merge").closest("[role='tab']");
+    // The parent div should have accent color
+    expect(mergeTab).toHaveStyle({ color: "var(--accent)" });
   });
 
   it("renders settings view tab with icon", () => {
@@ -457,7 +457,7 @@ describe("FileTabBar", () => {
         activeViewTabId: "chat-ws-1",
       });
       render(<FileTabBar />);
-      const wsTab = screen.getByText("My Workspace").closest("span.flex");
+      const wsTab = screen.getByText("My Workspace").closest("[role='tab']");
       expect(wsTab).toHaveStyle({ color: "var(--accent)" });
     });
 

@@ -65,6 +65,8 @@ export function FileTabBar() {
 
   return (
     <div
+      role="tablist"
+      aria-label="Open files"
       className="flex items-center gap-0.5 overflow-x-auto px-1 text-xs"
       style={{
         backgroundColor: "var(--bg-secondary)",
@@ -73,6 +75,8 @@ export function FileTabBar() {
     >
       {/* Chat tab — always first */}
       <button
+        role="tab"
+        aria-selected={isChatActive}
         onClick={handleChatClick}
         className="flex-shrink-0 px-3 py-1.5 transition-colors"
         style={{
@@ -89,25 +93,26 @@ export function FileTabBar() {
       {workspaceChatTabs.map((tab) => {
         const isActive = activeViewTabId === tab.id && activeFileTabId === null;
         return (
-          <span
+          <div
             key={tab.id}
-            className="group flex flex-shrink-0 items-center gap-1 py-1.5 pl-3 pr-1 transition-colors"
+            role="tab"
+            aria-selected={isActive}
+            tabIndex={isActive ? 0 : -1}
+            className="group flex flex-shrink-0 cursor-pointer items-center gap-1 py-1.5 pl-3 pr-1 transition-colors"
             style={{
               color: isActive ? "var(--accent)" : "var(--text-muted)",
               borderBottom: isActive
                 ? "2px solid var(--accent)"
                 : "2px solid transparent",
-              cursor: "pointer",
             }}
+            onClick={() => {
+              showChat();
+              setActiveViewTab(tab.id);
+            }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showChat(); setActiveViewTab(tab.id); } }}
           >
             <MessageSquare className="h-3 w-3" />
-            <span
-              className="max-w-[120px] truncate"
-              onClick={() => {
-                showChat();
-                setActiveViewTab(tab.id);
-              }}
-            >
+            <span className="max-w-[120px] truncate">
               {tab.label}
             </span>
             {tab.contextId && tab.contextType && (
@@ -118,11 +123,12 @@ export function FileTabBar() {
                   showChat();
                   setActiveViewTab("chat");
                 }}
-                className="ml-0.5 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-[var(--bg-hover)]"
+                className="ml-0.5 rounded p-1 opacity-0 group-hover:opacity-100 hover:bg-[var(--bg-hover)]"
                 style={{ color: "var(--text-muted)" }}
                 title="Open in split chat view"
+                aria-label="Open in split chat view"
               >
-                <Columns2 className="h-3 w-3" />
+                <Columns2 className="h-3.5 w-3.5" />
               </button>
             )}
             <button
@@ -130,12 +136,13 @@ export function FileTabBar() {
                 e.stopPropagation();
                 closeViewTab(tab.id);
               }}
-              className="ml-0.5 rounded p-0.5 hover:bg-[var(--bg-hover)]"
+              className="ml-0.5 rounded p-1 hover:bg-[var(--bg-hover)]"
               style={{ color: "var(--text-muted)" }}
+              aria-label={`Close ${tab.label}`}
             >
-              <X className="h-3 w-3" />
+              <X className="h-3.5 w-3.5" />
             </button>
-          </span>
+          </div>
         );
       })}
 
@@ -146,16 +153,20 @@ export function FileTabBar() {
           : (viewType === "chat" && activeFileTabId === tab.id);
         const fileName = tab.filePath.split("/").pop()!;
         return (
-          <span
+          <div
             key={tab.id}
-            className="group flex flex-shrink-0 items-center gap-1 py-1.5 pl-3 pr-1 transition-colors"
+            role="tab"
+            aria-selected={isActive}
+            tabIndex={isActive ? 0 : -1}
+            className="group flex flex-shrink-0 cursor-pointer items-center gap-1 py-1.5 pl-3 pr-1 transition-colors"
             style={{
               color: isActive ? "var(--accent)" : "var(--text-muted)",
               borderBottom: isActive
                 ? "2px solid var(--accent)"
                 : "2px solid transparent",
-              cursor: "pointer",
             }}
+            onClick={() => handleFileTabClick(tab.id)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleFileTabClick(tab.id); } }}
           >
             {tab.dirty && (
               <span
@@ -181,7 +192,6 @@ export function FileTabBar() {
               </span>
             )}
             <span
-              onClick={() => handleFileTabClick(tab.id)}
               onDoubleClick={() => pinFileTab(tab.id)}
               style={{ fontStyle: tab.pinned ? "normal" : "italic" }}
             >
@@ -193,17 +203,19 @@ export function FileTabBar() {
                   e.stopPropagation();
                   handleOpenInSplit(tab.id);
                 }}
-                className="ml-0.5 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-[var(--bg-hover)]"
+                className="ml-0.5 rounded p-1 opacity-0 group-hover:opacity-100 hover:bg-[var(--bg-hover)]"
                 style={{ color: "var(--text-muted)" }}
                 title="Open in split view"
+                aria-label="Open in split view"
               >
-                <Columns2 className="h-3 w-3" />
+                <Columns2 className="h-3.5 w-3.5" />
               </button>
             )}
             {tab.saving ? (
               <span
-                className="ml-0.5 p-0.5 text-[10px]"
+                className="ml-0.5 p-1 text-[10px]"
                 style={{ color: "var(--text-muted)" }}
+                aria-label="Saving"
               >
                 ...
               </span>
@@ -213,13 +225,14 @@ export function FileTabBar() {
                   e.stopPropagation();
                   closeFileTab(tab.id);
                 }}
-                className="ml-0.5 rounded p-0.5 hover:bg-[var(--bg-hover)]"
+                className="ml-0.5 rounded p-1 hover:bg-[var(--bg-hover)]"
                 style={{ color: "var(--text-muted)" }}
+                aria-label={`Close ${fileName}`}
               >
-                <X className="h-3 w-3" />
+                <X className="h-3.5 w-3.5" />
               </button>
             )}
-          </span>
+          </div>
         );
       })}
 
@@ -231,6 +244,7 @@ export function FileTabBar() {
             className="flex-shrink-0 rounded p-1 hover:bg-[var(--bg-hover)]"
             style={{ color: "var(--accent)" }}
             title="Close split chat view"
+            aria-label="Close split chat view"
           >
             <Columns2 className="h-3.5 w-3.5" />
           </button>
@@ -248,6 +262,7 @@ export function FileTabBar() {
             className="flex-shrink-0 rounded p-1 hover:bg-[var(--bg-hover)]"
             style={{ color: splitActive ? "var(--accent)" : "var(--text-muted)" }}
             title={splitActive ? "Close split view" : "Split editor"}
+            aria-label={splitActive ? "Close split view" : "Split editor"}
           >
             <Columns2 className="h-3.5 w-3.5" />
           </button>
@@ -259,20 +274,23 @@ export function FileTabBar() {
         const isActive = activeViewTabId === tab.id;
         const Icon = VIEW_ICONS[tab.type];
         return (
-          <span
+          <div
             key={tab.id}
-            className="flex flex-shrink-0 items-center gap-1 py-1.5 pl-3 pr-1 transition-colors"
+            role="tab"
+            aria-selected={isActive}
+            tabIndex={isActive ? 0 : -1}
+            className="flex flex-shrink-0 cursor-pointer items-center gap-1 py-1.5 pl-3 pr-1 transition-colors"
             style={{
               color: isActive ? "var(--accent)" : "var(--text-muted)",
               borderBottom: isActive
                 ? "2px solid var(--accent)"
                 : "2px solid transparent",
-              cursor: "pointer",
             }}
+            onClick={() => setActiveViewTab(tab.id)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setActiveViewTab(tab.id); } }}
           >
             <span
               className="flex items-center gap-1.5"
-              onClick={() => setActiveViewTab(tab.id)}
               onDoubleClick={() => pinViewTab(tab.id)}
               style={{ fontStyle: tab.pinned ? "normal" : "italic" }}
             >
@@ -284,12 +302,13 @@ export function FileTabBar() {
                 e.stopPropagation();
                 closeViewTab(tab.id);
               }}
-              className="ml-0.5 rounded p-0.5 hover:bg-[var(--bg-hover)]"
+              className="ml-0.5 rounded p-1 hover:bg-[var(--bg-hover)]"
               style={{ color: "var(--text-muted)" }}
+              aria-label={`Close ${tab.label}`}
             >
-              <X className="h-3 w-3" />
+              <X className="h-3.5 w-3.5" />
             </button>
-          </span>
+          </div>
         );
       })}
     </div>

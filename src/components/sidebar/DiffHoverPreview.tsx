@@ -90,7 +90,7 @@ export function DiffHoverPreview({
     backgroundColor: "var(--bg-surface)",
     border: "1px solid var(--border)",
     borderRadius: 6,
-    boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+    boxShadow: "0 4px 12px var(--overlay)",
     padding: "8px 0",
     fontSize: 12,
     fontFamily: "var(--font-mono, monospace)",

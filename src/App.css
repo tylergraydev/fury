@@ -28,6 +28,18 @@
   --warning: #facc15;
   --error: #f87171;
   --composer-border: #8B6E5A;
+  --overlay: rgba(0, 0, 0, 0.5);
+  --overlay-heavy: rgba(0, 0, 0, 0.8);
+  --error-bg: rgba(248, 113, 113, 0.1);
+  --error-border: rgba(248, 113, 113, 0.2);
+}
+
+/* Global focus-visible styles for form inputs */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 html,
@@ -159,7 +171,7 @@ body,
 [cmdk-overlay] {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   z-index: 50;
 }
 
@@ -277,14 +289,26 @@ body,
 /* Voice recording indicator pulse */
 @keyframes voice-recording-pulse {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.4);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--error) 40%, transparent);
   }
   50% {
-    box-shadow: 0 0 0 6px rgba(248, 113, 113, 0);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--error) 0%, transparent);
   }
 }
 
 .voice-recording {
   animation: voice-recording-pulse 1.5s ease-in-out infinite;
   border-radius: 6px;
+}
+
+/* Respect reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

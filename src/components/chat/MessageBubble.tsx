@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode } from "react";
+import { memo, useState, useEffect, type ReactNode } from "react";
 import {
   FileText,
   Pencil,
@@ -65,7 +65,7 @@ function AttachmentImage({ path, name }: { path: string; name: string }) {
 
   if (failed) {
     return (
-      <div className="mb-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px]" style={{ backgroundColor: "rgba(0,0,0,0.15)" }}>
+      <div className="mb-2 inline-flex items-center gap-1.5 rounded-md bg-[var(--bg-hover)] px-2 py-1 text-[12px]">
         <ImageIcon className="h-3.5 w-3.5" />
         <span>{name}</span>
       </div>
@@ -74,7 +74,7 @@ function AttachmentImage({ path, name }: { path: string; name: string }) {
 
   if (!dataUrl) {
     return (
-      <div className="mb-2 h-24 w-32 animate-pulse rounded" style={{ backgroundColor: "rgba(0,0,0,0.1)" }} />
+      <div className="mb-2 h-24 w-32 animate-pulse rounded bg-[var(--bg-hover)]" />
     );
   }
 
@@ -374,7 +374,7 @@ function formatToolDetail(normalized: string, input: unknown, result: { content:
           {oldStr && (
             <div>
               <div className="mb-0.5 text-[10px] font-medium" style={{ color: "var(--error)" }}>Removed</div>
-              <pre className="overflow-x-auto rounded px-2 py-1 font-mono text-[11px]" style={{ color: "var(--error)", backgroundColor: "rgba(248, 113, 113, 0.08)" }}>
+              <pre className="overflow-x-auto rounded px-2 py-1 font-mono text-[11px]" style={{ color: "var(--error)", backgroundColor: "color-mix(in srgb, var(--error) 8%, transparent)" }}>
                 {oldStr}
               </pre>
             </div>
@@ -382,7 +382,7 @@ function formatToolDetail(normalized: string, input: unknown, result: { content:
           {newStr && (
             <div>
               <div className="mb-0.5 text-[10px] font-medium" style={{ color: "var(--success)" }}>Added</div>
-              <pre className="overflow-x-auto rounded px-2 py-1 font-mono text-[11px]" style={{ color: "var(--success)", backgroundColor: "rgba(74, 222, 128, 0.08)" }}>
+              <pre className="overflow-x-auto rounded px-2 py-1 font-mono text-[11px]" style={{ color: "var(--success)", backgroundColor: "color-mix(in srgb, var(--success) 8%, transparent)" }}>
                 {newStr}
               </pre>
             </div>
@@ -398,7 +398,7 @@ function formatToolDetail(normalized: string, input: unknown, result: { content:
           {cmd && (
             <div>
               <div className="mb-0.5 text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>Command</div>
-              <pre className="overflow-x-auto rounded px-2 py-1 font-mono text-[11px]" style={{ color: "var(--accent-purple)", backgroundColor: "rgba(210, 168, 255, 0.08)" }}>
+              <pre className="overflow-x-auto rounded px-2 py-1 font-mono text-[11px]" style={{ color: "var(--accent-purple)", backgroundColor: "color-mix(in srgb, var(--accent-purple) 8%, transparent)" }}>
                 $ {cmd}
               </pre>
             </div>
@@ -470,7 +470,7 @@ interface Props {
   contextType?: "workspace" | "repo";
 }
 
-export function MessageBubble({ message, onRetry, contextId, contextType }: Props) {
+export const MessageBubble = memo(function MessageBubble({ message, onRetry, contextId, contextType }: Props) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
   const groups = groupContentBlocks(message.content);
@@ -501,8 +501,7 @@ export function MessageBubble({ message, onRetry, contextId, contextType }: Prop
           {attachments.filter((a) => a.type === "file").map((a, i) => (
             <div
               key={`file-${i}`}
-              className="mb-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px]"
-              style={{ backgroundColor: "rgba(0,0,0,0.15)" }}
+              className="mb-2 inline-flex items-center gap-1.5 rounded-md bg-[var(--bg-hover)] px-2 py-1 text-[12px]"
             >
               <FileText className="h-3.5 w-3.5" />
               <span>{a.name}</span>
@@ -534,7 +533,7 @@ export function MessageBubble({ message, onRetry, contextId, contextType }: Prop
         <div
           className="inline-flex max-w-[80%] items-center gap-2 rounded-lg px-4 py-3 text-[15px]"
           style={{
-            backgroundColor: "rgba(243, 139, 168, 0.1)",
+            backgroundColor: "color-mix(in srgb, var(--error) 10%, transparent)",
             color: "var(--text-primary)",
           }}
         >
@@ -581,7 +580,7 @@ export function MessageBubble({ message, onRetry, contextId, contextType }: Prop
       {message.metadata && <ResponseMetadataRow metadata={message.metadata} />}
     </div>
   );
-}
+});
 
 
 function InlineImageGroup({ blocks }: { blocks: Array<ContentBlock & { type: "image" }> }) {

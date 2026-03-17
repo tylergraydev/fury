@@ -3,6 +3,7 @@ pub mod bookmark;
 pub mod chat;
 pub mod checkpoint;
 pub mod claude_context;
+pub mod devcontainer;
 pub mod copilot;
 pub mod git;
 pub mod linear;

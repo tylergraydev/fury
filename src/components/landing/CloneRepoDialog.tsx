@@ -68,11 +68,14 @@ export function CloneRepoDialog({ onClose }: Props) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+      style={{ backgroundColor: "var(--overlay)" }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="w-[28rem] rounded-xl p-6"
+        className="w-[28rem] max-w-[90vw] rounded-xl p-6"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Clone repository"
         style={{
           backgroundColor: "var(--bg-primary)",
           border: "1px solid var(--border)",
@@ -167,9 +170,9 @@ export function CloneRepoDialog({ onClose }: Props) {
           <div
             className="mb-4 rounded-lg px-3 py-2 text-xs"
             style={{
-              backgroundColor: "rgba(239, 68, 68, 0.1)",
+              backgroundColor: "var(--error-bg)",
               color: "#ef4444",
-              border: "1px solid rgba(239, 68, 68, 0.2)",
+              border: "1px solid var(--error-border)",
             }}
           >
             {error}

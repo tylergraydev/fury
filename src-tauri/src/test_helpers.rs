@@ -48,6 +48,7 @@ pub fn test_workspace(repo_id: Uuid) -> Workspace {
         pinned: false,
         created_at: Utc::now(),
         archived_at: None,
+        devcontainer_config: None,
     }
 }
 

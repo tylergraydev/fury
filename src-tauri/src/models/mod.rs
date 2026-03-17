@@ -2,6 +2,7 @@ pub mod agent;
 pub mod bookmark;
 pub mod chat;
 pub mod checkpoint;
+pub mod devcontainer;
 pub mod diff;
 pub mod export;
 pub mod linear;

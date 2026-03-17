@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Sidebar } from "./components/layout/Sidebar";
 import { TopBar } from "./components/layout/TopBar";
@@ -8,17 +8,19 @@ import { FileTabBar } from "./components/file-viewer/FileTabBar";
 import { FileViewerPanel } from "./components/file-viewer/FileViewerPanel";
 import { AppSettingsPanel } from "./components/settings/AppSettingsPanel";
 import { MergeView, MergeViewWrapper } from "./components/merge/MergeView";
-import { HistoryView } from "./components/history/HistoryView";
 import { CommandPalette, type PaletteMode } from "./components/CommandPalette";
 import { LandingPage } from "./components/landing/LandingPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { DiffPanel } from "./components/diff/DiffPanel";
-import { TeamView } from "./components/team/TeamView";
-import { TestRunnerPanel } from "./components/test-runner/TestRunnerPanel";
 import { SplitEditorLayout } from "./components/file-viewer/SplitEditorLayout";
 import { SplitChatLayout } from "./components/chat/SplitChatLayout";
-import { UsageDashboard } from "./components/usage/UsageDashboard";
-import { ActivityLogView } from "./components/activity-log/ActivityLogView";
+
+// Lazy-loaded view tabs — only fetched when the user navigates to them
+const HistoryView = lazy(() => import("./components/history/HistoryView").then((m) => ({ default: m.HistoryView })));
+const DiffPanel = lazy(() => import("./components/diff/DiffPanel").then((m) => ({ default: m.DiffPanel })));
+const TeamView = lazy(() => import("./components/team/TeamView").then((m) => ({ default: m.TeamView })));
+const TestRunnerPanel = lazy(() => import("./components/test-runner/TestRunnerPanel").then((m) => ({ default: m.TestRunnerPanel })));
+const UsageDashboard = lazy(() => import("./components/usage/UsageDashboard").then((m) => ({ default: m.UsageDashboard })));
+const ActivityLogView = lazy(() => import("./components/activity-log/ActivityLogView").then((m) => ({ default: m.ActivityLogView })));
 import { useWorkspaceStore } from "./stores/workspaceStore";
 import { useRepositoryStore } from "./stores/repositoryStore";
 import { useUIStore } from "./stores/uiStore";
@@ -45,6 +47,10 @@ import "./App.css";
 export type SidebarContext =
   | { type: "workspace"; id: string }
   | { type: "repo"; id: string };
+
+function ViewLoadingFallback() {
+  return <div className="flex h-full items-center justify-center opacity-50">Loading…</div>;
+}
 
 function MainPanel() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
@@ -101,32 +107,44 @@ function MainPanel() {
       )}
       {viewType === "history" && (
         <div className="flex-1 overflow-hidden">
-          <HistoryView />
+          <Suspense fallback={<ViewLoadingFallback />}>
+            <HistoryView />
+          </Suspense>
         </div>
       )}
       {viewType === "diff" && (
         <div className="flex-1 overflow-hidden">
-          <DiffPanel contextId={contextId} />
+          <Suspense fallback={<ViewLoadingFallback />}>
+            <DiffPanel contextId={contextId} />
+          </Suspense>
         </div>
       )}
       {viewType === "team" && (
         <div className="flex-1 overflow-hidden">
-          <TeamView />
+          <Suspense fallback={<ViewLoadingFallback />}>
+            <TeamView />
+          </Suspense>
         </div>
       )}
       {viewType === "tests" && (
         <div className="flex-1 overflow-hidden">
-          <TestRunnerPanel contextId={contextId} contextType={contextType} />
+          <Suspense fallback={<ViewLoadingFallback />}>
+            <TestRunnerPanel contextId={contextId} contextType={contextType} />
+          </Suspense>
         </div>
       )}
       {viewType === "usage" && (
         <div className="flex-1 overflow-hidden">
-          <UsageDashboard />
+          <Suspense fallback={<ViewLoadingFallback />}>
+            <UsageDashboard />
+          </Suspense>
         </div>
       )}
       {viewType === "activity" && (
         <div className="flex-1 overflow-hidden">
-          <ActivityLogView />
+          <Suspense fallback={<ViewLoadingFallback />}>
+            <ActivityLogView />
+          </Suspense>
         </div>
       )}
     </div>
@@ -456,7 +474,7 @@ function App() {
         <PanelResizeHandle className="resize-handle-h" />
 
         <Panel order={2} defaultSize={showRightSidebar ? 55 : 80} minSize={30}>
-          <div className="flex h-full flex-col">
+          <main className="flex h-full flex-col">
             <TopBar activeWs={activeWs} activeRepo={activeRepo} />
             <FileTabBar />
             <div className="flex-1 overflow-hidden">
@@ -464,7 +482,7 @@ function App() {
                 <MainPanel />
               </ErrorBoundary>
             </div>
-          </div>
+          </main>
         </Panel>
 
         {showRightSidebar && sidebarContext && (

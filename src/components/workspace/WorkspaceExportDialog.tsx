@@ -57,11 +57,14 @@ export function WorkspaceExportDialog({ workspaceId, onClose }: Props) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+      style={{ backgroundColor: "var(--overlay)" }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="flex w-[480px] flex-col rounded-lg"
+        className="flex w-[480px] max-w-[90vw] flex-col rounded-lg"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Export workspace"
         style={{
           backgroundColor: "var(--bg-primary)",
           border: "1px solid var(--border)",
@@ -119,7 +122,7 @@ export function WorkspaceExportDialog({ workspaceId, onClose }: Props) {
                 />
                 <div
                   className="flex items-start gap-1.5 rounded px-2 py-1.5"
-                  style={{ backgroundColor: "rgba(234, 179, 8, 0.1)" }}
+                  style={{ backgroundColor: "color-mix(in srgb, var(--warning) 10%, transparent)" }}
                 >
                   <AlertTriangle
                     size={12}

@@ -36,6 +36,7 @@ Fury lets you manage repositories, workspaces, and AI agent conversations in one
 - **Diff Viewer** — Review code changes with inline diffs
 - **Merge View** — Sync branches, resolve conflicts, and compare linked workspaces
 - **Integrated Terminal** — Setup, run, and shell terminals powered by xterm
+- **Dev Containers** — Run agents, terminals, and scripts inside Docker containers with devcontainer CLI or raw Docker support
 - **Scripts** — Configure setup, run, and archive scripts per repository
 - **conductor.json** — Commit team-wide scripts and configuration to your repo
 - **Todos** — Per-workspace task tracking, injectable into chat via `@todos`

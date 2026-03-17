@@ -107,9 +107,7 @@ pub enum ContentBlockEvent {
         content: serde_json::Value,
     },
     #[serde(rename = "image")]
-    Image {
-        source: serde_json::Value,
-    },
+    Image { source: serde_json::Value },
 }
 
 /// Lightweight event emitted to the frontend via Tauri events.

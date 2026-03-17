@@ -131,3 +131,97 @@ pub async fn spawn_script(
 
     Ok(child)
 }
+
+/// Spawn a script inside a Docker container and stream output via Tauri events.
+#[allow(dead_code)]
+pub async fn spawn_script_in_container(
+    context_id: Uuid,
+    kind: ScriptKind,
+    script_body: &str,
+    container_id: &str,
+    container_working_dir: &str,
+    env_vars: HashMap<String, String>,
+    app_handle: AppHandle,
+) -> Result<Child, AppError> {
+    let docker_bin = which::which("docker")
+        .map_err(|_| AppError::ContainerError("Docker not found in PATH".to_string()))?;
+
+    let mut args = vec![
+        "exec".to_string(),
+        "-i".to_string(),
+        "-w".to_string(),
+        container_working_dir.to_string(),
+    ];
+    for (key, value) in &env_vars {
+        args.push("-e".to_string());
+        args.push(format!("{}={}", key, value));
+    }
+    args.push(container_id.to_string());
+    args.push("/bin/sh".to_string());
+    args.push("-c".to_string());
+    args.push(script_body.to_string());
+
+    let mut cmd = Command::new(&docker_bin);
+    cmd.args(&args)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(|| {
+            libc::setpgid(0, 0);
+            Ok(())
+        });
+    }
+
+    #[cfg(windows)]
+    cmd.creation_flags(0x08000200);
+
+    let mut child = cmd.spawn().map_err(|e| {
+        AppError::ScriptError(format!(
+            "Failed to spawn {} script in container: {}",
+            kind.as_str(),
+            e
+        ))
+    })?;
+
+    let event_name = format!("script-output:{}:{}", kind.as_str(), context_id);
+
+    if let Some(stdout) = child.stdout.take() {
+        let app_out = app_handle.clone();
+        let event_out = event_name.clone();
+        tokio::spawn(async move {
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = app_out.emit(
+                    &event_out,
+                    &ScriptOutputEvent {
+                        line,
+                        stream: "stdout".to_string(),
+                    },
+                );
+            }
+        });
+    }
+
+    if let Some(stderr) = child.stderr.take() {
+        let app_err = app_handle.clone();
+        let event_err = event_name;
+        tokio::spawn(async move {
+            let reader = BufReader::new(stderr);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = app_err.emit(
+                    &event_err,
+                    &ScriptOutputEvent {
+                        line,
+                        stream: "stderr".to_string(),
+                    },
+                );
+            }
+        });
+    }
+
+    Ok(child)
+}

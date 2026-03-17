@@ -84,11 +84,14 @@ export function IssuePicker({ workspaceId, onClose }: Props) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+      style={{ backgroundColor: "var(--overlay)" }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="w-[28rem] rounded-xl p-6"
+        className="w-[28rem] max-w-[90vw] rounded-xl p-6"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Pick issue"
         style={{
           backgroundColor: "var(--bg-primary)",
           border: "1px solid var(--border)",

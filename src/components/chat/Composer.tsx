@@ -103,7 +103,7 @@ function ActionBarButton({ onClick, icon: Icon, label, color, bgColor, showShort
       <Icon className="h-3.5 w-3.5" />
       {label}
       {showShortcut && (
-        <kbd className="ml-1 rounded px-1 py-0.5 text-[9px] font-normal" style={{ backgroundColor: "rgba(0,0,0,0.2)", color: "inherit" }}>
+        <kbd className="ml-1 rounded bg-[var(--bg-hover)] px-1 py-0.5 text-[9px] font-normal" style={{ color: "inherit" }}>
           ⌘⇧↵
         </kbd>
       )}
@@ -924,7 +924,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
         <ActionBar
           icon={<ShieldCheck className="h-4 w-4 flex-shrink-0" style={{ color: "var(--warning)" }} />}
           description={<>Allow <strong style={{ color: "var(--text-primary)" }}>{permissionRequest.toolName}</strong>?</>}
-          bgStyle={{ backgroundColor: "rgba(250, 179, 64, 0.08)", border: "1px solid rgba(250, 179, 64, 0.3)" }}
+          bgStyle={{ backgroundColor: "color-mix(in srgb, var(--warning) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--warning) 30%, transparent)" }}
           secondaryActions={onRespondToPermission && (
             <ActionBarButton onClick={() => onRespondToPermission(false)} icon={ShieldX} label="Deny" color="var(--error)" />
           )}

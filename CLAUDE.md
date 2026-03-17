@@ -42,13 +42,13 @@ All frontend-to-backend communication goes through Tauri's `invoke`. The IPC lay
 
 1. **`src/lib/tauri.ts`** — 100+ typed wrapper functions (e.g., `createWorkspace()`, `getDiff()`)
 2. **`src/lib/ipcInstrumentation.ts`** — wraps every invoke call with perf metrics, batched every 2 seconds
-3. **`src-tauri/src/commands/`** — 26 Rust command modules registered via `tauri::generate_handler!` in `lib.rs`
+3. **`src-tauri/src/commands/`** — 27 Rust command modules registered via `tauri::generate_handler!` in `lib.rs`
 
 Backend → frontend streaming uses Tauri events: `listen("agent-stream:${workspaceId}", handler)`.
 
 ### Frontend (src/)
 
-**Stores** (`src/stores/`) — 27 Zustand stores. Use individual selectors to prevent re-renders:
+**Stores** (`src/stores/`) — 28 Zustand stores. Use individual selectors to prevent re-renders:
 ```typescript
 // Correct
 const activeId = useWorkspaceStore((s) => s.activeWorkspaceId);
@@ -59,7 +59,7 @@ const { activeWorkspaceId } = useWorkspaceStore();
 **Layout** (`App.tsx`) — Three resizable panels: Sidebar | MainPanel | RightSidebar. Uses `react-resizable-panels`. Mount-phase IPC deferral via double-`requestAnimationFrame` prevents freezes during heavy transitions.
 
 **Key directories:**
-- `src/components/` — Feature-organized: `chat/`, `file-viewer/`, `merge/`, `diff/`, `pr/`, `terminal/`, `settings/`, etc.
+- `src/components/` — Feature-organized: `chat/`, `file-viewer/`, `merge/`, `diff/`, `pr/`, `terminal/`, `settings/`, `devcontainer/`, etc.
 - `src/lib/` — Utilities including `tauri.ts` (IPC), `themes.ts`, `keybindings.ts`, `copilot.ts`, `monacoSetup.ts`
 - `src/hooks/` — `useAutoUpdate.ts`, `useVoiceInput.ts`
 
@@ -67,13 +67,15 @@ const { activeWorkspaceId } = useWorkspaceStore();
 
 **Structure:**
 - `commands/` — Tauri command handlers (thin layer, delegates to services)
-- `services/` — Business logic: `claude_process.rs`, `codex_process.rs`, `gh.rs`, `diff.rs`, `copilot_lsp.rs`, `branch.rs`, etc.
+- `services/` — Business logic: `claude_process.rs`, `codex_process.rs`, `devcontainer.rs`, `gh.rs`, `diff.rs`, `copilot_lsp.rs`, `branch.rs`, etc.
 - `models/` — Serde-serializable types shared with frontend
 - `state/app_state.rs` — Singleton `AppState` with `Mutex<HashMap<Uuid, T>>` for runtime state
 - `db/` — SQLite (rusqlite) with WAL mode, versioned migrations in `db/migrations/`
 - `error.rs` — `AppError` enum using `thiserror`, implements `Serialize` for Tauri
 
-**Mutex lock order:** Always lock workspaces before repositories. Release locks before running git commands (clone data, drop lock, then execute).
+**Dev containers** (`services/devcontainer.rs`, `commands/devcontainer.rs`): Container lifecycle management via `docker`/`devcontainer` CLIs. Agent, terminal, and script spawning checks `workspace.devcontainer_config` to optionally wrap execution in `docker exec`. Frontend store: `src/stores/devContainerStore.ts`. Events: `container-status:{wsId}`, `container-log:{wsId}`.
+
+**Mutex lock order:** Always lock workspaces before repositories before container_states. Release locks before running git commands (clone data, drop lock, then execute).
 
 ### Testing
 
@@ -105,3 +107,29 @@ If any test fails, fix it before committing. Do not push code that has not passe
 - **`@typescript-eslint/no-explicit-any`**: Allowed in test files only
 - **Branch naming**: `tylergraydev/*`
 - **Tailwind CSS 4**: Styles via utility classes, custom theme via CSS variables in `src/lib/themes.ts`
+
+## Design Context
+
+### Users
+Solo developers managing AI-assisted coding workflows. Technical, comfortable with CLI tools, expecting a desktop app that keeps pace with how fast they think and work.
+
+### Brand Personality
+**Fast, sharp, powerful.** A high-performance instrument, not a friendly assistant. Precision tool that amplifies developer capabilities.
+
+### Aesthetic Direction
+- **Visual tone:** Dark, dense, developer-native. Pure black foundations with controlled blue accent and semantic colors.
+- **References:** Cursor, Windsurf — AI-native code editors with clean dark UI.
+- **Anti-references:** No generic SaaS (pastel cards, illustrations), no retro terminal gimmicks, no Electron bloat (heavy chrome, loading spinners).
+- **Theme:** Dark-mode only. Three built-in themes + custom theme support via CSS variables.
+
+### Design Principles
+1. **Density over decoration** — Maximize useful information per pixel. Avoid padding bloat or decorative whitespace.
+2. **Instant feedback** — Optimistic UI, subtle transitions (150ms max), avoid loading states where possible.
+3. **Keyboard-first** — Design for keyboard navigation and command palette workflows.
+4. **Contrast through restraint** — Color is reserved for status, accents, and actionable elements — never decoration.
+5. **Respect the craft** — Alignment, consistent spacing, sharp borders, and predictable behavior over animation or flair.
+
+### Accessibility
+- WCAG AA compliance target for contrast ratios and focus management
+- Semantic HTML, keyboard navigation, screen reader support
+- Respect `prefers-reduced-motion`

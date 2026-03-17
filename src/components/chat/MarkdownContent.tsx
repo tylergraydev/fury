@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode, useMemo, useState } from "react";
+import { Component, type ErrorInfo, memo, type ReactNode, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
@@ -211,7 +211,7 @@ function buildComponents(
   };
 }
 
-export function MarkdownContent({ content, contextId, contextType }: Props) {
+export const MarkdownContent = memo(function MarkdownContent({ content, contextId, contextType }: Props) {
   const components = useMemo(
     () => buildComponents(content, contextId, contextType),
     [content, contextId, contextType],
@@ -230,4 +230,4 @@ export function MarkdownContent({ content, contextId, contextType }: Props) {
       </div>
     </MarkdownErrorBoundary>
   );
-}
+});

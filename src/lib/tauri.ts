@@ -23,6 +23,7 @@ export interface WorkspaceInfo {
   pinned: boolean;
   createdAt: string;
   archivedAt: string | null;
+  devcontainerConfig?: DevContainerConfig | null;
 }
 
 export type WorkspaceStatus =
@@ -39,6 +40,7 @@ export interface CreateWorkspaceRequest {
   baseBranch?: string;
   autoCommit?: boolean;
   fetchRemoteBranch?: boolean;
+  devcontainerConfig?: DevContainerConfig;
 }
 
 // Repository commands
@@ -519,6 +521,7 @@ export interface RepoSettings {
   envVars: Record<string, string>;
   worktreeBasePath: string | null;
   providerOverride: ProviderConfig | null;
+  devcontainer?: DevContainerConfig | null;
 }
 
 // Script commands
@@ -1921,4 +1924,81 @@ export async function exportWorkspace(
   options: ExportOptions,
 ): Promise<string> {
   return invoke<string>("export_workspace", { options });
+}
+
+// Dev Container types
+
+export type ContainerBackend = "devcontainerCli" | "rawDocker";
+
+export type AgentExecMode = "host" | "container";
+
+export type ContainerStatus =
+  | "none"
+  | "building"
+  | "running"
+  | "stopped"
+  | { error: string };
+
+export interface DevContainerConfig {
+  enabled: boolean;
+  backend: ContainerBackend;
+  agentExecMode: AgentExecMode;
+  image: string | null;
+  composeFile: string | null;
+  composeService: string | null;
+  devcontainerPath: string | null;
+  containerWorkspacePath: string | null;
+  extraDockerArgs: string[];
+  containerEnvVars: Record<string, string>;
+}
+
+export interface ContainerState {
+  workspaceId: string;
+  status: ContainerStatus;
+  containerId: string | null;
+  containerName: string | null;
+  logTail: string[];
+}
+
+export interface ContainerStatusEvent {
+  workspaceId: string;
+  status: ContainerStatus;
+  containerId: string | null;
+}
+
+// Dev Container commands
+
+export async function startContainer(
+  workspaceId: string,
+): Promise<ContainerState> {
+  return invoke<ContainerState>("start_container", { workspaceId });
+}
+
+export async function stopContainer(workspaceId: string): Promise<void> {
+  return invoke("stop_container", { workspaceId });
+}
+
+export async function rebuildContainer(
+  workspaceId: string,
+): Promise<ContainerState> {
+  return invoke<ContainerState>("rebuild_container", { workspaceId });
+}
+
+export async function getContainerStatus(
+  workspaceId: string,
+): Promise<ContainerState> {
+  return invoke<ContainerState>("get_container_status", { workspaceId });
+}
+
+export async function updateDevcontainerConfig(
+  workspaceId: string,
+  config: DevContainerConfig,
+): Promise<void> {
+  return invoke("update_devcontainer_config", { workspaceId, config });
+}
+
+export async function detectDevcontainer(
+  repoId: string,
+): Promise<string | null> {
+  return invoke<string | null>("detect_devcontainer", { repoId });
 }

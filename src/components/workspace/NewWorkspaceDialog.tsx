@@ -292,11 +292,14 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+      style={{ backgroundColor: "var(--overlay)" }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="w-[28rem] rounded-xl p-6"
+        className="w-[28rem] max-w-[90vw] rounded-xl p-6"
+        role="dialog"
+        aria-modal="true"
+        aria-label="New workspace"
         style={{
           backgroundColor: "var(--bg-primary)",
           border: "1px solid var(--border)",
@@ -859,7 +862,7 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
           <div
             className="mb-4 rounded-lg p-3 text-xs"
             style={{
-              backgroundColor: "rgba(243, 139, 168, 0.1)",
+              backgroundColor: "color-mix(in srgb, var(--error) 10%, transparent)",
               color: "var(--error)",
             }}
           >

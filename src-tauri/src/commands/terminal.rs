@@ -24,7 +24,7 @@ pub async fn create_terminal(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     // Look up workspace and repo for env vars and working dir
-    let (worktree_path, env_vars) = {
+    let (worktree_path, env_vars, container_info) = {
         let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
@@ -39,12 +39,45 @@ pub async fn create_terminal(
         let repo_settings = crate::commands::script::resolve_settings(&state, &ws.repo_id).ok();
         let provider_override = repo_settings.as_ref().and_then(|s| s.provider_override.as_ref());
         let env = claude_process::build_env_vars(&ws, &repo, &app_settings, provider_override);
-        (ws.worktree_path.clone(), env)
+
+        // Check if workspace has container config enabled
+        let container_info = if let Some(ref config) = ws.devcontainer_config {
+            if config.enabled {
+                let container_working_dir =
+                    crate::services::devcontainer::resolve_container_workspace_path(
+                        config,
+                        &repo.name,
+                    );
+                let container_id = {
+                    let states = state.container_states.lock().unwrap();
+                    states
+                        .get(&ws_id)
+                        .and_then(|cs| cs.container_id.clone())
+                };
+                container_id.map(|cid| (cid, container_working_dir))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        (ws.worktree_path.clone(), env, container_info)
     };
 
-    // Create PTY session
-    let (session, reader) =
-        terminal::create_session(ws_id, &worktree_path, env_vars, cols, rows)?;
+    // Create PTY session — inside container or on host
+    let (session, reader) = if let Some((container_id, container_working_dir)) = container_info {
+        terminal::create_session_in_container(
+            ws_id,
+            &container_id,
+            &container_working_dir,
+            env_vars,
+            cols,
+            rows,
+        )?
+    } else {
+        terminal::create_session(ws_id, &worktree_path, env_vars, cols, rows)?
+    };
 
     let terminal_id = session.id;
     let terminal_id_str = terminal_id.to_string();

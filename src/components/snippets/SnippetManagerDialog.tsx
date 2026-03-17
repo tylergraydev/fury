@@ -177,11 +177,14 @@ export function SnippetManagerDialog({ onClose, onInsert }: Props) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+      style={{ backgroundColor: "var(--overlay)" }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="flex w-[640px] max-h-[80vh] flex-col rounded-lg"
+        className="flex w-[640px] max-w-[90vw] max-h-[80vh] flex-col rounded-lg"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Snippet manager"
         style={{
           backgroundColor: "var(--bg-primary)",
           border: "1px solid var(--border)",

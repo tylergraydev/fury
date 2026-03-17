@@ -116,7 +116,7 @@ export function ChatSearch({ contextId, onClose, onNavigate }: Props) {
         />
         <button
           onClick={onClose}
-          className="rounded p-0.5 transition-colors hover:bg-[var(--bg-hover)]"
+          className="rounded p-1.5 transition-colors hover:bg-[var(--bg-hover)]"
           style={{ color: "var(--text-muted)" }}
           title="Close"
         >

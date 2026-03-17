@@ -199,7 +199,8 @@ export function RightSidebar({ context }: Props) {
   }, [bottomCollapsed]);
 
   return (
-    <div
+    <aside
+      aria-label="Context panels"
       className="flex h-full flex-col"
       style={{ backgroundColor: "var(--bg-secondary)" }}
     >
@@ -217,7 +218,7 @@ export function RightSidebar({ context }: Props) {
                 paddingTop: isMac ? 42 : 10,
               }}
             >
-              <div className="flex min-w-0 flex-1 items-end overflow-x-auto scrollbar-hide">
+              <div role="tablist" aria-label="Panel tabs" className="flex min-w-0 flex-1 items-end overflow-x-auto scrollbar-hide">
                 {tabs.map((tab) => {
                   const isActive = activeTab === tab.key;
                   const label =
@@ -227,6 +228,8 @@ export function RightSidebar({ context }: Props) {
                   return (
                     <button
                       key={tab.key}
+                      role="tab"
+                      aria-selected={isActive}
                       onClick={() => setTab(tab.key)}
                       className="shrink-0 whitespace-nowrap px-5 py-2.5 transition-colors"
                       style={{
@@ -248,18 +251,20 @@ export function RightSidebar({ context }: Props) {
               </div>
             </div>
 
-            {/* Tab content — FileTreePanel stays mounted to preserve scroll/expand state */}
+            {/* Tab content — conditionally rendered to avoid mounting hidden components */}
             <div className="flex-1 overflow-hidden">
-              <div className={activeTab === "files" ? "h-full" : "hidden"}>
-                <ErrorBoundary label="files" resetKey={context.id}>
-                  <FileTreePanel
-                    context={context}
-                    onFileClick={handleFileClick}
-                    onFileDoubleClick={handleFileDoubleClick}
-                    onRunTestFile={handleRunTestFile}
-                  />
-                </ErrorBoundary>
-              </div>
+              {activeTab === "files" && (
+                <div className="h-full">
+                  <ErrorBoundary label="files" resetKey={context.id}>
+                    <FileTreePanel
+                      context={context}
+                      onFileClick={handleFileClick}
+                      onFileDoubleClick={handleFileDoubleClick}
+                      onRunTestFile={handleRunTestFile}
+                    />
+                  </ErrorBoundary>
+                </div>
+              )}
               {activeTab === "changes" && (
                 <div data-testid="panel-changes" className="h-full">
                   <ErrorBoundary label="changes" resetKey={context.id}>
@@ -310,9 +315,10 @@ export function RightSidebar({ context }: Props) {
             >
               <button
                 onClick={toggleBottomPanel}
-                className="flex-shrink-0 rounded p-1 transition-colors hover:bg-[var(--bg-hover)]"
+                className="flex-shrink-0 rounded p-1.5 transition-colors hover:bg-[var(--bg-hover)]"
                 style={{ color: "var(--text-muted)" }}
                 title={bottomCollapsed ? "Expand panel" : "Collapse panel"}
+                aria-label={bottomCollapsed ? "Expand panel" : "Collapse panel"}
               >
                 {bottomCollapsed ? (
                   <ChevronUp className="h-3.5 w-3.5" />
@@ -321,13 +327,15 @@ export function RightSidebar({ context }: Props) {
                 )}
               </button>
               {BOTTOM_TABS.map((tab) => (
-                <span
+                <button
                   key={tab.key}
+                  role="tab"
+                  aria-selected={bottomTab === tab.key}
                   onClick={() => {
                     setBottomTab(tab.key);
                     if (bottomCollapsed) bottomPanelRef.current?.expand();
                   }}
-                  className="cursor-pointer rounded px-3 py-1.5 transition-colors"
+                  className="rounded px-3 py-1.5 transition-colors"
                   style={{
                     backgroundColor:
                       bottomTab === tab.key
@@ -340,7 +348,7 @@ export function RightSidebar({ context }: Props) {
                   }}
                 >
                   {tab.label}
-                </span>
+                </button>
               ))}
             </div>
 
@@ -363,6 +371,6 @@ export function RightSidebar({ context }: Props) {
           </div>
         </Panel>
       </PanelGroup>
-    </div>
+    </aside>
   );
 }

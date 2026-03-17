@@ -69,11 +69,14 @@ export function LinkWorkspaceDialog({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+      style={{ backgroundColor: "var(--overlay)" }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="w-96 rounded-lg p-4"
+        className="w-96 max-w-[90vw] rounded-lg p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Link workspace"
         style={{
           backgroundColor: "var(--bg-primary)",
           border: "1px solid var(--border)",
@@ -98,7 +101,7 @@ export function LinkWorkspaceDialog({
           <div
             className="mb-2 rounded p-2 text-xs"
             style={{
-              backgroundColor: "rgba(243, 139, 168, 0.1)",
+              backgroundColor: "color-mix(in srgb, var(--error) 10%, transparent)",
               color: "var(--error)",
             }}
           >
@@ -134,7 +137,7 @@ export function LinkWorkspaceDialog({
                         className="flex items-center justify-between rounded px-2 py-1"
                         style={{
                           backgroundColor: isLinked
-                            ? "rgba(166, 227, 161, 0.1)"
+                            ? "color-mix(in srgb, var(--success) 10%, transparent)"
                             : "var(--bg-surface)",
                           border: "1px solid var(--border)",
                           marginBottom: 2,

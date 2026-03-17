@@ -9,6 +9,18 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
   plugins: [react(), tailwindcss()],
   clearScreen: false,
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          monaco: ["monaco-editor", "@monaco-editor/react"],
+          recharts: ["recharts"],
+          xterm: ["@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-web-links", "@xterm/addon-search"],
+          markdown: ["react-markdown", "remark-gfm"],
+        },
+      },
+    },
+  },
   server: {
     port: 1420,
     strictPort: true,

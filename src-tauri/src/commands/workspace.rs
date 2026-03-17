@@ -119,6 +119,7 @@ pub async fn create_workspace(
         pinned: false,
         created_at: chrono::Utc::now(),
         archived_at: None,
+        devcontainer_config: request.devcontainer_config,
     };
 
     let info = WorkspaceInfo::from(&workspace);
@@ -205,6 +206,33 @@ pub async fn archive_workspace(
         }
     }
 
+    // Stop any running container
+    {
+        let container_id = {
+            let states = state.container_states.lock().unwrap();
+            states.get(&id).and_then(|cs| cs.container_id.clone())
+        };
+        if let Some(cid) = container_id {
+            let config = {
+                let workspaces = state.workspaces.read().unwrap();
+                workspaces
+                    .get(&id)
+                    .and_then(|ws| ws.devcontainer_config.clone())
+                    .unwrap_or_default()
+            };
+            let _ = crate::services::devcontainer::container_stop(
+                &cid,
+                &config,
+                Some(&worktree_path),
+            )
+            .await;
+            let mut states = state.container_states.lock().unwrap();
+            if let Some(cs) = states.get_mut(&id) {
+                cs.status = crate::models::devcontainer::ContainerStatus::Stopped;
+            }
+        }
+    }
+
     let _ = app.emit("workspace-archived", &id);
 
     // Fire-and-forget archive script if configured
@@ -236,6 +264,18 @@ pub async fn delete_workspace(
         let workspaces = state.workspaces.read().unwrap();
         workspaces.get(&id).cloned()
     };
+
+    // Stop and remove any container
+    {
+        let container_id = {
+            let states = state.container_states.lock().unwrap();
+            states.get(&id).and_then(|cs| cs.container_id.clone())
+        };
+        if let Some(cid) = container_id {
+            let _ = crate::services::devcontainer::container_remove(&cid).await;
+        }
+        state.container_states.lock().unwrap().remove(&id);
+    }
 
     if let Some(ref ws) = ws {
         // Get repo path

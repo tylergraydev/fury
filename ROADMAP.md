@@ -85,3 +85,7 @@ Use browser/OS speech-to-text APIs to dictate messages to the AI agent.
 ### 18. Workspace Sharing / Export
 **Status:** Done
 Export a workspace's conversation history, todos, and configuration as a shareable bundle.
+
+### 19. Dev Container Support
+**Status:** Done
+Run agents, terminals, and scripts inside Docker containers. Supports devcontainer CLI (for repos with `devcontainer.json`) and raw Docker. Configurable agent execution mode — run the agent on the host or inside the container.

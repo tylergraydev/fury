@@ -1,0 +1,128 @@
+---
+title: Dev Containers
+description: Run agents, terminals, and scripts inside Docker containers
+---
+
+Dev containers let you run your AI agents, terminals, and scripts inside Docker containers for consistent tooling, dependencies, and isolation. Fury supports both the [devcontainer CLI](https://github.com/devcontainers/cli) and raw Docker workflows.
+
+## How it works
+
+When dev containers are enabled for a workspace:
+
+1. **Build** — Fury builds or starts a container using your `devcontainer.json` or a Docker image
+2. **Run** — Agents, terminals, and scripts execute inside the container via `docker exec`
+3. **Sync** — The workspace's worktree is bind-mounted into the container, so file changes are shared between host and container
+
+## Prerequisites
+
+You need one of:
+
+- **[Docker](https://docs.docker.com/get-docker/)** installed and running
+- **[devcontainer CLI](https://github.com/devcontainers/cli)** for repos with a `devcontainer.json`
+
+Fury auto-detects these binaries on your `PATH`.
+
+## Enabling dev containers
+
+### Per-repository settings
+
+Go to **Settings** for a repository and toggle **Enable dev container for new workspaces**. Configure:
+
+| Setting | Description |
+|---------|-------------|
+| **Backend** | `devcontainer CLI` (for repos with `devcontainer.json`) or `Raw Docker` |
+| **Agent exec mode** | `Host` (agent on host, terminal in container) or `Container` (everything in container) |
+| **Docker image** | For Raw Docker only — e.g., `node:20`, `python:3.12` |
+
+These settings become the default for new workspaces created from this repository.
+
+### Auto-detection
+
+When you add a repository, Fury scans for `devcontainer.json` in these locations:
+
+- `.devcontainer/devcontainer.json`
+- `.devcontainer.json`
+- `.devcontainer/*/devcontainer.json` (subdirectories)
+
+If found, the repository settings are pre-populated with the detected path.
+
+### Via fury.json
+
+Share dev container configuration with your team:
+
+```json
+{
+  "devcontainer": {
+    "enabled": true,
+    "backend": "devcontainerCli",
+    "agentExecMode": "container"
+  }
+}
+```
+
+## Backends
+
+### devcontainer CLI
+
+Best for repos that already have a `devcontainer.json`. Fury runs `devcontainer up --workspace-folder <path>` to build and start the container, respecting all features, extensions, and lifecycle scripts defined in your config.
+
+### Raw Docker
+
+For repos without a `devcontainer.json`, or when you want a simple container. Fury runs `docker run` with your specified image and bind-mounts the worktree.
+
+If you have a `docker-compose.yml`, Fury can use `docker compose up` instead — specify the compose file and service name in settings.
+
+## Agent execution modes
+
+| Mode | Agent runs on | Terminal runs in | Use case |
+|------|--------------|-----------------|----------|
+| **Host** (default) | Host machine | Container | Agent needs host tools; container provides runtime |
+| **Container** | Inside container | Container | Full isolation — agent sees only container filesystem |
+
+In **Container** mode, Fury wraps agent invocations in `docker exec`, so the agent process runs inside the container with access to container-installed tools and dependencies.
+
+## Container lifecycle
+
+### Status indicators
+
+A colored badge appears next to workspace names in the sidebar:
+
+| Color | Status |
+|-------|--------|
+| 🟢 Green | Running |
+| 🟡 Yellow | Building |
+| 🔴 Red | Error |
+| ⚪ Gray | Stopped / None |
+
+### Controls
+
+The container panel (visible when dev containers are enabled) provides:
+
+- **Start** — Build and start the container
+- **Stop** — Stop the running container
+- **Rebuild** — Stop, remove, and rebuild from scratch
+
+### Automatic lifecycle
+
+| Event | Container action |
+|-------|-----------------|
+| Workspace created (with dev container enabled) | Container starts automatically |
+| Workspace archived | Container stops |
+| Workspace deleted | Container stops and is removed |
+
+## Build logs
+
+Container build output is streamed to the container panel in real time. This is especially useful for debugging `devcontainer.json` build failures or watching Docker image pulls.
+
+## Environment variables
+
+Containers inherit the workspace's environment variables. You can also configure container-specific environment variables in the dev container settings.
+
+Scripts running inside containers have access to the same `FURY_*` environment variables as host scripts — see [scripts](/core/scripts).
+
+## Tips
+
+- **Start with Host mode** if you're unsure — it's less disruptive since only terminals and scripts run in the container
+- **Use devcontainer CLI backend** when your repo already has a `devcontainer.json` — it respects features, extensions, and all lifecycle hooks
+- **Raw Docker is simpler** for repos that just need a specific runtime (e.g., a particular Node.js or Python version)
+- **Rebuild** after changing your `devcontainer.json` or Docker image — Fury doesn't auto-rebuild on config changes

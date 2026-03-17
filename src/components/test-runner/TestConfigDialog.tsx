@@ -60,13 +60,16 @@ export function TestConfigDialog({ contextId, repoId, onClose }: Props) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+      style={{ backgroundColor: "var(--overlay)" }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="w-full max-w-md rounded-lg shadow-xl"
+        className="w-full max-w-md max-w-[90vw] rounded-lg shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Test configuration"
         style={{
           backgroundColor: "var(--bg-secondary)",
           border: "1px solid var(--border)",

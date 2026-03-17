@@ -1,3 +1,4 @@
+use crate::models::devcontainer::DevContainerConfig;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -48,6 +49,8 @@ pub struct Workspace {
     pub pinned: bool,
     pub created_at: DateTime<Utc>,
     pub archived_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub devcontainer_config: Option<DevContainerConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,6 +63,7 @@ pub struct CreateWorkspaceRequest {
     pub base_branch: Option<String>,
     pub auto_commit: Option<bool>,
     pub fetch_remote_branch: Option<bool>,
+    pub devcontainer_config: Option<DevContainerConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,6 +79,8 @@ pub struct WorkspaceInfo {
     pub pinned: bool,
     pub created_at: DateTime<Utc>,
     pub archived_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub devcontainer_config: Option<DevContainerConfig>,
 }
 
 impl From<&Workspace> for WorkspaceInfo {
@@ -90,6 +96,7 @@ impl From<&Workspace> for WorkspaceInfo {
             pinned: ws.pinned,
             created_at: ws.created_at,
             archived_at: ws.archived_at,
+            devcontainer_config: ws.devcontainer_config.clone(),
         }
     }
 }

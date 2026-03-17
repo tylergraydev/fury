@@ -281,7 +281,7 @@ function AppearanceTab() {
                         className="h-5 flex-1 rounded"
                         style={{
                           backgroundColor: color,
-                          border: "1px solid rgba(255,255,255,0.1)",
+                          border: "1px solid color-mix(in srgb, var(--text-primary) 10%, transparent)",
                         }}
                       />
                     ))}
@@ -350,7 +350,7 @@ function AppearanceTab() {
                         className="h-5 flex-1 rounded"
                         style={{
                           backgroundColor: color,
-                          border: "1px solid rgba(255,255,255,0.1)",
+                          border: "1px solid color-mix(in srgb, var(--text-primary) 10%, transparent)",
                         }}
                       />
                     ))}

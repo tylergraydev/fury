@@ -34,3 +34,6 @@ src-tauri/target/
 
 # Conductor context
 .context/
+
+# Git worktrees
+.worktrees/

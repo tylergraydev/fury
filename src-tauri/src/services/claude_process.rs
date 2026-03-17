@@ -232,6 +232,42 @@ fn is_known_skippable_line(line: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// Build a `Command` that optionally wraps a binary invocation inside `docker exec`.
+/// When `container_ctx` is `Some`, the command becomes:
+///   docker exec -i -w <dir> [-e K=V...] <container_id> <binary> <args...>
+/// When `None`, it's a direct invocation: <binary> <args...>
+fn build_command(
+    binary: &Path,
+    args: &[String],
+    worktree_path: &Path,
+    env_vars: &HashMap<String, String>,
+    container_ctx: Option<&crate::models::devcontainer::ContainerExecContext>,
+) -> Command {
+    if let Some(ctx) = container_ctx {
+        let docker_bin = which::which("docker").unwrap_or_else(|_| PathBuf::from("docker"));
+        let mut docker_args = vec!["exec".to_string(), "-i".to_string()];
+        docker_args.push("-w".to_string());
+        docker_args.push(ctx.container_working_dir.clone());
+        for (key, value) in env_vars {
+            docker_args.push("-e".to_string());
+            docker_args.push(format!("{}={}", key, value));
+        }
+        docker_args.push(ctx.container_id.clone());
+        docker_args.push(binary.to_string_lossy().to_string());
+        docker_args.extend(args.iter().cloned());
+
+        let mut cmd = Command::new(&docker_bin);
+        cmd.args(&docker_args);
+        cmd
+    } else {
+        let mut cmd = Command::new(binary);
+        cmd.args(args)
+            .current_dir(worktree_path)
+            .envs(env_vars);
+        cmd
+    }
+}
+
 /// Spawn Claude Code CLI and stream its output via Tauri events.
 ///
 /// Returns the child process handle. The session_id will be emitted
@@ -252,6 +288,7 @@ pub async fn spawn_and_stream(
     app_handle: AppHandle,
     agents: Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
     perf_metrics: SharedPerfMetrics,
+    container_ctx: Option<crate::models::devcontainer::ContainerExecContext>,
 ) -> Result<(Child, Option<ChildStdin>, Arc<AtomicBool>), AppError> {
     let claude_bin = find_claude_binary()?;
 
@@ -269,10 +306,8 @@ pub async fn spawn_and_stream(
         disable_plan_mode,
     ));
 
-    let mut cmd = Command::new(&claude_bin);
-    cmd.args(&args)
-        .current_dir(worktree_path)
-        .envs(&env_vars)
+    let mut cmd = build_command(&claude_bin, &args, worktree_path, &env_vars, container_ctx.as_ref());
+    cmd
         // Strip Claude Code env vars so the child doesn't think it's a nested/SDK session
         .env_remove("CLAUDECODE")
         .env_remove("CLAUDE_CODE_ENTRYPOINT")
@@ -458,6 +493,7 @@ pub async fn spawn_persistent(
     agents: Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
     persistent_agents: Arc<Mutex<HashMap<Uuid, PersistentAgentHandle>>>,
     perf_metrics: SharedPerfMetrics,
+    container_ctx: Option<crate::models::devcontainer::ContainerExecContext>,
 ) -> Result<(Child, ChildStdin), AppError> {
     let claude_bin = find_claude_binary()?;
 
@@ -467,10 +503,8 @@ pub async fn spawn_persistent(
 
     let args = build_common_args(session_id, &linked_dirs, system_prompt_additions, model, safe_mode, disable_plan_mode);
 
-    let mut cmd = Command::new(&claude_bin);
-    cmd.args(&args)
-        .current_dir(worktree_path)
-        .envs(&env_vars)
+    let mut cmd = build_command(&claude_bin, &args, worktree_path, &env_vars, container_ctx.as_ref());
+    cmd
         // Strip Claude Code env vars so the child doesn't think it's a nested/SDK session
         .env_remove("CLAUDECODE")
         .env_remove("CLAUDE_CODE_ENTRYPOINT")
