@@ -45,10 +45,7 @@ test.describe("Terminal & Script Panels", () => {
     // Wait for the terminal to initialize
     await appPage.waitForTimeout(1000);
 
-    // The terminal panel renders either an xterm container or the terminal view
-    // Just verify the Terminal tab is active and no error is shown
-    await expect(
-      appPage.locator("span", { hasText: "Terminal" }).first(),
-    ).toBeVisible();
+    // Just verify the Terminal tab is still active and no error is shown
+    await expect(terminalTab).toBeVisible();
   });
 });
