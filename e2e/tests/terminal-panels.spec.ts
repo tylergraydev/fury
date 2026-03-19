@@ -11,8 +11,8 @@ test.describe("Terminal & Script Panels", () => {
   test("Setup panel shows Setup Script header and Run button", async ({
     appPage,
   }) => {
-    // Click Setup tab (these are <span> elements, not buttons)
-    const setupTab = appPage.locator("span", { hasText: "Setup" }).first();
+    // Click Setup tab (tabs are buttons with role="tab")
+    const setupTab = appPage.getByRole("tab", { name: "Setup", exact: true });
     await expect(setupTab).toBeVisible();
     await setupTab.click();
 
@@ -28,8 +28,8 @@ test.describe("Terminal & Script Panels", () => {
   test("Run panel shows Run Script header and Run button", async ({
     appPage,
   }) => {
-    // Click Run tab
-    const runTab = appPage.locator("span", { hasText: "Run" }).first();
+    // Click Run tab (tabs are buttons with role="tab")
+    const runTab = appPage.getByRole("tab", { name: "Run", exact: true });
     await runTab.click();
 
     // Run panel shows "Run Script" label
@@ -37,10 +37,8 @@ test.describe("Terminal & Script Panels", () => {
   });
 
   test("Terminal tab renders terminal view", async ({ appPage }) => {
-    // Click Terminal tab
-    const terminalTab = appPage
-      .locator("span", { hasText: "Terminal" })
-      .first();
+    // Click Terminal tab (tabs are buttons with role="tab")
+    const terminalTab = appPage.getByRole("tab", { name: "Terminal", exact: true });
     await terminalTab.click();
 
     // Terminal panel should render (creates terminal via mock)

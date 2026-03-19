@@ -41,8 +41,8 @@ test.describe("File Viewer & Tabs", () => {
     // Verify file tab exists
     await expect(appPage.locator("span", { hasText: "App.tsx" }).first()).toBeVisible();
 
-    // Click the Chat tab button (exact match to avoid "New Chat Worktree" sidebar button)
-    const chatTab = appPage.getByRole("button", { name: "Chat", exact: true });
+    // Click the Chat tab (it has role="tab", not role="button")
+    const chatTab = appPage.getByRole("tab", { name: "Chat", exact: true });
     await chatTab.click();
 
     // The pre-seeded chat messages should be visible again
@@ -58,12 +58,11 @@ test.describe("File Viewer & Tabs", () => {
     const appFile = appPage.locator("button", { hasText: "App.tsx" }).first();
     await appFile.click();
 
-    // Verify the tab is visible
-    const tabContainer = appPage.locator("span", { hasText: "App.tsx" }).first();
+    // Verify the tab is visible — file tabs are div[role="tab"]
+    const tabContainer = appPage.locator('[role="tab"]', { hasText: "App.tsx" }).first();
     await expect(tabContainer).toBeVisible();
 
     // Click the close (X) button on the tab
-    // The X button is inside the tab span, it's a button with an svg
     const closeBtn = tabContainer.locator("button").first();
     await closeBtn.click();
 
