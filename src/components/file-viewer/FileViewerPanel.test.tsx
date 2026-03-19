@@ -6,7 +6,7 @@ vi.mock("../../lib/monacoSetup", () => ({
   ensureTypesLoaded: vi.fn(),
 }));
 
-let mockOnChange = vi.fn();
+const mockOnChange = vi.fn();
 let mockOnMount: ((editor: any, monaco: any) => void) | null = null;
 let autoMount = true;
 const mockClear = vi.fn();
