@@ -200,6 +200,294 @@ pub fn validate_settings(settings: &ClaudeContextSettings) -> Result<(), AppErro
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_settings(
+        enabled: bool,
+        key: Option<&str>,
+        uri: Option<&str>,
+        token: Option<&str>,
+    ) -> ClaudeContextSettings {
+        ClaudeContextSettings {
+            enabled,
+            openai_api_key: key.map(String::from),
+            zilliz_uri: uri.map(String::from),
+            zilliz_token: token.map(String::from),
+        }
+    }
+
+    #[test]
+    fn test_validate_settings_all_valid() {
+        let settings = test_settings(true, Some("key"), Some("uri"), Some("token"));
+        assert!(validate_settings(&settings).is_ok());
+    }
+
+    #[test]
+    fn test_validate_settings_not_enabled() {
+        let settings = test_settings(false, Some("key"), Some("uri"), Some("token"));
+        let result = validate_settings(&settings);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not enabled"));
+    }
+
+    #[test]
+    fn test_validate_settings_missing_api_key() {
+        let settings = test_settings(true, None, Some("uri"), Some("token"));
+        let result = validate_settings(&settings);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("OpenAI API key"));
+    }
+
+    #[test]
+    fn test_validate_settings_empty_api_key() {
+        let settings = test_settings(true, Some(""), Some("uri"), Some("token"));
+        let result = validate_settings(&settings);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_settings_missing_zilliz_uri() {
+        let settings = test_settings(true, Some("key"), None, Some("token"));
+        let result = validate_settings(&settings);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Zilliz Cloud URI"));
+    }
+
+    #[test]
+    fn test_validate_settings_empty_zilliz_uri() {
+        let settings = test_settings(true, Some("key"), Some(""), Some("token"));
+        let result = validate_settings(&settings);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_settings_missing_zilliz_token() {
+        let settings = test_settings(true, Some("key"), Some("uri"), None);
+        let result = validate_settings(&settings);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Zilliz Cloud Token"));
+    }
+
+    #[test]
+    fn test_validate_settings_empty_zilliz_token() {
+        let settings = test_settings(true, Some("key"), Some("uri"), Some(""));
+        let result = validate_settings(&settings);
+        assert!(result.is_err());
+    }
+
+    // --- Tests for extracted pure logic ---
+
+    #[test]
+    fn test_extract_status_text_valid() {
+        let val = serde_json::json!({
+            "content": [{"text": "Indexing in progress: 50%"}]
+        });
+        assert_eq!(extract_status_text(&val), "Indexing in progress: 50%");
+    }
+
+    #[test]
+    fn test_extract_status_text_empty_content() {
+        let val = serde_json::json!({"content": []});
+        assert_eq!(extract_status_text(&val), "");
+    }
+
+    #[test]
+    fn test_extract_status_text_no_content_key() {
+        let val = serde_json::json!({"result": "ok"});
+        assert_eq!(extract_status_text(&val), "");
+    }
+
+    #[test]
+    fn test_extract_status_text_null() {
+        let val = serde_json::json!(null);
+        assert_eq!(extract_status_text(&val), "");
+    }
+
+    #[test]
+    fn test_extract_status_text_no_text_field() {
+        let val = serde_json::json!({"content": [{"type": "text"}]});
+        assert_eq!(extract_status_text(&val), "");
+    }
+
+    #[test]
+    fn test_extract_status_text_multiple_items_picks_first() {
+        let val = serde_json::json!({
+            "content": [
+                {"text": "first"},
+                {"text": "second"}
+            ]
+        });
+        assert_eq!(extract_status_text(&val), "first");
+    }
+
+    #[test]
+    fn test_is_indexing_complete_completed() {
+        assert!(is_indexing_complete("Indexing completed successfully"));
+    }
+
+    #[test]
+    fn test_is_indexing_complete_100_percent() {
+        assert!(is_indexing_complete("Progress: 100%"));
+    }
+
+    #[test]
+    fn test_is_indexing_complete_case_insensitive() {
+        assert!(is_indexing_complete("COMPLETED"));
+        assert!(is_indexing_complete("Completed"));
+    }
+
+    #[test]
+    fn test_is_indexing_complete_in_progress() {
+        assert!(!is_indexing_complete("Indexing in progress: 50%"));
+    }
+
+    #[test]
+    fn test_is_indexing_complete_empty() {
+        assert!(!is_indexing_complete(""));
+    }
+
+    #[test]
+    fn test_is_indexing_complete_99_percent() {
+        assert!(!is_indexing_complete("Progress: 99%"));
+    }
+
+    #[test]
+    fn test_is_indexing_error_error() {
+        assert!(is_indexing_error("Error: connection refused"));
+    }
+
+    #[test]
+    fn test_is_indexing_error_failed() {
+        assert!(is_indexing_error("Indexing failed: timeout"));
+    }
+
+    #[test]
+    fn test_is_indexing_error_case_insensitive() {
+        assert!(is_indexing_error("ERROR occurred"));
+        assert!(is_indexing_error("FAILED to index"));
+    }
+
+    #[test]
+    fn test_is_indexing_error_normal_status() {
+        assert!(!is_indexing_error("Indexing in progress"));
+    }
+
+    #[test]
+    fn test_is_indexing_error_empty() {
+        assert!(!is_indexing_error(""));
+    }
+
+    #[test]
+    fn test_is_inactive_indexing_no_keywords() {
+        assert!(is_inactive_indexing("Repository ready"));
+    }
+
+    #[test]
+    fn test_is_inactive_indexing_has_indexing() {
+        assert!(!is_inactive_indexing("Currently indexing files"));
+    }
+
+    #[test]
+    fn test_is_inactive_indexing_has_progress() {
+        assert!(!is_inactive_indexing("In progress: 50%"));
+    }
+
+    #[test]
+    fn test_is_inactive_indexing_has_processing() {
+        assert!(!is_inactive_indexing("Processing files..."));
+    }
+
+    #[test]
+    fn test_is_inactive_indexing_empty() {
+        assert!(is_inactive_indexing(""));
+    }
+
+    #[test]
+    fn test_is_inactive_indexing_case_insensitive() {
+        assert!(!is_inactive_indexing("INDEXING"));
+        assert!(!is_inactive_indexing("Progress"));
+        assert!(!is_inactive_indexing("PROCESSING"));
+    }
+
+    #[test]
+    fn test_is_json_line_valid() {
+        assert!(is_json_line(r#"{"jsonrpc":"2.0","id":1}"#));
+    }
+
+    #[test]
+    fn test_is_json_line_with_whitespace() {
+        assert!(is_json_line(r#"  {"jsonrpc":"2.0"}  "#));
+    }
+
+    #[test]
+    fn test_is_json_line_log_output() {
+        assert!(!is_json_line("INFO: Server starting on port 3000"));
+    }
+
+    #[test]
+    fn test_is_json_line_empty() {
+        assert!(!is_json_line(""));
+    }
+
+    #[test]
+    fn test_is_json_line_array() {
+        assert!(!is_json_line("[1, 2, 3]"));
+    }
+
+    #[test]
+    fn test_is_json_line_brace_in_middle() {
+        assert!(!is_json_line("log: {some data}"));
+    }
+}
+
+// --- Extracted pure logic for testability ---
+
+/// Parse the text content from an MCP tool response value.
+/// The response format is: `{"content": [{"text": "..."}]}`
+#[allow(dead_code)]
+pub fn extract_status_text(val: &serde_json::Value) -> &str {
+    val.get("content")
+        .and_then(|c| c.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|item| item.get("text"))
+        .and_then(|t| t.as_str())
+        .unwrap_or("")
+}
+
+/// Check if a status text indicates indexing is complete.
+#[allow(dead_code)]
+pub fn is_indexing_complete(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    lower.contains("completed") || lower.contains("100%")
+}
+
+/// Check if a status text indicates an indexing error.
+#[allow(dead_code)]
+pub fn is_indexing_error(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    lower.contains("error") || lower.contains("failed")
+}
+
+/// Check if the status text indicates no active indexing is happening.
+/// This is used to detect when indexing has silently finished (no keywords
+/// suggesting activity). Returns true if there's no indexing activity.
+#[allow(dead_code)]
+pub fn is_inactive_indexing(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    !lower.contains("indexing") && !lower.contains("progress") && !lower.contains("processing")
+}
+
+/// Determine if a line from MCP stdout is a JSON-RPC response (starts with '{').
+#[allow(dead_code)]
+pub fn is_json_line(line: &str) -> bool {
+    line.trim().starts_with('{')
+}
+
 /// Index a codebase by spawning the MCP server, calling index_codebase,
 /// then polling get_indexing_status until completion before shutting down.
 pub fn index_codebase(

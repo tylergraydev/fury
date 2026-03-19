@@ -413,6 +413,332 @@ pub fn cross_worktree_diff(
     })
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn setup_repo_with_branch() -> (tempfile::TempDir, std::path::PathBuf) {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        // Create a feature branch
+        std::process::Command::new("git")
+            .args(["checkout", "-b", "feature"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::fs::write(path.join("feature.txt"), "feature content").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "feature commit"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        (_dir, path)
+    }
+
+    #[test]
+    fn test_get_branch_status() {
+        let (_dir, path) = setup_repo_with_branch();
+        let result = get_branch_status(&path, "feature", "main");
+        assert!(result.is_ok());
+        let status = result.unwrap();
+        assert_eq!(status.branch, "feature");
+        assert_eq!(status.default_branch, "main");
+        assert!(!status.has_upstream);
+    }
+
+    #[test]
+    fn test_get_branch_status_no_upstream() {
+        let (_dir, path) = setup_repo_with_branch();
+        let status = get_branch_status(&path, "feature", "main").unwrap();
+        // No remote, so ahead/behind are 0 (origin/main doesn't exist)
+        assert_eq!(status.ahead, 0);
+        assert_eq!(status.behind, 0);
+        assert!(!status.has_upstream);
+    }
+
+    #[test]
+    fn test_get_conflicted_files_no_conflicts() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let files = get_conflicted_files(&path).unwrap();
+        assert!(files.is_empty());
+    }
+
+    #[test]
+    fn test_get_conflict_content() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        // No conflict, should return empty content for stages
+        let result = get_conflict_content(&path, "nonexistent.txt");
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert!(content.base.is_empty());
+        assert!(content.ours.is_empty());
+        assert!(content.theirs.is_empty());
+    }
+
+    #[test]
+    fn test_resolve_conflict_manual() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::fs::write(path.join("test.txt"), "resolved content").unwrap();
+        // "manual" strategy just stages the file
+        let result = resolve_conflict(&path, "test.txt", "manual");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_abort_merge_no_merge_in_progress() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let result = abort_merge(&path);
+        // Should fail since no merge is in progress
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_continue_merge_no_merge_in_progress() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let result = continue_merge(&path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cross_worktree_diff() {
+        let (_dir, path) = setup_repo_with_branch();
+        let result = cross_worktree_diff(&path, "main", "feature");
+        assert!(result.is_ok());
+        let diff = result.unwrap();
+        assert!(!diff.files.is_empty());
+        assert!(diff.total_additions > 0);
+    }
+
+    #[test]
+    fn test_cross_worktree_diff_same_branch() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let result = cross_worktree_diff(&path, "main", "main");
+        assert!(result.is_ok());
+        let diff = result.unwrap();
+        assert!(diff.files.is_empty());
+    }
+
+    #[test]
+    fn test_git_show_stage() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        // No merge stages, should return empty string
+        let result = git_show_stage(&path, 1, "test.txt");
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_fetch_upstream_no_remote() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let result = fetch_upstream(&path);
+        assert!(result.is_err()); // No remote configured
+    }
+
+    #[test]
+    fn test_pull_rebase_no_remote() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let result = pull_rebase(&path, "main");
+        assert!(result.is_ok());
+        let pr = result.unwrap();
+        assert!(!pr.success);
+    }
+
+    #[test]
+    fn test_pull_merge_no_remote() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let result = pull_merge(&path, "main");
+        assert!(result.is_ok());
+        let pr = result.unwrap();
+        assert!(!pr.success);
+    }
+
+    #[test]
+    fn test_get_unmerged_files_clean() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let files = get_unmerged_files(&path);
+        assert!(files.is_empty());
+    }
+
+    #[test]
+    fn test_cross_worktree_diff_with_multiple_changes() {
+        let (_dir, path) = setup_repo_with_branch();
+        // Add more files on the feature branch
+        std::fs::write(path.join("new_file.txt"), "new content").unwrap();
+        std::fs::write(path.join("README.md"), "modified content").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "more changes"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+
+        let result = cross_worktree_diff(&path, "main", "feature").unwrap();
+        // Should have feature.txt, new_file.txt, and modified README.md
+        assert!(result.files.len() >= 2);
+        assert!(result.total_additions > 0);
+    }
+
+    #[test]
+    fn test_cross_worktree_diff_deleted_file() {
+        let (_dir, path) = setup_repo_with_branch();
+        // Delete README.md on feature branch
+        std::fs::remove_file(path.join("README.md")).unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "delete readme"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+
+        let result = cross_worktree_diff(&path, "main", "feature").unwrap();
+        let deleted = result.files.iter().find(|f| f.path == "README.md");
+        if let Some(d) = deleted {
+            assert!(matches!(d.status, FileStatus::Deleted));
+            assert!(d.deletions > 0);
+        }
+    }
+
+    #[test]
+    fn test_cross_worktree_diff_totals_are_sum_of_files() {
+        let (_dir, path) = setup_repo_with_branch();
+        // Add another file
+        std::fs::write(path.join("extra.txt"), "extra\nlines\nhere\n").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "add extra"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+
+        let result = cross_worktree_diff(&path, "main", "feature").unwrap();
+        let sum_add: u32 = result.files.iter().map(|f| f.additions).sum();
+        let sum_del: u32 = result.files.iter().map(|f| f.deletions).sum();
+        assert_eq!(result.total_additions, sum_add);
+        assert_eq!(result.total_deletions, sum_del);
+    }
+
+    #[test]
+    fn test_get_file_at_ref() {
+        let (_dir, path) = setup_repo_with_branch();
+        let result = get_file_at_ref(&path, "main", "feature", "feature.txt");
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert_eq!(content.path, "feature.txt");
+        // File doesn't exist on main, so original should be empty
+        assert!(content.original.is_empty());
+        // File exists on feature
+        assert_eq!(content.modified, "feature content");
+    }
+
+    #[test]
+    fn test_get_file_at_ref_existing_on_both() {
+        let (_dir, path) = setup_repo_with_branch();
+        // README.md exists on both branches
+        let result = get_file_at_ref(&path, "main", "feature", "README.md");
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert!(!content.original.is_empty());
+        assert!(!content.modified.is_empty());
+    }
+
+    #[test]
+    fn test_get_file_at_ref_nonexistent_file() {
+        let (_dir, path) = setup_repo_with_branch();
+        let result = get_file_at_ref(&path, "main", "feature", "no_such_file.txt");
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert!(content.original.is_empty());
+        assert!(content.modified.is_empty());
+    }
+
+    #[test]
+    fn test_get_file_at_ref_detects_language() {
+        let (_dir, path) = setup_repo_with_branch();
+        // Create a .rs file on feature branch
+        std::fs::write(path.join("main.rs"), "fn main() {}").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "add rust file"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+
+        let result = get_file_at_ref(&path, "main", "feature", "main.rs").unwrap();
+        assert_eq!(result.language, "rust");
+    }
+
+    #[test]
+    fn test_resolve_conflict_manual_stages_file() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::fs::write(path.join("resolved.txt"), "resolved content").unwrap();
+        // "manual" strategy just runs git add
+        let result = resolve_conflict(&path, "resolved.txt", "manual");
+        assert!(result.is_ok());
+        // Verify file is staged
+        let output = std::process::Command::new("git")
+            .args(["diff", "--cached", "--name-only"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        let staged = String::from_utf8_lossy(&output.stdout);
+        assert!(staged.contains("resolved.txt"));
+    }
+
+    #[test]
+    fn test_resolve_conflict_unknown_strategy_stages_file() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::fs::write(path.join("file.txt"), "content").unwrap();
+        // Unknown strategy falls through to just staging the file
+        let result = resolve_conflict(&path, "file.txt", "unknown_strategy");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_get_conflict_content_detects_language() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let content = get_conflict_content(&path, "main.rs").unwrap();
+        assert_eq!(content.language, "rust");
+        assert_eq!(content.path, "main.rs");
+    }
+
+    #[test]
+    fn test_get_branch_status_on_main() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let status = get_branch_status(&path, "main", "main").unwrap();
+        assert_eq!(status.branch, "main");
+        assert_eq!(status.default_branch, "main");
+        assert!(!status.has_upstream);
+    }
+
+    #[test]
+    fn test_git_show_stage_all_stages_empty() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        for stage in 1..=3 {
+            let result = git_show_stage(&path, stage, "README.md");
+            assert!(result.is_empty());
+        }
+    }
+}
+
 /// Get file content at a specific git ref for cross-worktree comparison.
 pub fn get_file_at_ref(
     repo_path: &Path,

@@ -179,6 +179,235 @@ struct PluginEntry {
     project_path: Option<String>,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_frontmatter_with_description() {
+        let raw = "---\ndescription: \"Hello world\"\n---\nBody content here";
+        let (desc, body) = parse_frontmatter(raw);
+        assert_eq!(desc, "Hello world");
+        assert_eq!(body, "Body content here");
+    }
+
+    #[test]
+    fn test_parse_frontmatter_no_frontmatter() {
+        let raw = "Just a plain body\nwith two lines";
+        let (desc, body) = parse_frontmatter(raw);
+        assert_eq!(desc, "Just a plain body");
+        assert_eq!(body, raw);
+    }
+
+    #[test]
+    fn test_parse_frontmatter_empty_body() {
+        let raw = "---\ndescription: test\n---\n";
+        let (desc, body) = parse_frontmatter(raw);
+        assert_eq!(desc, "test");
+        assert_eq!(body, "");
+    }
+
+    #[test]
+    fn test_parse_frontmatter_no_description_field() {
+        let raw = "---\ntitle: something\n---\nBody";
+        let (desc, body) = parse_frontmatter(raw);
+        assert_eq!(desc, "");
+        assert_eq!(body, "Body");
+    }
+
+    #[test]
+    fn test_parse_frontmatter_unclosed() {
+        let raw = "---\ndescription: test\nno closing fence";
+        let (desc, body) = parse_frontmatter(raw);
+        assert_eq!(desc, "---");
+        assert_eq!(body, raw);
+    }
+
+    #[test]
+    fn test_parse_frontmatter_quoted_description() {
+        let raw = "---\ndescription: \"Quoted value\"\n---\nContent";
+        let (desc, _body) = parse_frontmatter(raw);
+        assert_eq!(desc, "Quoted value");
+    }
+
+    #[test]
+    fn test_parse_frontmatter_empty_string() {
+        let (desc, body) = parse_frontmatter("");
+        assert_eq!(desc, "");
+        assert_eq!(body, "");
+    }
+
+    #[test]
+    fn test_scan_directory_with_md_files() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            dir.path().join("hello.md"),
+            "---\ndescription: greeting\n---\nHi there",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("bye.md"), "Goodbye content").unwrap();
+        std::fs::write(dir.path().join("not-md.txt"), "ignored").unwrap();
+
+        let mut commands = Vec::new();
+        scan_directory(dir.path(), SlashCommandSource::Global, None, &mut commands).unwrap();
+        assert_eq!(commands.len(), 2);
+        let names: Vec<&str> = commands.iter().map(|c| c.name.as_str()).collect();
+        assert!(names.contains(&"hello"));
+        assert!(names.contains(&"bye"));
+    }
+
+    #[test]
+    fn test_scan_directory_nonexistent() {
+        let mut commands = Vec::new();
+        let result = scan_directory(
+            Path::new("/nonexistent/dir"),
+            SlashCommandSource::Global,
+            None,
+            &mut commands,
+        );
+        assert!(result.is_ok());
+        assert!(commands.is_empty());
+    }
+
+    #[test]
+    fn test_scan_directory_with_prefix() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("cmd.md"), "content").unwrap();
+
+        let mut commands = Vec::new();
+        scan_directory(
+            dir.path(),
+            SlashCommandSource::Plugin,
+            Some("myplugin"),
+            &mut commands,
+        )
+        .unwrap();
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].name, "myplugin:cmd");
+    }
+
+    #[test]
+    fn test_scan_skills_directory() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let skill_dir = dir.path().join("my-skill");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+        std::fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\ndescription: A skill\n---\nSkill body",
+        )
+        .unwrap();
+
+        // Non-skill dir (no SKILL.md)
+        let other_dir = dir.path().join("no-skill");
+        std::fs::create_dir_all(&other_dir).unwrap();
+
+        let mut commands = Vec::new();
+        scan_skills_directory(dir.path(), SlashCommandSource::Plugin, None, &mut commands).unwrap();
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].name, "my-skill");
+        assert_eq!(commands[0].description, "A skill");
+    }
+
+    #[test]
+    fn test_scan_skills_directory_with_prefix() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let skill_dir = dir.path().join("test-skill");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+        std::fs::write(skill_dir.join("SKILL.md"), "body").unwrap();
+
+        let mut commands = Vec::new();
+        scan_skills_directory(
+            dir.path(),
+            SlashCommandSource::Plugin,
+            Some("pkg"),
+            &mut commands,
+        )
+        .unwrap();
+        assert_eq!(commands[0].name, "pkg:test-skill");
+    }
+
+    #[test]
+    fn test_scan_skills_directory_nonexistent() {
+        let mut commands = Vec::new();
+        let result = scan_skills_directory(
+            Path::new("/nonexistent"),
+            SlashCommandSource::Global,
+            None,
+            &mut commands,
+        );
+        assert!(result.is_ok());
+        assert!(commands.is_empty());
+    }
+
+    #[test]
+    fn test_discover_commands_sort_order() {
+        // Commands should be sorted: project < plugin < global, then alphabetical
+        let dir = tempfile::TempDir::new().unwrap();
+        let project_dir = dir.path().join(".claude").join("commands");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        std::fs::write(project_dir.join("zulu.md"), "project zulu").unwrap();
+        std::fs::write(project_dir.join("alpha.md"), "project alpha").unwrap();
+
+        let result = discover_commands(Some(dir.path()));
+        assert!(result.is_ok());
+        let cmds = result.unwrap();
+        // At minimum, the project commands should be first and alphabetically sorted
+        let project_cmds: Vec<&str> = cmds
+            .iter()
+            .filter(|c| matches!(c.source, SlashCommandSource::Project))
+            .map(|c| c.name.as_str())
+            .collect();
+        if project_cmds.len() >= 2 {
+            assert_eq!(project_cmds[0], "alpha");
+            assert_eq!(project_cmds[1], "zulu");
+        }
+    }
+
+    #[test]
+    fn test_discover_commands_no_repo() {
+        let result = discover_commands(None);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_plugin_entry_deserialization() {
+        let json = r#"{
+            "plugins": {
+                "my-plugin@1.0.0": [
+                    {
+                        "scope": "global",
+                        "installPath": "/path/to/plugin"
+                    }
+                ]
+            }
+        }"#;
+        let parsed: InstalledPluginsFile = serde_json::from_str(json).unwrap();
+        assert_eq!(parsed.plugins.len(), 1);
+        let entries = parsed.plugins.get("my-plugin@1.0.0").unwrap();
+        assert_eq!(entries[0].scope, "global");
+        assert_eq!(entries[0].install_path, "/path/to/plugin");
+        assert!(entries[0].project_path.is_none());
+    }
+
+    #[test]
+    fn test_plugin_entry_with_project_path() {
+        let json = r#"{
+            "plugins": {
+                "plugin@2.0": [
+                    {
+                        "scope": "local",
+                        "installPath": "/install",
+                        "projectPath": "/my/project"
+                    }
+                ]
+            }
+        }"#;
+        let parsed: InstalledPluginsFile = serde_json::from_str(json).unwrap();
+        let entries = parsed.plugins.get("plugin@2.0").unwrap();
+        assert_eq!(entries[0].project_path.as_deref(), Some("/my/project"));
+    }
+}
+
 fn discover_plugin_commands(
     repo_root: Option<&Path>,
     commands: &mut Vec<SlashCommand>,

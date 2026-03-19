@@ -96,3 +96,50 @@ fn should_ignore(path: &Path) -> bool {
     }
     false
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_should_ignore_git() {
+        assert!(should_ignore(&PathBuf::from("/repo/.git/HEAD")));
+    }
+
+    #[test]
+    fn test_should_ignore_node_modules() {
+        assert!(should_ignore(&PathBuf::from("/repo/node_modules/x")));
+    }
+
+    #[test]
+    fn test_should_ignore_target() {
+        assert!(should_ignore(&PathBuf::from("/repo/target/release")));
+    }
+
+    #[test]
+    fn test_should_ignore_all_dirs() {
+        for dir in IGNORE_DIRS {
+            assert!(
+                should_ignore(&PathBuf::from(format!("/repo/{}/file", dir))),
+                "should ignore {}",
+                dir
+            );
+        }
+    }
+
+    #[test]
+    fn test_should_not_ignore_src() {
+        assert!(!should_ignore(&PathBuf::from("/repo/src/lib.rs")));
+    }
+
+    #[test]
+    fn test_should_not_ignore_root_file() {
+        assert!(!should_ignore(&PathBuf::from("/repo/Cargo.toml")));
+    }
+
+    #[test]
+    fn test_ignore_dirs_count() {
+        assert_eq!(IGNORE_DIRS.len(), 8);
+    }
+}

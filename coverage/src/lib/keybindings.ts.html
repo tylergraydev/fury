@@ -155,7 +155,25 @@
 <a name='L90'></a><a href='#L90'>90</a>
 <a name='L91'></a><a href='#L91'>91</a>
 <a name='L92'></a><a href='#L92'>92</a>
-<a name='L93'></a><a href='#L93'>93</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">9x</span>
@@ -188,6 +206,15 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -204,11 +231,20 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">229x</span>
-<span class="cline-any cline-yes">229x</span>
-<span class="cline-any cline-yes">229x</span>
-<span class="cline-any cline-yes">229x</span>
-<span class="cline-any cline-yes">229x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">447x</span>
+<span class="cline-any cline-yes">447x</span>
+<span class="cline-any cline-yes">447x</span>
+<span class="cline-any cline-yes">447x</span>
+<span class="cline-any cline-yes">447x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -222,11 +258,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">25x</span>
-<span class="cline-any cline-yes">222x</span>
-<span class="cline-any cline-yes">222x</span>
-<span class="cline-any cline-yes">222x</span>
+<span class="cline-any cline-yes">348x</span>
+<span class="cline-any cline-yes">348x</span>
+<span class="cline-any cline-yes">348x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">222x</span>
+<span class="cline-any cline-yes">348x</span>
 <span class="cline-any cline-yes">22x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -270,6 +306,15 @@ export type ShortcutAction =
   | "save-file"
   | "search-workspaces"
   | "toggle-notifications"
+  | "right-sidebar-bookmarks"
+  | "view-team"
+  | "view-tests"
+  | "run-tests"
+  | "view-usage"
+  | "toggle-split-editor"
+  | "open-snippets"
+  | "view-activity"
+  | "export-workspace"
   | "escape";
 &nbsp;
 interface ShortcutDef {
@@ -291,6 +336,15 @@ export const SHORTCUTS: ShortcutDef[] = [
   { key: "2", mod: true, action: "right-sidebar-changes", label: "Changes" },
   { key: "3", mod: true, action: "right-sidebar-checks", label: "Checks" },
   { key: "4", mod: true, action: "toggle-notifications", label: "Notifications" },
+  { key: "5", mod: true, action: "view-team", label: "Team View" },
+  { key: "6", mod: true, action: "right-sidebar-bookmarks", label: "Bookmarks" },
+  { key: "t", mod: true, shift: true, action: "view-tests", label: "Test Runner" },
+  { key: "r", mod: true, shift: true, action: "run-tests", label: "Run Tests" },
+  { key: "u", mod: true, shift: true, action: "view-usage", label: "Usage Dashboard" },
+  { key: "s", mod: true, shift: true, action: "open-snippets", label: "Snippets" },
+  { key: "a", mod: true, shift: true, action: "view-activity", label: "Activity Log" },
+  { key: "e", mod: true, shift: true, action: "export-workspace", label: "Export Workspace" },
+  { key: "\\", mod: true, action: "toggle-split-editor", label: "Split Editor" },
   { key: "f", mod: true, shift: true, action: "search-workspaces", label: "Search Workspaces" },
   { key: "Escape", mod: false, action: "escape", label: "Close" },
 ];
@@ -346,7 +400,7 @@ export function useKeyboardShortcuts(
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-02-26T14:44:51.863Z
+                at 2026-03-19T18:20:52.745Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

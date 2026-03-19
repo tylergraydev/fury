@@ -13,6 +13,168 @@ use crate::state::AppState;
 use tauri::{Emitter, State};
 use uuid::Uuid;
 
+// ---------------------------------------------------------------------------
+// Inner (testable) functions
+// ---------------------------------------------------------------------------
+
+/// Resolve context_id from the request: either workspace_id or repo_id.
+pub(crate) fn resolve_context_id(request: &SendMessageRequest) -> Result<Uuid, AppError> {
+    request
+        .workspace_id
+        .or(request.repo_id)
+        .ok_or_else(|| {
+            AppError::AgentError(
+                "Either workspaceId or repoId must be provided".to_string(),
+            )
+        })
+}
+
+/// Determine the new AgentStatus from a process exit status.
+/// Exit code 143 = SIGTERM (128+15), expected for user-initiated stops.
+pub(crate) fn status_from_exit(exit_code: Option<i32>, success: bool) -> AgentStatus {
+    if success {
+        AgentStatus::Idle
+    } else {
+        match exit_code {
+            Some(143) => AgentStatus::Idle,
+            Some(code) => AgentStatus::Error(format!(
+                "Process exited with code: {}",
+                code
+            )),
+            None => AgentStatus::Error(
+                "Process exited with code: unknown".to_string(),
+            ),
+        }
+    }
+}
+
+/// Determine whether to emit a status update based on current vs new status.
+/// Suppresses Error status if agent is already Idle (stop_agent already reset it).
+/// Returns (should_emit, new_status_to_set).
+pub(crate) fn should_emit_status(
+    current_status: &AgentStatus,
+    new_status: &AgentStatus,
+) -> bool {
+    // If stop_agent already set Idle, don't overwrite with an Error
+    let suppressed = *current_status == AgentStatus::Idle
+        && matches!(new_status, AgentStatus::Error(_));
+    !suppressed
+}
+
+/// Check if an agent is alive and running. Returns true if agent
+/// status is Running and the PID is still alive.
+pub(crate) fn is_agent_alive(agent: &AgentInfo) -> bool {
+    agent.status == AgentStatus::Running
+        && agent.pid.is_some_and(|pid| {
+            crate::platform::is_process_alive(pid)
+        })
+}
+
+/// Convert a boolean approval flag to the permission response string.
+pub(crate) fn permission_response_str(approved: bool) -> &'static str {
+    if approved { "yes" } else { "no" }
+}
+
+/// Determine whether a cold error should clear the agent session_id.
+/// A "cold error" is when the process exits with an error before producing
+/// any content, suggesting the session may be stale/corrupt.
+pub(crate) fn should_clear_session_on_cold_error(
+    had_content: bool,
+    exit_success: bool,
+    exit_code: Option<i32>,
+) -> bool {
+    let is_cold_error = !had_content;
+    let exited_with_error = !exit_success && exit_code != Some(143);
+    is_cold_error && exited_with_error
+}
+
+/// Validate that a working directory path exists.
+pub(crate) fn validate_working_dir(working_dir: &std::path::Path) -> Result<(), AppError> {
+    if !working_dir.exists() {
+        return Err(AppError::AgentError(format!(
+            "Working directory does not exist: {}",
+            working_dir.display()
+        )));
+    }
+    Ok(())
+}
+
+/// Check if persistent process toggle settings match, determining if we can reuse it.
+pub(crate) fn can_reuse_persistent_process(
+    handle_disable_thinking: bool,
+    handle_disable_plan_mode: bool,
+    request_disable_thinking: bool,
+    request_disable_plan_mode: bool,
+) -> bool {
+    handle_disable_thinking == request_disable_thinking
+        && handle_disable_plan_mode == request_disable_plan_mode
+}
+
+/// Collect sibling workspace names for agent teams env var.
+/// Returns names of workspaces sharing the same repo but excluding the current workspace.
+pub(crate) fn collect_sibling_workspace_names(
+    workspaces: &HashMap<Uuid, crate::models::workspace::Workspace>,
+    current_ws_id: Uuid,
+    repo_id: Uuid,
+) -> Vec<String> {
+    workspaces
+        .values()
+        .filter(|ws| ws.repo_id == repo_id && ws.id != current_ws_id)
+        .map(|ws| ws.name.clone())
+        .collect()
+}
+
+/// Determine whether container execution context should be used for an agent.
+/// Returns Some(ContainerExecContext) if the workspace has container mode enabled
+/// with AgentExecMode::Container and a running container.
+pub(crate) fn resolve_container_exec_context(
+    workspace: &crate::models::workspace::Workspace,
+    repo_name: &str,
+    container_id: Option<String>,
+) -> Option<crate::models::devcontainer::ContainerExecContext> {
+    let config = workspace.devcontainer_config.as_ref()?;
+    if !config.enabled
+        || config.agent_exec_mode != crate::models::devcontainer::AgentExecMode::Container
+    {
+        return None;
+    }
+    let container_working_dir =
+        crate::services::devcontainer::resolve_container_workspace_path(config, repo_name);
+    let cid = container_id?;
+    Some(crate::models::devcontainer::ContainerExecContext {
+        container_id: cid,
+        container_working_dir,
+    })
+}
+
+/// Extract thinking and plan_mode flags from a request, defaulting to false.
+pub(crate) fn extract_toggle_flags(request: &SendMessageRequest) -> (bool, bool) {
+    (
+        request.disable_thinking.unwrap_or(false),
+        request.disable_plan_mode.unwrap_or(false),
+    )
+}
+
+/// Parse a workspace_id string into a Uuid, returning WorkspaceNotFound on failure.
+pub(crate) fn parse_agent_workspace_id(workspace_id: &str) -> Result<Uuid, AppError> {
+    workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))
+}
+
+/// Get or create an AgentInfo entry, set it to Running, and return the session_id.
+pub(crate) fn activate_agent(
+    agents: &mut HashMap<Uuid, AgentInfo>,
+    context_id: Uuid,
+) -> Option<String> {
+    let agent = agents
+        .entry(context_id)
+        .or_insert_with(|| AgentInfo::new(context_id));
+    agent.status = AgentStatus::Running;
+    agent.started_at = Some(chrono::Utc::now());
+    agent.session_id.clone()
+}
+
 /// Reset agent status to Idle after a failed spawn/write.
 fn reset_agent_on_error(
     agents: &Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
@@ -42,14 +204,7 @@ pub async fn send_message(
     request: SendMessageRequest,
 ) -> Result<(), AppError> {
     // Determine context_id (either workspace_id or repo_id)
-    let context_id = request
-        .workspace_id
-        .or(request.repo_id)
-        .ok_or_else(|| {
-            AppError::AgentError(
-                "Either workspaceId or repoId must be provided".to_string(),
-            )
-        })?;
+    let context_id = resolve_context_id(&request)?;
 
     // Check if agent is already running
     {
@@ -58,10 +213,7 @@ pub async fn send_message(
             if agent.status == AgentStatus::Running {
                 // Verify the process is actually alive before rejecting.
                 // Stale "Running" status can linger from crashed or stuck processes.
-                let is_alive = agent.pid.is_some_and(|pid| {
-                    crate::platform::is_process_alive(pid)
-                });
-                if is_alive {
+                if is_agent_alive(agent) {
                     return Err(AppError::AgentError(
                         "Agent is already processing a message".to_string(),
                     ));
@@ -119,11 +271,7 @@ pub async fn send_message(
     // though FURY_AGENT_TEAMS is only set by Claude's build_env_vars)
         if settings.experimental.agent_teams {
             let workspaces = state.workspaces.read().unwrap();
-            let siblings: Vec<String> = workspaces
-                .values()
-                .filter(|ws| ws.repo_id == workspace.repo_id && ws.id != workspace.id)
-                .map(|ws| ws.name.clone())
-                .collect();
+            let siblings = collect_sibling_workspace_names(&workspaces, workspace.id, workspace.repo_id);
             if !siblings.is_empty() {
                 env.insert(
                     "FURY_TEAM_WORKSPACES".to_string(),
@@ -156,12 +304,7 @@ pub async fn send_message(
     // Get or create agent info, extract session_id
     let session_id = {
         let mut agents = state.agents.lock().unwrap();
-        let agent = agents
-            .entry(context_id)
-            .or_insert_with(|| AgentInfo::new(context_id));
-        agent.status = AgentStatus::Running;
-        agent.started_at = Some(chrono::Utc::now());
-        agent.session_id.clone()
+        activate_agent(&mut agents, context_id)
     };
 
     // Create checkpoint before sending message (workspace mode only)
@@ -234,16 +377,12 @@ pub async fn send_message(
         )
     };
 
-    let disable_thinking = request.disable_thinking.unwrap_or(false);
-    let disable_plan_mode = request.disable_plan_mode.unwrap_or(false);
+    let (disable_thinking, disable_plan_mode) = extract_toggle_flags(&request);
 
     // Validate working directory exists before spawning
-    if !std::path::Path::new(&working_dir).exists() {
+    if let Err(e) = validate_working_dir(&working_dir) {
         reset_agent_on_error(&state.agents, &app, context_id);
-        return Err(AppError::AgentError(format!(
-            "Working directory does not exist: {}",
-            working_dir.display()
-        )));
+        return Err(e);
     }
 
     // Filter out non-existent linked directories to prevent CLI failures
@@ -256,39 +395,18 @@ pub async fn send_message(
     let container_ctx = if let Some(workspace_id) = request.workspace_id {
         let workspaces = state.workspaces.read().unwrap();
         if let Some(ws) = workspaces.get(&workspace_id) {
-            if let Some(ref config) = ws.devcontainer_config {
-                if config.enabled
-                    && config.agent_exec_mode
-                        == crate::models::devcontainer::AgentExecMode::Container
-                {
-                    let repos = state.repositories.read().unwrap();
-                    let repo_name = repos
-                        .get(&ws.repo_id)
-                        .map(|r| r.name.clone())
-                        .unwrap_or_else(|| "workspace".to_string());
-                    let container_working_dir =
-                        crate::services::devcontainer::resolve_container_workspace_path(
-                            config,
-                            &repo_name,
-                        );
-                    let container_id = {
-                        let states = state.container_states.lock().unwrap();
-                        states
-                            .get(&workspace_id)
-                            .and_then(|cs| cs.container_id.clone())
-                    };
-                    container_id.map(|cid| {
-                        crate::models::devcontainer::ContainerExecContext {
-                            container_id: cid,
-                            container_working_dir,
-                        }
-                    })
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
+            let repos = state.repositories.read().unwrap();
+            let repo_name = repos
+                .get(&ws.repo_id)
+                .map(|r| r.name.clone())
+                .unwrap_or_else(|| "workspace".to_string());
+            let container_id = {
+                let states = state.container_states.lock().unwrap();
+                states
+                    .get(&workspace_id)
+                    .and_then(|cs| cs.container_id.clone())
+            };
+            resolve_container_exec_context(ws, &repo_name, container_id)
         } else {
             None
         }
@@ -309,7 +427,12 @@ pub async fn send_message(
 
         // Check if we can reuse the existing process (toggle settings must match)
         let reuse_handle = existing_handle.filter(|h| {
-            h.disable_thinking == disable_thinking && h.disable_plan_mode == disable_plan_mode
+            can_reuse_persistent_process(
+                h.disable_thinking,
+                h.disable_plan_mode,
+                disable_thinking,
+                disable_plan_mode,
+            )
         });
 
         if let Some(mut handle) = reuse_handle {
@@ -433,19 +556,7 @@ pub async fn send_message(
                     .remove(&context_id);
 
                 let new_status = match exit_status {
-                    Some(ref status) if status.success() => AgentStatus::Idle,
-                    Some(ref status) => {
-                        let code = status.code();
-                        // Exit code 143 = SIGTERM (128+15), expected for user-initiated stops
-                        if code == Some(143) {
-                            AgentStatus::Idle
-                        } else {
-                            AgentStatus::Error(format!(
-                                "Persistent process exited with code: {}",
-                                code.map_or("unknown".to_string(), |c| c.to_string())
-                            ))
-                        }
-                    }
+                    Some(ref status) => status_from_exit(status.code(), status.success()),
                     None => AgentStatus::Idle,
                 };
 
@@ -453,14 +564,12 @@ pub async fn send_message(
                     let mut agents =
                         agents_ref.lock().unwrap_or_else(|e| e.into_inner());
                     if let Some(agent) = agents.get_mut(&context_id) {
-                        // If stop_agent already set Idle, don't overwrite with an Error
-                        let suppressed = agent.status == AgentStatus::Idle
-                            && matches!(new_status, AgentStatus::Error(_));
-                        if !suppressed {
+                        let emit = should_emit_status(&agent.status, &new_status);
+                        if emit {
                             agent.status = new_status.clone();
                         }
                         agent.pid = None;
-                        !suppressed
+                        emit
                     } else {
                         false
                     }
@@ -570,11 +679,12 @@ pub async fn send_message(
             // Cold error recovery: if the process failed without producing any
             // assistant content, clear the session_id so the next retry starts fresh.
             // This handles the most common recoverable failure: stale session resumption.
-            let is_cold_error = !had_content.load(std::sync::atomic::Ordering::Relaxed);
-            let exited_with_error = exit_status
-                .as_ref()
-                .is_some_and(|s| !s.success() && s.code() != Some(143));
-            if is_cold_error && exited_with_error {
+            let content_produced = had_content.load(std::sync::atomic::Ordering::Relaxed);
+            let (exit_success, exit_code_val) = match exit_status.as_ref() {
+                Some(s) => (s.success(), s.code()),
+                None => (true, None),
+            };
+            if should_clear_session_on_cold_error(content_produced, exit_success, exit_code_val) {
                 let mut agents = agents_ref.lock().unwrap_or_else(|e| e.into_inner());
                 if let Some(agent) = agents.get_mut(&context_id) {
                     if agent.session_id.is_some() {
@@ -590,18 +700,7 @@ pub async fn send_message(
             }
 
             let new_status = match exit_status {
-                Some(ref status) if status.success() => AgentStatus::Idle,
-                Some(ref status) => {
-                    let code = status.code();
-                    if code == Some(143) {
-                        AgentStatus::Idle
-                    } else {
-                        AgentStatus::Error(format!(
-                            "Process exited with code: {}",
-                            code.map_or("unknown".to_string(), |c| c.to_string())
-                        ))
-                    }
-                }
+                Some(ref status) => status_from_exit(status.code(), status.success()),
                 None => AgentStatus::Idle,
             };
 
@@ -609,13 +708,12 @@ pub async fn send_message(
                 let mut agents =
                     agents_ref.lock().unwrap_or_else(|e| e.into_inner());
                 if let Some(agent) = agents.get_mut(&context_id) {
-                    let suppressed = agent.status == AgentStatus::Idle
-                        && matches!(new_status, AgentStatus::Error(_));
-                    if !suppressed {
+                    let emit = should_emit_status(&agent.status, &new_status);
+                    if emit {
                         agent.status = new_status.clone();
                     }
                     agent.pid = None;
-                    !suppressed
+                    emit
                 } else {
                     false
                 }
@@ -701,18 +799,7 @@ pub async fn send_message(
                 .remove(&context_id);
 
             let new_status = match exit_status {
-                Some(ref status) if status.success() => AgentStatus::Idle,
-                Some(ref status) => {
-                    let code = status.code();
-                    if code == Some(143) {
-                        AgentStatus::Idle
-                    } else {
-                        AgentStatus::Error(format!(
-                            "Process exited with code: {}",
-                            code.map_or("unknown".to_string(), |c| c.to_string())
-                        ))
-                    }
-                }
+                Some(ref status) => status_from_exit(status.code(), status.success()),
                 None => AgentStatus::Idle,
             };
 
@@ -720,13 +807,12 @@ pub async fn send_message(
                 let mut agents =
                     agents_ref.lock().unwrap_or_else(|e| e.into_inner());
                 if let Some(agent) = agents.get_mut(&context_id) {
-                    let suppressed = agent.status == AgentStatus::Idle
-                        && matches!(new_status, AgentStatus::Error(_));
-                    if !suppressed {
+                    let emit = should_emit_status(&agent.status, &new_status);
+                    if emit {
                         agent.status = new_status.clone();
                     }
                     agent.pid = None;
-                    !suppressed
+                    emit
                 } else {
                     false
                 }
@@ -754,9 +840,7 @@ pub async fn respond_to_permission(
     workspace_id: String,
     approved: bool,
 ) -> Result<(), AppError> {
-    let id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let id = parse_agent_workspace_id(&workspace_id)?;
 
     // Codex CLI does not support interactive permission responses
     let agent_type = {
@@ -769,7 +853,7 @@ pub async fn respond_to_permission(
         ));
     }
 
-    let response = if approved { "yes" } else { "no" };
+    let response = permission_response_str(approved);
 
     // Try agent_stdins first (non-persistent mode)
     let regular_stdin = state.agent_stdins.lock().unwrap().remove(&id);
@@ -801,9 +885,7 @@ pub async fn send_followup_message(
     workspace_id: String,
     message: String,
 ) -> Result<(), AppError> {
-    let id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let id = parse_agent_workspace_id(&workspace_id)?;
 
     // Try agent_stdins first (non-persistent mode)
     let regular_stdin = state.agent_stdins.lock().unwrap().remove(&id);
@@ -834,9 +916,7 @@ pub async fn stop_agent(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<(), AppError> {
-    let id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let id = parse_agent_workspace_id(&workspace_id)?;
 
     // Extract Arc references before spawn_blocking
     let agents = Arc::clone(&state.agents);
@@ -903,9 +983,7 @@ pub async fn get_agent_status(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<AgentInfo, AppError> {
-    let id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let id = parse_agent_workspace_id(&workspace_id)?;
 
     let agents = Arc::clone(&state.agents);
     tokio::task::spawn_blocking(move || {
@@ -924,9 +1002,7 @@ pub async fn clear_session(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<(), AppError> {
-    let id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let id = parse_agent_workspace_id(&workspace_id)?;
 
     let agents = Arc::clone(&state.agents);
     let persistent_agents = Arc::clone(&state.persistent_agents);
@@ -956,4 +1032,676 @@ pub async fn clear_session(
     })
     .await
     .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_context_id_workspace() {
+        let req = SendMessageRequest {
+            workspace_id: Some(Uuid::new_v4()),
+            repo_id: None,
+            message: "hi".to_string(),
+            model: None,
+            disable_thinking: None,
+            disable_plan_mode: None,
+        };
+        let id = resolve_context_id(&req).unwrap();
+        assert_eq!(id, req.workspace_id.unwrap());
+    }
+
+    #[test]
+    fn test_resolve_context_id_repo() {
+        let repo_id = Uuid::new_v4();
+        let req = SendMessageRequest {
+            workspace_id: None,
+            repo_id: Some(repo_id),
+            message: "hi".to_string(),
+            model: None,
+            disable_thinking: None,
+            disable_plan_mode: None,
+        };
+        let id = resolve_context_id(&req).unwrap();
+        assert_eq!(id, repo_id);
+    }
+
+    #[test]
+    fn test_resolve_context_id_workspace_takes_precedence() {
+        let ws_id = Uuid::new_v4();
+        let req = SendMessageRequest {
+            workspace_id: Some(ws_id),
+            repo_id: Some(Uuid::new_v4()),
+            message: "hi".to_string(),
+            model: None,
+            disable_thinking: None,
+            disable_plan_mode: None,
+        };
+        let id = resolve_context_id(&req).unwrap();
+        assert_eq!(id, ws_id);
+    }
+
+    #[test]
+    fn test_resolve_context_id_neither() {
+        let req = SendMessageRequest {
+            workspace_id: None,
+            repo_id: None,
+            message: "hi".to_string(),
+            model: None,
+            disable_thinking: None,
+            disable_plan_mode: None,
+        };
+        assert!(resolve_context_id(&req).is_err());
+    }
+
+    #[test]
+    fn test_status_from_exit_success() {
+        assert_eq!(status_from_exit(Some(0), true), AgentStatus::Idle);
+    }
+
+    #[test]
+    fn test_status_from_exit_sigterm() {
+        assert_eq!(status_from_exit(Some(143), false), AgentStatus::Idle);
+    }
+
+    #[test]
+    fn test_status_from_exit_error_code() {
+        let status = status_from_exit(Some(1), false);
+        assert!(matches!(status, AgentStatus::Error(_)));
+        if let AgentStatus::Error(msg) = status {
+            assert!(msg.contains("1"));
+        }
+    }
+
+    #[test]
+    fn test_status_from_exit_unknown_code() {
+        let status = status_from_exit(None, false);
+        assert!(matches!(status, AgentStatus::Error(_)));
+        if let AgentStatus::Error(msg) = status {
+            assert!(msg.contains("unknown"));
+        }
+    }
+
+    #[test]
+    fn test_should_emit_status_normal_transition() {
+        assert!(should_emit_status(&AgentStatus::Running, &AgentStatus::Idle));
+    }
+
+    #[test]
+    fn test_should_emit_status_suppresses_error_when_idle() {
+        // When stop_agent already set Idle, suppress Error
+        assert!(!should_emit_status(
+            &AgentStatus::Idle,
+            &AgentStatus::Error("crash".to_string())
+        ));
+    }
+
+    #[test]
+    fn test_should_emit_status_running_to_error() {
+        assert!(should_emit_status(
+            &AgentStatus::Running,
+            &AgentStatus::Error("crash".to_string())
+        ));
+    }
+
+    #[test]
+    fn test_should_emit_status_idle_to_idle() {
+        assert!(should_emit_status(&AgentStatus::Idle, &AgentStatus::Idle));
+    }
+
+    #[test]
+    fn test_activate_agent_new() {
+        let mut agents = HashMap::new();
+        let id = Uuid::new_v4();
+
+        let session = activate_agent(&mut agents, id);
+        assert!(session.is_none()); // new agent has no session
+        assert_eq!(agents.get(&id).unwrap().status, AgentStatus::Running);
+        assert!(agents.get(&id).unwrap().started_at.is_some());
+    }
+
+    #[test]
+    fn test_activate_agent_existing_with_session() {
+        let mut agents = HashMap::new();
+        let id = Uuid::new_v4();
+        let mut agent = AgentInfo::new(id);
+        agent.session_id = Some("sess-123".to_string());
+        agent.status = AgentStatus::Idle;
+        agents.insert(id, agent);
+
+        let session = activate_agent(&mut agents, id);
+        assert_eq!(session, Some("sess-123".to_string()));
+        assert_eq!(agents.get(&id).unwrap().status, AgentStatus::Running);
+    }
+
+    #[test]
+    fn test_is_agent_alive_idle() {
+        let agent = AgentInfo::new(Uuid::new_v4());
+        assert!(!is_agent_alive(&agent));
+    }
+
+    #[test]
+    fn test_is_agent_alive_running_no_pid() {
+        let mut agent = AgentInfo::new(Uuid::new_v4());
+        agent.status = AgentStatus::Running;
+        assert!(!is_agent_alive(&agent));
+    }
+
+    #[test]
+    fn test_is_agent_alive_running_dead_pid() {
+        let mut agent = AgentInfo::new(Uuid::new_v4());
+        agent.status = AgentStatus::Running;
+        // Use PID 999999999 which almost certainly doesn't exist
+        agent.pid = Some(999_999_999);
+        assert!(!is_agent_alive(&agent));
+    }
+
+    // --- permission_response_str tests ---
+
+    #[test]
+    fn test_permission_response_str_approved() {
+        assert_eq!(permission_response_str(true), "yes");
+    }
+
+    #[test]
+    fn test_permission_response_str_denied() {
+        assert_eq!(permission_response_str(false), "no");
+    }
+
+    // --- should_clear_session_on_cold_error tests ---
+
+    #[test]
+    fn test_cold_error_no_content_error_exit() {
+        // No content + error exit = should clear
+        assert!(should_clear_session_on_cold_error(false, false, Some(1)));
+    }
+
+    #[test]
+    fn test_cold_error_no_content_sigterm() {
+        // No content + SIGTERM (143) = should NOT clear (user-initiated stop)
+        assert!(!should_clear_session_on_cold_error(false, false, Some(143)));
+    }
+
+    #[test]
+    fn test_cold_error_no_content_success() {
+        // No content + success = should NOT clear
+        assert!(!should_clear_session_on_cold_error(false, true, Some(0)));
+    }
+
+    #[test]
+    fn test_cold_error_had_content_error() {
+        // Had content + error = should NOT clear (content was produced)
+        assert!(!should_clear_session_on_cold_error(true, false, Some(1)));
+    }
+
+    #[test]
+    fn test_cold_error_no_content_unknown_code() {
+        // No content + error + unknown code = should clear
+        assert!(should_clear_session_on_cold_error(false, false, None));
+    }
+
+    #[test]
+    fn test_cold_error_had_content_success() {
+        // Normal successful case = should NOT clear
+        assert!(!should_clear_session_on_cold_error(true, true, Some(0)));
+    }
+
+    // --- validate_working_dir tests ---
+
+    #[test]
+    fn test_validate_working_dir_exists() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(validate_working_dir(dir.path()).is_ok());
+    }
+
+    #[test]
+    fn test_validate_working_dir_not_exists() {
+        let result = validate_working_dir(std::path::Path::new("/nonexistent/path/xyz123"));
+        assert!(result.is_err());
+        let err_msg = format!("{:?}", result.unwrap_err());
+        assert!(err_msg.contains("Working directory does not exist"));
+    }
+
+    // --- can_reuse_persistent_process tests ---
+
+    #[test]
+    fn test_can_reuse_matching_settings() {
+        assert!(can_reuse_persistent_process(false, false, false, false));
+        assert!(can_reuse_persistent_process(true, true, true, true));
+        assert!(can_reuse_persistent_process(true, false, true, false));
+    }
+
+    #[test]
+    fn test_cannot_reuse_mismatched_thinking() {
+        assert!(!can_reuse_persistent_process(true, false, false, false));
+        assert!(!can_reuse_persistent_process(false, false, true, false));
+    }
+
+    #[test]
+    fn test_cannot_reuse_mismatched_plan_mode() {
+        assert!(!can_reuse_persistent_process(false, true, false, false));
+        assert!(!can_reuse_persistent_process(false, false, false, true));
+    }
+
+    // --- parse_agent_workspace_id tests ---
+
+    #[test]
+    fn test_parse_agent_workspace_id_valid() {
+        let id = Uuid::new_v4();
+        assert_eq!(parse_agent_workspace_id(&id.to_string()).unwrap(), id);
+    }
+
+    #[test]
+    fn test_parse_agent_workspace_id_invalid() {
+        assert!(parse_agent_workspace_id("not-a-uuid").is_err());
+    }
+
+    #[test]
+    fn test_parse_agent_workspace_id_empty() {
+        assert!(parse_agent_workspace_id("").is_err());
+    }
+
+    // --- activate_agent edge cases ---
+
+    #[test]
+    fn test_activate_agent_reactivate_after_error() {
+        let mut agents = HashMap::new();
+        let id = Uuid::new_v4();
+        let mut agent = AgentInfo::new(id);
+        agent.status = AgentStatus::Error("previous crash".to_string());
+        agents.insert(id, agent);
+
+        activate_agent(&mut agents, id);
+        assert_eq!(agents.get(&id).unwrap().status, AgentStatus::Running);
+    }
+
+    #[test]
+    fn test_activate_agent_preserves_session_id() {
+        let mut agents = HashMap::new();
+        let id = Uuid::new_v4();
+        let mut agent = AgentInfo::new(id);
+        agent.session_id = Some("my-session".to_string());
+        agent.status = AgentStatus::Idle;
+        agents.insert(id, agent);
+
+        let session = activate_agent(&mut agents, id);
+        assert_eq!(session, Some("my-session".to_string()));
+        // session_id should still be there after activation
+        assert_eq!(
+            agents.get(&id).unwrap().session_id,
+            Some("my-session".to_string())
+        );
+    }
+
+    // --- status_from_exit edge cases ---
+
+    #[test]
+    fn test_status_from_exit_various_error_codes() {
+        for code in [2, 127, 130, 255] {
+            let status = status_from_exit(Some(code), false);
+            match status {
+                AgentStatus::Error(msg) => assert!(msg.contains(&code.to_string())),
+                _ => panic!("Expected Error for code {}", code),
+            }
+        }
+    }
+
+    #[test]
+    fn test_status_from_exit_success_ignores_code() {
+        // If success=true, always Idle regardless of code
+        assert_eq!(status_from_exit(Some(0), true), AgentStatus::Idle);
+        assert_eq!(status_from_exit(Some(1), true), AgentStatus::Idle);
+        assert_eq!(status_from_exit(None, true), AgentStatus::Idle);
+    }
+
+    // --- should_emit_status edge cases ---
+
+    #[test]
+    fn test_should_emit_stopping_to_idle() {
+        assert!(should_emit_status(&AgentStatus::Stopping, &AgentStatus::Idle));
+    }
+
+    #[test]
+    fn test_should_emit_stopping_to_error() {
+        assert!(should_emit_status(
+            &AgentStatus::Stopping,
+            &AgentStatus::Error("crash".to_string())
+        ));
+    }
+
+    #[test]
+    fn test_should_emit_error_to_idle() {
+        assert!(should_emit_status(
+            &AgentStatus::Error("old".to_string()),
+            &AgentStatus::Idle
+        ));
+    }
+
+    #[test]
+    fn test_should_emit_error_to_error() {
+        assert!(should_emit_status(
+            &AgentStatus::Error("old".to_string()),
+            &AgentStatus::Error("new".to_string())
+        ));
+    }
+
+    // --- is_agent_alive edge cases ---
+
+    #[test]
+    fn test_is_agent_alive_stopping_status() {
+        let mut agent = AgentInfo::new(Uuid::new_v4());
+        agent.status = AgentStatus::Stopping;
+        agent.pid = Some(1);
+        assert!(!is_agent_alive(&agent));
+    }
+
+    #[test]
+    fn test_is_agent_alive_error_status() {
+        let mut agent = AgentInfo::new(Uuid::new_v4());
+        agent.status = AgentStatus::Error("crashed".to_string());
+        agent.pid = Some(1);
+        assert!(!is_agent_alive(&agent));
+    }
+
+    // --- resolve_context_id edge cases ---
+
+    #[test]
+    fn test_resolve_context_id_error_message() {
+        let req = SendMessageRequest {
+            workspace_id: None,
+            repo_id: None,
+            message: "test".to_string(),
+            model: None,
+            disable_thinking: None,
+            disable_plan_mode: None,
+        };
+        let err = resolve_context_id(&req).unwrap_err();
+        let msg = format!("{:?}", err);
+        assert!(msg.contains("workspaceId") || msg.contains("repoId"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Async command wrapper tests (using mock_app_with_state)
+    // -----------------------------------------------------------------------
+
+    use crate::test_helpers::mock_app_with_state;
+    use tauri::Manager;
+
+    #[tokio::test]
+    async fn test_cmd_get_agent_status_unknown_workspace() {
+        let app = mock_app_with_state();
+        let state: tauri::State<'_, crate::state::AppState> = app.state();
+        let ws_id = Uuid::new_v4();
+        let result = get_agent_status(state, ws_id.to_string()).await;
+        assert!(result.is_ok());
+        let info = result.unwrap();
+        assert_eq!(info.status, AgentStatus::Idle);
+        assert_eq!(info.workspace_id, ws_id);
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_agent_status_invalid_id() {
+        let app = mock_app_with_state();
+        let state: tauri::State<'_, crate::state::AppState> = app.state();
+        let result = get_agent_status(state, "not-a-uuid".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_clear_session() {
+        let app = mock_app_with_state();
+        let ws_id = Uuid::new_v4();
+
+        // Set up an agent with a session_id
+        {
+            let app_state = app.state::<crate::state::AppState>();
+            let mut agents = app_state.agents.lock().unwrap();
+            let mut agent = AgentInfo::new(ws_id);
+            agent.session_id = Some("sess-abc".to_string());
+            agents.insert(ws_id, agent);
+        }
+
+        let state: tauri::State<'_, crate::state::AppState> = app.state();
+        let result = clear_session(state, ws_id.to_string()).await;
+        assert!(result.is_ok());
+
+        // Verify session cleared
+        let app_state = app.state::<crate::state::AppState>();
+        let agents = app_state.agents.lock().unwrap();
+        assert!(agents.get(&ws_id).unwrap().session_id.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_clear_session_nonexistent() {
+        let app = mock_app_with_state();
+        let state: tauri::State<'_, crate::state::AppState> = app.state();
+        // Clearing session for a workspace with no agent should succeed
+        let result = clear_session(state, Uuid::new_v4().to_string()).await;
+        assert!(result.is_ok());
+    }
+
+    // Note: stop_agent takes tauri::AppHandle (Wry runtime) which is incompatible
+    // with MockRuntime. We test the inner logic via the unit tests above and
+    // verify that clear_session + get_agent_status work with mock state.
+    // The stop_agent wrapper requires a real AppHandle and cannot be tested
+    // with MockRuntime.
+
+    // -----------------------------------------------------------------------
+    // collect_sibling_workspace_names tests
+    // -----------------------------------------------------------------------
+
+    use crate::models::workspace::Workspace;
+    use crate::test_helpers::{test_workspace, test_repo};
+
+    #[test]
+    fn test_collect_sibling_names_empty_map() {
+        let workspaces = HashMap::new();
+        let names = collect_sibling_workspace_names(&workspaces, Uuid::new_v4(), Uuid::new_v4());
+        assert!(names.is_empty());
+    }
+
+    #[test]
+    fn test_collect_sibling_names_no_siblings() {
+        let repo_id = Uuid::new_v4();
+        let ws = test_workspace(repo_id);
+        let ws_id = ws.id;
+        let mut workspaces = HashMap::new();
+        workspaces.insert(ws_id, ws);
+
+        let names = collect_sibling_workspace_names(&workspaces, ws_id, repo_id);
+        assert!(names.is_empty());
+    }
+
+    #[test]
+    fn test_collect_sibling_names_different_repo() {
+        let repo_a = Uuid::new_v4();
+        let repo_b = Uuid::new_v4();
+        let ws_a = test_workspace(repo_a);
+        let ws_b = test_workspace(repo_b);
+        let ws_a_id = ws_a.id;
+        let mut workspaces = HashMap::new();
+        workspaces.insert(ws_a.id, ws_a);
+        workspaces.insert(ws_b.id, ws_b);
+
+        // ws_b belongs to repo_b, should not appear as sibling of ws_a (repo_a)
+        let names = collect_sibling_workspace_names(&workspaces, ws_a_id, repo_a);
+        assert!(names.is_empty());
+    }
+
+    #[test]
+    fn test_collect_sibling_names_with_siblings() {
+        let repo_id = Uuid::new_v4();
+        let ws1 = test_workspace(repo_id);
+        let ws1_id = ws1.id;
+        let mut ws2 = test_workspace(repo_id);
+        ws2.name = "sibling-a".to_string();
+        let mut ws3 = test_workspace(repo_id);
+        ws3.name = "sibling-b".to_string();
+        let mut workspaces = HashMap::new();
+        workspaces.insert(ws1.id, ws1);
+        workspaces.insert(ws2.id, ws2);
+        workspaces.insert(ws3.id, ws3);
+
+        let mut names = collect_sibling_workspace_names(&workspaces, ws1_id, repo_id);
+        names.sort();
+        assert_eq!(names, vec!["sibling-a", "sibling-b"]);
+    }
+
+    #[test]
+    fn test_collect_sibling_names_excludes_self() {
+        let repo_id = Uuid::new_v4();
+        let mut ws = test_workspace(repo_id);
+        ws.name = "myself".to_string();
+        let ws_id = ws.id;
+        let mut workspaces = HashMap::new();
+        workspaces.insert(ws.id, ws);
+
+        let names = collect_sibling_workspace_names(&workspaces, ws_id, repo_id);
+        assert!(names.is_empty());
+    }
+
+    // -----------------------------------------------------------------------
+    // resolve_container_exec_context tests
+    // -----------------------------------------------------------------------
+
+    use crate::models::devcontainer::{AgentExecMode, DevContainerConfig};
+
+    #[test]
+    fn test_container_ctx_no_devcontainer_config() {
+        let ws = test_workspace(Uuid::new_v4());
+        // devcontainer_config is None by default
+        let ctx = resolve_container_exec_context(&ws, "my-repo", Some("cid".to_string()));
+        assert!(ctx.is_none());
+    }
+
+    #[test]
+    fn test_container_ctx_disabled() {
+        let mut ws = test_workspace(Uuid::new_v4());
+        ws.devcontainer_config = Some(DevContainerConfig {
+            enabled: false,
+            agent_exec_mode: AgentExecMode::Container,
+            ..Default::default()
+        });
+        let ctx = resolve_container_exec_context(&ws, "my-repo", Some("cid".to_string()));
+        assert!(ctx.is_none());
+    }
+
+    #[test]
+    fn test_container_ctx_host_mode() {
+        let mut ws = test_workspace(Uuid::new_v4());
+        ws.devcontainer_config = Some(DevContainerConfig {
+            enabled: true,
+            agent_exec_mode: AgentExecMode::Host,
+            ..Default::default()
+        });
+        let ctx = resolve_container_exec_context(&ws, "my-repo", Some("cid".to_string()));
+        assert!(ctx.is_none());
+    }
+
+    #[test]
+    fn test_container_ctx_no_container_id() {
+        let mut ws = test_workspace(Uuid::new_v4());
+        ws.devcontainer_config = Some(DevContainerConfig {
+            enabled: true,
+            agent_exec_mode: AgentExecMode::Container,
+            ..Default::default()
+        });
+        let ctx = resolve_container_exec_context(&ws, "my-repo", None);
+        assert!(ctx.is_none());
+    }
+
+    #[test]
+    fn test_container_ctx_success() {
+        let mut ws = test_workspace(Uuid::new_v4());
+        ws.devcontainer_config = Some(DevContainerConfig {
+            enabled: true,
+            agent_exec_mode: AgentExecMode::Container,
+            ..Default::default()
+        });
+        let ctx = resolve_container_exec_context(&ws, "my-repo", Some("abc123".to_string()));
+        assert!(ctx.is_some());
+        let ctx = ctx.unwrap();
+        assert_eq!(ctx.container_id, "abc123");
+        // Default container_workspace_path is None, so it should use the repo name fallback
+        assert!(ctx.container_working_dir.contains("my-repo"));
+    }
+
+    #[test]
+    fn test_container_ctx_custom_workspace_path() {
+        let mut ws = test_workspace(Uuid::new_v4());
+        ws.devcontainer_config = Some(DevContainerConfig {
+            enabled: true,
+            agent_exec_mode: AgentExecMode::Container,
+            container_workspace_path: Some("/custom/path".to_string()),
+            ..Default::default()
+        });
+        let ctx = resolve_container_exec_context(&ws, "my-repo", Some("cid".to_string()));
+        assert!(ctx.is_some());
+        assert_eq!(ctx.unwrap().container_working_dir, "/custom/path");
+    }
+
+    // -----------------------------------------------------------------------
+    // extract_toggle_flags tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_extract_toggle_flags_defaults() {
+        let req = SendMessageRequest {
+            workspace_id: Some(Uuid::new_v4()),
+            repo_id: None,
+            message: "hi".to_string(),
+            model: None,
+            disable_thinking: None,
+            disable_plan_mode: None,
+        };
+        let (thinking, plan) = extract_toggle_flags(&req);
+        assert!(!thinking);
+        assert!(!plan);
+    }
+
+    #[test]
+    fn test_extract_toggle_flags_explicit_true() {
+        let req = SendMessageRequest {
+            workspace_id: Some(Uuid::new_v4()),
+            repo_id: None,
+            message: "hi".to_string(),
+            model: None,
+            disable_thinking: Some(true),
+            disable_plan_mode: Some(true),
+        };
+        let (thinking, plan) = extract_toggle_flags(&req);
+        assert!(thinking);
+        assert!(plan);
+    }
+
+    #[test]
+    fn test_extract_toggle_flags_explicit_false() {
+        let req = SendMessageRequest {
+            workspace_id: Some(Uuid::new_v4()),
+            repo_id: None,
+            message: "hi".to_string(),
+            model: None,
+            disable_thinking: Some(false),
+            disable_plan_mode: Some(false),
+        };
+        let (thinking, plan) = extract_toggle_flags(&req);
+        assert!(!thinking);
+        assert!(!plan);
+    }
+
+    #[test]
+    fn test_extract_toggle_flags_mixed() {
+        let req = SendMessageRequest {
+            workspace_id: Some(Uuid::new_v4()),
+            repo_id: None,
+            message: "hi".to_string(),
+            model: None,
+            disable_thinking: Some(true),
+            disable_plan_mode: None,
+        };
+        let (thinking, plan) = extract_toggle_flags(&req);
+        assert!(thinking);
+        assert!(!plan);
+    }
 }

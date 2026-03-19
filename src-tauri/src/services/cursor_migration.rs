@@ -125,6 +125,185 @@ pub fn convert_cursorrules_to_claude_md(rules_content: &str) -> String {
     output
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_cursor_config() {
+        // Just verify it doesn't panic and returns an Option
+        let result = detect_cursor_config();
+        // We can't control ~/.cursor/mcp.json in tests, but the function should work
+        let _ = result;
+    }
+
+    #[test]
+    fn test_parse_cursor_mcp_valid() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("mcp.json");
+        std::fs::write(
+            &path,
+            r#"{
+                "mcpServers": {
+                    "test-server": {
+                        "command": "node",
+                        "args": ["/path/to/server.js", "--stdio"],
+                        "env": { "API_KEY": "secret" }
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let servers = parse_cursor_mcp(&path).unwrap();
+        assert_eq!(servers.len(), 1);
+        assert_eq!(servers[0].name, "test-server");
+        assert_eq!(servers[0].command, "node");
+        assert_eq!(servers[0].args, vec!["/path/to/server.js", "--stdio"]);
+        assert_eq!(servers[0].env.get("API_KEY").unwrap(), "secret");
+    }
+
+    #[test]
+    fn test_parse_cursor_mcp_empty_servers() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("mcp.json");
+        std::fs::write(&path, r#"{"mcpServers": {}}"#).unwrap();
+        let servers = parse_cursor_mcp(&path).unwrap();
+        assert!(servers.is_empty());
+    }
+
+    #[test]
+    fn test_parse_cursor_mcp_missing_key() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("mcp.json");
+        std::fs::write(&path, r#"{"other": "stuff"}"#).unwrap();
+        let result = parse_cursor_mcp(&path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_cursor_mcp_malformed_json() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("mcp.json");
+        std::fs::write(&path, "not json").unwrap();
+        let result = parse_cursor_mcp(&path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_cursor_mcp_missing_optional_fields() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("mcp.json");
+        std::fs::write(&path, r#"{"mcpServers": {"minimal": {}}}"#).unwrap();
+        let servers = parse_cursor_mcp(&path).unwrap();
+        assert_eq!(servers[0].command, "");
+        assert!(servers[0].args.is_empty());
+        assert!(servers[0].env.is_empty());
+    }
+
+    #[test]
+    fn test_parse_cursor_mcp_file_not_found() {
+        let result = parse_cursor_mcp(Path::new("/nonexistent/mcp.json"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_detect_cursorrules_present() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join(".cursorrules"), "rules").unwrap();
+        assert!(detect_cursorrules(dir.path()));
+    }
+
+    #[test]
+    fn test_detect_cursorrules_absent() {
+        let dir = tempfile::TempDir::new().unwrap();
+        assert!(!detect_cursorrules(dir.path()));
+    }
+
+    #[test]
+    fn test_read_cursorrules_success() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join(".cursorrules"), "my rules").unwrap();
+        let result = read_cursorrules(dir.path()).unwrap();
+        assert_eq!(result, "my rules");
+    }
+
+    #[test]
+    fn test_read_cursorrules_missing() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let result = read_cursorrules(dir.path());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_convert_cursorrules_to_claude_md() {
+        let result = convert_cursorrules_to_claude_md("Use TypeScript strict mode");
+        assert!(result.contains("# Project Guidelines"));
+        assert!(result.contains("Imported from .cursorrules"));
+        assert!(result.contains("Use TypeScript strict mode"));
+    }
+
+    #[test]
+    fn test_convert_cursorrules_to_claude_md_trims_whitespace() {
+        let result = convert_cursorrules_to_claude_md("  content  \n  ");
+        assert!(result.contains("content"));
+    }
+
+    #[test]
+    fn test_convert_cursorrules_to_claude_md_empty() {
+        let result = convert_cursorrules_to_claude_md("");
+        assert!(result.contains("# Project Guidelines"));
+    }
+
+    #[test]
+    fn test_import_cursorrules_no_rules() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let result = import_cursorrules(dir.path(), false).unwrap();
+        assert!(!result.rules_found);
+        assert!(!result.written);
+    }
+
+    #[test]
+    fn test_import_cursorrules_creates_claude_md() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join(".cursorrules"), "rules content").unwrap();
+        let result = import_cursorrules(dir.path(), false).unwrap();
+        assert!(result.rules_found);
+        assert!(!result.claude_md_existed);
+        assert!(result.written);
+        assert!(dir.path().join("CLAUDE.md").exists());
+    }
+
+    #[test]
+    fn test_import_cursorrules_existing_claude_md_no_overwrite() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join(".cursorrules"), "rules").unwrap();
+        std::fs::write(dir.path().join("CLAUDE.md"), "existing").unwrap();
+        let result = import_cursorrules(dir.path(), false).unwrap();
+        assert!(result.rules_found);
+        assert!(result.claude_md_existed);
+        assert!(!result.written);
+        // CLAUDE.md should be unchanged
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap(),
+            "existing"
+        );
+    }
+
+    #[test]
+    fn test_import_cursorrules_existing_claude_md_with_overwrite() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join(".cursorrules"), "new rules").unwrap();
+        std::fs::write(dir.path().join("CLAUDE.md"), "existing content").unwrap();
+        let result = import_cursorrules(dir.path(), true).unwrap();
+        assert!(result.written);
+        let content = std::fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap();
+        assert!(content.contains("new rules"));
+        assert!(content.contains("existing content"));
+        assert!(content.contains("---"));
+    }
+}
+
 /// Import .cursorrules into CLAUDE.md for a given repo.
 pub fn import_cursorrules(
     repo_path: &Path,

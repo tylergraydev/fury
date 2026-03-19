@@ -72,6 +72,47 @@ pub fn create_session(
     Ok((session, reader))
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_session() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let ws_id = Uuid::new_v4();
+        let result = create_session(ws_id, dir.path(), HashMap::new(), 80, 24);
+        assert!(result.is_ok());
+        let (session, _reader) = result.unwrap();
+        assert_eq!(session.workspace_id, ws_id);
+    }
+
+    #[test]
+    fn test_create_session_with_env_vars() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let mut env = HashMap::new();
+        env.insert("TEST_VAR".to_string(), "test_value".to_string());
+        let result = create_session(Uuid::new_v4(), dir.path(), env, 120, 40);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_session_custom_size() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let result = create_session(Uuid::new_v4(), dir.path(), HashMap::new(), 200, 50);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_terminal_session_fields() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let ws_id = Uuid::new_v4();
+        let (session, _reader) = create_session(ws_id, dir.path(), HashMap::new(), 80, 24).unwrap();
+        assert_eq!(session.workspace_id, ws_id);
+        // ID should be a valid UUID
+        assert!(!session.id.is_nil());
+    }
+}
+
 /// Create a new PTY terminal session that executes inside a Docker container.
 /// Uses `docker exec -it` to attach a shell inside the container.
 pub fn create_session_in_container(

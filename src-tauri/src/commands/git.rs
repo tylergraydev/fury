@@ -9,13 +9,13 @@ use base64::Engine;
 use tauri::State;
 use uuid::Uuid;
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Debug, Clone, PartialEq)]
 pub struct FileContent {
     pub content: String,
     pub language: String,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct WriteFileResult {
     pub content: String,
@@ -23,7 +23,7 @@ pub struct WriteFileResult {
     pub formatted: bool,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GitLogEntry {
     pub hash: String,
@@ -31,6 +31,109 @@ pub struct GitLogEntry {
     pub message: String,
     pub author: String,
     pub timestamp: String,
+}
+
+// ---------------------------------------------------------------------------
+// Extracted inner functions for testability
+// ---------------------------------------------------------------------------
+
+/// Parse `\x1f`-delimited git log output into structured entries.
+pub(crate) fn parse_git_log_output(raw: &str) -> Vec<GitLogEntry> {
+    raw.lines()
+        .filter(|l| !l.is_empty())
+        .filter_map(|line| {
+            let parts: Vec<&str> = line.splitn(5, '\x1f').collect();
+            if parts.len() == 5 {
+                Some(GitLogEntry {
+                    hash: parts[0].to_string(),
+                    full_hash: parts[1].to_string(),
+                    message: parts[2].to_string(),
+                    author: parts[3].to_string(),
+                    timestamp: parts[4].to_string(),
+                })
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+/// Resolve and validate a file path within a base directory.
+/// Returns the validated absolute path or an error if it escapes the base.
+pub(crate) fn resolve_file_path(base_dir: &Path, relative_path: &str) -> Result<PathBuf, AppError> {
+    let base = base_dir
+        .canonicalize()
+        .map_err(|e| AppError::GitError(format!("failed to resolve base path: {}", e)))?;
+    let full_path = base_dir.join(relative_path);
+    let full_path = full_path
+        .canonicalize()
+        .map_err(|e| AppError::GitError(format!("failed to resolve file path: {}", e)))?;
+    if !full_path.starts_with(&base) {
+        return Err(AppError::GitError("file path outside allowed directory".into()));
+    }
+    Ok(full_path)
+}
+
+/// Resolve and validate a path for a file that may not yet exist (write case).
+/// Canonicalizes the parent directory and appends the filename.
+pub(crate) fn resolve_new_file_path(base_dir: &Path, relative_path: &str) -> Result<PathBuf, AppError> {
+    let base = base_dir
+        .canonicalize()
+        .map_err(|e| AppError::GitError(format!("failed to resolve base path: {}", e)))?;
+    let full_path = base_dir.join(relative_path);
+    let parent = full_path
+        .parent()
+        .ok_or_else(|| AppError::GitError("file path has no parent directory".into()))?;
+    let parent = parent
+        .canonicalize()
+        .map_err(|e| AppError::GitError(format!("failed to resolve parent directory: {}", e)))?;
+    let file_name = full_path
+        .file_name()
+        .ok_or_else(|| AppError::GitError("file path has no filename".into()))?;
+    let full_path = parent.join(file_name);
+    if !full_path.starts_with(&base) {
+        return Err(AppError::GitError("file path outside allowed directory".into()));
+    }
+    Ok(full_path)
+}
+
+/// Build `git ls-tree` arguments for listing repo directories.
+pub(crate) fn build_ls_tree_args(depth: u32) -> Vec<&'static str> {
+    let mut args = vec!["ls-tree", "--name-only", "-d"];
+    if depth > 1 {
+        args.push("-r");
+    }
+    args.push("HEAD");
+    args
+}
+
+/// Map a file extension to a MIME type for base64 data URLs.
+pub(crate) fn mime_for_extension(ext: &str) -> &'static str {
+    match ext {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "bmp" => "image/bmp",
+        "ico" => "image/x-icon",
+        "tiff" | "tif" => "image/tiff",
+        "avif" => "image/avif",
+        _ => "application/octet-stream",
+    }
+}
+
+/// Map a MIME type to a file extension for clipboard image saving.
+pub(crate) fn extension_for_mime(mime: &str) -> &'static str {
+    match mime {
+        "image/png" => "png",
+        "image/jpeg" => "jpg",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        "image/bmp" => "bmp",
+        "image/svg+xml" => "svg",
+        _ => "png",
+    }
 }
 
 #[tauri::command]
@@ -68,24 +171,7 @@ pub async fn get_git_log(
             return Ok(Vec::new());
         }
 
-        let entries = String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .filter(|l| !l.is_empty())
-            .filter_map(|line| {
-                let parts: Vec<&str> = line.splitn(5, '\x1f').collect();
-                if parts.len() == 5 {
-                    Some(GitLogEntry {
-                        hash: parts[0].to_string(),
-                        full_hash: parts[1].to_string(),
-                        message: parts[2].to_string(),
-                        author: parts[3].to_string(),
-                        timestamp: parts[4].to_string(),
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect();
+        let entries = parse_git_log_output(&String::from_utf8_lossy(&output.stdout));
 
         Ok(entries)
     })
@@ -176,13 +262,7 @@ pub async fn list_repo_directories(
 
     let depth = depth.unwrap_or(1);
     tokio::task::spawn_blocking(move || {
-        let mut args = vec!["ls-tree", "--name-only", "-d"];
-        let depth_str;
-        if depth > 1 {
-            depth_str = "-r".to_string();
-            args.push(&depth_str);
-        }
-        args.push("HEAD");
+        let args = build_ls_tree_args(depth);
 
         let output = platform::command("git")
             .args(&args)
@@ -420,16 +500,7 @@ pub async fn read_workspace_file(
     };
 
     tokio::task::spawn_blocking(move || {
-        let base = worktree_path
-            .canonicalize()
-            .map_err(|e| AppError::GitError(format!("failed to resolve workspace path: {}", e)))?;
-        let full_path = PathBuf::from(&worktree_path).join(&file_path);
-        let full_path = full_path
-            .canonicalize()
-            .map_err(|e| AppError::GitError(format!("failed to resolve file path: {}", e)))?;
-        if !full_path.starts_with(&base) {
-            return Err(AppError::GitError("file path outside workspace".into()));
-        }
+        let full_path = resolve_file_path(&worktree_path, &file_path)?;
 
         let content = std::fs::read_to_string(&full_path)
             .map_err(|e| AppError::GitError(format!("failed to read file: {}", e)))?;
@@ -461,16 +532,7 @@ pub async fn read_repo_file(
     };
 
     tokio::task::spawn_blocking(move || {
-        let base = repo_path
-            .canonicalize()
-            .map_err(|e| AppError::GitError(format!("failed to resolve repo path: {}", e)))?;
-        let full_path = PathBuf::from(&repo_path).join(&file_path);
-        let full_path = full_path
-            .canonicalize()
-            .map_err(|e| AppError::GitError(format!("failed to resolve file path: {}", e)))?;
-        if !full_path.starts_with(&base) {
-            return Err(AppError::GitError("file path outside repository".into()));
-        }
+        let full_path = resolve_file_path(&repo_path, &file_path)?;
 
         let content = std::fs::read_to_string(&full_path)
             .map_err(|e| AppError::GitError(format!("failed to read file: {}", e)))?;
@@ -563,25 +625,7 @@ pub async fn write_workspace_file(
     };
 
     tokio::task::spawn_blocking(move || {
-        let base = worktree_path
-            .canonicalize()
-            .map_err(|e| AppError::GitError(format!("failed to resolve workspace path: {}", e)))?;
-        let full_path = PathBuf::from(&worktree_path).join(&file_path);
-        // Canonicalize the parent directory (which must exist) and append the filename,
-        // so that new files that don't yet exist can still be validated.
-        let parent = full_path
-            .parent()
-            .ok_or_else(|| AppError::GitError("file path has no parent directory".into()))?;
-        let parent = parent
-            .canonicalize()
-            .map_err(|e| AppError::GitError(format!("failed to resolve parent directory: {}", e)))?;
-        let file_name = full_path
-            .file_name()
-            .ok_or_else(|| AppError::GitError("file path has no filename".into()))?;
-        let full_path = parent.join(file_name);
-        if !full_path.starts_with(&base) {
-            return Err(AppError::GitError("file path outside workspace".into()));
-        }
+        let full_path = resolve_new_file_path(&worktree_path, &file_path)?;
 
         std::fs::write(&full_path, &content)
             .map_err(|e| AppError::GitError(format!("failed to write file: {}", e)))?;
@@ -628,25 +672,7 @@ pub async fn write_repo_file(
     };
 
     tokio::task::spawn_blocking(move || {
-        let base = repo_path
-            .canonicalize()
-            .map_err(|e| AppError::GitError(format!("failed to resolve repo path: {}", e)))?;
-        let full_path = PathBuf::from(&repo_path).join(&file_path);
-        // Canonicalize the parent directory (which must exist) and append the filename,
-        // so that new files that don't yet exist can still be validated.
-        let parent = full_path
-            .parent()
-            .ok_or_else(|| AppError::GitError("file path has no parent directory".into()))?;
-        let parent = parent
-            .canonicalize()
-            .map_err(|e| AppError::GitError(format!("failed to resolve parent directory: {}", e)))?;
-        let file_name = full_path
-            .file_name()
-            .ok_or_else(|| AppError::GitError("file path has no filename".into()))?;
-        let full_path = parent.join(file_name);
-        if !full_path.starts_with(&base) {
-            return Err(AppError::GitError("file path outside repository".into()));
-        }
+        let full_path = resolve_new_file_path(&repo_path, &file_path)?;
 
         std::fs::write(&full_path, &content)
             .map_err(|e| AppError::GitError(format!("failed to write file: {}", e)))?;
@@ -814,23 +840,12 @@ pub async fn read_file_base64(file_path: String) -> Result<String, AppError> {
         let bytes = std::fs::read(&path)
             .map_err(|e| AppError::GitError(format!("failed to read file {}: {}", file_path, e)))?;
 
-        let mime = match path
+        let ext_lower = path
             .extension()
             .and_then(|e| e.to_str())
             .map(|e| e.to_lowercase())
-            .as_deref()
-        {
-            Some("png") => "image/png",
-            Some("jpg" | "jpeg") => "image/jpeg",
-            Some("gif") => "image/gif",
-            Some("webp") => "image/webp",
-            Some("svg") => "image/svg+xml",
-            Some("bmp") => "image/bmp",
-            Some("ico") => "image/x-icon",
-            Some("tiff" | "tif") => "image/tiff",
-            Some("avif") => "image/avif",
-            _ => "application/octet-stream",
-        };
+            .unwrap_or_default();
+        let mime = mime_for_extension(&ext_lower);
 
         let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
         Ok(format!("data:{};base64,{}", mime, b64))
@@ -844,15 +859,7 @@ pub async fn read_file_base64(file_path: String) -> Result<String, AppError> {
 #[tauri::command]
 pub async fn save_clipboard_image(data: String, mime_type: String) -> Result<String, AppError> {
     tokio::task::spawn_blocking(move || {
-        let ext = match mime_type.as_str() {
-            "image/png" => "png",
-            "image/jpeg" => "jpg",
-            "image/gif" => "gif",
-            "image/webp" => "webp",
-            "image/bmp" => "bmp",
-            "image/svg+xml" => "svg",
-            _ => "png",
-        };
+        let ext = extension_for_mime(&mime_type);
 
         let tmp_dir = dirs::data_dir()
             .unwrap_or_else(|| PathBuf::from("."))
@@ -954,6 +961,248 @@ pub async fn stop_diff_watcher(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_helpers;
+
+    // -----------------------------------------------------------------------
+    // parse_git_log_output
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_parse_git_log_output_single_entry() {
+        let raw = "abc1234\x1fabcdef1234567890\x1fInitial commit\x1fAlice\x1f2025-01-15T10:00:00+00:00\n";
+        let entries = parse_git_log_output(raw);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].hash, "abc1234");
+        assert_eq!(entries[0].full_hash, "abcdef1234567890");
+        assert_eq!(entries[0].message, "Initial commit");
+        assert_eq!(entries[0].author, "Alice");
+        assert_eq!(entries[0].timestamp, "2025-01-15T10:00:00+00:00");
+    }
+
+    #[test]
+    fn test_parse_git_log_output_multiple_entries() {
+        let raw = "aaa\x1f111\x1fFirst\x1fAlice\x1f2025-01-01\naaa\x1f222\x1fSecond\x1fBob\x1f2025-01-02\n";
+        let entries = parse_git_log_output(raw);
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].message, "First");
+        assert_eq!(entries[1].message, "Second");
+    }
+
+    #[test]
+    fn test_parse_git_log_output_empty_input() {
+        assert!(parse_git_log_output("").is_empty());
+        assert!(parse_git_log_output("\n\n").is_empty());
+    }
+
+    #[test]
+    fn test_parse_git_log_output_malformed_lines_skipped() {
+        let raw = "only\x1ftwo\x1ffields\naaa\x1f111\x1fGood\x1fAlice\x1f2025-01-01\n";
+        let entries = parse_git_log_output(raw);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].message, "Good");
+    }
+
+    #[test]
+    fn test_parse_git_log_output_message_with_separator() {
+        // splitn(5, ...) means the 5th field captures everything remaining
+        let raw = "abc\x1f123\x1fMessage with \x1f inside\x1fAlice\x1f2025-01-01\n";
+        let entries = parse_git_log_output(raw);
+        assert_eq!(entries.len(), 1);
+        // The message is "Message with " and author is " inside", timestamp captures the rest
+        // This tests the actual splitn(5) behavior
+        assert_eq!(entries[0].hash, "abc");
+    }
+
+    // -----------------------------------------------------------------------
+    // resolve_file_path
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_resolve_file_path_valid() {
+        let (_dir, path) = test_helpers::create_temp_git_repo();
+        // README.md exists from create_temp_git_repo
+        let result = resolve_file_path(&path, "README.md");
+        assert!(result.is_ok());
+        let resolved = result.unwrap();
+        assert!(resolved.ends_with("README.md"));
+    }
+
+    #[test]
+    fn test_resolve_file_path_nonexistent() {
+        let (_dir, path) = test_helpers::create_temp_git_repo();
+        let result = resolve_file_path(&path, "does-not-exist.txt");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_resolve_file_path_traversal_blocked() {
+        let (_dir, path) = test_helpers::create_temp_git_repo();
+        // Create a file outside the repo
+        let outside = path.parent().unwrap().join("outside.txt");
+        std::fs::write(&outside, "secret").unwrap();
+        let result = resolve_file_path(&path, "../outside.txt");
+        assert!(result.is_err());
+        let _ = std::fs::remove_file(&outside);
+    }
+
+    // -----------------------------------------------------------------------
+    // resolve_new_file_path
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_resolve_new_file_path_valid() {
+        let (_dir, path) = test_helpers::create_temp_git_repo();
+        // File doesn't need to exist, but parent must
+        let result = resolve_new_file_path(&path, "new-file.txt");
+        assert!(result.is_ok());
+        let resolved = result.unwrap();
+        assert!(resolved.ends_with("new-file.txt"));
+    }
+
+    #[test]
+    fn test_resolve_new_file_path_traversal_blocked() {
+        let (_dir, path) = test_helpers::create_temp_git_repo();
+        let result = resolve_new_file_path(&path, "../escape.txt");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_resolve_new_file_path_parent_must_exist() {
+        let (_dir, path) = test_helpers::create_temp_git_repo();
+        let result = resolve_new_file_path(&path, "nonexistent-dir/file.txt");
+        assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // build_ls_tree_args
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_build_ls_tree_args_depth_1() {
+        let args = build_ls_tree_args(1);
+        assert_eq!(args, vec!["ls-tree", "--name-only", "-d", "HEAD"]);
+        assert!(!args.contains(&"-r"));
+    }
+
+    #[test]
+    fn test_build_ls_tree_args_depth_gt_1() {
+        let args = build_ls_tree_args(3);
+        assert_eq!(args, vec!["ls-tree", "--name-only", "-d", "-r", "HEAD"]);
+    }
+
+    // -----------------------------------------------------------------------
+    // mime_for_extension
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_mime_for_extension_known_types() {
+        assert_eq!(mime_for_extension("png"), "image/png");
+        assert_eq!(mime_for_extension("jpg"), "image/jpeg");
+        assert_eq!(mime_for_extension("jpeg"), "image/jpeg");
+        assert_eq!(mime_for_extension("gif"), "image/gif");
+        assert_eq!(mime_for_extension("webp"), "image/webp");
+        assert_eq!(mime_for_extension("svg"), "image/svg+xml");
+        assert_eq!(mime_for_extension("bmp"), "image/bmp");
+        assert_eq!(mime_for_extension("ico"), "image/x-icon");
+        assert_eq!(mime_for_extension("tiff"), "image/tiff");
+        assert_eq!(mime_for_extension("tif"), "image/tiff");
+        assert_eq!(mime_for_extension("avif"), "image/avif");
+    }
+
+    #[test]
+    fn test_mime_for_extension_unknown() {
+        assert_eq!(mime_for_extension("xyz"), "application/octet-stream");
+        assert_eq!(mime_for_extension(""), "application/octet-stream");
+    }
+
+    // -----------------------------------------------------------------------
+    // extension_for_mime
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_extension_for_mime_known_types() {
+        assert_eq!(extension_for_mime("image/png"), "png");
+        assert_eq!(extension_for_mime("image/jpeg"), "jpg");
+        assert_eq!(extension_for_mime("image/gif"), "gif");
+        assert_eq!(extension_for_mime("image/webp"), "webp");
+        assert_eq!(extension_for_mime("image/bmp"), "bmp");
+        assert_eq!(extension_for_mime("image/svg+xml"), "svg");
+    }
+
+    #[test]
+    fn test_extension_for_mime_unknown_defaults_to_png() {
+        assert_eq!(extension_for_mime("application/octet-stream"), "png");
+        assert_eq!(extension_for_mime("image/heic"), "png");
+    }
+
+    // -----------------------------------------------------------------------
+    // collect_dts_files
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_collect_dts_files_basic() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        // Create a .d.ts file
+        std::fs::write(root.join("index.d.ts"), "declare const x: number;").unwrap();
+        // Create a non-.d.ts file (should be ignored)
+        std::fs::write(root.join("index.ts"), "const x = 1;").unwrap();
+
+        let mut libs = Vec::new();
+        let mut total_size = 0usize;
+        collect_dts_files(root, root, &mut libs, &mut total_size, 0);
+
+        assert_eq!(libs.len(), 1);
+        assert_eq!(libs[0].file_path, "index.d.ts");
+        assert_eq!(libs[0].content, "declare const x: number;");
+        assert_eq!(total_size, "declare const x: number;".len());
+    }
+
+    #[test]
+    fn test_collect_dts_files_respects_depth_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        // Create nested dirs 5 deep (beyond depth limit of 4)
+        let mut current = root.to_path_buf();
+        for i in 0..6 {
+            current = current.join(format!("d{}", i));
+            std::fs::create_dir_all(&current).unwrap();
+            std::fs::write(current.join("types.d.ts"), "type T = any;").unwrap();
+        }
+
+        let mut libs = Vec::new();
+        let mut total_size = 0usize;
+        collect_dts_files(root, root, &mut libs, &mut total_size, 0);
+
+        // Depth limit is 4, so we should get files at depths 0-4 but not 5
+        // (depth 0 = root, the function checks depth > 4)
+        assert!(libs.len() <= 5);
+    }
+
+    #[test]
+    fn test_collect_dts_files_respects_size_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        // Create a file larger than MAX_DTS_FILE_SIZE (500KB)
+        let large_content = "x".repeat(600_000);
+        std::fs::write(root.join("big.d.ts"), &large_content).unwrap();
+        std::fs::write(root.join("small.d.ts"), "type T = any;").unwrap();
+
+        let mut libs = Vec::new();
+        let mut total_size = 0usize;
+        collect_dts_files(root, root, &mut libs, &mut total_size, 0);
+
+        // Only the small file should be collected
+        assert_eq!(libs.len(), 1);
+        assert_eq!(libs[0].file_path, "small.d.ts");
+    }
+
+    // -----------------------------------------------------------------------
+    // save_clipboard_image (async, existing tests preserved)
+    // -----------------------------------------------------------------------
 
     #[tokio::test]
     async fn test_save_clipboard_image_creates_file() {
@@ -981,5 +1230,902 @@ mod tests {
     async fn test_save_clipboard_image_invalid_base64() {
         let result = save_clipboard_image("not-valid!!!".to_string(), "image/png".to_string()).await;
         assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // Async command wrapper tests (using mock_app_with_state)
+    // -----------------------------------------------------------------------
+
+    use tauri::Manager;
+
+    fn setup_git_state() -> (
+        tauri::App<tauri::test::MockRuntime>,
+        tempfile::TempDir,
+        Uuid,
+        Uuid,
+    ) {
+        let app = test_helpers::mock_app_with_state();
+        let state = app.state::<crate::state::AppState>();
+        let (_dir, path) = test_helpers::create_temp_git_repo();
+        let repo_id = Uuid::new_v4();
+        let ws_id = Uuid::new_v4();
+        {
+            let db_lock = state.db.lock().unwrap();
+            let db = db_lock.as_ref().unwrap();
+            let mut repo = test_helpers::test_repo();
+            repo.id = repo_id;
+            repo.path = path.clone();
+            db.insert_repository(&repo).unwrap();
+            let mut ws = test_helpers::test_workspace(repo_id);
+            ws.id = ws_id;
+            ws.worktree_path = path.clone();
+            db.insert_workspace(&ws).unwrap();
+            state.repositories.write().unwrap().insert(repo_id, repo);
+            state.workspaces.write().unwrap().insert(ws_id, ws);
+        }
+        (app, _dir, repo_id, ws_id)
+    }
+
+    #[tokio::test]
+    async fn test_cmd_list_repo_directories() {
+        let (app, _dir, repo_id, _ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = list_repo_directories(state, repo_id.to_string(), None).await;
+        // Should succeed (may return empty if no subdirs)
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_list_repo_directories_invalid_id() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = list_repo_directories(state, "bad-id".to_string(), None).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_list_workspace_files() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = list_workspace_files(state, ws_id.to_string()).await;
+        assert!(result.is_ok());
+        let files = result.unwrap();
+        assert!(files.iter().any(|f| f == "README.md"));
+    }
+
+    #[tokio::test]
+    async fn test_cmd_list_workspace_files_not_found() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = list_workspace_files(state, Uuid::new_v4().to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_list_repo_files() {
+        let (app, _dir, repo_id, _ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = list_repo_files(state, repo_id.to_string()).await;
+        assert!(result.is_ok());
+        let files = result.unwrap();
+        assert!(files.iter().any(|f| f == "README.md"));
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_git_log() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_git_log(state, ws_id.to_string(), Some(10)).await;
+        assert!(result.is_ok());
+        let entries = result.unwrap();
+        assert!(!entries.is_empty());
+        assert_eq!(entries[0].message, "Initial commit");
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_git_log_not_found() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_git_log(state, Uuid::new_v4().to_string(), None).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_read_workspace_file() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = read_workspace_file(state, ws_id.to_string(), "README.md".to_string()).await;
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert!(content.content.contains("# Test"));
+        assert_eq!(content.language, "markdown");
+    }
+
+    #[tokio::test]
+    async fn test_cmd_read_repo_file() {
+        let (app, _dir, repo_id, _ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = read_repo_file(state, repo_id.to_string(), "README.md".to_string()).await;
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert!(content.content.contains("# Test"));
+    }
+
+    #[tokio::test]
+    async fn test_cmd_read_workspace_file_not_found() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = read_workspace_file(state, ws_id.to_string(), "nonexistent.txt".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_diff() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_diff(state, ws_id.to_string()).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_file_diff() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_file_diff(state, ws_id.to_string(), "README.md".to_string()).await;
+        assert!(result.is_ok());
+    }
+
+    // -----------------------------------------------------------------------
+    // get_repo_diff / get_repo_file_diff
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_cmd_get_repo_diff() {
+        let (app, _dir, repo_id, _ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_repo_diff(state, repo_id.to_string()).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_repo_diff_invalid_id() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_repo_diff(state, "bad-id".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_repo_diff_not_found() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_repo_diff(state, Uuid::new_v4().to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_repo_file_diff() {
+        let (app, _dir, repo_id, _ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_repo_file_diff(state, repo_id.to_string(), "README.md".to_string()).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_repo_file_diff_invalid_id() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_repo_file_diff(state, "not-uuid".to_string(), "README.md".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // get_file_patch / get_repo_file_patch
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_cmd_get_file_patch() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_file_patch(state, ws_id.to_string(), "README.md".to_string(), None).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_file_patch_untracked() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        // Create an untracked file
+        {
+            let app_state = app.state::<crate::state::AppState>();
+            let workspaces = app_state.workspaces.read().unwrap();
+            let ws = workspaces.get(&ws_id).unwrap();
+            std::fs::write(ws.worktree_path.join("untracked.txt"), "hello").unwrap();
+        }
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_file_patch(state, ws_id.to_string(), "untracked.txt".to_string(), Some(true)).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_file_patch_invalid_ws() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_file_patch(state, "bad".to_string(), "README.md".to_string(), None).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_file_patch_ws_not_found() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_file_patch(state, Uuid::new_v4().to_string(), "README.md".to_string(), None).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_repo_file_patch() {
+        let (app, _dir, repo_id, _ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_repo_file_patch(state, repo_id.to_string(), "README.md".to_string(), None).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_repo_file_patch_untracked() {
+        let (app, _dir, repo_id, _ws_id) = setup_git_state();
+        {
+            let app_state = app.state::<crate::state::AppState>();
+            let repos = app_state.repositories.read().unwrap();
+            let repo = repos.get(&repo_id).unwrap();
+            std::fs::write(repo.path.join("new-file.txt"), "new content").unwrap();
+        }
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_repo_file_patch(state, repo_id.to_string(), "new-file.txt".to_string(), Some(true)).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_repo_file_patch_invalid_id() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_repo_file_patch(state, "nope".to_string(), "file.txt".to_string(), None).await;
+        assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // write_workspace_file / write_repo_file
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_cmd_write_workspace_file() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = write_workspace_file(
+            state,
+            ws_id.to_string(),
+            "new-file.txt".to_string(),
+            "hello world".to_string(),
+            false,
+        )
+        .await;
+        assert!(result.is_ok());
+        let write_result = result.unwrap();
+        assert_eq!(write_result.content, "hello world");
+        assert!(!write_result.formatted);
+
+        // Read it back
+        let state2: State<'_, crate::state::AppState> = app.state();
+        let read_result = read_workspace_file(state2, ws_id.to_string(), "new-file.txt".to_string()).await;
+        assert!(read_result.is_ok());
+        assert_eq!(read_result.unwrap().content, "hello world");
+    }
+
+    #[tokio::test]
+    async fn test_cmd_write_workspace_file_invalid_ws() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = write_workspace_file(
+            state,
+            "bad".to_string(),
+            "file.txt".to_string(),
+            "content".to_string(),
+            false,
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_write_workspace_file_traversal_blocked() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = write_workspace_file(
+            state,
+            ws_id.to_string(),
+            "../escape.txt".to_string(),
+            "content".to_string(),
+            false,
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_write_repo_file() {
+        let (app, _dir, repo_id, _ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = write_repo_file(
+            state,
+            repo_id.to_string(),
+            "new-repo-file.txt".to_string(),
+            "repo content".to_string(),
+            false,
+        )
+        .await;
+        assert!(result.is_ok());
+        let write_result = result.unwrap();
+        assert_eq!(write_result.content, "repo content");
+        assert!(!write_result.formatted);
+
+        // Read it back
+        let state2: State<'_, crate::state::AppState> = app.state();
+        let read_result = read_repo_file(state2, repo_id.to_string(), "new-repo-file.txt".to_string()).await;
+        assert!(read_result.is_ok());
+        assert_eq!(read_result.unwrap().content, "repo content");
+    }
+
+    #[tokio::test]
+    async fn test_cmd_write_repo_file_invalid_id() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = write_repo_file(
+            state,
+            "bad".to_string(),
+            "file.txt".to_string(),
+            "content".to_string(),
+            false,
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_write_repo_file_traversal_blocked() {
+        let (app, _dir, repo_id, _ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = write_repo_file(
+            state,
+            repo_id.to_string(),
+            "../escape.txt".to_string(),
+            "content".to_string(),
+            false,
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // get_git_log — various parameters
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_cmd_get_git_log_default_count() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        // None for max_count should default to 100
+        let result = get_git_log(state, ws_id.to_string(), None).await;
+        assert!(result.is_ok());
+        let entries = result.unwrap();
+        assert!(!entries.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_git_log_small_count() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_git_log(state, ws_id.to_string(), Some(1)).await;
+        assert!(result.is_ok());
+        let entries = result.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].message, "Initial commit");
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_git_log_zero_count() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_git_log(state, ws_id.to_string(), Some(0)).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_git_log_invalid_ws() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_git_log(state, "bad-uuid".to_string(), None).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_git_log_multiple_commits() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        // Add a second commit
+        {
+            let app_state = app.state::<crate::state::AppState>();
+            let workspaces = app_state.workspaces.read().unwrap();
+            let ws = workspaces.get(&ws_id).unwrap();
+            std::fs::write(ws.worktree_path.join("second.txt"), "second").unwrap();
+            std::process::Command::new("git")
+                .args(["add", "."])
+                .current_dir(&ws.worktree_path)
+                .output()
+                .unwrap();
+            std::process::Command::new("git")
+                .args(["commit", "-m", "Second commit"])
+                .current_dir(&ws.worktree_path)
+                .output()
+                .unwrap();
+        }
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_git_log(state, ws_id.to_string(), Some(10)).await;
+        assert!(result.is_ok());
+        let entries = result.unwrap();
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].message, "Second commit");
+        assert_eq!(entries[1].message, "Initial commit");
+    }
+
+    // -----------------------------------------------------------------------
+    // read_file_base64
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_cmd_read_file_base64_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("hello.txt");
+        std::fs::write(&file_path, "hello").unwrap();
+        let result = read_file_base64(file_path.to_string_lossy().to_string()).await;
+        assert!(result.is_ok());
+        let data_url = result.unwrap();
+        assert!(data_url.starts_with("data:application/octet-stream;base64,"));
+    }
+
+    #[tokio::test]
+    async fn test_cmd_read_file_base64_png() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("image.png");
+        std::fs::write(&file_path, &[0x89, 0x50, 0x4E, 0x47]).unwrap();
+        let result = read_file_base64(file_path.to_string_lossy().to_string()).await;
+        assert!(result.is_ok());
+        let data_url = result.unwrap();
+        assert!(data_url.starts_with("data:image/png;base64,"));
+    }
+
+    #[tokio::test]
+    async fn test_cmd_read_file_base64_nonexistent() {
+        let result = read_file_base64("/tmp/nonexistent-file-9999.png".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_read_file_base64_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("test.jpg");
+        let original = vec![0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4];
+        std::fs::write(&file_path, &original).unwrap();
+        let result = read_file_base64(file_path.to_string_lossy().to_string()).await.unwrap();
+        assert!(result.starts_with("data:image/jpeg;base64,"));
+        // Decode the base64 back and verify
+        let b64_data = result.strip_prefix("data:image/jpeg;base64,").unwrap();
+        let decoded = base64::engine::general_purpose::STANDARD.decode(b64_data).unwrap();
+        assert_eq!(decoded, original);
+    }
+
+    // -----------------------------------------------------------------------
+    // save_clipboard_image — additional tests
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_save_clipboard_image_webp_extension() {
+        let png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+        let result = save_clipboard_image(png_b64.to_string(), "image/webp".to_string()).await;
+        assert!(result.is_ok());
+        let path = result.unwrap();
+        assert!(path.ends_with(".webp"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn test_save_clipboard_image_unknown_mime_defaults_to_png() {
+        let png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+        let result = save_clipboard_image(png_b64.to_string(), "image/heic".to_string()).await;
+        assert!(result.is_ok());
+        let path = result.unwrap();
+        assert!(path.ends_with(".png"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    // -----------------------------------------------------------------------
+    // load_type_definitions
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_cmd_load_type_definitions_with_workspace() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = load_type_definitions(state, Some(ws_id.to_string()), None).await;
+        assert!(result.is_ok());
+        let td = result.unwrap();
+        // No tsconfig.json or node_modules in temp git repo
+        assert!(td.tsconfig.is_none());
+        assert!(td.libs.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_load_type_definitions_with_repo() {
+        let (app, _dir, repo_id, _ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = load_type_definitions(state, None, Some(repo_id.to_string())).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_load_type_definitions_neither() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = load_type_definitions(state, None, None).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_load_type_definitions_invalid_ws() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = load_type_definitions(state, Some("bad".to_string()), None).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_load_type_definitions_ws_not_found() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = load_type_definitions(state, Some(Uuid::new_v4().to_string()), None).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_load_type_definitions_with_tsconfig() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        // Create tsconfig.json in the worktree
+        {
+            let app_state = app.state::<crate::state::AppState>();
+            let workspaces = app_state.workspaces.read().unwrap();
+            let ws = workspaces.get(&ws_id).unwrap();
+            std::fs::write(
+                ws.worktree_path.join("tsconfig.json"),
+                r#"{"compilerOptions":{"strict":true}}"#,
+            )
+            .unwrap();
+        }
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = load_type_definitions(state, Some(ws_id.to_string()), None).await;
+        assert!(result.is_ok());
+        let td = result.unwrap();
+        assert!(td.tsconfig.is_some());
+        assert!(td.tsconfig.unwrap().contains("strict"));
+    }
+
+    #[tokio::test]
+    async fn test_cmd_load_type_definitions_with_dts_files() {
+        let (app, _dir, repo_id, _ws_id) = setup_git_state();
+        // Create node_modules/@types dir with a .d.ts file
+        {
+            let app_state = app.state::<crate::state::AppState>();
+            let repos = app_state.repositories.read().unwrap();
+            let repo = repos.get(&repo_id).unwrap();
+            let types_dir = repo.path.join("node_modules/@types/node");
+            std::fs::create_dir_all(&types_dir).unwrap();
+            std::fs::write(types_dir.join("index.d.ts"), "declare module 'node';").unwrap();
+        }
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = load_type_definitions(state, None, Some(repo_id.to_string())).await;
+        assert!(result.is_ok());
+        let td = result.unwrap();
+        assert!(!td.libs.is_empty());
+        assert!(td.libs[0].content.contains("declare module"));
+    }
+
+    // -----------------------------------------------------------------------
+    // start_diff_watcher / stop_diff_watcher — error paths
+    // (These need AppHandle which mock_app_with_state doesn't provide
+    // directly to the command, so we test error paths for invalid IDs)
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_cmd_stop_diff_watcher_invalid_id() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = stop_diff_watcher(state, "bad-id".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_stop_diff_watcher_no_watcher() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        // Valid UUID but no watcher registered — should succeed (noop)
+        let result = stop_diff_watcher(state, Uuid::new_v4().to_string()).await;
+        assert!(result.is_ok());
+    }
+
+    // -----------------------------------------------------------------------
+    // list_repo_directories — depth variants
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_cmd_list_repo_directories_with_depth() {
+        let (app, _dir, repo_id, _ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = list_repo_directories(state, repo_id.to_string(), Some(3)).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_list_repo_directories_repo_not_found() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = list_repo_directories(state, Uuid::new_v4().to_string(), None).await;
+        assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // list_repo_files — error paths
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_cmd_list_repo_files_invalid_id() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = list_repo_files(state, "bad".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_list_repo_files_not_found() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = list_repo_files(state, Uuid::new_v4().to_string()).await;
+        assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // read_repo_file — error paths
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_cmd_read_repo_file_invalid_id() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = read_repo_file(state, "bad".to_string(), "file.txt".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_read_repo_file_not_found() {
+        let (app, _dir, repo_id, _ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = read_repo_file(state, repo_id.to_string(), "nonexistent.txt".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // write then overwrite roundtrip
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_cmd_write_workspace_file_overwrite() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+
+        // Write initial content
+        let state: State<'_, crate::state::AppState> = app.state();
+        write_workspace_file(
+            state,
+            ws_id.to_string(),
+            "overwrite.txt".to_string(),
+            "first".to_string(),
+            false,
+        )
+        .await
+        .unwrap();
+
+        // Overwrite
+        let state2: State<'_, crate::state::AppState> = app.state();
+        let result = write_workspace_file(
+            state2,
+            ws_id.to_string(),
+            "overwrite.txt".to_string(),
+            "second".to_string(),
+            false,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.content, "second");
+
+        // Read back
+        let state3: State<'_, crate::state::AppState> = app.state();
+        let read = read_workspace_file(state3, ws_id.to_string(), "overwrite.txt".to_string()).await.unwrap();
+        assert_eq!(read.content, "second");
+    }
+
+    // -----------------------------------------------------------------------
+    // get_diff with modifications
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_cmd_get_diff_with_changes() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        // Modify a tracked file
+        {
+            let app_state = app.state::<crate::state::AppState>();
+            let workspaces = app_state.workspaces.read().unwrap();
+            let ws = workspaces.get(&ws_id).unwrap();
+            std::fs::write(ws.worktree_path.join("README.md"), "# Modified\n").unwrap();
+        }
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_diff(state, ws_id.to_string()).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_diff_invalid_ws() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_diff(state, "bad".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // Additional coverage tests
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_cmd_get_file_diff_invalid_ws() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_file_diff(state, "bad".to_string(), "file.txt".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_file_diff_ws_not_found() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_file_diff(state, Uuid::new_v4().to_string(), "file.txt".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_list_workspace_files_invalid_id() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = list_workspace_files(state, "bad".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_read_workspace_file_invalid_id() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = read_workspace_file(state, "bad".to_string(), "file.txt".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_diff_ws_not_found() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_diff(state, Uuid::new_v4().to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_write_workspace_file_ws_not_found() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = write_workspace_file(
+            state,
+            Uuid::new_v4().to_string(),
+            "file.txt".to_string(),
+            "content".to_string(),
+            false,
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_write_repo_file_repo_not_found() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = write_repo_file(
+            state,
+            Uuid::new_v4().to_string(),
+            "file.txt".to_string(),
+            "content".to_string(),
+            false,
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_repo_file_diff_repo_not_found() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_repo_file_diff(state, Uuid::new_v4().to_string(), "README.md".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_repo_file_patch_repo_not_found() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_repo_file_patch(state, Uuid::new_v4().to_string(), "file.txt".to_string(), None).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_file_diff_with_modified_file() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        // Modify a tracked file
+        {
+            let app_state = app.state::<crate::state::AppState>();
+            let workspaces = app_state.workspaces.read().unwrap();
+            let ws = workspaces.get(&ws_id).unwrap();
+            std::fs::write(ws.worktree_path.join("README.md"), "# Changed content\n").unwrap();
+        }
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_file_diff(state, ws_id.to_string(), "README.md".to_string()).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_repo_file_diff_with_modified_file() {
+        let (app, _dir, repo_id, _ws_id) = setup_git_state();
+        {
+            let app_state = app.state::<crate::state::AppState>();
+            let repos = app_state.repositories.read().unwrap();
+            let repo = repos.get(&repo_id).unwrap();
+            std::fs::write(repo.path.join("README.md"), "# Changed\n").unwrap();
+        }
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = get_repo_file_diff(state, repo_id.to_string(), "README.md".to_string()).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_stop_diff_watcher_valid_uuid_no_watcher() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = stop_diff_watcher(state, Uuid::new_v4().to_string()).await;
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_resolve_file_path_nonexistent_nested() {
+        let (_dir, path) = test_helpers::create_temp_git_repo();
+        let result = resolve_file_path(&path, "deeply/nested/nonexistent.txt");
+        // File doesn't exist
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_resolve_new_file_path_nested_dirs() {
+        let (_dir, path) = test_helpers::create_temp_git_repo();
+        // Create a subdirectory first
+        std::fs::create_dir_all(path.join("subdir")).unwrap();
+        let result = resolve_new_file_path(&path, "subdir/new-file.txt");
+        assert!(result.is_ok());
     }
 }

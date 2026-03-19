@@ -1140,4 +1140,628 @@ mod tests {
         let system_prompt = args.last().unwrap();
         assert!(system_prompt.contains("Do not enter plan mode"));
     }
+
+    #[test]
+    fn test_build_env_vars_agent_teams_enabled() {
+        let ws = crate::test_helpers::test_workspace(uuid::Uuid::new_v4());
+        let repo = crate::test_helpers::test_repo();
+        let mut settings = crate::test_helpers::test_settings();
+        settings.experimental.agent_teams = true;
+        let env = build_env_vars(&ws, &repo, &settings, None);
+        assert_eq!(env.get("FURY_AGENT_TEAMS").unwrap(), "true");
+    }
+
+    #[test]
+    fn test_build_env_vars_agent_teams_disabled() {
+        let ws = crate::test_helpers::test_workspace(uuid::Uuid::new_v4());
+        let repo = crate::test_helpers::test_repo();
+        let settings = crate::test_helpers::test_settings();
+        let env = build_env_vars(&ws, &repo, &settings, None);
+        assert!(!env.contains_key("FURY_AGENT_TEAMS"));
+    }
+
+    #[test]
+    fn test_build_env_vars_port_base() {
+        let ws = crate::test_helpers::test_workspace(uuid::Uuid::new_v4());
+        let repo = crate::test_helpers::test_repo();
+        let settings = crate::test_helpers::test_settings();
+        let env = build_env_vars(&ws, &repo, &settings, None);
+        assert_eq!(env.get("FURY_PORT").unwrap(), &ws.port_base.to_string());
+    }
+
+    #[test]
+    fn test_build_repo_env_vars_no_workspace_fields() {
+        let repo = crate::test_helpers::test_repo();
+        let settings = crate::test_helpers::test_settings();
+        let env = build_repo_env_vars(&repo, &settings, None);
+        assert!(!env.contains_key("FURY_WORKSPACE_NAME"));
+        assert!(!env.contains_key("FURY_WORKSPACE_PATH"));
+        assert!(!env.contains_key("FURY_PORT"));
+    }
+
+    #[test]
+    fn test_build_repo_env_vars_includes_provider_vars() {
+        let repo = crate::test_helpers::test_repo();
+        let mut settings = crate::test_helpers::test_settings();
+        settings.provider.env_vars.insert("MY_KEY".to_string(), "my_val".to_string());
+        let env = build_repo_env_vars(&repo, &settings, None);
+        assert_eq!(env.get("MY_KEY").unwrap(), "my_val");
+    }
+
+    #[test]
+    fn test_build_common_args_with_system_prompt_additions() {
+        let args = build_common_args(None, &[], Some("Always respond in JSON"), None, false, false);
+        let system_prompt = args.last().unwrap();
+        assert!(system_prompt.contains("Always respond in JSON"));
+        // Safety rules should still be present
+        assert!(system_prompt.contains("NEVER delete any files"));
+    }
+
+    #[test]
+    fn test_build_common_args_empty_system_prompt_treated_as_none() {
+        let args = build_common_args(None, &[], Some(""), None, false, false);
+        let system_prompt = args.last().unwrap();
+        // Should still have safety rules
+        assert!(system_prompt.contains("NEVER delete any files"));
+        // Shouldn't have a double newline from empty additions
+        assert!(!system_prompt.starts_with("\n\n"));
+    }
+
+    #[test]
+    fn test_build_common_args_multiple_linked_dirs() {
+        let dirs = vec![
+            std::path::PathBuf::from("/tmp/dir1"),
+            std::path::PathBuf::from("/tmp/dir2"),
+        ];
+        let args = build_common_args(None, &dirs, None, None, false, false);
+        let add_dir_count = args.iter().filter(|a| a.as_str() == "--add-dir").count();
+        assert_eq!(add_dir_count, 2);
+        assert!(args.contains(&"/tmp/dir1".to_string()));
+        assert!(args.contains(&"/tmp/dir2".to_string()));
+    }
+
+    #[test]
+    fn test_build_common_args_all_valid_models() {
+        for model in &["sonnet", "opus", "haiku"] {
+            let args = build_common_args(None, &[], None, Some(model), false, false);
+            assert!(args.contains(&"--model".to_string()));
+            assert!(args.contains(&model.to_string()));
+        }
+    }
+
+    #[test]
+    fn test_build_common_args_always_includes_search_code_instruction() {
+        let args = build_common_args(None, &[], None, None, false, false);
+        let system_prompt = args.last().unwrap();
+        assert!(system_prompt.contains("FURY_ROOT_PATH"));
+        assert!(system_prompt.contains("search_code"));
+    }
+
+    // --- stream_event_detail tests ---
+
+    #[test]
+    fn test_stream_event_detail_system() {
+        let event = FrontendStreamEvent::System { session_id: None, message: None };
+        assert_eq!(stream_event_detail(&event), "system");
+    }
+
+    #[test]
+    fn test_stream_event_detail_assistant_text() {
+        let event = FrontendStreamEvent::AssistantText { text: "hi".to_string() };
+        assert_eq!(stream_event_detail(&event), "assistantText");
+    }
+
+    #[test]
+    fn test_stream_event_detail_tool_use() {
+        let event = FrontendStreamEvent::ToolUse {
+            id: "1".to_string(),
+            name: "bash".to_string(),
+            input: serde_json::Value::Null,
+        };
+        assert_eq!(stream_event_detail(&event), "toolUse:bash");
+    }
+
+    #[test]
+    fn test_stream_event_detail_tool_result() {
+        let event = FrontendStreamEvent::ToolResult {
+            tool_use_id: "1".to_string(),
+            content: "ok".to_string(),
+        };
+        assert_eq!(stream_event_detail(&event), "toolResult");
+    }
+
+    #[test]
+    fn test_stream_event_detail_result_ok() {
+        let event = FrontendStreamEvent::Result {
+            is_error: false,
+            result: Some("done".to_string()),
+            session_id: None,
+            duration_ms: None,
+            duration_api_ms: None,
+            total_cost_usd: None,
+            num_turns: None,
+            input_tokens: None,
+            output_tokens: None,
+            cache_read_tokens: None,
+            cache_creation_tokens: None,
+        };
+        assert_eq!(stream_event_detail(&event), "result:ok");
+    }
+
+    #[test]
+    fn test_stream_event_detail_result_error_with_message() {
+        let event = FrontendStreamEvent::Result {
+            is_error: true,
+            result: Some("rate limit".to_string()),
+            session_id: None,
+            duration_ms: None,
+            duration_api_ms: None,
+            total_cost_usd: None,
+            num_turns: None,
+            input_tokens: None,
+            output_tokens: None,
+            cache_read_tokens: None,
+            cache_creation_tokens: None,
+        };
+        let detail = stream_event_detail(&event);
+        assert!(detail.starts_with("result:ERROR"));
+        assert!(detail.contains("rate limit"));
+    }
+
+    #[test]
+    fn test_stream_event_detail_result_error_no_message() {
+        let event = FrontendStreamEvent::Result {
+            is_error: true,
+            result: None,
+            session_id: None,
+            duration_ms: None,
+            duration_api_ms: None,
+            total_cost_usd: None,
+            num_turns: None,
+            input_tokens: None,
+            output_tokens: None,
+            cache_read_tokens: None,
+            cache_creation_tokens: None,
+        };
+        let detail = stream_event_detail(&event);
+        assert!(detail.contains("(no message)"));
+    }
+
+    #[test]
+    fn test_stream_event_detail_result_error_long_message_truncated() {
+        let long_msg = "x".repeat(300);
+        let event = FrontendStreamEvent::Result {
+            is_error: true,
+            result: Some(long_msg),
+            session_id: None,
+            duration_ms: None,
+            duration_api_ms: None,
+            total_cost_usd: None,
+            num_turns: None,
+            input_tokens: None,
+            output_tokens: None,
+            cache_read_tokens: None,
+            cache_creation_tokens: None,
+        };
+        let detail = stream_event_detail(&event);
+        assert!(detail.ends_with("..."));
+        assert!(detail.len() < 300);
+    }
+
+    #[test]
+    fn test_stream_event_detail_permission_request() {
+        let event = FrontendStreamEvent::PermissionRequest {
+            tool_name: "write_file".to_string(),
+            input: serde_json::Value::Null,
+        };
+        assert_eq!(stream_event_detail(&event), "permissionRequest:write_file");
+    }
+
+    #[test]
+    fn test_stream_event_detail_assistant_image() {
+        let event = FrontendStreamEvent::AssistantImage {
+            media_type: "image/jpeg".to_string(),
+            data: "abc".to_string(),
+        };
+        assert_eq!(stream_event_detail(&event), "assistantImage:image/jpeg");
+    }
+
+    // --- enrich_error_from_stderr tests ---
+
+    #[test]
+    fn test_enrich_error_from_stderr_fills_empty_result() {
+        let stderr_buf: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::from([
+            "line1".to_string(),
+            "line2".to_string(),
+        ])));
+        let mut event = FrontendStreamEvent::Result {
+            is_error: true,
+            result: None,
+            session_id: None,
+            duration_ms: None,
+            duration_api_ms: None,
+            total_cost_usd: None,
+            num_turns: None,
+            input_tokens: None,
+            output_tokens: None,
+            cache_read_tokens: None,
+            cache_creation_tokens: None,
+        };
+        enrich_error_from_stderr(&mut event, &stderr_buf);
+        match &event {
+            FrontendStreamEvent::Result { result, .. } => {
+                assert_eq!(result.as_deref(), Some("line1\nline2"));
+            }
+            _ => panic!("Expected Result"),
+        }
+    }
+
+    #[test]
+    fn test_enrich_error_from_stderr_does_not_overwrite_existing() {
+        let stderr_buf: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::from([
+            "stderr noise".to_string(),
+        ])));
+        let mut event = FrontendStreamEvent::Result {
+            is_error: true,
+            result: Some("original error".to_string()),
+            session_id: None,
+            duration_ms: None,
+            duration_api_ms: None,
+            total_cost_usd: None,
+            num_turns: None,
+            input_tokens: None,
+            output_tokens: None,
+            cache_read_tokens: None,
+            cache_creation_tokens: None,
+        };
+        enrich_error_from_stderr(&mut event, &stderr_buf);
+        match &event {
+            FrontendStreamEvent::Result { result, .. } => {
+                assert_eq!(result.as_deref(), Some("original error"));
+            }
+            _ => panic!("Expected Result"),
+        }
+    }
+
+    #[test]
+    fn test_enrich_error_from_stderr_noop_for_success() {
+        let stderr_buf: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::from([
+            "stderr noise".to_string(),
+        ])));
+        let mut event = FrontendStreamEvent::Result {
+            is_error: false,
+            result: None,
+            session_id: None,
+            duration_ms: None,
+            duration_api_ms: None,
+            total_cost_usd: None,
+            num_turns: None,
+            input_tokens: None,
+            output_tokens: None,
+            cache_read_tokens: None,
+            cache_creation_tokens: None,
+        };
+        enrich_error_from_stderr(&mut event, &stderr_buf);
+        match &event {
+            FrontendStreamEvent::Result { result, .. } => {
+                assert!(result.is_none());
+            }
+            _ => panic!("Expected Result"),
+        }
+    }
+
+    #[test]
+    fn test_enrich_error_from_stderr_noop_for_empty_buffer() {
+        let stderr_buf: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::new()));
+        let mut event = FrontendStreamEvent::Result {
+            is_error: true,
+            result: None,
+            session_id: None,
+            duration_ms: None,
+            duration_api_ms: None,
+            total_cost_usd: None,
+            num_turns: None,
+            input_tokens: None,
+            output_tokens: None,
+            cache_read_tokens: None,
+            cache_creation_tokens: None,
+        };
+        enrich_error_from_stderr(&mut event, &stderr_buf);
+        match &event {
+            FrontendStreamEvent::Result { result, .. } => {
+                assert!(result.is_none());
+            }
+            _ => panic!("Expected Result"),
+        }
+    }
+
+    #[test]
+    fn test_enrich_error_from_stderr_truncates_long_buffer() {
+        let long_line = "x".repeat(600);
+        let stderr_buf: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::from([
+            long_line,
+        ])));
+        let mut event = FrontendStreamEvent::Result {
+            is_error: true,
+            result: None,
+            session_id: None,
+            duration_ms: None,
+            duration_api_ms: None,
+            total_cost_usd: None,
+            num_turns: None,
+            input_tokens: None,
+            output_tokens: None,
+            cache_read_tokens: None,
+            cache_creation_tokens: None,
+        };
+        enrich_error_from_stderr(&mut event, &stderr_buf);
+        match &event {
+            FrontendStreamEvent::Result { result, .. } => {
+                let msg = result.as_ref().unwrap();
+                assert!(msg.len() <= 500);
+                assert!(msg.starts_with("..."));
+            }
+            _ => panic!("Expected Result"),
+        }
+    }
+
+    #[test]
+    fn test_enrich_error_noop_for_non_result_event() {
+        let stderr_buf: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::from([
+            "stderr".to_string(),
+        ])));
+        let mut event = FrontendStreamEvent::AssistantText { text: "hi".to_string() };
+        enrich_error_from_stderr(&mut event, &stderr_buf);
+        // Should not panic or modify
+        match &event {
+            FrontendStreamEvent::AssistantText { text } => assert_eq!(text, "hi"),
+            _ => panic!("Expected AssistantText"),
+        }
+    }
+
+    // --- try_capture_session_id tests ---
+
+    #[test]
+    fn test_try_capture_session_id_from_system_event() {
+        let agents: Mutex<HashMap<Uuid, AgentInfo>> = Mutex::new(HashMap::new());
+        let ws_id = Uuid::new_v4();
+        agents.lock().unwrap().insert(ws_id, AgentInfo::new(ws_id));
+
+        let event = FrontendStreamEvent::System {
+            session_id: Some("sess-abc".to_string()),
+            message: None,
+        };
+        assert!(try_capture_session_id(&event, &agents, ws_id));
+        assert_eq!(agents.lock().unwrap().get(&ws_id).unwrap().session_id.as_deref(), Some("sess-abc"));
+    }
+
+    #[test]
+    fn test_try_capture_session_id_from_result_event() {
+        let agents: Mutex<HashMap<Uuid, AgentInfo>> = Mutex::new(HashMap::new());
+        let ws_id = Uuid::new_v4();
+        agents.lock().unwrap().insert(ws_id, AgentInfo::new(ws_id));
+
+        let event = FrontendStreamEvent::Result {
+            is_error: false,
+            result: None,
+            session_id: Some("sess-result".to_string()),
+            duration_ms: None,
+            duration_api_ms: None,
+            total_cost_usd: None,
+            num_turns: None,
+            input_tokens: None,
+            output_tokens: None,
+            cache_read_tokens: None,
+            cache_creation_tokens: None,
+        };
+        assert!(try_capture_session_id(&event, &agents, ws_id));
+        assert_eq!(agents.lock().unwrap().get(&ws_id).unwrap().session_id.as_deref(), Some("sess-result"));
+    }
+
+    #[test]
+    fn test_try_capture_session_id_returns_false_for_text_event() {
+        let agents: Mutex<HashMap<Uuid, AgentInfo>> = Mutex::new(HashMap::new());
+        let ws_id = Uuid::new_v4();
+        agents.lock().unwrap().insert(ws_id, AgentInfo::new(ws_id));
+
+        let event = FrontendStreamEvent::AssistantText { text: "hi".to_string() };
+        assert!(!try_capture_session_id(&event, &agents, ws_id));
+        assert!(agents.lock().unwrap().get(&ws_id).unwrap().session_id.is_none());
+    }
+
+    #[test]
+    fn test_try_capture_session_id_returns_false_when_no_session_id() {
+        let agents: Mutex<HashMap<Uuid, AgentInfo>> = Mutex::new(HashMap::new());
+        let ws_id = Uuid::new_v4();
+        agents.lock().unwrap().insert(ws_id, AgentInfo::new(ws_id));
+
+        let event = FrontendStreamEvent::System { session_id: None, message: Some("hi".to_string()) };
+        assert!(!try_capture_session_id(&event, &agents, ws_id));
+    }
+
+    // --- Additional parse_stream_line edge case tests ---
+
+    #[test]
+    fn test_parse_stream_line_missing_type_field() {
+        let line = r#"{"data":"something"}"#;
+        assert!(parse_stream_line(line).is_empty());
+    }
+
+    #[test]
+    fn test_parse_stream_line_assistant_empty_content() {
+        let line = r#"{"type":"assistant","message":{"content":[]}}"#;
+        assert!(parse_stream_line(line).is_empty());
+    }
+
+    #[test]
+    fn test_parse_stream_line_assistant_no_content_key() {
+        let line = r#"{"type":"assistant","message":{"role":"assistant"}}"#;
+        assert!(parse_stream_line(line).is_empty());
+    }
+
+    #[test]
+    fn test_parse_stream_line_assistant_unknown_block_type() {
+        let line = r#"{"type":"assistant","message":{"content":[{"type":"audio","data":"..."}]}}"#;
+        assert!(parse_stream_line(line).is_empty());
+    }
+
+    #[test]
+    fn test_parse_stream_line_tool_result_with_json_content() {
+        let line = r#"{"type":"assistant","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":{"exitCode":0}}]}}"#;
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            FrontendStreamEvent::ToolResult { tool_use_id, content } => {
+                assert_eq!(tool_use_id, "t1");
+                assert!(content.contains("exitCode"));
+            }
+            _ => panic!("Expected ToolResult"),
+        }
+    }
+
+    #[test]
+    fn test_parse_stream_line_result_with_error_field_fallback() {
+        let line = r#"{"type":"result","is_error":true,"error":"API overloaded"}"#;
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            FrontendStreamEvent::Result { is_error, result, .. } => {
+                assert!(is_error);
+                assert_eq!(result.as_deref(), Some("API overloaded"));
+            }
+            _ => panic!("Expected Result"),
+        }
+    }
+
+    #[test]
+    fn test_parse_stream_line_result_with_error_message_field_fallback() {
+        let line = r#"{"type":"result","is_error":true,"error_message":"token limit"}"#;
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            FrontendStreamEvent::Result { is_error, result, .. } => {
+                assert!(is_error);
+                assert_eq!(result.as_deref(), Some("token limit"));
+            }
+            _ => panic!("Expected Result"),
+        }
+    }
+
+    #[test]
+    fn test_parse_stream_line_result_non_string_result_value() {
+        let line = r#"{"type":"result","is_error":false,"result":42}"#;
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            FrontendStreamEvent::Result { result, .. } => {
+                assert_eq!(result.as_deref(), Some("42"));
+            }
+            _ => panic!("Expected Result"),
+        }
+    }
+
+    #[test]
+    fn test_parse_stream_line_result_null_result_value() {
+        let line = r#"{"type":"result","is_error":false,"result":null}"#;
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            FrontendStreamEvent::Result { result, .. } => {
+                assert!(result.is_none());
+            }
+            _ => panic!("Expected Result"),
+        }
+    }
+
+    #[test]
+    fn test_parse_stream_line_result_with_cache_tokens() {
+        let line = r#"{"type":"result","is_error":false,"usage":{"input_tokens":100,"output_tokens":50,"cache_read_input_tokens":80,"cache_creation_input_tokens":20}}"#;
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            FrontendStreamEvent::Result { cache_read_tokens, cache_creation_tokens, .. } => {
+                assert_eq!(*cache_read_tokens, Some(80));
+                assert_eq!(*cache_creation_tokens, Some(20));
+            }
+            _ => panic!("Expected Result"),
+        }
+    }
+
+    #[test]
+    fn test_parse_stream_line_permission_request_flat_tool_name() {
+        let line = r#"{"type":"input_request","tool_name":"bash","input":{"command":"ls"}}"#;
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            FrontendStreamEvent::PermissionRequest { tool_name, input } => {
+                assert_eq!(tool_name, "bash");
+                assert_eq!(input["command"], "ls");
+            }
+            _ => panic!("Expected PermissionRequest"),
+        }
+    }
+
+    #[test]
+    fn test_parse_stream_line_permission_request_no_tool_info() {
+        let line = r#"{"type":"input_request"}"#;
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            FrontendStreamEvent::PermissionRequest { tool_name, .. } => {
+                assert_eq!(tool_name, "unknown");
+            }
+            _ => panic!("Expected PermissionRequest"),
+        }
+    }
+
+    #[test]
+    fn test_parse_stream_line_image_without_source_ignored() {
+        let line = r#"{"type":"assistant","message":{"content":[{"type":"image"}]}}"#;
+        assert!(parse_stream_line(line).is_empty());
+    }
+
+    #[test]
+    fn test_parse_stream_line_image_source_without_data_ignored() {
+        let line = r#"{"type":"assistant","message":{"content":[{"type":"image","source":{"type":"base64","media_type":"image/png"}}]}}"#;
+        assert!(parse_stream_line(line).is_empty());
+    }
+
+    #[test]
+    fn test_parse_stream_line_result_error_with_nested_error_object() {
+        let line = r#"{"type":"result","is_error":true,"error":{"message":"nested","code":500}}"#;
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            FrontendStreamEvent::Result { is_error, result, .. } => {
+                assert!(is_error);
+                // error is an object, not a string, so it falls through to stringified
+                let r = result.as_ref().unwrap();
+                assert!(r.contains("message") || r.contains("nested"));
+            }
+            _ => panic!("Expected Result"),
+        }
+    }
+
+    #[test]
+    fn test_parse_stream_line_multiple_tool_uses() {
+        let line = r#"{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"read","input":{}},{"type":"tool_use","id":"t2","name":"write","input":{}}]}}"#;
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 2);
+        assert!(matches!(&events[0], FrontendStreamEvent::ToolUse { name, .. } if name == "read"));
+        assert!(matches!(&events[1], FrontendStreamEvent::ToolUse { name, .. } if name == "write"));
+    }
+
+    // --- is_known_skippable_line additional tests ---
+
+    #[test]
+    fn test_skippable_result_is_not_skippable() {
+        let line = r#"{"type":"result","is_error":false}"#;
+        assert!(!is_known_skippable_line(line));
+    }
+
+    #[test]
+    fn test_skippable_system_is_not_skippable() {
+        let line = r#"{"type":"system","session_id":"s1"}"#;
+        assert!(!is_known_skippable_line(line));
+    }
 }

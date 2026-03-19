@@ -1176,4 +1176,612 @@ ZeroDivisionError: division by zero
         assert_eq!(summary.passed, 1);
         assert_eq!(summary.failed, 1);
     }
+
+    // --- detect_framework additional tests ---
+
+    #[test]
+    fn test_detect_framework_jest_config() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("jest.config.js"), "module.exports = {}").unwrap();
+        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Jest));
+    }
+
+    #[test]
+    fn test_detect_framework_jest_from_package_json() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("package.json"), r#"{"jest":{"testEnvironment":"jsdom"}}"#).unwrap();
+        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Jest));
+    }
+
+    #[test]
+    fn test_detect_framework_pytest_ini() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("pytest.ini"), "[pytest]").unwrap();
+        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Pytest));
+    }
+
+    #[test]
+    fn test_detect_framework_conftest() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("conftest.py"), "import pytest").unwrap();
+        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Pytest));
+    }
+
+    #[test]
+    fn test_detect_framework_pyproject_toml() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("pyproject.toml"), "[tool.pytest.ini_options]\naddopts = \"-v\"").unwrap();
+        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Pytest));
+    }
+
+    #[test]
+    fn test_detect_framework_setup_cfg() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("setup.cfg"), "[tool:pytest]\naddopts = -v").unwrap();
+        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Pytest));
+    }
+
+    #[test]
+    fn test_detect_framework_go() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("go.mod"), "module example.com/mymod").unwrap();
+        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::GoTest));
+    }
+
+    #[test]
+    fn test_detect_framework_vitest_mts() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("vitest.config.mts"), "export default {}").unwrap();
+        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Vitest));
+    }
+
+    #[test]
+    fn test_detect_framework_vitest_mjs() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("vitest.config.mjs"), "export default {}").unwrap();
+        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Vitest));
+    }
+
+    #[test]
+    fn test_detect_framework_priority_vitest_over_jest() {
+        // If both vitest and jest configs exist, vitest should win
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("vitest.config.ts"), "export default {}").unwrap();
+        std::fs::write(tmp.path().join("jest.config.js"), "module.exports = {}").unwrap();
+        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Vitest));
+    }
+
+    // --- default_commands tests ---
+
+    #[test]
+    fn test_default_commands_jest() {
+        let config = default_commands(&TestFramework::Jest);
+        assert!(config.test_command.unwrap().contains("jest"));
+    }
+
+    #[test]
+    fn test_default_commands_pytest() {
+        let config = default_commands(&TestFramework::Pytest);
+        assert!(config.test_command.unwrap().contains("pytest"));
+    }
+
+    #[test]
+    fn test_default_commands_cargo() {
+        let config = default_commands(&TestFramework::CargoTest);
+        assert!(config.test_command.unwrap().contains("cargo test"));
+    }
+
+    #[test]
+    fn test_default_commands_go() {
+        let config = default_commands(&TestFramework::GoTest);
+        assert!(config.test_command.unwrap().contains("go test"));
+    }
+
+    #[test]
+    fn test_default_commands_custom() {
+        let config = default_commands(&TestFramework::Custom);
+        assert!(config.test_command.is_none());
+        assert!(config.test_file_command.is_none());
+    }
+
+    // --- default_coverage_command tests ---
+
+    #[test]
+    fn test_default_coverage_command_vitest() {
+        assert!(default_coverage_command(&TestFramework::Vitest).unwrap().contains("coverage"));
+    }
+
+    #[test]
+    fn test_default_coverage_command_jest() {
+        assert!(default_coverage_command(&TestFramework::Jest).unwrap().contains("coverage"));
+    }
+
+    #[test]
+    fn test_default_coverage_command_pytest() {
+        assert!(default_coverage_command(&TestFramework::Pytest).unwrap().contains("cov"));
+    }
+
+    #[test]
+    fn test_default_coverage_command_cargo_none() {
+        assert!(default_coverage_command(&TestFramework::CargoTest).is_none());
+    }
+
+    #[test]
+    fn test_default_coverage_command_go_none() {
+        assert!(default_coverage_command(&TestFramework::GoTest).is_none());
+    }
+
+    // --- parse_pytest_line tests ---
+
+    #[test]
+    fn test_parse_pytest_line_passed() {
+        let (path, status) = parse_pytest_line("tests/test_math.py::test_add PASSED  [ 50%]").unwrap();
+        assert_eq!(path, "tests/test_math.py::test_add");
+        assert_eq!(status, "PASSED");
+    }
+
+    #[test]
+    fn test_parse_pytest_line_failed() {
+        let (path, status) = parse_pytest_line("tests/test_math.py::test_div FAILED [100%]").unwrap();
+        assert_eq!(path, "tests/test_math.py::test_div");
+        assert_eq!(status, "FAILED");
+    }
+
+    #[test]
+    fn test_parse_pytest_line_skipped() {
+        let (path, status) = parse_pytest_line("tests/test_math.py::test_skip SKIPPED [ 75%]").unwrap();
+        assert_eq!(path, "tests/test_math.py::test_skip");
+        assert_eq!(status, "SKIPPED");
+    }
+
+    #[test]
+    fn test_parse_pytest_line_error() {
+        let (path, status) = parse_pytest_line("tests/test_math.py::test_err ERROR [100%]").unwrap();
+        assert_eq!(path, "tests/test_math.py::test_err");
+        assert_eq!(status, "ERROR");
+    }
+
+    #[test]
+    fn test_parse_pytest_line_no_match() {
+        assert!(parse_pytest_line("collected 5 items").is_none());
+    }
+
+    #[test]
+    fn test_parse_pytest_line_class_method() {
+        let (path, status) = parse_pytest_line("tests/test_cls.py::TestClass::test_method PASSED [100%]").unwrap();
+        assert_eq!(path, "tests/test_cls.py::TestClass::test_method");
+        assert_eq!(status, "PASSED");
+    }
+
+    // --- split_pytest_path tests ---
+
+    #[test]
+    fn test_split_pytest_path_simple() {
+        let (suite, name) = split_pytest_path("tests/test_foo.py::test_bar");
+        assert_eq!(suite, "tests/test_foo.py");
+        assert_eq!(name, "test_bar");
+    }
+
+    #[test]
+    fn test_split_pytest_path_with_class() {
+        let (suite, name) = split_pytest_path("tests/test_foo.py::TestClass::test_bar");
+        assert_eq!(suite, "tests/test_foo.py");
+        assert_eq!(name, "TestClass::test_bar");
+    }
+
+    #[test]
+    fn test_split_pytest_path_no_separator() {
+        let (suite, name) = split_pytest_path("test_bar");
+        assert_eq!(suite, "(unknown)");
+        assert_eq!(name, "test_bar");
+    }
+
+    // --- make_relative_path tests ---
+
+    #[test]
+    fn test_make_relative_path_tests_dir() {
+        assert_eq!(make_relative_path("/home/user/project/tests/test_foo.py"), "tests/test_foo.py");
+    }
+
+    #[test]
+    fn test_make_relative_path_test_dir() {
+        assert_eq!(make_relative_path("/home/user/project/test/foo.spec.ts"), "test/foo.spec.ts");
+    }
+
+    #[test]
+    fn test_make_relative_path_spec_dir() {
+        assert_eq!(make_relative_path("/home/user/project/spec/helper.rb"), "spec/helper.rb");
+    }
+
+    #[test]
+    fn test_make_relative_path_e2e_dir() {
+        assert_eq!(make_relative_path("/home/user/project/e2e/login.test.ts"), "e2e/login.test.ts");
+    }
+
+    #[test]
+    fn test_make_relative_path_no_marker_extracts_filename() {
+        assert_eq!(make_relative_path("/home/user/project/lib/utils.ts"), "utils.ts");
+    }
+
+    #[test]
+    fn test_make_relative_path_no_slashes() {
+        assert_eq!(make_relative_path("test.ts"), "test.ts");
+    }
+
+    // --- parse_vitest_json additional tests ---
+
+    #[test]
+    fn test_parse_vitest_json_no_json() {
+        assert!(parse_vitest_json("no json here at all").is_err());
+    }
+
+    #[test]
+    fn test_parse_vitest_json_with_preceding_text() {
+        let output = "some warning\n{\"numTotalTests\":1,\"numPassedTests\":1,\"numFailedTests\":0,\"numPendingTests\":0,\"testResults\":[]}";
+        let summary = parse_vitest_json(output).unwrap();
+        assert_eq!(summary.total, 1);
+        assert_eq!(summary.passed, 1);
+    }
+
+    #[test]
+    fn test_parse_vitest_json_pending_tests() {
+        let json = r#"{
+            "numTotalTests": 3,
+            "numPassedTests": 1,
+            "numFailedTests": 0,
+            "numPendingTests": 2,
+            "testResults": [
+                {
+                    "name": "src/test.ts",
+                    "assertionResults": [
+                        {"fullName": "passes", "status": "passed", "failureMessages": []},
+                        {"fullName": "pending one", "status": "pending", "failureMessages": []},
+                        {"fullName": "todo one", "status": "todo", "failureMessages": []}
+                    ]
+                }
+            ]
+        }"#;
+        let summary = parse_vitest_json(json).unwrap();
+        assert_eq!(summary.total, 3);
+        assert_eq!(summary.skipped, 2);
+        assert_eq!(summary.suites[0].tests[1].status, TestStatus::Skipped);
+        assert_eq!(summary.suites[0].tests[2].status, TestStatus::Skipped);
+    }
+
+    #[test]
+    fn test_parse_vitest_json_all_skipped_suite_status() {
+        let json = r#"{
+            "numTotalTests": 1,
+            "numPassedTests": 0,
+            "numFailedTests": 0,
+            "numPendingTests": 1,
+            "testResults": [
+                {
+                    "name": "src/test.ts",
+                    "assertionResults": [
+                        {"fullName": "skipped test", "status": "skipped", "failureMessages": []}
+                    ]
+                }
+            ]
+        }"#;
+        let summary = parse_vitest_json(json).unwrap();
+        assert_eq!(summary.suites[0].status, TestStatus::Skipped);
+    }
+
+    #[test]
+    fn test_parse_vitest_json_suite_duration() {
+        let json = r#"{
+            "numTotalTests": 1,
+            "numPassedTests": 1,
+            "numFailedTests": 0,
+            "numPendingTests": 0,
+            "testResults": [
+                {
+                    "name": "src/test.ts",
+                    "startTime": 1000.0,
+                    "endTime": 2500.0,
+                    "assertionResults": [
+                        {"fullName": "test", "status": "passed", "failureMessages": []}
+                    ]
+                }
+            ]
+        }"#;
+        let summary = parse_vitest_json(json).unwrap();
+        assert_eq!(summary.suites[0].duration_ms, Some(1500.0));
+        assert_eq!(summary.duration_ms, 1500.0);
+    }
+
+    #[test]
+    fn test_parse_vitest_json_empty_test_results() {
+        let json = r#"{"numTotalTests":0,"numPassedTests":0,"numFailedTests":0,"numPendingTests":0,"testResults":[]}"#;
+        let summary = parse_vitest_json(json).unwrap();
+        assert_eq!(summary.total, 0);
+        assert!(summary.suites.is_empty());
+    }
+
+    // --- parse_cargo_test additional tests ---
+
+    #[test]
+    fn test_parse_cargo_test_ignored() {
+        let output = "test my_mod::my_test ... ignored\n";
+        let summary = parse_cargo_test(output).unwrap();
+        assert_eq!(summary.total, 1);
+        assert_eq!(summary.skipped, 1);
+        assert_eq!(summary.suites[0].tests[0].status, TestStatus::Skipped);
+    }
+
+    #[test]
+    fn test_parse_cargo_test_no_module() {
+        let output = "test my_test ... ok\n";
+        let summary = parse_cargo_test(output).unwrap();
+        assert_eq!(summary.total, 1);
+        assert_eq!(summary.passed, 1);
+        assert_eq!(summary.suites[0].name, "(root)");
+        assert_eq!(summary.suites[0].tests[0].name, "my_test");
+    }
+
+    #[test]
+    fn test_parse_cargo_test_empty_output() {
+        let summary = parse_cargo_test("").unwrap();
+        assert_eq!(summary.total, 0);
+        assert!(summary.suites.is_empty());
+    }
+
+    #[test]
+    fn test_parse_cargo_test_failure_message_attached() {
+        let output = r#"
+test mymod::test_thing ... FAILED
+
+failures:
+
+---- mymod::test_thing stdout ----
+thread 'main' panicked at 'assertion failed'
+note: run with RUST_BACKTRACE=1
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured
+"#;
+        let summary = parse_cargo_test(output).unwrap();
+        assert_eq!(summary.failed, 1);
+        let test = &summary.suites[0].tests[0];
+        assert!(test.failure_message.is_some());
+        assert!(test.failure_message.as_ref().unwrap().contains("assertion failed"));
+    }
+
+    #[test]
+    fn test_parse_cargo_test_unknown_result() {
+        let output = "test my_mod::test_bench ... bench: 100 ns/iter\n";
+        let summary = parse_cargo_test(output).unwrap();
+        // "bench: 100 ns/iter" doesn't match known results, skipped as unknown
+        assert_eq!(summary.total, 1);
+        assert_eq!(summary.skipped, 1);
+    }
+
+    // --- parse_go_test_json additional tests ---
+
+    #[test]
+    fn test_parse_go_test_json_skip() {
+        let output = r#"{"Action":"skip","Package":"pkg","Test":"TestSkipped","Elapsed":0.0}"#;
+        let summary = parse_go_test_json(output).unwrap();
+        assert_eq!(summary.total, 1);
+        assert_eq!(summary.skipped, 1);
+    }
+
+    #[test]
+    fn test_parse_go_test_json_output_collected_for_failure() {
+        let output = r#"
+{"Action":"output","Package":"pkg","Test":"TestFail","Output":"expected 1 got 2\n"}
+{"Action":"output","Package":"pkg","Test":"TestFail","Output":"at line 42\n"}
+{"Action":"fail","Package":"pkg","Test":"TestFail","Elapsed":0.1}
+"#;
+        let summary = parse_go_test_json(output).unwrap();
+        assert_eq!(summary.failed, 1);
+        let test = &summary.suites[0].tests[0];
+        assert!(test.failure_message.is_some());
+        let msg = test.failure_message.as_ref().unwrap();
+        assert!(msg.contains("expected 1 got 2"));
+        assert!(msg.contains("at line 42"));
+    }
+
+    #[test]
+    fn test_parse_go_test_json_no_test_field_skipped() {
+        let output = r#"{"Action":"pass","Package":"pkg","Elapsed":1.0}"#;
+        let summary = parse_go_test_json(output).unwrap();
+        // Events without Test field are skipped
+        assert_eq!(summary.total, 0);
+    }
+
+    #[test]
+    fn test_parse_go_test_json_empty_output() {
+        let summary = parse_go_test_json("").unwrap();
+        assert_eq!(summary.total, 0);
+        assert!(summary.suites.is_empty());
+    }
+
+    #[test]
+    fn test_parse_go_test_json_non_json_lines_ignored() {
+        let output = "ok  \tpkg\t0.5s\n{\"Action\":\"pass\",\"Package\":\"pkg\",\"Test\":\"TestA\",\"Elapsed\":0.1}\n";
+        let summary = parse_go_test_json(output).unwrap();
+        assert_eq!(summary.total, 1);
+        assert_eq!(summary.passed, 1);
+    }
+
+    #[test]
+    fn test_parse_go_test_json_duration_conversion() {
+        let output = r#"{"Action":"pass","Package":"pkg","Test":"TestA","Elapsed":1.5}"#;
+        let summary = parse_go_test_json(output).unwrap();
+        // 1.5 seconds = 1500ms
+        assert_eq!(summary.suites[0].tests[0].duration_ms, Some(1500.0));
+    }
+
+    #[test]
+    fn test_parse_go_test_json_no_package() {
+        let output = r#"{"Action":"pass","Test":"TestA","Elapsed":0.1}"#;
+        let summary = parse_go_test_json(output).unwrap();
+        assert_eq!(summary.suites[0].name, "(unknown)");
+    }
+
+    // --- parse_generic additional tests ---
+
+    #[test]
+    fn test_parse_generic_empty() {
+        let summary = parse_generic("").unwrap();
+        assert_eq!(summary.total, 0);
+        assert_eq!(summary.suites[0].status, TestStatus::Pending);
+    }
+
+    #[test]
+    fn test_parse_generic_only_passes() {
+        let output = "test1 PASS\ntest2 ok\n";
+        let summary = parse_generic(output).unwrap();
+        assert_eq!(summary.total, 2);
+        assert_eq!(summary.passed, 2);
+        assert_eq!(summary.failed, 0);
+        assert_eq!(summary.suites[0].status, TestStatus::Passed);
+    }
+
+    #[test]
+    fn test_parse_generic_only_failures() {
+        let output = "test1 FAIL\ntest2 error\n";
+        let summary = parse_generic(output).unwrap();
+        assert_eq!(summary.total, 2);
+        assert_eq!(summary.passed, 0);
+        assert_eq!(summary.failed, 2);
+        assert_eq!(summary.suites[0].status, TestStatus::Failed);
+    }
+
+    #[test]
+    fn test_parse_generic_failure_message_set() {
+        let output = "FAIL: test_something broke";
+        let summary = parse_generic(output).unwrap();
+        assert!(summary.suites[0].tests[0].failure_message.is_some());
+    }
+
+    // --- parse_output dispatch tests ---
+
+    #[test]
+    fn test_parse_output_dispatches_to_vitest() {
+        let json = r#"{"numTotalTests":1,"numPassedTests":1,"numFailedTests":0,"numPendingTests":0,"testResults":[]}"#;
+        let summary = parse_output(&TestFramework::Vitest, json).unwrap();
+        assert_eq!(summary.total, 1);
+    }
+
+    #[test]
+    fn test_parse_output_dispatches_to_jest() {
+        let json = r#"{"numTotalTests":1,"numPassedTests":1,"numFailedTests":0,"numPendingTests":0,"testResults":[]}"#;
+        let summary = parse_output(&TestFramework::Jest, json).unwrap();
+        assert_eq!(summary.total, 1);
+    }
+
+    #[test]
+    fn test_parse_output_dispatches_to_custom() {
+        let output = "PASS test_foo";
+        let summary = parse_output(&TestFramework::Custom, output).unwrap();
+        assert_eq!(summary.total, 1);
+    }
+
+    // --- parse_pytest_verbose additional tests ---
+
+    #[test]
+    fn test_parse_pytest_verbose_empty() {
+        let summary = parse_pytest_verbose("").unwrap();
+        assert_eq!(summary.total, 0);
+        assert!(summary.suites.is_empty());
+    }
+
+    #[test]
+    fn test_parse_pytest_verbose_skipped() {
+        let output = "tests/test_foo.py::test_skip SKIPPED [ 50%]\ntests/test_foo.py::test_pass PASSED [100%]";
+        let summary = parse_pytest_verbose(output).unwrap();
+        assert_eq!(summary.total, 2);
+        assert_eq!(summary.passed, 1);
+        assert_eq!(summary.skipped, 1);
+    }
+
+    #[test]
+    fn test_parse_pytest_verbose_multiple_suites() {
+        let output = "tests/test_a.py::test_one PASSED [50%]\ntests/test_b.py::test_two FAILED [100%]";
+        let summary = parse_pytest_verbose(output).unwrap();
+        assert_eq!(summary.total, 2);
+        assert_eq!(summary.suites.len(), 2);
+    }
+
+    // --- parse_istanbul_coverage tests ---
+
+    #[test]
+    fn test_parse_istanbul_coverage_basic() {
+        let json = r#"{
+            "/home/user/src/app.ts": {
+                "s": {"0": 5, "1": 0, "2": 3},
+                "statementMap": {
+                    "0": {"start": {"line": 1, "column": 0}, "end": {"line": 1, "column": 10}},
+                    "1": {"start": {"line": 5, "column": 0}, "end": {"line": 5, "column": 10}},
+                    "2": {"start": {"line": 10, "column": 0}, "end": {"line": 10, "column": 10}}
+                }
+            }
+        }"#;
+        let report = parse_istanbul_coverage(json).unwrap();
+        assert_eq!(report.files.len(), 1);
+        assert_eq!(report.files[0].uncovered_lines, vec![5]);
+        // 2/3 covered = ~66.67%
+        assert!(report.total_lines_pct > 66.0 && report.total_lines_pct < 67.0);
+    }
+
+    #[test]
+    fn test_parse_istanbul_coverage_empty_object() {
+        let report = parse_istanbul_coverage("{}").unwrap();
+        assert!(report.files.is_empty());
+        assert_eq!(report.total_lines_pct, 100.0);
+    }
+
+    #[test]
+    fn test_parse_istanbul_coverage_invalid_json() {
+        assert!(parse_istanbul_coverage("not json").is_err());
+    }
+
+    #[test]
+    fn test_parse_istanbul_coverage_not_object() {
+        assert!(parse_istanbul_coverage("[1,2,3]").is_err());
+    }
+
+    #[test]
+    fn test_parse_istanbul_coverage_no_statement_map() {
+        let json = r#"{"/src/app.ts": {"s": {"0": 1}}}"#;
+        let report = parse_istanbul_coverage(json).unwrap();
+        assert_eq!(report.files[0].lines_pct, 100.0); // no statement map, falls to (0,0)
+    }
+
+    // --- parse_pytest_cov tests ---
+
+    #[test]
+    fn test_parse_pytest_cov_basic() {
+        let output = r#"
+Name                      Stmts   Miss  Cover
+-----------------------------------------------
+src/app.py                   50     10    80%
+src/utils.py                 30      5    83%
+-----------------------------------------------
+TOTAL                        80     15    81%
+"#;
+        let report = parse_pytest_cov(output).unwrap();
+        assert_eq!(report.files.len(), 2);
+        assert_eq!(report.total_lines_pct, 81.0);
+        assert_eq!(report.files[0].file, "src/app.py");
+        assert_eq!(report.files[0].lines_pct, 80.0);
+    }
+
+    #[test]
+    fn test_parse_pytest_cov_empty() {
+        let report = parse_pytest_cov("").unwrap();
+        assert!(report.files.is_empty());
+        assert_eq!(report.total_lines_pct, 0.0);
+    }
+
+    #[test]
+    fn test_parse_pytest_cov_no_total_line() {
+        let output = "Name    Stmts   Miss  Cover\n---\nsrc/a.py  10  2  80%\nsrc/b.py  20  10  50%\n";
+        let report = parse_pytest_cov(output).unwrap();
+        assert_eq!(report.files.len(), 2);
+        // Average of 80 and 50 = 65
+        assert_eq!(report.total_lines_pct, 65.0);
+    }
 }

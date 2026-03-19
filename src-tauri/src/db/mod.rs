@@ -2382,6 +2382,346 @@ mod tests {
         assert!(snippets.is_empty());
     }
 
+    // --- Test Runner Config ---
+
+    #[test]
+    fn test_get_default_test_runner_config() {
+        let db = test_db();
+        let repo = test_repo();
+        db.insert_repository(&repo).unwrap();
+        let config = db.get_test_runner_config(&repo.id).unwrap();
+        assert!(config.framework.is_none());
+        assert!(config.test_command.is_none());
+        assert!(config.test_file_command.is_none());
+        assert!(config.working_dir.is_none());
+        assert!(config.coverage_command.is_none());
+    }
+
+    #[test]
+    fn test_save_and_get_test_runner_config() {
+        let db = test_db();
+        let repo = test_repo();
+        db.insert_repository(&repo).unwrap();
+        let config = TestRunnerConfig {
+            framework: Some(TestFramework::Vitest),
+            test_command: Some("npx vitest run".to_string()),
+            test_file_command: Some("npx vitest run {{file}}".to_string()),
+            working_dir: Some("/tmp/project".to_string()),
+            coverage_command: Some("npx vitest --coverage".to_string()),
+        };
+        db.save_test_runner_config(&repo.id, &config).unwrap();
+        let fetched = db.get_test_runner_config(&repo.id).unwrap();
+        assert_eq!(fetched.framework, Some(TestFramework::Vitest));
+        assert_eq!(fetched.test_command.as_deref(), Some("npx vitest run"));
+        assert_eq!(
+            fetched.test_file_command.as_deref(),
+            Some("npx vitest run {{file}}")
+        );
+        assert_eq!(fetched.working_dir.as_deref(), Some("/tmp/project"));
+        assert_eq!(
+            fetched.coverage_command.as_deref(),
+            Some("npx vitest --coverage")
+        );
+    }
+
+    #[test]
+    fn test_save_test_runner_config_update() {
+        let db = test_db();
+        let repo = test_repo();
+        db.insert_repository(&repo).unwrap();
+        let config1 = TestRunnerConfig {
+            framework: Some(TestFramework::Jest),
+            test_command: Some("npx jest".to_string()),
+            ..Default::default()
+        };
+        db.save_test_runner_config(&repo.id, &config1).unwrap();
+        let config2 = TestRunnerConfig {
+            framework: Some(TestFramework::Vitest),
+            test_command: Some("npx vitest run".to_string()),
+            ..Default::default()
+        };
+        db.save_test_runner_config(&repo.id, &config2).unwrap();
+        let fetched = db.get_test_runner_config(&repo.id).unwrap();
+        assert_eq!(fetched.framework, Some(TestFramework::Vitest));
+        assert_eq!(fetched.test_command.as_deref(), Some("npx vitest run"));
+    }
+
+    #[test]
+    fn test_save_test_runner_config_does_not_clobber_repo_settings() {
+        let db = test_db();
+        let repo = test_repo();
+        db.insert_repository(&repo).unwrap();
+        // First set repo settings
+        let mut settings = RepoSettings::default();
+        settings.setup_script = Some("npm install".to_string());
+        db.upsert_repo_settings(&repo.id, &settings).unwrap();
+        // Then set test runner config
+        let config = TestRunnerConfig {
+            framework: Some(TestFramework::Vitest),
+            test_command: Some("npx vitest".to_string()),
+            ..Default::default()
+        };
+        db.save_test_runner_config(&repo.id, &config).unwrap();
+        // Verify repo settings are still intact
+        let fetched_settings = db.get_repo_settings(&repo.id).unwrap();
+        assert_eq!(
+            fetched_settings.setup_script.as_deref(),
+            Some("npm install")
+        );
+    }
+
+    #[test]
+    fn test_insert_and_list_test_runs() {
+        let db = test_db();
+        let repo = test_repo();
+        db.insert_repository(&repo).unwrap();
+        let summary = TestRunSummary {
+            total: 10,
+            passed: 8,
+            failed: 1,
+            skipped: 1,
+            duration_ms: 1234.5,
+            suites: vec![],
+        };
+        db.insert_test_run(&repo.id, &summary).unwrap();
+        let runs = db.list_test_runs(&repo.id, 10).unwrap();
+        assert_eq!(runs.len(), 1);
+        assert_eq!(runs[0].total, 10);
+        assert_eq!(runs[0].passed, 8);
+        assert_eq!(runs[0].failed, 1);
+        assert_eq!(runs[0].skipped, 1);
+        assert_eq!(runs[0].duration_ms, 1234.5);
+    }
+
+    #[test]
+    fn test_list_test_runs_limit() {
+        let db = test_db();
+        let repo = test_repo();
+        db.insert_repository(&repo).unwrap();
+        for i in 0..5 {
+            let summary = TestRunSummary {
+                total: i + 1,
+                passed: i + 1,
+                failed: 0,
+                skipped: 0,
+                duration_ms: 100.0 * (i + 1) as f64,
+                suites: vec![],
+            };
+            db.insert_test_run(&repo.id, &summary).unwrap();
+        }
+        let runs = db.list_test_runs(&repo.id, 3).unwrap();
+        assert_eq!(runs.len(), 3);
+    }
+
+    #[test]
+    fn test_list_test_runs_empty() {
+        let db = test_db();
+        let repo = test_repo();
+        db.insert_repository(&repo).unwrap();
+        let runs = db.list_test_runs(&repo.id, 10).unwrap();
+        assert!(runs.is_empty());
+    }
+
+    // --- Chat search ---
+
+    #[test]
+    fn test_search_chat_messages_by_content() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let mut msg = test_chat_message(ws.id);
+        msg.content = vec![ContentBlock::Text {
+            text: "The quick brown fox jumps over the lazy dog".to_string(),
+        }];
+        msg.display_text = Some("The quick brown fox jumps over the lazy dog".to_string());
+        db.insert_chat_message(&msg).unwrap();
+        let results = db.search_chat_messages("brown fox", Some(&ws.id)).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].matched_text.contains("brown fox"));
+        assert_eq!(results[0].role, "user");
+    }
+
+    #[test]
+    fn test_search_chat_messages_no_match() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let msg = test_chat_message(ws.id);
+        db.insert_chat_message(&msg).unwrap();
+        let results = db
+            .search_chat_messages("nonexistent query", Some(&ws.id))
+            .unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_search_chat_messages_across_workspaces() {
+        let db = test_db();
+        let (repo, ws1) = insert_test_repo_and_workspace(&db);
+        let mut ws2 = test_workspace(repo.id);
+        ws2.branch = "search-branch".to_string();
+        db.insert_workspace(&ws2).unwrap();
+        let mut msg1 = test_chat_message(ws1.id);
+        msg1.content = vec![ContentBlock::Text {
+            text: "unique search term alpha".to_string(),
+        }];
+        msg1.display_text = Some("unique search term alpha".to_string());
+        db.insert_chat_message(&msg1).unwrap();
+        let mut msg2 = test_chat_message(ws2.id);
+        msg2.content = vec![ContentBlock::Text {
+            text: "unique search term beta".to_string(),
+        }];
+        msg2.display_text = Some("unique search term beta".to_string());
+        db.insert_chat_message(&msg2).unwrap();
+        // Search without workspace filter should find both
+        let results = db.search_chat_messages("unique search term", None).unwrap();
+        assert_eq!(results.len(), 2);
+        // Search with workspace filter should find one
+        let results = db
+            .search_chat_messages("unique search term", Some(&ws1.id))
+            .unwrap();
+        assert_eq!(results.len(), 1);
+    }
+
+    #[test]
+    fn test_search_chat_messages_by_display_text() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let mut msg = test_chat_message(ws.id);
+        msg.content = vec![ContentBlock::Text {
+            text: "content text".to_string(),
+        }];
+        msg.display_text = Some("searchable display text here".to_string());
+        db.insert_chat_message(&msg).unwrap();
+        let results = db
+            .search_chat_messages("searchable display", Some(&ws.id))
+            .unwrap();
+        assert_eq!(results.len(), 1);
+    }
+
+    // --- Usage data ---
+
+    #[test]
+    fn test_get_usage_data_empty() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let data = db.get_usage_data(Some(&ws.id), None).unwrap();
+        assert!(data.is_empty());
+    }
+
+    #[test]
+    fn test_get_usage_data_with_metadata() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let mut msg = test_chat_message(ws.id);
+        msg.role = MessageRole::Assistant;
+        msg.metadata = Some(ResponseMetadata {
+            duration_ms: Some(2000),
+            duration_api_ms: Some(1500),
+            total_cost_usd: Some(0.10),
+            num_turns: Some(3),
+            input_tokens: Some(500),
+            output_tokens: Some(1000),
+            cache_read_tokens: Some(100),
+            cache_creation_tokens: Some(50),
+        });
+        db.insert_chat_message(&msg).unwrap();
+        let data = db.get_usage_data(Some(&ws.id), None).unwrap();
+        assert_eq!(data.len(), 1);
+        assert_eq!(data[0].total_cost_usd, 0.10);
+        assert_eq!(data[0].input_tokens, 500);
+        assert_eq!(data[0].output_tokens, 1000);
+        assert_eq!(data[0].cache_read_tokens, 100);
+        assert_eq!(data[0].cache_creation_tokens, 50);
+        assert_eq!(data[0].num_turns, 3);
+        assert_eq!(data[0].duration_ms, 2000);
+    }
+
+    #[test]
+    fn test_get_usage_data_excludes_user_messages() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        // Insert a user message with metadata (should be excluded)
+        let mut user_msg = test_chat_message(ws.id);
+        user_msg.role = MessageRole::User;
+        user_msg.metadata = Some(ResponseMetadata {
+            duration_ms: Some(100),
+            duration_api_ms: None,
+            total_cost_usd: Some(0.01),
+            num_turns: Some(1),
+            input_tokens: Some(10),
+            output_tokens: Some(20),
+            cache_read_tokens: None,
+            cache_creation_tokens: None,
+        });
+        db.insert_chat_message(&user_msg).unwrap();
+        let data = db.get_usage_data(Some(&ws.id), None).unwrap();
+        assert!(data.is_empty());
+    }
+
+    #[test]
+    fn test_get_usage_data_all_workspaces() {
+        let db = test_db();
+        let (repo, ws1) = insert_test_repo_and_workspace(&db);
+        let mut ws2 = test_workspace(repo.id);
+        ws2.branch = "usage-branch".to_string();
+        db.insert_workspace(&ws2).unwrap();
+        for ws_id in [ws1.id, ws2.id] {
+            let mut msg = test_chat_message(ws_id);
+            msg.role = MessageRole::Assistant;
+            msg.metadata = Some(ResponseMetadata {
+                duration_ms: Some(500),
+                duration_api_ms: None,
+                total_cost_usd: Some(0.05),
+                num_turns: Some(1),
+                input_tokens: Some(100),
+                output_tokens: Some(200),
+                cache_read_tokens: None,
+                cache_creation_tokens: None,
+            });
+            db.insert_chat_message(&msg).unwrap();
+        }
+        let all_data = db.get_usage_data(None, None).unwrap();
+        assert_eq!(all_data.len(), 2);
+        let ws1_data = db.get_usage_data(Some(&ws1.id), None).unwrap();
+        assert_eq!(ws1_data.len(), 1);
+    }
+
+    // --- Repo settings additional coverage ---
+
+    #[test]
+    fn test_upsert_repo_settings_twice() {
+        let db = test_db();
+        let repo = test_repo();
+        db.insert_repository(&repo).unwrap();
+        let mut settings1 = RepoSettings::default();
+        settings1.setup_script = Some("npm install".to_string());
+        db.upsert_repo_settings(&repo.id, &settings1).unwrap();
+        let mut settings2 = RepoSettings::default();
+        settings2.setup_script = Some("yarn install".to_string());
+        settings2.run_script = Some("yarn dev".to_string());
+        settings2.run_script_mode = RunScriptMode::Concurrent;
+        db.upsert_repo_settings(&repo.id, &settings2).unwrap();
+        let fetched = db.get_repo_settings(&repo.id).unwrap();
+        assert_eq!(fetched.setup_script.as_deref(), Some("yarn install"));
+        assert_eq!(fetched.run_script.as_deref(), Some("yarn dev"));
+        assert!(matches!(fetched.run_script_mode, RunScriptMode::Concurrent));
+    }
+
+    #[test]
+    fn test_upsert_repo_settings_with_env_vars() {
+        let db = test_db();
+        let repo = test_repo();
+        db.insert_repository(&repo).unwrap();
+        let mut settings = RepoSettings::default();
+        settings.env_vars = std::collections::HashMap::from([
+            ("NODE_ENV".to_string(), "production".to_string()),
+            ("PORT".to_string(), "3000".to_string()),
+        ]);
+        db.upsert_repo_settings(&repo.id, &settings).unwrap();
+        let fetched = db.get_repo_settings(&repo.id).unwrap();
+        assert_eq!(fetched.env_vars.get("NODE_ENV").unwrap(), "production");
+        assert_eq!(fetched.env_vars.get("PORT").unwrap(), "3000");
+    }
+
     // --- Migrations ---
 
     #[test]

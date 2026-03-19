@@ -9,10 +9,25 @@ use crate::models::snippet::Snippet;
 use crate::models::todo::TodoItem;
 use crate::models::workspace::{Workspace, WorkspaceStatus};
 use crate::models::workspace_template::WorkspaceTemplate;
+use crate::state::AppState;
 use chrono::Utc;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use tauri::Manager;
 use uuid::Uuid;
+
+/// Create a mock Tauri app with AppState initialized (including in-memory DB).
+/// Returns the app handle. Use `app.state::<AppState>()` to get state for commands.
+pub fn mock_app_with_state() -> tauri::App<tauri::test::MockRuntime> {
+    let app = tauri::test::mock_builder()
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .expect("Failed to build mock app");
+    let state = AppState::new();
+    let db = Database::init_in_memory().expect("Failed to create test DB");
+    *state.db.lock().unwrap() = Some(db);
+    app.manage(state);
+    app
+}
 
 /// Create an in-memory database for testing with all migrations applied.
 pub fn test_db() -> Database {

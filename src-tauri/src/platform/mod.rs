@@ -175,6 +175,18 @@ mod tests {
     }
 
     #[test]
+    fn test_is_process_alive_current() {
+        // Current process should be alive
+        assert!(is_process_alive(std::process::id()));
+    }
+
+    #[test]
+    fn test_is_process_alive_nonexistent() {
+        // Very high PID should not exist
+        assert!(!is_process_alive(4_000_000_000));
+    }
+
+    #[test]
     fn test_kill_process_group_nonexistent_pid() {
         // Killing a non-existent process group should not panic
         // (on Unix, killpg with invalid PID returns error but we ignore it)

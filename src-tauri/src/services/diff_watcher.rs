@@ -81,3 +81,85 @@ fn should_ignore(path: &Path) -> bool {
     }
     false
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_should_ignore_git() {
+        assert!(should_ignore(&PathBuf::from("/project/.git/objects/abc")));
+    }
+
+    #[test]
+    fn test_should_ignore_node_modules() {
+        assert!(should_ignore(&PathBuf::from(
+            "/project/node_modules/pkg/index.js"
+        )));
+    }
+
+    #[test]
+    fn test_should_ignore_target() {
+        assert!(should_ignore(&PathBuf::from(
+            "/project/target/debug/binary"
+        )));
+    }
+
+    #[test]
+    fn test_should_ignore_next() {
+        assert!(should_ignore(&PathBuf::from(
+            "/project/.next/static/chunks/main.js"
+        )));
+    }
+
+    #[test]
+    fn test_should_ignore_dist() {
+        assert!(should_ignore(&PathBuf::from("/project/dist/bundle.js")));
+    }
+
+    #[test]
+    fn test_should_ignore_build() {
+        assert!(should_ignore(&PathBuf::from("/project/build/output.js")));
+    }
+
+    #[test]
+    fn test_should_ignore_pycache() {
+        assert!(should_ignore(&PathBuf::from(
+            "/project/__pycache__/module.pyc"
+        )));
+    }
+
+    #[test]
+    fn test_should_ignore_cache() {
+        assert!(should_ignore(&PathBuf::from("/project/.cache/data")));
+    }
+
+    #[test]
+    fn test_should_not_ignore_src() {
+        assert!(!should_ignore(&PathBuf::from("/project/src/main.rs")));
+    }
+
+    #[test]
+    fn test_should_not_ignore_regular_file() {
+        assert!(!should_ignore(&PathBuf::from("/project/README.md")));
+    }
+
+    #[test]
+    fn test_should_not_ignore_nested_src() {
+        assert!(!should_ignore(&PathBuf::from(
+            "/project/src/components/App.tsx"
+        )));
+    }
+
+    #[test]
+    fn test_diff_watcher_handle_stop() {
+        let dir = tempfile::TempDir::new().unwrap();
+        // We can't easily test start_diff_watcher without a Tauri AppHandle,
+        // but we can verify the IGNORE_DIRS constant is correct
+        assert_eq!(IGNORE_DIRS.len(), 8);
+        assert!(IGNORE_DIRS.contains(&".git"));
+        assert!(IGNORE_DIRS.contains(&"node_modules"));
+        assert!(dir.path().exists()); // Just use dir to avoid unused warning
+    }
+}

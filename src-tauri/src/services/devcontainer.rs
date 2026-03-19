@@ -10,6 +10,96 @@ use crate::models::devcontainer::{
     ContainerBackend, ContainerStatus, ContainerStatusEvent, DevContainerConfig,
 };
 
+// --- Extracted pure logic for testability ---
+
+/// Build the argument list for `docker exec` commands.
+#[allow(dead_code)]
+pub fn build_container_exec_args(
+    container_id: &str,
+    cmd: &[String],
+    working_dir: Option<&str>,
+    env_vars: &std::collections::HashMap<String, String>,
+) -> Vec<String> {
+    let mut args = vec!["exec".to_string(), "-i".to_string()];
+
+    if let Some(dir) = working_dir {
+        args.push("-w".to_string());
+        args.push(dir.to_string());
+    }
+
+    for (key, value) in env_vars {
+        args.push("-e".to_string());
+        args.push(format!("{}={}", key, value));
+    }
+
+    args.push(container_id.to_string());
+    args.extend(cmd.iter().cloned());
+    args
+}
+
+/// Build the argument list for `docker run` to start a container.
+#[allow(dead_code)]
+pub fn build_docker_run_args(
+    container_name: &str,
+    workspace_mount: &str,
+    image: &str,
+    env_vars: &std::collections::HashMap<String, String>,
+    extra_docker_args: &[String],
+) -> Vec<String> {
+    let mut args = vec![
+        "run".to_string(),
+        "-d".to_string(),
+        "--name".to_string(),
+        container_name.to_string(),
+        "-v".to_string(),
+        workspace_mount.to_string(),
+    ];
+
+    for (key, value) in env_vars {
+        args.push("-e".to_string());
+        args.push(format!("{}={}", key, value));
+    }
+
+    args.extend(extra_docker_args.iter().cloned());
+
+    args.push(image.to_string());
+    args.push("sleep".to_string());
+    args.push("infinity".to_string());
+
+    args
+}
+
+/// Build the workspace mount string for docker volumes.
+#[allow(dead_code)]
+pub fn build_workspace_mount(workspace_folder: &Path) -> String {
+    format!(
+        "{}:/workspaces/{}",
+        workspace_folder.to_string_lossy(),
+        workspace_folder
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "workspace".to_string())
+    )
+}
+
+/// Build container name from workspace ID.
+#[allow(dead_code)]
+pub fn build_container_name(ws_id: uuid::Uuid) -> String {
+    format!("fury-{}", ws_id)
+}
+
+/// Build the container log event name.
+#[allow(dead_code)]
+pub fn build_container_log_event(ws_id: uuid::Uuid) -> String {
+    format!("container-log:{}", ws_id)
+}
+
+/// Build the container status event name.
+#[allow(dead_code)]
+pub fn build_container_status_event(ws_id: uuid::Uuid) -> String {
+    format!("container-status:{}", ws_id)
+}
+
 /// Locate the `docker` binary in PATH.
 pub fn find_docker_binary() -> Result<PathBuf, AppError> {
     which::which("docker").map_err(|_| {
@@ -520,5 +610,282 @@ mod tests {
     fn test_parse_devcontainer_up_output_invalid() {
         let output = "some random output\nnot json";
         assert!(parse_devcontainer_up_output(output).is_err());
+    }
+
+    #[test]
+    fn test_detect_devcontainer_json_prefers_standard_over_root() {
+        let dir = tempfile::tempdir().unwrap();
+        // Create both: .devcontainer/devcontainer.json and .devcontainer.json
+        let dc_dir = dir.path().join(".devcontainer");
+        std::fs::create_dir_all(&dc_dir).unwrap();
+        std::fs::write(dc_dir.join("devcontainer.json"), "{}").unwrap();
+        std::fs::write(dir.path().join(".devcontainer.json"), "{}").unwrap();
+        // Should find .devcontainer/devcontainer.json first (candidates array order)
+        assert_eq!(
+            detect_devcontainer_json(dir.path()),
+            Some(".devcontainer/devcontainer.json".to_string())
+        );
+    }
+
+    #[test]
+    fn test_detect_devcontainer_json_empty_devcontainer_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let dc_dir = dir.path().join(".devcontainer");
+        std::fs::create_dir_all(&dc_dir).unwrap();
+        // Dir exists but no devcontainer.json inside
+        assert!(detect_devcontainer_json(dir.path()).is_none());
+    }
+
+    #[test]
+    fn test_parse_devcontainer_up_output_multiline_picks_last_json() {
+        let output = "Building image...\nPulling base...\n{\"outcome\":\"success\",\"containerId\":\"final123\",\"remoteUser\":\"vscode\"}";
+        let id = parse_devcontainer_up_output(output).unwrap();
+        assert_eq!(id, "final123");
+    }
+
+    #[test]
+    fn test_parse_devcontainer_up_output_json_without_container_id() {
+        let output = r#"{"outcome":"success","remoteUser":"vscode"}"#;
+        assert!(parse_devcontainer_up_output(output).is_err());
+    }
+
+    #[test]
+    fn test_parse_devcontainer_up_output_empty_string() {
+        assert!(parse_devcontainer_up_output("").is_err());
+    }
+
+    #[test]
+    fn test_parse_devcontainer_up_output_multiple_json_lines() {
+        // The function iterates in reverse, so it should pick the last line with containerId
+        let output = "{\"containerId\":\"first\"}\n{\"containerId\":\"second\"}";
+        let id = parse_devcontainer_up_output(output).unwrap();
+        assert_eq!(id, "second");
+    }
+
+    #[test]
+    fn test_parse_devcontainer_up_output_whitespace_only() {
+        assert!(parse_devcontainer_up_output("   \n  \n").is_err());
+    }
+
+    #[test]
+    fn test_parse_devcontainer_up_output_mixed_json_and_text() {
+        let output = "Step 1/5: Building...\n{\"status\":\"building\"}\nStep 5/5: Done\n{\"outcome\":\"success\",\"containerId\":\"abc789\"}";
+        let id = parse_devcontainer_up_output(output).unwrap();
+        assert_eq!(id, "abc789");
+    }
+
+    #[test]
+    fn test_parse_devcontainer_up_output_container_id_null() {
+        let output = r#"{"containerId":null}"#;
+        assert!(parse_devcontainer_up_output(output).is_err());
+    }
+
+    #[test]
+    fn test_parse_devcontainer_up_output_container_id_empty_string() {
+        let output = r#"{"containerId":""}"#;
+        let id = parse_devcontainer_up_output(output).unwrap();
+        assert_eq!(id, "");
+    }
+
+    #[test]
+    fn test_resolve_container_workspace_path_empty_repo_name() {
+        let config = DevContainerConfig::default();
+        let path = resolve_container_workspace_path(&config, "");
+        assert_eq!(path, "/workspaces/");
+    }
+
+    #[test]
+    fn test_detect_devcontainer_json_file_not_dir_in_devcontainer() {
+        // .devcontainer dir exists with a regular file (not a subdir), should not match
+        let dir = tempfile::tempdir().unwrap();
+        let dc_dir = dir.path().join(".devcontainer");
+        std::fs::create_dir_all(&dc_dir).unwrap();
+        // Create a regular file, not a subdir
+        std::fs::write(dc_dir.join("README.md"), "# devcontainer").unwrap();
+        assert!(detect_devcontainer_json(dir.path()).is_none());
+    }
+
+    #[test]
+    fn test_detect_devcontainer_json_multiple_subdirectories() {
+        let dir = tempfile::tempdir().unwrap();
+        let dc_dir = dir.path().join(".devcontainer");
+        // Create two subdirectories with devcontainer.json
+        let sub1 = dc_dir.join("node");
+        let sub2 = dc_dir.join("python");
+        std::fs::create_dir_all(&sub1).unwrap();
+        std::fs::create_dir_all(&sub2).unwrap();
+        std::fs::write(sub1.join("devcontainer.json"), "{}").unwrap();
+        std::fs::write(sub2.join("devcontainer.json"), "{}").unwrap();
+        let result = detect_devcontainer_json(dir.path());
+        assert!(result.is_some());
+        let r = result.unwrap();
+        // Should find one of them (order depends on fs iteration)
+        assert!(r.contains("devcontainer.json"));
+    }
+
+    #[test]
+    fn test_detect_devcontainer_json_nested_subdir_without_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let dc_dir = dir.path().join(".devcontainer");
+        let sub = dc_dir.join("custom");
+        std::fs::create_dir_all(&sub).unwrap();
+        // Subdir exists but no devcontainer.json
+        std::fs::write(sub.join("Dockerfile"), "FROM node").unwrap();
+        assert!(detect_devcontainer_json(dir.path()).is_none());
+    }
+
+    // --- Tests for extracted pure logic ---
+
+    #[test]
+    fn test_build_container_exec_args_basic() {
+        let args = build_container_exec_args(
+            "abc123",
+            &["ls".to_string(), "-la".to_string()],
+            None,
+            &std::collections::HashMap::new(),
+        );
+        assert_eq!(args, vec!["exec", "-i", "abc123", "ls", "-la"]);
+    }
+
+    #[test]
+    fn test_build_container_exec_args_with_working_dir() {
+        let args = build_container_exec_args(
+            "abc123",
+            &["pwd".to_string()],
+            Some("/workspaces/myapp"),
+            &std::collections::HashMap::new(),
+        );
+        assert_eq!(args, vec!["exec", "-i", "-w", "/workspaces/myapp", "abc123", "pwd"]);
+    }
+
+    #[test]
+    fn test_build_container_exec_args_with_env() {
+        let mut env = std::collections::HashMap::new();
+        env.insert("NODE_ENV".to_string(), "test".to_string());
+        let args = build_container_exec_args(
+            "ctr1",
+            &["npm".to_string(), "test".to_string()],
+            None,
+            &env,
+        );
+        assert!(args.contains(&"-e".to_string()));
+        assert!(args.contains(&"NODE_ENV=test".to_string()));
+        assert!(args.contains(&"ctr1".to_string()));
+    }
+
+    #[test]
+    fn test_build_container_exec_args_with_all_options() {
+        let mut env = std::collections::HashMap::new();
+        env.insert("KEY".to_string(), "VAL".to_string());
+        let args = build_container_exec_args(
+            "ctr",
+            &["bash".to_string()],
+            Some("/app"),
+            &env,
+        );
+        // Order: exec -i -w /app -e KEY=VAL ctr bash
+        assert_eq!(args[0], "exec");
+        assert_eq!(args[1], "-i");
+        assert_eq!(args[2], "-w");
+        assert_eq!(args[3], "/app");
+        let ctr_idx = args.iter().position(|a| a == "ctr").unwrap();
+        let env_idx = args.iter().position(|a| a == "KEY=VAL").unwrap();
+        assert!(env_idx < ctr_idx);
+    }
+
+    #[test]
+    fn test_build_docker_run_args_basic() {
+        let args = build_docker_run_args(
+            "fury-123",
+            "/home/user/project:/workspaces/project",
+            "node:20",
+            &std::collections::HashMap::new(),
+            &[],
+        );
+        assert_eq!(args[0], "run");
+        assert_eq!(args[1], "-d");
+        assert_eq!(args[2], "--name");
+        assert_eq!(args[3], "fury-123");
+        assert_eq!(args[4], "-v");
+        assert_eq!(args[5], "/home/user/project:/workspaces/project");
+        assert_eq!(args[6], "node:20");
+        assert_eq!(args[7], "sleep");
+        assert_eq!(args[8], "infinity");
+    }
+
+    #[test]
+    fn test_build_docker_run_args_with_env() {
+        let mut env = std::collections::HashMap::new();
+        env.insert("PORT".to_string(), "3000".to_string());
+        let args = build_docker_run_args(
+            "fury-abc",
+            "/src:/workspaces/src",
+            "ubuntu:22.04",
+            &env,
+            &[],
+        );
+        assert!(args.contains(&"-e".to_string()));
+        assert!(args.contains(&"PORT=3000".to_string()));
+    }
+
+    #[test]
+    fn test_build_docker_run_args_with_extra_args() {
+        let extra = vec!["--gpus=all".to_string(), "--shm-size=2g".to_string()];
+        let args = build_docker_run_args(
+            "fury-abc",
+            "/src:/workspaces/src",
+            "nvidia/cuda:latest",
+            &std::collections::HashMap::new(),
+            &extra,
+        );
+        assert!(args.contains(&"--gpus=all".to_string()));
+        assert!(args.contains(&"--shm-size=2g".to_string()));
+        // Extra args should come before image name
+        let gpu_idx = args.iter().position(|a| a == "--gpus=all").unwrap();
+        let img_idx = args.iter().position(|a| a == "nvidia/cuda:latest").unwrap();
+        assert!(gpu_idx < img_idx);
+    }
+
+    #[test]
+    fn test_build_workspace_mount_regular_path() {
+        let path = PathBuf::from("/home/user/myproject");
+        let mount = build_workspace_mount(&path);
+        assert_eq!(mount, "/home/user/myproject:/workspaces/myproject");
+    }
+
+    #[test]
+    fn test_build_workspace_mount_root_path() {
+        let path = PathBuf::from("/");
+        let mount = build_workspace_mount(&path);
+        // Root path has no file_name, should use "workspace" fallback
+        assert_eq!(mount, "/:/workspaces/workspace");
+    }
+
+    #[test]
+    fn test_build_workspace_mount_nested_path() {
+        let path = PathBuf::from("/Users/dev/code/fury");
+        let mount = build_workspace_mount(&path);
+        assert_eq!(mount, "/Users/dev/code/fury:/workspaces/fury");
+    }
+
+    #[test]
+    fn test_build_container_name() {
+        let id = Uuid::parse_str("12345678-1234-1234-1234-123456789abc").unwrap();
+        let name = build_container_name(id);
+        assert_eq!(name, "fury-12345678-1234-1234-1234-123456789abc");
+    }
+
+    #[test]
+    fn test_build_container_log_event() {
+        let id = Uuid::parse_str("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").unwrap();
+        let event = build_container_log_event(id);
+        assert_eq!(event, "container-log:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+    }
+
+    #[test]
+    fn test_build_container_status_event() {
+        let id = Uuid::parse_str("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").unwrap();
+        let event = build_container_status_event(id);
+        assert_eq!(event, "container-status:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
     }
 }

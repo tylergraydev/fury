@@ -198,6 +198,210 @@ fn git_commit_tree(
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_git_add_all_with_retry_success() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::fs::write(path.join("new_file.txt"), "content").unwrap();
+        let result = git_add_all_with_retry(&path);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_git_add_all_with_retry_non_git_dir() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let result = git_add_all_with_retry(dir.path());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_git_write_tree() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let result = git_write_tree(&path);
+        assert!(result.is_ok());
+        let sha = result.unwrap();
+        assert_eq!(sha.len(), 40);
+        assert!(sha.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn test_git_write_tree_non_git_dir() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let result = git_write_tree(dir.path());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_git_commit_tree() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let tree_sha = git_write_tree(&path).unwrap();
+        let result = git_commit_tree(&path, &tree_sha, "test commit");
+        assert!(result.is_ok());
+        let commit_sha = result.unwrap();
+        assert_eq!(commit_sha.len(), 40);
+    }
+
+    #[test]
+    fn test_git_commit_tree_invalid_sha() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let result = git_commit_tree(&path, "invalid_sha", "test");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_git_update_ref_success() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let tree_sha = git_write_tree(&path).unwrap();
+        let commit_sha = git_commit_tree(&path, &tree_sha, "test").unwrap();
+        let result = git_update_ref(&path, "refs/fury/test", &commit_sha);
+        assert!(result.is_ok());
+        // Verify ref exists
+        let output = std::process::Command::new("git")
+            .args(["rev-parse", "refs/fury/test"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+    }
+
+    #[test]
+    fn test_git_update_ref_invalid_commit() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let result = git_update_ref(&path, "refs/fury/test", "invalid");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_create_checkpoint() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::fs::write(path.join("file.txt"), "hello").unwrap();
+        let ws_id = Uuid::new_v4();
+        let result = create_checkpoint(&path, ws_id, "session-1", 0, "Initial message");
+        assert!(result.is_ok());
+        let cp = result.unwrap();
+        assert_eq!(cp.workspace_id, ws_id);
+        assert_eq!(cp.session_id, "session-1");
+        assert_eq!(cp.turn_index, 0);
+        assert_eq!(cp.user_message, "Initial message");
+        assert_eq!(cp.tree_sha.len(), 40);
+        assert_eq!(cp.commit_sha.len(), 40);
+    }
+
+    #[test]
+    fn test_create_checkpoint_long_message_truncated() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::fs::write(path.join("file.txt"), "content").unwrap();
+        let long_msg = "a".repeat(100);
+        let cp = create_checkpoint(&path, Uuid::new_v4(), "s", 0, &long_msg).unwrap();
+        assert_eq!(cp.user_message, long_msg); // user_message preserves full
+                                               // The commit message is truncated internally
+    }
+
+    #[test]
+    fn test_create_checkpoint_short_message_not_truncated() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::fs::write(path.join("file.txt"), "content").unwrap();
+        let msg = "short message";
+        let cp = create_checkpoint(&path, Uuid::new_v4(), "s", 0, msg).unwrap();
+        assert_eq!(cp.user_message, msg);
+    }
+
+    #[test]
+    fn test_revert_to_checkpoint() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        // Create initial checkpoint
+        std::fs::write(path.join("original.txt"), "original").unwrap();
+        let cp = create_checkpoint(&path, Uuid::new_v4(), "s", 0, "initial").unwrap();
+
+        // Make changes after checkpoint
+        std::fs::write(path.join("new_file.txt"), "new").unwrap();
+        std::fs::write(path.join("original.txt"), "modified").unwrap();
+
+        // Revert
+        let result = revert_to_checkpoint(&path, &cp.tree_sha);
+        assert!(result.is_ok());
+
+        // Verify new file removed
+        assert!(!path.join("new_file.txt").exists());
+        // Verify original content restored
+        let content = std::fs::read_to_string(path.join("original.txt")).unwrap();
+        assert_eq!(content, "original");
+    }
+
+    #[test]
+    fn test_revert_to_checkpoint_invalid_tree() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let result = revert_to_checkpoint(&path, "0000000000000000000000000000000000000000");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_delete_checkpoints_after() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let ws_id = Uuid::new_v4();
+
+        // Create 3 checkpoints
+        std::fs::write(path.join("f.txt"), "v0").unwrap();
+        create_checkpoint(&path, ws_id, "s", 0, "turn 0").unwrap();
+        std::fs::write(path.join("f.txt"), "v1").unwrap();
+        create_checkpoint(&path, ws_id, "s", 1, "turn 1").unwrap();
+        std::fs::write(path.join("f.txt"), "v2").unwrap();
+        create_checkpoint(&path, ws_id, "s", 2, "turn 2").unwrap();
+
+        // Delete after turn 0 (should delete turn 1 and 2)
+        let deleted = delete_checkpoints_after(&path, ws_id, 0).unwrap();
+        assert_eq!(deleted.len(), 2);
+    }
+
+    #[test]
+    fn test_delete_checkpoints_after_none_to_delete() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let ws_id = Uuid::new_v4();
+        std::fs::write(path.join("f.txt"), "v0").unwrap();
+        create_checkpoint(&path, ws_id, "s", 0, "turn 0").unwrap();
+
+        let deleted = delete_checkpoints_after(&path, ws_id, 5).unwrap();
+        assert!(deleted.is_empty());
+    }
+
+    #[test]
+    fn test_delete_checkpoints_after_no_refs() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let deleted = delete_checkpoints_after(&path, Uuid::new_v4(), 0).unwrap();
+        assert!(deleted.is_empty());
+    }
+
+    #[test]
+    fn test_full_checkpoint_workflow() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let ws_id = Uuid::new_v4();
+
+        // Create file and checkpoint at turn 0
+        std::fs::write(path.join("file.txt"), "version 0").unwrap();
+        let cp0 = create_checkpoint(&path, ws_id, "s", 0, "initial").unwrap();
+
+        // Modify and create checkpoint at turn 1
+        std::fs::write(path.join("file.txt"), "version 1").unwrap();
+        std::fs::write(path.join("extra.txt"), "extra").unwrap();
+        let _cp1 = create_checkpoint(&path, ws_id, "s", 1, "changes").unwrap();
+
+        // Revert to turn 0
+        revert_to_checkpoint(&path, &cp0.tree_sha).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(path.join("file.txt")).unwrap(),
+            "version 0"
+        );
+        assert!(!path.join("extra.txt").exists());
+
+        // Delete checkpoints after turn 0
+        let deleted = delete_checkpoints_after(&path, ws_id, 0).unwrap();
+        assert_eq!(deleted.len(), 1);
+    }
+}
+
 fn git_update_ref(worktree_path: &Path, ref_name: &str, commit_sha: &str) -> Result<(), AppError> {
     let output = platform::command("git")
         .args(["update-ref", ref_name, commit_sha])

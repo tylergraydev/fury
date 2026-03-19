@@ -157,6 +157,150 @@ fn sanitize_name(name: &str) -> String {
         .collect()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sanitize_name_alphanumeric() {
+        assert_eq!(sanitize_name("hello123"), "hello123");
+    }
+
+    #[test]
+    fn test_sanitize_name_preserves_hyphens_underscores() {
+        assert_eq!(sanitize_name("my-project_v2"), "my-project_v2");
+    }
+
+    #[test]
+    fn test_sanitize_name_replaces_spaces() {
+        assert_eq!(sanitize_name("my project"), "my-project");
+    }
+
+    #[test]
+    fn test_sanitize_name_replaces_special_chars() {
+        assert_eq!(sanitize_name("feat/branch@v1.0"), "feat-branch-v1-0");
+    }
+
+    #[test]
+    fn test_sanitize_name_empty() {
+        assert_eq!(sanitize_name(""), "");
+    }
+
+    #[test]
+    fn test_sanitize_name_all_special() {
+        assert_eq!(sanitize_name("@#$%"), "----");
+    }
+
+    #[test]
+    fn test_branch_is_checked_out_found() {
+        let output = "worktree /tmp/main\nHEAD abc123\nbranch refs/heads/main\n\nworktree /tmp/feature\nHEAD def456\nbranch refs/heads/feature\n";
+        assert!(branch_is_checked_out(output, "main"));
+        assert!(branch_is_checked_out(output, "feature"));
+    }
+
+    #[test]
+    fn test_branch_is_checked_out_not_found() {
+        let output = "worktree /tmp/main\nHEAD abc123\nbranch refs/heads/main\n";
+        assert!(!branch_is_checked_out(output, "develop"));
+    }
+
+    #[test]
+    fn test_branch_is_checked_out_empty() {
+        assert!(!branch_is_checked_out("", "main"));
+    }
+
+    #[test]
+    fn test_branch_is_checked_out_partial_no_false_positive() {
+        let output = "branch refs/heads/main-feature\n";
+        assert!(!branch_is_checked_out(output, "main"));
+    }
+
+    #[test]
+    fn test_create_worktree_new_branch() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let worktree_base = _dir.path().join("worktrees");
+        let result = create_worktree(&path, "feature-1", "Feature 1", &worktree_base, None);
+        assert!(result.is_ok(), "create_worktree failed: {:?}", result.err());
+        let wt_path = result.unwrap();
+        assert!(wt_path.exists());
+        assert!(wt_path.ends_with("Feature-1"));
+    }
+
+    #[test]
+    fn test_create_worktree_branch_already_checked_out() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let worktree_base = _dir.path().join("worktrees-b");
+        let result = create_worktree(&path, "main", "ws-main", &worktree_base, None);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("main"));
+    }
+
+    #[test]
+    fn test_create_worktree_existing_branch() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::process::Command::new("git")
+            .args(["branch", "existing-branch"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        let worktree_base = _dir.path().join("worktrees-c");
+        let result = create_worktree(&path, "existing-branch", "ws", &worktree_base, None);
+        assert!(result.is_ok(), "create_worktree failed: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_remove_worktree() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let worktree_base = _dir.path().join("worktrees-d");
+        let wt_path =
+            create_worktree(&path, "to-remove", "Remove Me", &worktree_base, None).unwrap();
+        assert!(wt_path.exists());
+        let result = remove_worktree(&path, &wt_path);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_remove_worktree_nonexistent() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let result = remove_worktree(&path, &path.join("nonexistent"));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_apply_sparse_checkout() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let worktree_base = _dir.path().join("worktrees-e");
+        let wt_path =
+            create_worktree(&path, "sparse-test", "sparse", &worktree_base, None).unwrap();
+        let result = apply_sparse_checkout(&wt_path, &["src".to_string(), "docs".to_string()]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_apply_sparse_checkout_empty_dirs() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let worktree_base = _dir.path().join("worktrees-f");
+        let wt_path =
+            create_worktree(&path, "sparse-empty", "sparse-e", &worktree_base, None).unwrap();
+        let result = apply_sparse_checkout(&wt_path, &[]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_detect_default_branch_main() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let branch = detect_default_branch(&path);
+        assert_eq!(branch, "main");
+    }
+
+    #[test]
+    fn test_detect_default_branch_nonexistent_path() {
+        let branch = detect_default_branch(Path::new("/nonexistent/path"));
+        assert_eq!(branch, "main"); // Fallback
+    }
+}
+
 /// Detect the default branch of a repository.
 pub fn detect_default_branch(repo_path: &Path) -> String {
     let output = platform::command("git")

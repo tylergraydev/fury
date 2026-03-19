@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::error::AppError;
@@ -6,7 +7,8 @@ use crate::models::pr::{
     PrFullData, PrInfo, PrListItem, PrReview, ReviewsAndComments, RunLogsResult, WorkflowJob,
     WorkflowRun,
 };
-use crate::models::repository::GitProvider;
+use crate::models::repository::{GitProvider, Repository};
+use crate::models::workspace::Workspace;
 use crate::services::ado as ado_svc;
 use crate::services::gh as gh_svc;
 use crate::services::provider as provider_svc;
@@ -14,22 +16,35 @@ use crate::state::AppState;
 use tauri::{Emitter, State};
 use uuid::Uuid;
 
+// ---------------------------------------------------------------------------
+// Inner (testable) functions
+// ---------------------------------------------------------------------------
+
 /// Context extracted from workspace + repository state for provider dispatch.
-struct WsContext {
-    worktree_path: PathBuf,
-    branch: String,
-    default_branch: String,
-    provider: GitProvider,
-    remote_url: Option<String>,
+pub(crate) struct WsContext {
+    pub worktree_path: PathBuf,
+    pub branch: String,
+    pub default_branch: String,
+    pub provider: GitProvider,
+    pub remote_url: Option<String>,
 }
 
-/// Extract workspace context (drops locks before returning).
-fn ws_context(state: &State<'_, AppState>, ws_id: Uuid) -> Result<WsContext, AppError> {
-    let workspaces = state.workspaces.read().unwrap();
+/// Context extracted from a repository for repo-level commands.
+pub(crate) struct RepoContext {
+    pub path: PathBuf,
+    pub provider: GitProvider,
+    pub remote_url: Option<String>,
+}
+
+/// Extract workspace context from in-memory maps (no Tauri State needed).
+pub(crate) fn resolve_ws_context(
+    workspaces: &HashMap<Uuid, Workspace>,
+    repos: &HashMap<Uuid, Repository>,
+    ws_id: Uuid,
+) -> Result<WsContext, AppError> {
     let ws = workspaces
         .get(&ws_id)
         .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-    let repos = state.repositories.read().unwrap();
     let repo = repos
         .get(&ws.repo_id)
         .ok_or(AppError::RepoNotFound(ws.repo_id))?;
@@ -42,15 +57,11 @@ fn ws_context(state: &State<'_, AppState>, ws_id: Uuid) -> Result<WsContext, App
     })
 }
 
-/// Context extracted from a repository for repo-level commands.
-struct RepoContext {
-    path: PathBuf,
-    provider: GitProvider,
-    remote_url: Option<String>,
-}
-
-fn repo_context(state: &State<'_, AppState>, repo_id: Uuid) -> Result<RepoContext, AppError> {
-    let repos = state.repositories.read().unwrap();
+/// Extract repo context from in-memory map (no Tauri State needed).
+pub(crate) fn resolve_repo_context(
+    repos: &HashMap<Uuid, Repository>,
+    repo_id: Uuid,
+) -> Result<RepoContext, AppError> {
     let repo = repos
         .get(&repo_id)
         .ok_or(AppError::RepoNotFound(repo_id))?;
@@ -61,14 +72,29 @@ fn repo_context(state: &State<'_, AppState>, repo_id: Uuid) -> Result<RepoContex
     })
 }
 
+/// Extract workspace context via Tauri State (convenience wrapper).
+fn ws_context(state: &State<'_, AppState>, ws_id: Uuid) -> Result<WsContext, AppError> {
+    let workspaces = state.workspaces.read().unwrap();
+    let repos = state.repositories.read().unwrap();
+    resolve_ws_context(&workspaces, &repos, ws_id)
+}
+
+/// Extract repo context via Tauri State (convenience wrapper).
+fn repo_context(state: &State<'_, AppState>, repo_id: Uuid) -> Result<RepoContext, AppError> {
+    let repos = state.repositories.read().unwrap();
+    resolve_repo_context(&repos, repo_id)
+}
+
 /// Extract ADO PAT from app settings.
 fn get_ado_pat(state: &State<'_, AppState>) -> Result<String, AppError> {
     let settings = state.settings.read().unwrap();
-    settings
-        .azure_devops
-        .pat
-        .clone()
-        .filter(|p| !p.is_empty())
+    extract_ado_pat(settings.azure_devops.pat.as_deref())
+}
+
+/// Extract and validate ADO PAT string.
+pub(crate) fn extract_ado_pat(pat: Option<&str>) -> Result<String, AppError> {
+    pat.filter(|p| !p.is_empty())
+        .map(|p| p.to_string())
         .ok_or_else(|| {
             AppError::AzureDevOpsError(
                 "Azure DevOps PAT not configured. Set it in Settings > Azure DevOps.".to_string(),
@@ -77,7 +103,9 @@ fn get_ado_pat(state: &State<'_, AppState>) -> Result<String, AppError> {
 }
 
 /// Parse ADO remote URL into (org, project, repo) or return error.
-fn parse_ado_url(remote_url: &Option<String>) -> Result<(String, String, String), AppError> {
+pub(crate) fn parse_ado_url(
+    remote_url: &Option<String>,
+) -> Result<(String, String, String), AppError> {
     let url = remote_url
         .as_deref()
         .ok_or_else(|| AppError::AzureDevOpsError("No remote URL found for repository.".into()))?;
@@ -87,6 +115,149 @@ fn parse_ado_url(remote_url: &Option<String>) -> Result<(String, String, String)
             url
         ))
     })
+}
+
+/// Build a human-readable message summarizing failing CI checks.
+/// Returns None if no checks are failing.
+pub(crate) fn build_failing_checks_message(checks: &[PrCheck]) -> Option<String> {
+    let failing: Vec<_> = checks
+        .iter()
+        .filter(|c| {
+            c.conclusion.as_deref() == Some("FAILURE")
+                || c.conclusion.as_deref() == Some("failure")
+        })
+        .collect();
+
+    if failing.is_empty() {
+        return None;
+    }
+
+    let mut message = String::from(
+        "The following CI checks are failing on the current PR. Please analyze and fix these issues:\n\n",
+    );
+    for check in &failing {
+        message.push_str(&format!(
+            "- **{}**: {}\n  URL: {}\n\n",
+            check.name,
+            check.description.as_deref().unwrap_or("No description"),
+            check.details_url.as_deref().unwrap_or("N/A"),
+        ));
+    }
+    message.push_str("Please investigate the failures, fix the code, and ensure the tests pass.");
+
+    Some(message)
+}
+
+/// Parse a workspace ID string for PR commands.
+pub(crate) fn parse_ws_id(workspace_id: &str) -> Result<Uuid, AppError> {
+    workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))
+}
+
+/// Parse a repo ID string for PR commands.
+pub(crate) fn parse_pr_repo_id(repo_id: &str) -> Result<Uuid, AppError> {
+    repo_id
+        .parse()
+        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))
+}
+
+/// Resolve the merge method to use, defaulting to "squash" when not specified.
+pub(crate) fn resolve_merge_method(merge_method: Option<String>) -> String {
+    merge_method.unwrap_or_else(|| "squash".to_string())
+}
+
+/// Validate that the provider supports PR creation (GitHub or ADO only).
+#[allow(dead_code)]
+pub(crate) fn validate_provider_for_pr_create(provider: &GitProvider) -> Result<(), AppError> {
+    match provider {
+        GitProvider::GitHub | GitProvider::AzureDevOps => Ok(()),
+        GitProvider::Unknown => Err(AppError::PrError(
+            "Repository provider not detected. Cannot create PR.".into(),
+        )),
+    }
+}
+
+/// Validate that the provider supports PR merging (GitHub or ADO only).
+#[allow(dead_code)]
+pub(crate) fn validate_provider_for_merge(provider: &GitProvider) -> Result<(), AppError> {
+    match provider {
+        GitProvider::GitHub | GitProvider::AzureDevOps => Ok(()),
+        GitProvider::Unknown => Err(AppError::PrError(
+            "Repository provider not detected. Cannot merge PR.".into(),
+        )),
+    }
+}
+
+/// Check if a provider supports issue listing (only GitHub).
+#[allow(dead_code)]
+pub(crate) fn provider_supports_issues(provider: &GitProvider) -> bool {
+    matches!(provider, GitProvider::GitHub)
+}
+
+/// Check if a provider supports workflow/CI operations.
+#[allow(dead_code)]
+pub(crate) fn provider_supports_workflows(provider: &GitProvider) -> bool {
+    matches!(provider, GitProvider::GitHub | GitProvider::AzureDevOps)
+}
+
+/// Build an empty PrFullData for a workspace with no PR.
+pub(crate) fn empty_pr_full_data(ws_id: Uuid) -> PrFullData {
+    PrFullData {
+        info: PrInfo::empty(ws_id),
+        reviews: Vec::new(),
+        review_comments: Vec::new(),
+    }
+}
+
+/// Build an empty ReviewsAndComments.
+pub(crate) fn empty_reviews_and_comments() -> ReviewsAndComments {
+    ReviewsAndComments {
+        reviews: Vec::new(),
+        review_comments: Vec::new(),
+    }
+}
+
+/// Enrich a PrInfo with workspace_id and checks.
+/// Commonly used after fetching PR info and checks in parallel.
+pub(crate) fn enrich_pr_info(info: &mut PrInfo, ws_id: Uuid, checks: Vec<PrCheck>) {
+    info.workspace_id = ws_id;
+    info.checks = checks;
+}
+
+/// Build PrFullData from a PrInfo and separate review/comment lists.
+pub(crate) fn build_pr_full_data(
+    info: PrInfo,
+    reviews: Vec<PrReview>,
+    review_comments: Vec<PrComment>,
+) -> PrFullData {
+    PrFullData {
+        info,
+        reviews,
+        review_comments,
+    }
+}
+
+/// Merge ADO reviewer votes with thread-based reviews into a single list.
+pub(crate) fn merge_ado_reviews(
+    reviewer_reviews: Vec<PrReview>,
+    thread_reviews: Vec<PrReview>,
+) -> Vec<PrReview> {
+    let mut all = reviewer_reviews;
+    all.extend(thread_reviews);
+    all
+}
+
+/// Count how many checks are failing.
+#[allow(dead_code)]
+pub(crate) fn count_failing_checks(checks: &[PrCheck]) -> usize {
+    checks
+        .iter()
+        .filter(|c| {
+            c.conclusion.as_deref() == Some("FAILURE")
+                || c.conclusion.as_deref() == Some("failure")
+        })
+        .count()
 }
 
 #[tauri::command]
@@ -169,9 +340,7 @@ pub async fn get_pr_info(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<PrInfo, AppError> {
-    let ws_id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ws_id = parse_ws_id(&workspace_id)?;
     let ctx = ws_context(&state, ws_id)?;
 
     match ctx.provider {
@@ -186,8 +355,7 @@ pub async fn get_pr_info(
 
                 match info_result? {
                     Some(mut info) => {
-                        info.workspace_id = ws_id;
-                        info.checks = checks_result.unwrap_or_default();
+                        enrich_pr_info(&mut info, ws_id, checks_result.unwrap_or_default());
                         Ok(info)
                     }
                     None => Ok(PrInfo::empty(ws_id)),
@@ -229,9 +397,7 @@ pub async fn get_pr_checks(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<PrCheck>, AppError> {
-    let ws_id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ws_id = parse_ws_id(&workspace_id)?;
     let ctx = ws_context(&state, ws_id)?;
 
     match ctx.provider {
@@ -269,9 +435,7 @@ pub async fn push_changes(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<(), AppError> {
-    let ws_id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ws_id = parse_ws_id(&workspace_id)?;
     let ctx = ws_context(&state, ws_id)?;
 
     match ctx.provider {
@@ -291,8 +455,7 @@ pub async fn push_changes(
                 });
 
                 if let Ok(Some(mut info)) = info_result {
-                    info.workspace_id = ws_id;
-                    info.checks = checks_result.unwrap_or_default();
+                    enrich_pr_info(&mut info, ws_id, checks_result.unwrap_or_default());
                     let _ = app.emit(&format!("pr-updated:{}", ws_id), &info);
                 }
 
@@ -349,9 +512,7 @@ pub async fn fix_failing_checks(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<String, AppError> {
-    let ws_id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ws_id = parse_ws_id(&workspace_id)?;
     let ctx = ws_context(&state, ws_id)?;
 
     let checks = match ctx.provider {
@@ -382,32 +543,10 @@ pub async fn fix_failing_checks(
         GitProvider::Unknown => Vec::new(),
     };
 
-    let failing: Vec<_> = checks
-        .iter()
-        .filter(|c| {
-            c.conclusion.as_deref() == Some("FAILURE")
-                || c.conclusion.as_deref() == Some("failure")
-        })
-        .collect();
-
-    if failing.is_empty() {
-        return Ok("No failing checks found.".to_string());
+    match build_failing_checks_message(&checks) {
+        Some(message) => Ok(message),
+        None => Ok("No failing checks found.".to_string()),
     }
-
-    let mut message = String::from(
-        "The following CI checks are failing on the current PR. Please analyze and fix these issues:\n\n",
-    );
-    for check in &failing {
-        message.push_str(&format!(
-            "- **{}**: {}\n  URL: {}\n\n",
-            check.name,
-            check.description.as_deref().unwrap_or("No description"),
-            check.details_url.as_deref().unwrap_or("N/A"),
-        ));
-    }
-    message.push_str("Please investigate the failures, fix the code, and ensure the tests pass.");
-
-    Ok(message)
 }
 
 #[tauri::command]
@@ -417,11 +556,9 @@ pub async fn merge_pr(
     workspace_id: String,
     merge_method: Option<String>,
 ) -> Result<MergeResult, AppError> {
-    let ws_id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ws_id = parse_ws_id(&workspace_id)?;
     let ctx = ws_context(&state, ws_id)?;
-    let method = merge_method.unwrap_or_else(|| "squash".to_string());
+    let method = resolve_merge_method(merge_method);
 
     match ctx.provider {
         GitProvider::GitHub => {
@@ -465,9 +602,7 @@ pub async fn get_pr_reviews(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<PrReview>, AppError> {
-    let ws_id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ws_id = parse_ws_id(&workspace_id)?;
     let ctx = ws_context(&state, ws_id)?;
 
     match ctx.provider {
@@ -503,9 +638,7 @@ pub async fn get_pr_review_comments(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<PrComment>, AppError> {
-    let ws_id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ws_id = parse_ws_id(&workspace_id)?;
     let ctx = ws_context(&state, ws_id)?;
 
     match ctx.provider {
@@ -546,9 +679,7 @@ pub fn get_pr_full_data(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<PrFullData, AppError> {
-    let ws_id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ws_id = parse_ws_id(&workspace_id)?;
     let ctx = ws_context(&state, ws_id)?;
 
     match ctx.provider {
@@ -562,8 +693,7 @@ pub fn get_pr_full_data(
 
             match info_reviews_result? {
                 Some((mut info, reviews)) => {
-                    info.workspace_id = ws_id;
-                    info.checks = checks_result.unwrap_or_default();
+                    enrich_pr_info(&mut info, ws_id, checks_result.unwrap_or_default());
 
                     let review_comments = if let (Some(number), Some(url)) =
                         (info.pr_number, info.pr_url.as_ref())
@@ -574,17 +704,9 @@ pub fn get_pr_full_data(
                         Vec::new()
                     };
 
-                    Ok(PrFullData {
-                        info,
-                        reviews,
-                        review_comments,
-                    })
+                    Ok(build_pr_full_data(info, reviews, review_comments))
                 }
-                None => Ok(PrFullData {
-                    info: PrInfo::empty(ws_id),
-                    reviews: Vec::new(),
-                    review_comments: Vec::new(),
-                }),
+                None => Ok(empty_pr_full_data(ws_id)),
             }
         }
         GitProvider::AzureDevOps => {
@@ -612,27 +734,14 @@ pub fn get_pr_full_data(
                         ado_svc::get_pr_threads(&pat, &org, &project, &repo_name, pr_id)
                             .unwrap_or_default();
 
-                    let mut all_reviews = reviewer_reviews;
-                    all_reviews.extend(thread_reviews);
+                    let all_reviews = merge_ado_reviews(reviewer_reviews, thread_reviews);
 
-                    Ok(PrFullData {
-                        info: pr_info,
-                        reviews: all_reviews,
-                        review_comments,
-                    })
+                    Ok(build_pr_full_data(pr_info, all_reviews, review_comments))
                 }
-                None => Ok(PrFullData {
-                    info: PrInfo::empty(ws_id),
-                    reviews: Vec::new(),
-                    review_comments: Vec::new(),
-                }),
+                None => Ok(empty_pr_full_data(ws_id)),
             }
         }
-        GitProvider::Unknown => Ok(PrFullData {
-            info: PrInfo::empty(ws_id),
-            reviews: Vec::new(),
-            review_comments: Vec::new(),
-        }),
+        GitProvider::Unknown => Ok(empty_pr_full_data(ws_id)),
     }
 }
 
@@ -642,9 +751,7 @@ pub fn get_reviews_and_comments(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<ReviewsAndComments, AppError> {
-    let ws_id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ws_id = parse_ws_id(&workspace_id)?;
     let ctx = ws_context(&state, ws_id)?;
 
     match ctx.provider {
@@ -672,24 +779,17 @@ pub fn get_reviews_and_comments(
                         ado_svc::get_pr_threads(&pat, &org, &project, &repo_name, pr_id)
                             .unwrap_or_default();
 
-                    let mut reviews = reviewer_reviews;
-                    reviews.extend(thread_reviews);
+                    let reviews = merge_ado_reviews(reviewer_reviews, thread_reviews);
 
                     Ok(ReviewsAndComments {
                         reviews,
                         review_comments,
                     })
                 }
-                None => Ok(ReviewsAndComments {
-                    reviews: Vec::new(),
-                    review_comments: Vec::new(),
-                }),
+                None => Ok(empty_reviews_and_comments()),
             }
         }
-        GitProvider::Unknown => Ok(ReviewsAndComments {
-            reviews: Vec::new(),
-            review_comments: Vec::new(),
-        }),
+        GitProvider::Unknown => Ok(empty_reviews_and_comments()),
     }
 }
 
@@ -698,9 +798,7 @@ pub async fn list_repo_prs(
     state: State<'_, AppState>,
     repo_id: String,
 ) -> Result<Vec<PrListItem>, AppError> {
-    let id: Uuid = repo_id
-        .parse()
-        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+    let id = parse_pr_repo_id(&repo_id)?;
     let ctx = repo_context(&state, id)?;
 
     match ctx.provider {
@@ -728,9 +826,7 @@ pub async fn list_repo_issues(
     state: State<'_, AppState>,
     repo_id: String,
 ) -> Result<Vec<IssueListItem>, AppError> {
-    let id: Uuid = repo_id
-        .parse()
-        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+    let id = parse_pr_repo_id(&repo_id)?;
     let ctx = repo_context(&state, id)?;
 
     match ctx.provider {
@@ -750,9 +846,7 @@ pub async fn get_pr_details(
     repo_id: String,
     pr_number: u32,
 ) -> Result<PrDetail, AppError> {
-    let id: Uuid = repo_id
-        .parse()
-        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+    let id = parse_pr_repo_id(&repo_id)?;
     let ctx = repo_context(&state, id)?;
 
     match ctx.provider {
@@ -774,9 +868,7 @@ pub async fn get_issue_details(
     repo_id: String,
     issue_number: u32,
 ) -> Result<IssueDetail, AppError> {
-    let id: Uuid = repo_id
-        .parse()
-        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+    let id = parse_pr_repo_id(&repo_id)?;
     let ctx = repo_context(&state, id)?;
 
     match ctx.provider {
@@ -797,9 +889,7 @@ pub async fn get_workflow_runs(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<WorkflowRun>, AppError> {
-    let ws_id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ws_id = parse_ws_id(&workspace_id)?;
     let ctx = ws_context(&state, ws_id)?;
 
     match ctx.provider {
@@ -830,9 +920,7 @@ pub async fn get_run_jobs(
     workspace_id: String,
     run_id: u64,
 ) -> Result<Vec<WorkflowJob>, AppError> {
-    let ws_id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ws_id = parse_ws_id(&workspace_id)?;
     let ctx = ws_context(&state, ws_id)?;
 
     match ctx.provider {
@@ -864,9 +952,7 @@ pub async fn get_run_logs(
     run_id: u64,
     failed_only: bool,
 ) -> Result<RunLogsResult, AppError> {
-    let ws_id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ws_id = parse_ws_id(&workspace_id)?;
     let ctx = ws_context(&state, ws_id)?;
 
     match ctx.provider {
@@ -892,9 +978,7 @@ pub async fn rerun_workflow(
     run_id: u64,
     failed_only: bool,
 ) -> Result<(), AppError> {
-    let ws_id: Uuid = workspace_id
-        .parse()
-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+    let ws_id = parse_ws_id(&workspace_id)?;
     let ctx = ws_context(&state, ws_id)?;
 
     match ctx.provider {
@@ -909,5 +993,701 @@ pub async fn rerun_workflow(
         _ => Err(AppError::PrError(
             "Workflow rerun not available for this provider.".into(),
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_helpers::*;
+
+    #[test]
+    fn test_parse_ws_id_valid() {
+        let id = Uuid::new_v4();
+        assert_eq!(parse_ws_id(&id.to_string()).unwrap(), id);
+    }
+
+    #[test]
+    fn test_parse_ws_id_invalid() {
+        assert!(parse_ws_id("nope").is_err());
+    }
+
+    #[test]
+    fn test_parse_pr_repo_id_valid() {
+        let id = Uuid::new_v4();
+        assert_eq!(parse_pr_repo_id(&id.to_string()).unwrap(), id);
+    }
+
+    #[test]
+    fn test_parse_pr_repo_id_invalid() {
+        assert!(parse_pr_repo_id("nope").is_err());
+    }
+
+    #[test]
+    fn test_extract_ado_pat_valid() {
+        let pat = extract_ado_pat(Some("my-token")).unwrap();
+        assert_eq!(pat, "my-token");
+    }
+
+    #[test]
+    fn test_extract_ado_pat_empty() {
+        assert!(extract_ado_pat(Some("")).is_err());
+    }
+
+    #[test]
+    fn test_extract_ado_pat_none() {
+        assert!(extract_ado_pat(None).is_err());
+    }
+
+    #[test]
+    fn test_parse_ado_url_none() {
+        let result = parse_ado_url(&None);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_resolve_ws_context_workspace_not_found() {
+        let workspaces = HashMap::new();
+        let repos = HashMap::new();
+        let result = resolve_ws_context(&workspaces, &repos, Uuid::new_v4());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_resolve_ws_context_repo_not_found() {
+        let mut workspaces = HashMap::new();
+        let repos = HashMap::new();
+        let ws = test_workspace(Uuid::new_v4()); // repo_id doesn't exist in repos
+        let ws_id = ws.id;
+        workspaces.insert(ws_id, ws);
+
+        let result = resolve_ws_context(&workspaces, &repos, ws_id);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_resolve_ws_context_success() {
+        let repo = test_repo();
+        let ws = test_workspace(repo.id);
+        let ws_id = ws.id;
+
+        let mut workspaces = HashMap::new();
+        let mut repos = HashMap::new();
+        workspaces.insert(ws_id, ws.clone());
+        repos.insert(repo.id, repo.clone());
+
+        let ctx = resolve_ws_context(&workspaces, &repos, ws_id).unwrap();
+        assert_eq!(ctx.worktree_path, ws.worktree_path);
+        assert_eq!(ctx.branch, ws.branch);
+        assert_eq!(ctx.default_branch, repo.default_branch);
+        assert_eq!(ctx.provider, repo.provider);
+        assert_eq!(ctx.remote_url, repo.remote_url);
+    }
+
+    #[test]
+    fn test_resolve_repo_context_not_found() {
+        let repos = HashMap::new();
+        let result = resolve_repo_context(&repos, Uuid::new_v4());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_resolve_repo_context_success() {
+        let repo = test_repo();
+        let mut repos = HashMap::new();
+        repos.insert(repo.id, repo.clone());
+
+        let ctx = resolve_repo_context(&repos, repo.id).unwrap();
+        assert_eq!(ctx.path, repo.path);
+        assert_eq!(ctx.provider, repo.provider);
+    }
+
+    #[test]
+    fn test_build_failing_checks_message_no_failures() {
+        let checks = vec![
+            PrCheck {
+                name: "build".to_string(),
+                status: "COMPLETED".to_string(),
+                conclusion: Some("SUCCESS".to_string()),
+                details_url: None,
+                description: None,
+            },
+        ];
+        assert!(build_failing_checks_message(&checks).is_none());
+    }
+
+    #[test]
+    fn test_build_failing_checks_message_empty() {
+        assert!(build_failing_checks_message(&[]).is_none());
+    }
+
+    #[test]
+    fn test_build_failing_checks_message_with_failures() {
+        let checks = vec![
+            PrCheck {
+                name: "build".to_string(),
+                status: "COMPLETED".to_string(),
+                conclusion: Some("SUCCESS".to_string()),
+                details_url: None,
+                description: None,
+            },
+            PrCheck {
+                name: "test".to_string(),
+                status: "COMPLETED".to_string(),
+                conclusion: Some("FAILURE".to_string()),
+                details_url: Some("https://ci.example.com/123".to_string()),
+                description: Some("Tests failed".to_string()),
+            },
+            PrCheck {
+                name: "lint".to_string(),
+                status: "COMPLETED".to_string(),
+                conclusion: Some("failure".to_string()),
+                details_url: None,
+                description: None,
+            },
+        ];
+
+        let msg = build_failing_checks_message(&checks).unwrap();
+        assert!(msg.contains("**test**"));
+        assert!(msg.contains("Tests failed"));
+        assert!(msg.contains("https://ci.example.com/123"));
+        assert!(msg.contains("**lint**"));
+        assert!(msg.contains("No description"));
+        assert!(!msg.contains("**build**"));
+    }
+
+    #[test]
+    fn test_build_failing_checks_message_lowercase_failure() {
+        let checks = vec![PrCheck {
+            name: "ci".to_string(),
+            status: "COMPLETED".to_string(),
+            conclusion: Some("failure".to_string()),
+            details_url: None,
+            description: Some("CI failed".to_string()),
+        }];
+
+        let msg = build_failing_checks_message(&checks).unwrap();
+        assert!(msg.contains("**ci**"));
+        assert!(msg.contains("CI failed"));
+    }
+
+    // --- resolve_merge_method tests ---
+
+    #[test]
+    fn test_resolve_merge_method_default() {
+        assert_eq!(resolve_merge_method(None), "squash");
+    }
+
+    #[test]
+    fn test_resolve_merge_method_explicit() {
+        assert_eq!(
+            resolve_merge_method(Some("merge".to_string())),
+            "merge"
+        );
+        assert_eq!(
+            resolve_merge_method(Some("rebase".to_string())),
+            "rebase"
+        );
+        assert_eq!(
+            resolve_merge_method(Some("squash".to_string())),
+            "squash"
+        );
+    }
+
+    // --- validate_provider_for_pr_create tests ---
+
+    #[test]
+    fn test_validate_provider_github_create() {
+        assert!(validate_provider_for_pr_create(&GitProvider::GitHub).is_ok());
+    }
+
+    #[test]
+    fn test_validate_provider_ado_create() {
+        assert!(validate_provider_for_pr_create(&GitProvider::AzureDevOps).is_ok());
+    }
+
+    #[test]
+    fn test_validate_provider_unknown_create() {
+        assert!(validate_provider_for_pr_create(&GitProvider::Unknown).is_err());
+    }
+
+    // --- validate_provider_for_merge tests ---
+
+    #[test]
+    fn test_validate_provider_github_merge() {
+        assert!(validate_provider_for_merge(&GitProvider::GitHub).is_ok());
+    }
+
+    #[test]
+    fn test_validate_provider_ado_merge() {
+        assert!(validate_provider_for_merge(&GitProvider::AzureDevOps).is_ok());
+    }
+
+    #[test]
+    fn test_validate_provider_unknown_merge() {
+        assert!(validate_provider_for_merge(&GitProvider::Unknown).is_err());
+    }
+
+    // --- provider_supports_issues tests ---
+
+    #[test]
+    fn test_github_supports_issues() {
+        assert!(provider_supports_issues(&GitProvider::GitHub));
+    }
+
+    #[test]
+    fn test_ado_does_not_support_issues() {
+        assert!(!provider_supports_issues(&GitProvider::AzureDevOps));
+    }
+
+    #[test]
+    fn test_unknown_does_not_support_issues() {
+        assert!(!provider_supports_issues(&GitProvider::Unknown));
+    }
+
+    // --- provider_supports_workflows tests ---
+
+    #[test]
+    fn test_github_supports_workflows() {
+        assert!(provider_supports_workflows(&GitProvider::GitHub));
+    }
+
+    #[test]
+    fn test_ado_supports_workflows() {
+        assert!(provider_supports_workflows(&GitProvider::AzureDevOps));
+    }
+
+    #[test]
+    fn test_unknown_does_not_support_workflows() {
+        assert!(!provider_supports_workflows(&GitProvider::Unknown));
+    }
+
+    // --- empty_pr_full_data tests ---
+
+    #[test]
+    fn test_empty_pr_full_data() {
+        let id = Uuid::new_v4();
+        let data = empty_pr_full_data(id);
+        assert_eq!(data.info.workspace_id, id);
+        assert!(data.info.pr_number.is_none());
+        assert!(data.reviews.is_empty());
+        assert!(data.review_comments.is_empty());
+    }
+
+    // --- empty_reviews_and_comments tests ---
+
+    #[test]
+    fn test_empty_reviews_and_comments() {
+        let rac = empty_reviews_and_comments();
+        assert!(rac.reviews.is_empty());
+        assert!(rac.review_comments.is_empty());
+    }
+
+    // --- count_failing_checks tests ---
+
+    #[test]
+    fn test_count_failing_checks_none() {
+        assert_eq!(count_failing_checks(&[]), 0);
+    }
+
+    #[test]
+    fn test_count_failing_checks_all_passing() {
+        let checks = vec![
+            PrCheck {
+                name: "build".to_string(),
+                status: "COMPLETED".to_string(),
+                conclusion: Some("SUCCESS".to_string()),
+                details_url: None,
+                description: None,
+            },
+            PrCheck {
+                name: "lint".to_string(),
+                status: "COMPLETED".to_string(),
+                conclusion: Some("SUCCESS".to_string()),
+                details_url: None,
+                description: None,
+            },
+        ];
+        assert_eq!(count_failing_checks(&checks), 0);
+    }
+
+    #[test]
+    fn test_count_failing_checks_mixed() {
+        let checks = vec![
+            PrCheck {
+                name: "build".to_string(),
+                status: "COMPLETED".to_string(),
+                conclusion: Some("SUCCESS".to_string()),
+                details_url: None,
+                description: None,
+            },
+            PrCheck {
+                name: "test".to_string(),
+                status: "COMPLETED".to_string(),
+                conclusion: Some("FAILURE".to_string()),
+                details_url: None,
+                description: None,
+            },
+            PrCheck {
+                name: "lint".to_string(),
+                status: "COMPLETED".to_string(),
+                conclusion: Some("failure".to_string()),
+                details_url: None,
+                description: None,
+            },
+            PrCheck {
+                name: "deploy".to_string(),
+                status: "IN_PROGRESS".to_string(),
+                conclusion: None,
+                details_url: None,
+                description: None,
+            },
+        ];
+        assert_eq!(count_failing_checks(&checks), 2);
+    }
+
+    #[test]
+    fn test_count_failing_checks_null_conclusion() {
+        let checks = vec![PrCheck {
+            name: "pending".to_string(),
+            status: "IN_PROGRESS".to_string(),
+            conclusion: None,
+            details_url: None,
+            description: None,
+        }];
+        assert_eq!(count_failing_checks(&checks), 0);
+    }
+
+    // --- parse_ado_url edge cases ---
+
+    #[test]
+    fn test_parse_ado_url_empty_string() {
+        let result = parse_ado_url(&Some(String::new()));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_ado_url_non_ado_url() {
+        let result = parse_ado_url(&Some("https://github.com/user/repo".to_string()));
+        assert!(result.is_err());
+    }
+
+    // --- WsContext and RepoContext field access ---
+
+    #[test]
+    fn test_ws_context_fields_match() {
+        let repo = test_repo();
+        let mut ws = test_workspace(repo.id);
+        ws.branch = "my-feature".to_string();
+
+        let mut workspaces = HashMap::new();
+        let mut repos = HashMap::new();
+        workspaces.insert(ws.id, ws.clone());
+        repos.insert(repo.id, repo.clone());
+
+        let ctx = resolve_ws_context(&workspaces, &repos, ws.id).unwrap();
+        assert_eq!(ctx.worktree_path, ws.worktree_path);
+        assert_eq!(ctx.branch, "my-feature");
+        assert_eq!(ctx.default_branch, "main");
+    }
+
+    #[test]
+    fn test_resolve_repo_context_with_remote_url() {
+        let mut repo = test_repo();
+        repo.remote_url = Some("https://github.com/org/repo".to_string());
+        let mut repos = HashMap::new();
+        repos.insert(repo.id, repo.clone());
+
+        let ctx = resolve_repo_context(&repos, repo.id).unwrap();
+        assert_eq!(ctx.remote_url, Some("https://github.com/org/repo".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_repo_context_no_remote_url() {
+        let repo = test_repo();
+        let mut repos = HashMap::new();
+        repos.insert(repo.id, repo.clone());
+
+        let ctx = resolve_repo_context(&repos, repo.id).unwrap();
+        assert!(ctx.remote_url.is_none());
+    }
+
+    // --- build_failing_checks_message format details ---
+
+    #[test]
+    fn test_build_failing_checks_message_includes_fix_instruction() {
+        let checks = vec![PrCheck {
+            name: "test".to_string(),
+            status: "COMPLETED".to_string(),
+            conclusion: Some("FAILURE".to_string()),
+            details_url: None,
+            description: None,
+        }];
+        let msg = build_failing_checks_message(&checks).unwrap();
+        assert!(msg.contains("fix"));
+    }
+
+    #[test]
+    fn test_build_failing_checks_message_url_na_when_none() {
+        let checks = vec![PrCheck {
+            name: "test".to_string(),
+            status: "COMPLETED".to_string(),
+            conclusion: Some("FAILURE".to_string()),
+            details_url: None,
+            description: None,
+        }];
+        let msg = build_failing_checks_message(&checks).unwrap();
+        assert!(msg.contains("N/A"));
+    }
+
+    #[test]
+    fn test_build_failing_checks_skips_non_failure_conclusions() {
+        let checks = vec![
+            PrCheck {
+                name: "cancelled".to_string(),
+                status: "COMPLETED".to_string(),
+                conclusion: Some("CANCELLED".to_string()),
+                details_url: None,
+                description: None,
+            },
+            PrCheck {
+                name: "neutral".to_string(),
+                status: "COMPLETED".to_string(),
+                conclusion: Some("NEUTRAL".to_string()),
+                details_url: None,
+                description: None,
+            },
+            PrCheck {
+                name: "skipped".to_string(),
+                status: "COMPLETED".to_string(),
+                conclusion: Some("SKIPPED".to_string()),
+                details_url: None,
+                description: None,
+            },
+        ];
+        assert!(build_failing_checks_message(&checks).is_none());
+    }
+
+    // --- extract_ado_pat edge cases ---
+
+    #[test]
+    fn test_extract_ado_pat_whitespace_only() {
+        // Non-empty whitespace should still succeed (it's not empty)
+        let pat = extract_ado_pat(Some("  ")).unwrap();
+        assert_eq!(pat, "  ");
+    }
+
+    #[test]
+    fn test_extract_ado_pat_long_token() {
+        let long = "a".repeat(1000);
+        let pat = extract_ado_pat(Some(&long)).unwrap();
+        assert_eq!(pat.len(), 1000);
+    }
+
+    // -----------------------------------------------------------------------
+    // Async command wrapper tests (using mock_app_with_state)
+    // -----------------------------------------------------------------------
+
+    use tauri::Manager;
+
+    #[test]
+    fn test_get_pr_full_data_workspace_not_found() {
+        let app = mock_app_with_state();
+        let state: tauri::State<'_, crate::state::AppState> = app.state();
+        let result = get_pr_full_data(state, Uuid::new_v4().to_string());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_pr_full_data_invalid_id() {
+        let app = mock_app_with_state();
+        let state: tauri::State<'_, crate::state::AppState> = app.state();
+        let result = get_pr_full_data(state, "bad-id".to_string());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_pr_full_data_unknown_provider_returns_empty() {
+        let app = mock_app_with_state();
+        let app_state = app.state::<crate::state::AppState>();
+        let mut repo = test_repo();
+        repo.provider = GitProvider::Unknown; // Default is GitHub, must override
+        let repo_id = repo.id;
+        app_state.repositories.write().unwrap().insert(repo_id, repo);
+        let ws = test_workspace(repo_id);
+        let ws_id = ws.id;
+        app_state.workspaces.write().unwrap().insert(ws_id, ws);
+
+        let state: tauri::State<'_, crate::state::AppState> = app.state();
+        let result = get_pr_full_data(state, ws_id.to_string());
+        assert!(result.is_ok(), "Expected Ok, got: {:?}", result.err());
+        let data = result.unwrap();
+        assert!(data.info.pr_number.is_none());
+        assert!(data.reviews.is_empty());
+        assert!(data.review_comments.is_empty());
+    }
+
+    #[test]
+    fn test_get_reviews_and_comments_unknown_provider() {
+        let app = mock_app_with_state();
+        let app_state = app.state::<crate::state::AppState>();
+        let mut repo = test_repo();
+        repo.provider = GitProvider::Unknown;
+        let repo_id = repo.id;
+        app_state.repositories.write().unwrap().insert(repo_id, repo);
+        let ws = test_workspace(repo_id);
+        let ws_id = ws.id;
+        app_state.workspaces.write().unwrap().insert(ws_id, ws);
+
+        let state: tauri::State<'_, crate::state::AppState> = app.state();
+        let result = get_reviews_and_comments(state, ws_id.to_string());
+        assert!(result.is_ok());
+        let rac = result.unwrap();
+        assert!(rac.reviews.is_empty());
+        assert!(rac.review_comments.is_empty());
+    }
+
+    // -----------------------------------------------------------------------
+    // enrich_pr_info tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_enrich_pr_info_sets_workspace_and_checks() {
+        let ws_id = Uuid::new_v4();
+        let mut info = PrInfo::empty(Uuid::nil());
+        let checks = vec![PrCheck {
+            name: "build".to_string(),
+            status: "COMPLETED".to_string(),
+            conclusion: Some("SUCCESS".to_string()),
+            details_url: None,
+            description: None,
+        }];
+
+        enrich_pr_info(&mut info, ws_id, checks);
+        assert_eq!(info.workspace_id, ws_id);
+        assert_eq!(info.checks.len(), 1);
+        assert_eq!(info.checks[0].name, "build");
+    }
+
+    #[test]
+    fn test_enrich_pr_info_empty_checks() {
+        let ws_id = Uuid::new_v4();
+        let mut info = PrInfo::empty(Uuid::nil());
+
+        enrich_pr_info(&mut info, ws_id, Vec::new());
+        assert_eq!(info.workspace_id, ws_id);
+        assert!(info.checks.is_empty());
+    }
+
+    #[test]
+    fn test_enrich_pr_info_replaces_existing_checks() {
+        let ws_id = Uuid::new_v4();
+        let mut info = PrInfo::empty(Uuid::nil());
+        info.checks = vec![PrCheck {
+            name: "old".to_string(),
+            status: "COMPLETED".to_string(),
+            conclusion: Some("SUCCESS".to_string()),
+            details_url: None,
+            description: None,
+        }];
+
+        let new_checks = vec![PrCheck {
+            name: "new".to_string(),
+            status: "COMPLETED".to_string(),
+            conclusion: Some("FAILURE".to_string()),
+            details_url: None,
+            description: None,
+        }];
+
+        enrich_pr_info(&mut info, ws_id, new_checks);
+        assert_eq!(info.checks.len(), 1);
+        assert_eq!(info.checks[0].name, "new");
+    }
+
+    // -----------------------------------------------------------------------
+    // build_pr_full_data tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_build_pr_full_data_assembles_correctly() {
+        let ws_id = Uuid::new_v4();
+        let info = PrInfo::empty(ws_id);
+        let reviews = vec![PrReview {
+            id: 1,
+            author: "alice".to_string(),
+            state: "APPROVED".to_string(),
+            body: "LGTM".to_string(),
+            submitted_at: "2024-01-01".to_string(),
+        }];
+        let comments = vec![PrComment {
+            id: 10,
+            author: "bob".to_string(),
+            body: "nit".to_string(),
+            path: Some("src/main.rs".to_string()),
+            line: Some(42),
+            created_at: "2024-01-01".to_string(),
+        }];
+
+        let data = build_pr_full_data(info, reviews.clone(), comments.clone());
+        assert_eq!(data.info.workspace_id, ws_id);
+        assert_eq!(data.reviews.len(), 1);
+        assert_eq!(data.reviews[0].author, "alice");
+        assert_eq!(data.review_comments.len(), 1);
+        assert_eq!(data.review_comments[0].author, "bob");
+    }
+
+    #[test]
+    fn test_build_pr_full_data_empty() {
+        let data = build_pr_full_data(PrInfo::empty(Uuid::new_v4()), Vec::new(), Vec::new());
+        assert!(data.reviews.is_empty());
+        assert!(data.review_comments.is_empty());
+    }
+
+    // -----------------------------------------------------------------------
+    // merge_ado_reviews tests
+    // -----------------------------------------------------------------------
+
+    fn make_review(id: u64, author: &str) -> PrReview {
+        PrReview {
+            id,
+            author: author.to_string(),
+            state: "APPROVED".to_string(),
+            body: String::new(),
+            submitted_at: "2024-01-01".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_merge_ado_reviews_both_empty() {
+        let merged = merge_ado_reviews(Vec::new(), Vec::new());
+        assert!(merged.is_empty());
+    }
+
+    #[test]
+    fn test_merge_ado_reviews_only_reviewer() {
+        let reviewer = vec![make_review(1, "alice")];
+        let merged = merge_ado_reviews(reviewer, Vec::new());
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].author, "alice");
+    }
+
+    #[test]
+    fn test_merge_ado_reviews_only_thread() {
+        let thread = vec![make_review(2, "bob")];
+        let merged = merge_ado_reviews(Vec::new(), thread);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].author, "bob");
+    }
+
+    #[test]
+    fn test_merge_ado_reviews_combined() {
+        let reviewer = vec![make_review(1, "alice"), make_review(2, "charlie")];
+        let thread = vec![make_review(3, "bob")];
+        let merged = merge_ado_reviews(reviewer, thread);
+        assert_eq!(merged.len(), 3);
+        // reviewer reviews come first
+        assert_eq!(merged[0].author, "alice");
+        assert_eq!(merged[1].author, "charlie");
+        assert_eq!(merged[2].author, "bob");
     }
 }

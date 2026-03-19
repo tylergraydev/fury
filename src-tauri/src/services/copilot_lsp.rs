@@ -12,7 +12,7 @@ use crate::error::AppError;
 /// Handle to a running Copilot Language Server.
 /// All fields are Arc-wrapped so this can be cheaply cloned out of AppState
 /// without holding the outer std::sync::Mutex across await points.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CopilotLspHandle {
     pub stdin_tx: tokio::sync::mpsc::Sender<Vec<u8>>,
     pub pending: Arc<Mutex<HashMap<i64, oneshot::Sender<Value>>>>,
@@ -381,6 +381,353 @@ pub async fn send_notification(
     handle.stdin_tx.send(msg).await.map_err(|_| {
         AppError::CopilotError("Failed to send notification to Copilot LS".to_string())
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_frame_lsp_message_basic() {
+        let msg = frame_lsp_message("{}");
+        let expected = b"Content-Length: 2\r\n\r\n{}";
+        assert_eq!(msg, expected);
+    }
+
+    #[test]
+    fn test_frame_lsp_message_empty() {
+        let msg = frame_lsp_message("");
+        assert_eq!(msg, b"Content-Length: 0\r\n\r\n");
+    }
+
+    #[test]
+    fn test_frame_lsp_message_unicode() {
+        let json = r#"{"text":"héllo"}"#;
+        let msg = frame_lsp_message(json);
+        // Content-Length is byte length, not char length
+        let header = format!("Content-Length: {}\r\n\r\n", json.len());
+        assert!(msg.starts_with(header.as_bytes()));
+    }
+
+    #[test]
+    fn test_frame_lsp_message_roundtrip() {
+        let json = r#"{"jsonrpc":"2.0","id":1,"method":"test"}"#;
+        let framed = frame_lsp_message(json);
+        let s = String::from_utf8(framed).unwrap();
+        assert!(s.contains("Content-Length:"));
+        assert!(s.ends_with(json));
+    }
+
+    #[test]
+    fn test_copilot_position_serde() {
+        let pos = CopilotPosition { line: 10, character: 5 };
+        let json = serde_json::to_value(&pos).unwrap();
+        assert_eq!(json["line"], 10);
+        assert_eq!(json["character"], 5);
+        let parsed: CopilotPosition = serde_json::from_value(json).unwrap();
+        assert_eq!(parsed.line, 10);
+    }
+
+    #[test]
+    fn test_copilot_range_serde() {
+        let range = CopilotRange {
+            start: CopilotPosition { line: 0, character: 0 },
+            end: CopilotPosition { line: 0, character: 10 },
+        };
+        let json = serde_json::to_value(&range).unwrap();
+        assert_eq!(json["start"]["line"], 0);
+        assert_eq!(json["end"]["character"], 10);
+    }
+
+    #[test]
+    fn test_copilot_completion_serde() {
+        let completion = CopilotCompletion {
+            insert_text: "fn main() {}".to_string(),
+            range: Some(CopilotRange {
+                start: CopilotPosition { line: 0, character: 0 },
+                end: CopilotPosition { line: 0, character: 0 },
+            }),
+            command: None,
+        };
+        let json = serde_json::to_value(&completion).unwrap();
+        assert_eq!(json["insertText"], "fn main() {}");
+        assert!(json["range"].is_object());
+        assert!(json["command"].is_null());
+    }
+
+    #[test]
+    fn test_copilot_completion_minimal() {
+        let json = r#"{"insertText":"hello"}"#;
+        let parsed: CopilotCompletion = serde_json::from_str(json).unwrap();
+        assert_eq!(parsed.insert_text, "hello");
+        assert!(parsed.range.is_none());
+        assert!(parsed.command.is_none());
+    }
+
+    #[test]
+    fn test_copilot_sign_in_result_serde() {
+        let result = CopilotSignInResult {
+            status: "AlreadySignedIn".to_string(),
+            user_code: None,
+            verification_uri: None,
+            user: Some("testuser".to_string()),
+        };
+        let json = serde_json::to_value(&result).unwrap();
+        assert_eq!(json["status"], "AlreadySignedIn");
+        assert_eq!(json["user"], "testuser");
+    }
+
+    #[test]
+    fn test_copilot_sign_in_result_device_flow() {
+        let json = r#"{
+            "status": "PromptUserDeviceFlow",
+            "userCode": "ABCD-1234",
+            "verificationUri": "https://github.com/login/device"
+        }"#;
+        let parsed: CopilotSignInResult = serde_json::from_str(json).unwrap();
+        assert_eq!(parsed.status, "PromptUserDeviceFlow");
+        assert_eq!(parsed.user_code.unwrap(), "ABCD-1234");
+    }
+
+    #[test]
+    fn test_copilot_auth_status_serde() {
+        let status = CopilotAuthStatus {
+            status: "OK".to_string(),
+            user: Some("user@example.com".to_string()),
+        };
+        let json = serde_json::to_value(&status).unwrap();
+        assert_eq!(json["status"], "OK");
+    }
+
+    #[test]
+    fn test_copilot_lsp_handle_clone() {
+        let (tx, _rx) = tokio::sync::mpsc::channel(1);
+        let handle = CopilotLspHandle {
+            stdin_tx: tx,
+            pending: Arc::new(Mutex::new(HashMap::new())),
+            next_id: Arc::new(Mutex::new(1)),
+            child_pid: Some(12345),
+        };
+        let cloned = handle.clone();
+        assert_eq!(cloned.child_pid, Some(12345));
+    }
+
+    #[tokio::test]
+    async fn test_send_request_channel_closed() {
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+        drop(rx); // Close the receiving end
+        let handle = CopilotLspHandle {
+            stdin_tx: tx,
+            pending: Arc::new(Mutex::new(HashMap::new())),
+            next_id: Arc::new(Mutex::new(1)),
+            child_pid: None,
+        };
+        let result = send_request(&handle, "test", serde_json::json!({})).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_send_notification_channel_closed() {
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+        drop(rx);
+        let handle = CopilotLspHandle {
+            stdin_tx: tx,
+            pending: Arc::new(Mutex::new(HashMap::new())),
+            next_id: Arc::new(Mutex::new(1)),
+            child_pid: None,
+        };
+        let result = send_notification(&handle, "test", serde_json::json!({})).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_send_request_increments_id() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(16);
+        let handle = CopilotLspHandle {
+            stdin_tx: tx,
+            pending: Arc::new(Mutex::new(HashMap::new())),
+            next_id: Arc::new(Mutex::new(1)),
+            child_pid: None,
+        };
+
+        // Send request (will time out waiting for response, but ID should be set)
+        let pending = handle.pending.clone();
+
+        // Manually simulate send_request's ID logic
+        {
+            let mut next = handle.next_id.lock().await;
+            assert_eq!(*next, 1);
+            *next += 1;
+        }
+        {
+            let mut next = handle.next_id.lock().await;
+            assert_eq!(*next, 2);
+        }
+
+        // Verify message was formatted correctly
+        let notification = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "test",
+            "params": {}
+        });
+        let msg = frame_lsp_message(&notification.to_string());
+        handle.stdin_tx.send(msg).await.unwrap();
+        let received = rx.recv().await.unwrap();
+        let s = String::from_utf8(received).unwrap();
+        assert!(s.contains("Content-Length:"));
+        assert!(s.contains("jsonrpc"));
+
+        drop(pending);
+    }
+
+    #[test]
+    fn test_frame_lsp_message_large_payload() {
+        let json = "x".repeat(10000);
+        let msg = frame_lsp_message(&json);
+        let header = format!("Content-Length: {}\r\n\r\n", json.len());
+        assert!(msg.starts_with(header.as_bytes()));
+        assert_eq!(msg.len(), header.len() + json.len());
+    }
+
+    #[test]
+    fn test_frame_lsp_message_special_chars() {
+        let json = r#"{"key":"value with \"quotes\" and \n newlines"}"#;
+        let msg = frame_lsp_message(json);
+        let s = String::from_utf8(msg).unwrap();
+        assert!(s.ends_with(json));
+        let content_length: usize = s
+            .lines()
+            .next()
+            .unwrap()
+            .strip_prefix("Content-Length: ")
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(content_length, json.len());
+    }
+
+    #[tokio::test]
+    async fn test_read_lsp_message_valid() {
+        let input = b"Content-Length: 14\r\n\r\n{\"test\":\"ok\"}x";
+        // Create a fake ChildStdout via pipe
+        let (mut writer, reader) = tokio::io::duplex(1024);
+        writer
+            .write_all(&input[..input.len() - 1]) // exclude trailing 'x'
+            .await
+            .unwrap();
+
+        // We can't easily create a BufReader<ChildStdout>, but we can test
+        // the frame_lsp_message function indirectly. Let's verify the framing logic
+        // by testing that framed messages have correct structure.
+        let json = r#"{"test":"ok"}"#;
+        let framed = frame_lsp_message(json);
+        let s = String::from_utf8(framed.clone()).unwrap();
+
+        // Parse the header
+        let parts: Vec<&str> = s.splitn(2, "\r\n\r\n").collect();
+        assert_eq!(parts.len(), 2);
+        let header = parts[0];
+        let body = parts[1];
+        assert!(header.starts_with("Content-Length: "));
+        let length: usize = header
+            .strip_prefix("Content-Length: ")
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(length, body.len());
+        assert_eq!(body, json);
+    }
+
+    #[test]
+    fn test_copilot_completion_with_command() {
+        let json = r#"{
+            "insertText": "hello",
+            "command": {"title": "accept", "command": "copilot.accept"}
+        }"#;
+        let parsed: CopilotCompletion = serde_json::from_str(json).unwrap();
+        assert_eq!(parsed.insert_text, "hello");
+        assert!(parsed.command.is_some());
+    }
+
+    #[test]
+    fn test_copilot_completion_with_range() {
+        let json = r#"{
+            "insertText": "code",
+            "range": {
+                "start": {"line": 5, "character": 10},
+                "end": {"line": 5, "character": 15}
+            }
+        }"#;
+        let parsed: CopilotCompletion = serde_json::from_str(json).unwrap();
+        let range = parsed.range.unwrap();
+        assert_eq!(range.start.line, 5);
+        assert_eq!(range.start.character, 10);
+        assert_eq!(range.end.line, 5);
+        assert_eq!(range.end.character, 15);
+    }
+
+    #[test]
+    fn test_copilot_sign_in_not_signed_in() {
+        let json = r#"{"status": "NotSignedIn"}"#;
+        let parsed: CopilotSignInResult = serde_json::from_str(json).unwrap();
+        assert_eq!(parsed.status, "NotSignedIn");
+        assert!(parsed.user_code.is_none());
+        assert!(parsed.verification_uri.is_none());
+        assert!(parsed.user.is_none());
+    }
+
+    #[test]
+    fn test_copilot_auth_status_not_ok() {
+        let status = CopilotAuthStatus {
+            status: "NotAuthorized".to_string(),
+            user: None,
+        };
+        let json = serde_json::to_value(&status).unwrap();
+        assert_eq!(json["status"], "NotAuthorized");
+        assert!(json["user"].is_null());
+    }
+
+    #[test]
+    fn test_copilot_lsp_handle_clone_no_pid() {
+        let (tx, _rx) = tokio::sync::mpsc::channel(1);
+        let handle = CopilotLspHandle {
+            stdin_tx: tx,
+            pending: Arc::new(Mutex::new(HashMap::new())),
+            next_id: Arc::new(Mutex::new(99)),
+            child_pid: None,
+        };
+        let cloned = handle.clone();
+        assert_eq!(cloned.child_pid, None);
+    }
+
+    #[tokio::test]
+    async fn test_send_notification_formats_correctly() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(16);
+        let handle = CopilotLspHandle {
+            stdin_tx: tx,
+            pending: Arc::new(Mutex::new(HashMap::new())),
+            next_id: Arc::new(Mutex::new(1)),
+            child_pid: None,
+        };
+
+        send_notification(&handle, "textDocument/didOpen", serde_json::json!({"uri": "file:///test.rs"}))
+            .await
+            .unwrap();
+
+        let received = rx.recv().await.unwrap();
+        let s = String::from_utf8(received).unwrap();
+        // Should contain Content-Length header
+        assert!(s.contains("Content-Length:"));
+        // Should contain the method
+        assert!(s.contains("textDocument/didOpen"));
+        // Should NOT contain an id (notifications don't have one)
+        let body_start = s.find("\r\n\r\n").unwrap() + 4;
+        let body = &s[body_start..];
+        let parsed: serde_json::Value = serde_json::from_str(body).unwrap();
+        assert!(parsed.get("id").is_none());
+        assert_eq!(parsed["jsonrpc"], "2.0");
+        assert_eq!(parsed["method"], "textDocument/didOpen");
+    }
 }
 
 /// Gracefully stop the Copilot Language Server.

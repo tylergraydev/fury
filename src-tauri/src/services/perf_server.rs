@@ -694,4 +694,518 @@ mod tests {
         assert!(m.agent_turns.is_empty());
         assert!(m.stream_events.is_empty());
     }
+
+    #[test]
+    fn test_push_ipc_single() {
+        let mut m = PerfMetrics::new();
+        m.push_ipc(IpcMetric {
+            command: "get_workspace".to_string(),
+            duration_ms: 15.5,
+            success: true,
+            error: None,
+            timestamp: 1000.0,
+        });
+        assert_eq!(m.ipc_calls.len(), 1);
+        assert_eq!(m.ipc_calls[0].command, "get_workspace");
+        assert_eq!(m.ipc_calls[0].duration_ms, 15.5);
+        assert!(m.ipc_calls[0].success);
+    }
+
+    #[test]
+    fn test_push_ipc_with_error() {
+        let mut m = PerfMetrics::new();
+        m.push_ipc(IpcMetric {
+            command: "bad_cmd".to_string(),
+            duration_ms: 250.0,
+            success: false,
+            error: Some("timeout".to_string()),
+            timestamp: 2000.0,
+        });
+        assert_eq!(m.ipc_calls.len(), 1);
+        assert!(!m.ipc_calls[0].success);
+        assert_eq!(m.ipc_calls[0].error.as_deref(), Some("timeout"));
+    }
+
+    #[test]
+    fn test_push_frame_single() {
+        let mut m = PerfMetrics::new();
+        m.push_frame(FrameMetric {
+            duration_ms: 33.3,
+            timestamp: 500.0,
+        });
+        assert_eq!(m.long_frames.len(), 1);
+        assert_eq!(m.long_frames[0].duration_ms, 33.3);
+    }
+
+    #[test]
+    fn test_push_agent_turn_single() {
+        let mut m = PerfMetrics::new();
+        m.push_agent_turn(AgentTurnMetric {
+            workspace_id: "ws-abc".to_string(),
+            duration_ms: 5000.0,
+            duration_api_ms: 3000.0,
+            input_tokens: 1500,
+            output_tokens: 800,
+            cache_read_tokens: 200,
+            cache_creation_tokens: 50,
+            total_cost_usd: 0.042,
+            num_turns: 2,
+            timestamp: 9999.0,
+        });
+        assert_eq!(m.agent_turns.len(), 1);
+        assert_eq!(m.agent_turns[0].workspace_id, "ws-abc");
+        assert_eq!(m.agent_turns[0].input_tokens, 1500);
+        assert_eq!(m.agent_turns[0].output_tokens, 800);
+        assert_eq!(m.agent_turns[0].num_turns, 2);
+    }
+
+    #[test]
+    fn test_push_stream_event_single() {
+        let mut m = PerfMetrics::new();
+        m.push_stream_event(StreamEventMetric {
+            workspace_id: "ws-1".to_string(),
+            event_type: "assistant_text".to_string(),
+            details: Some("Hello world".to_string()),
+            source: "frontend".to_string(),
+            timestamp: 1234.0,
+        });
+        assert_eq!(m.stream_events.len(), 1);
+        assert_eq!(m.stream_events[0].event_type, "assistant_text");
+        assert_eq!(m.stream_events[0].source, "frontend");
+        assert_eq!(m.stream_events[0].details.as_deref(), Some("Hello world"));
+    }
+
+    #[test]
+    fn test_push_stream_event_none_details() {
+        let mut m = PerfMetrics::new();
+        m.push_stream_event(StreamEventMetric {
+            workspace_id: "ws-2".to_string(),
+            event_type: "eof".to_string(),
+            details: None,
+            source: "backend".to_string(),
+            timestamp: 5678.0,
+        });
+        assert_eq!(m.stream_events.len(), 1);
+        assert!(m.stream_events[0].details.is_none());
+    }
+
+    #[test]
+    fn test_clear_with_agent_turns() {
+        let mut m = PerfMetrics::new();
+        m.push_agent_turn(AgentTurnMetric {
+            workspace_id: "ws".to_string(),
+            duration_ms: 100.0,
+            duration_api_ms: 50.0,
+            input_tokens: 10,
+            output_tokens: 5,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            total_cost_usd: 0.001,
+            num_turns: 1,
+            timestamp: 0.0,
+        });
+        assert_eq!(m.agent_turns.len(), 1);
+        m.clear();
+        assert!(m.agent_turns.is_empty());
+    }
+
+    #[test]
+    fn test_ipc_ring_buffer_preserves_newest() {
+        let mut m = PerfMetrics::new();
+        for i in 0..MAX_IPC_METRICS + 50 {
+            m.push_ipc(IpcMetric {
+                command: format!("cmd_{}", i),
+                duration_ms: 1.0,
+                success: true,
+                error: None,
+                timestamp: i as f64,
+            });
+        }
+        assert_eq!(m.ipc_calls.len(), MAX_IPC_METRICS);
+        // Oldest should be cmd_50 (first 50 were evicted)
+        assert_eq!(m.ipc_calls.front().unwrap().command, "cmd_50");
+        // Newest should be the last one pushed
+        assert_eq!(
+            m.ipc_calls.back().unwrap().command,
+            format!("cmd_{}", MAX_IPC_METRICS + 49)
+        );
+    }
+
+    #[test]
+    fn test_frame_ring_buffer_preserves_newest() {
+        let mut m = PerfMetrics::new();
+        for i in 0..(MAX_FRAME_METRICS + 10) {
+            m.push_frame(FrameMetric {
+                duration_ms: i as f64,
+                timestamp: i as f64,
+            });
+        }
+        assert_eq!(m.long_frames.len(), MAX_FRAME_METRICS);
+        assert_eq!(m.long_frames.front().unwrap().duration_ms, 10.0);
+    }
+
+    #[test]
+    fn test_agent_turn_ring_buffer_preserves_newest() {
+        let mut m = PerfMetrics::new();
+        for i in 0..(MAX_AGENT_TURN_METRICS + 5) {
+            m.push_agent_turn(AgentTurnMetric {
+                workspace_id: format!("ws_{}", i),
+                duration_ms: 100.0,
+                duration_api_ms: 50.0,
+                input_tokens: 10,
+                output_tokens: 5,
+                cache_read_tokens: 0,
+                cache_creation_tokens: 0,
+                total_cost_usd: 0.001,
+                num_turns: 1,
+                timestamp: i as f64,
+            });
+        }
+        assert_eq!(m.agent_turns.len(), MAX_AGENT_TURN_METRICS);
+        assert_eq!(m.agent_turns.front().unwrap().workspace_id, "ws_5");
+    }
+
+    #[test]
+    fn test_stream_event_ring_buffer_preserves_newest() {
+        let mut m = PerfMetrics::new();
+        for i in 0..(MAX_STREAM_EVENTS + 20) {
+            m.push_stream_event(StreamEventMetric {
+                workspace_id: "ws".to_string(),
+                event_type: format!("evt_{}", i),
+                details: None,
+                source: "backend".to_string(),
+                timestamp: i as f64,
+            });
+        }
+        assert_eq!(m.stream_events.len(), MAX_STREAM_EVENTS);
+        assert_eq!(m.stream_events.front().unwrap().event_type, "evt_20");
+        assert_eq!(
+            m.stream_events.back().unwrap().event_type,
+            format!("evt_{}", MAX_STREAM_EVENTS + 19)
+        );
+    }
+
+    // --- Tests for get_metrics computation logic ---
+
+    fn shared_metrics() -> SharedPerfMetrics {
+        Arc::new(Mutex::new(PerfMetrics::new()))
+    }
+
+    /// Directly call get_metrics handler to test the computation logic.
+    #[tokio::test]
+    async fn test_get_metrics_empty() {
+        let metrics = shared_metrics();
+        let Json(response) = get_metrics(State(metrics)).await;
+
+        assert!(!response.enabled);
+        assert_eq!(response.summary.total_ipc_calls, 0);
+        assert_eq!(response.summary.slow_ipc_calls, 0);
+        assert_eq!(response.summary.avg_ipc_duration_ms, 0.0);
+        assert_eq!(response.summary.total_long_frames, 0);
+        assert_eq!(response.summary.total_agent_turns, 0);
+        assert_eq!(response.summary.total_stream_events, 0);
+        assert!(response.ipc_calls.is_empty());
+        assert!(response.long_frames.is_empty());
+        assert!(response.agent_turns.is_empty());
+        assert!(response.stream_events.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_metrics_with_data() {
+        let metrics = shared_metrics();
+        {
+            let mut lock = metrics.lock().unwrap();
+            lock.push_ipc(IpcMetric {
+                command: "fast_cmd".to_string(),
+                duration_ms: 50.0,
+                success: true,
+                error: None,
+                timestamp: 1000.0,
+            });
+            lock.push_ipc(IpcMetric {
+                command: "slow_cmd".to_string(),
+                duration_ms: 300.0,
+                success: false,
+                error: Some("timeout".to_string()),
+                timestamp: 2000.0,
+            });
+            lock.push_frame(FrameMetric {
+                duration_ms: 100.0,
+                timestamp: 1500.0,
+            });
+            lock.push_agent_turn(AgentTurnMetric {
+                workspace_id: "ws-1".to_string(),
+                duration_ms: 5000.0,
+                duration_api_ms: 3000.0,
+                input_tokens: 100,
+                output_tokens: 50,
+                cache_read_tokens: 10,
+                cache_creation_tokens: 5,
+                total_cost_usd: 0.01,
+                num_turns: 1,
+                timestamp: 3000.0,
+            });
+            lock.push_stream_event(StreamEventMetric {
+                workspace_id: "ws-1".to_string(),
+                event_type: "text".to_string(),
+                details: Some("hello".to_string()),
+                source: "backend".to_string(),
+                timestamp: 4000.0,
+            });
+            lock.enabled = true;
+        }
+
+        let Json(response) = get_metrics(State(metrics)).await;
+
+        assert!(response.enabled);
+        assert_eq!(response.summary.total_ipc_calls, 2);
+        assert_eq!(response.summary.slow_ipc_calls, 1); // 300ms > 200ms threshold
+        assert_eq!(response.summary.total_long_frames, 1);
+        assert_eq!(response.summary.total_agent_turns, 1);
+        assert_eq!(response.summary.total_stream_events, 1);
+        // avg = (50 + 300) / 2 = 175.0
+        assert_eq!(response.summary.avg_ipc_duration_ms, 175.0);
+        assert_eq!(response.ipc_calls.len(), 2);
+        assert_eq!(response.long_frames.len(), 1);
+        assert_eq!(response.agent_turns.len(), 1);
+        assert_eq!(response.stream_events.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_get_metrics_avg_rounding() {
+        let metrics = shared_metrics();
+        {
+            let mut lock = metrics.lock().unwrap();
+            // 10.333... avg -> should round to 2 decimal places
+            for dur in [10.0, 10.5, 10.5] {
+                lock.push_ipc(IpcMetric {
+                    command: "cmd".to_string(),
+                    duration_ms: dur,
+                    success: true,
+                    error: None,
+                    timestamp: 0.0,
+                });
+            }
+        }
+
+        let Json(response) = get_metrics(State(metrics)).await;
+        // (10 + 10.5 + 10.5) / 3 = 10.333... -> rounded to 10.33
+        assert_eq!(response.summary.avg_ipc_duration_ms, 10.33);
+    }
+
+    #[tokio::test]
+    async fn test_get_metrics_all_slow() {
+        let metrics = shared_metrics();
+        {
+            let mut lock = metrics.lock().unwrap();
+            for dur in [201.0, 500.0, 999.0] {
+                lock.push_ipc(IpcMetric {
+                    command: "slow".to_string(),
+                    duration_ms: dur,
+                    success: true,
+                    error: None,
+                    timestamp: 0.0,
+                });
+            }
+        }
+
+        let Json(response) = get_metrics(State(metrics)).await;
+        assert_eq!(response.summary.total_ipc_calls, 3);
+        assert_eq!(response.summary.slow_ipc_calls, 3);
+    }
+
+    #[tokio::test]
+    async fn test_get_metrics_none_slow() {
+        let metrics = shared_metrics();
+        {
+            let mut lock = metrics.lock().unwrap();
+            for dur in [1.0, 50.0, 199.9, 200.0] {
+                lock.push_ipc(IpcMetric {
+                    command: "fast".to_string(),
+                    duration_ms: dur,
+                    success: true,
+                    error: None,
+                    timestamp: 0.0,
+                });
+            }
+        }
+
+        let Json(response) = get_metrics(State(metrics)).await;
+        assert_eq!(response.summary.total_ipc_calls, 4);
+        // 200.0 is NOT > 200.0
+        assert_eq!(response.summary.slow_ipc_calls, 0);
+    }
+
+    #[tokio::test]
+    async fn test_clear_metrics_handler() {
+        let metrics = shared_metrics();
+        {
+            let mut lock = metrics.lock().unwrap();
+            lock.push_ipc(IpcMetric {
+                command: "cmd".to_string(),
+                duration_ms: 10.0,
+                success: true,
+                error: None,
+                timestamp: 0.0,
+            });
+            lock.push_frame(FrameMetric {
+                duration_ms: 50.0,
+                timestamp: 0.0,
+            });
+        }
+
+        let Json(result) = clear_metrics(State(metrics.clone())).await;
+        assert!(result["ok"].as_bool().unwrap());
+
+        let lock = metrics.lock().unwrap();
+        assert!(lock.ipc_calls.is_empty());
+        assert!(lock.long_frames.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_toggle_metrics_no_body() {
+        let metrics = shared_metrics();
+        assert!(!metrics.lock().unwrap().enabled);
+
+        let Json(result) = toggle_metrics(State(metrics.clone()), None).await;
+        assert!(result["enabled"].as_bool().unwrap());
+        assert!(metrics.lock().unwrap().enabled);
+
+        // Toggle again
+        let Json(result) = toggle_metrics(State(metrics.clone()), None).await;
+        assert!(!result["enabled"].as_bool().unwrap());
+        assert!(!metrics.lock().unwrap().enabled);
+    }
+
+    #[tokio::test]
+    async fn test_toggle_metrics_explicit_enable() {
+        let metrics = shared_metrics();
+
+        let body = Some(Json(ToggleBody {
+            enabled: Some(true),
+        }));
+        let Json(result) = toggle_metrics(State(metrics.clone()), body).await;
+        assert!(result["enabled"].as_bool().unwrap());
+        assert!(metrics.lock().unwrap().enabled);
+    }
+
+    #[tokio::test]
+    async fn test_toggle_metrics_explicit_disable() {
+        let metrics = shared_metrics();
+        metrics.lock().unwrap().enabled = true;
+
+        let body = Some(Json(ToggleBody {
+            enabled: Some(false),
+        }));
+        let Json(result) = toggle_metrics(State(metrics.clone()), body).await;
+        assert!(!result["enabled"].as_bool().unwrap());
+        assert!(!metrics.lock().unwrap().enabled);
+    }
+
+    #[tokio::test]
+    async fn test_toggle_metrics_body_without_enabled_toggles() {
+        let metrics = shared_metrics();
+        assert!(!metrics.lock().unwrap().enabled);
+
+        let body = Some(Json(ToggleBody { enabled: None }));
+        let Json(result) = toggle_metrics(State(metrics.clone()), body).await;
+        assert!(result["enabled"].as_bool().unwrap());
+        assert!(metrics.lock().unwrap().enabled);
+    }
+
+    #[test]
+    fn test_ipc_metric_serialization_skip_none_error() {
+        let metric = IpcMetric {
+            command: "test".to_string(),
+            duration_ms: 42.5,
+            success: true,
+            error: None,
+            timestamp: 1000.0,
+        };
+        let json = serde_json::to_value(&metric).unwrap();
+        assert_eq!(json["command"], "test");
+        assert_eq!(json["durationMs"], 42.5);
+        assert_eq!(json["success"], true);
+        // error is None and should be skipped via skip_serializing_if
+        assert!(json.get("error").is_none());
+    }
+
+    #[test]
+    fn test_ipc_metric_serialization_with_error() {
+        let metric = IpcMetric {
+            command: "bad".to_string(),
+            duration_ms: 100.0,
+            success: false,
+            error: Some("fail".to_string()),
+            timestamp: 0.0,
+        };
+        let json = serde_json::to_value(&metric).unwrap();
+        assert_eq!(json["error"], "fail");
+        assert!(!json["success"].as_bool().unwrap());
+    }
+
+    #[test]
+    fn test_stream_event_metric_serialization_skip_none_details() {
+        let metric = StreamEventMetric {
+            workspace_id: "ws-1".to_string(),
+            event_type: "eof".to_string(),
+            details: None,
+            source: "backend".to_string(),
+            timestamp: 500.0,
+        };
+        let json = serde_json::to_value(&metric).unwrap();
+        assert_eq!(json["workspaceId"], "ws-1");
+        assert_eq!(json["eventType"], "eof");
+        assert!(json.get("details").is_none());
+    }
+
+    #[test]
+    fn test_stream_event_metric_serialization_with_details() {
+        let metric = StreamEventMetric {
+            workspace_id: "ws-2".to_string(),
+            event_type: "text".to_string(),
+            details: Some("some details".to_string()),
+            source: "frontend".to_string(),
+            timestamp: 600.0,
+        };
+        let json = serde_json::to_value(&metric).unwrap();
+        assert_eq!(json["details"], "some details");
+        assert_eq!(json["source"], "frontend");
+    }
+
+    #[test]
+    fn test_agent_turn_metric_serialization() {
+        let metric = AgentTurnMetric {
+            workspace_id: "ws-x".to_string(),
+            duration_ms: 10000.0,
+            duration_api_ms: 8000.0,
+            input_tokens: 5000,
+            output_tokens: 2000,
+            cache_read_tokens: 1000,
+            cache_creation_tokens: 500,
+            total_cost_usd: 0.15,
+            num_turns: 3,
+            timestamp: 9999.0,
+        };
+        let json = serde_json::to_value(&metric).unwrap();
+        assert_eq!(json["workspaceId"], "ws-x");
+        assert_eq!(json["durationMs"], 10000.0);
+        assert_eq!(json["durationApiMs"], 8000.0);
+        assert_eq!(json["inputTokens"], 5000);
+        assert_eq!(json["outputTokens"], 2000);
+        assert_eq!(json["cacheReadTokens"], 1000);
+        assert_eq!(json["cacheCreationTokens"], 500);
+        assert_eq!(json["totalCostUsd"], 0.15);
+        assert_eq!(json["numTurns"], 3);
+    }
+
+    #[test]
+    fn test_ipc_metric_deserialization() {
+        let json_str = r#"{"command":"test","durationMs":5.0,"success":true,"timestamp":100.0}"#;
+        let metric: IpcMetric = serde_json::from_str(json_str).unwrap();
+        assert_eq!(metric.command, "test");
+        assert_eq!(metric.duration_ms, 5.0);
+        assert!(metric.success);
+        assert!(metric.error.is_none());
+    }
 }

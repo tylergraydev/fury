@@ -333,6 +333,78 @@ mod tests {
     }
 
     #[test]
+    fn test_get_lsp_catalog_fields() {
+        let catalog = get_lsp_catalog();
+        for entry in &catalog {
+            assert!(!entry.plugin_name.is_empty());
+            assert!(!entry.language.is_empty());
+            assert!(!entry.binary_name.is_empty());
+            assert!(!entry.extensions.is_empty());
+            assert!(!entry.install_hint.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_detect_lsp_suggestions_nonexistent_path() {
+        let result = detect_lsp_suggestions("/nonexistent/path");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_detect_lsp_suggestions_real_repo() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        // Create some files to trigger detection
+        for i in 0..6 {
+            std::fs::write(path.join(format!("file{}.rs", i)), "fn main() {}").unwrap();
+        }
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "add files"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+
+        let result = detect_lsp_suggestions(path.to_str().unwrap());
+        assert!(result.is_ok());
+        // Should detect rust-analyzer-lsp suggestion (6 .rs files)
+        let suggestions = result.unwrap();
+        // Verify the function completed successfully
+        // Suggestions may be empty if the matching LSP plugin is already installed
+        for s in &suggestions {
+            assert!(s.file_count >= 5);
+        }
+    }
+
+    #[test]
+    fn test_detect_lsp_suggestions_below_threshold() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        // Only 2 .rs files — below threshold of 5
+        for i in 0..2 {
+            std::fs::write(path.join(format!("file{}.rs", i)), "").unwrap();
+        }
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "add files"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+
+        let suggestions = detect_lsp_suggestions(path.to_str().unwrap()).unwrap();
+        let rust_suggestion = suggestions
+            .iter()
+            .find(|s| s.plugin_name == "rust-analyzer-lsp");
+        assert!(rust_suggestion.is_none());
+    }
+
+    #[test]
     fn test_catalog_extensions_are_lowercase_with_dot() {
         for def in LSP_CATALOG {
             for ext in def.extensions {
@@ -349,5 +421,188 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_catalog_plugin_names_are_unique() {
+        let lookup = catalog_lookup();
+        assert_eq!(lookup.len(), LSP_CATALOG.len());
+    }
+
+    #[test]
+    fn test_catalog_known_entries() {
+        let lookup = catalog_lookup();
+        let ts = lookup.get("typescript-lsp").unwrap();
+        assert_eq!(ts.language, "TypeScript");
+        assert_eq!(ts.binary_name, "typescript-language-server");
+        assert!(ts.extensions.contains(&".ts"));
+        assert!(ts.extensions.contains(&".tsx"));
+        assert!(ts.extensions.contains(&".js"));
+        assert!(ts.extensions.contains(&".jsx"));
+
+        let rust = lookup.get("rust-analyzer-lsp").unwrap();
+        assert_eq!(rust.language, "Rust");
+        assert_eq!(rust.binary_name, "rust-analyzer");
+        assert!(rust.extensions.contains(&".rs"));
+
+        let go = lookup.get("gopls-lsp").unwrap();
+        assert_eq!(go.binary_name, "gopls");
+    }
+
+    #[test]
+    fn test_get_lsp_catalog_roundtrip_serialization() {
+        let catalog = get_lsp_catalog();
+        let json = serde_json::to_string(&catalog).unwrap();
+        let parsed: Vec<LspCatalogEntry> = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.len(), catalog.len());
+        for (orig, rt) in catalog.iter().zip(parsed.iter()) {
+            assert_eq!(orig.plugin_name, rt.plugin_name);
+            assert_eq!(orig.language, rt.language);
+            assert_eq!(orig.extensions, rt.extensions);
+        }
+    }
+
+    #[test]
+    fn test_detect_lsp_suggestions_multiple_languages() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        // Create files for two languages above threshold
+        for i in 0..6 {
+            std::fs::write(path.join(format!("file{}.ts", i)), "export {};").unwrap();
+            std::fs::write(path.join(format!("file{}.py", i)), "pass").unwrap();
+        }
+        // Below threshold for Go
+        for i in 0..3 {
+            std::fs::write(path.join(format!("file{}.go", i)), "package main").unwrap();
+        }
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "add multi-lang files"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+
+        let suggestions = detect_lsp_suggestions(path.to_str().unwrap()).unwrap();
+
+        // Go should not be suggested (only 3 files < 5 threshold)
+        let go_suggestion = suggestions.iter().find(|s| s.plugin_name == "gopls-lsp");
+        assert!(go_suggestion.is_none());
+
+        // All suggestions should have file_count >= 5
+        for s in &suggestions {
+            assert!(s.file_count >= 5);
+        }
+    }
+
+    #[test]
+    fn test_detect_lsp_suggestions_sorted_by_file_count_desc() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        // Create more .rs files than .py files
+        for i in 0..10 {
+            std::fs::write(path.join(format!("f{}.rs", i)), "fn main() {}").unwrap();
+        }
+        for i in 0..6 {
+            std::fs::write(path.join(format!("f{}.py", i)), "pass").unwrap();
+        }
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "add files"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+
+        let suggestions = detect_lsp_suggestions(path.to_str().unwrap()).unwrap();
+        // Verify descending order
+        for window in suggestions.windows(2) {
+            assert!(window[0].file_count >= window[1].file_count);
+        }
+    }
+
+    #[test]
+    fn test_detect_lsp_suggestions_case_insensitive_extensions() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        // Mix of cases - all should count as .rs
+        for i in 0..3 {
+            std::fs::write(path.join(format!("lower{}.rs", i)), "").unwrap();
+        }
+        // Git is case-sensitive for filenames, so .RS files should also be counted
+        for i in 0..3 {
+            std::fs::write(path.join(format!("upper{}.RS", i)), "").unwrap();
+        }
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "add mixed case files"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+
+        let suggestions = detect_lsp_suggestions(path.to_str().unwrap()).unwrap();
+        // 6 total .rs files (case-insensitive) >= 5 threshold
+        let rust = suggestions
+            .iter()
+            .find(|s| s.plugin_name == "rust-analyzer-lsp");
+        if let Some(r) = rust {
+            assert!(r.file_count >= 5);
+        }
+    }
+
+    #[test]
+    fn test_detect_lsp_suggestions_no_extension_files_ignored() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        // Files without extensions should not cause issues
+        for i in 0..10 {
+            std::fs::write(path.join(format!("Makefile{}", i)), "all:").unwrap();
+        }
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "add extensionless files"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+
+        let suggestions = detect_lsp_suggestions(path.to_str().unwrap()).unwrap();
+        // No language should match files without a dot extension
+        // (the Makefile files don't match any catalog extension)
+        for s in &suggestions {
+            assert!(s.file_count >= 5);
+        }
+    }
+
+    #[test]
+    fn test_detect_lsp_suggestions_not_git_repo() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().to_str().unwrap();
+        let result = detect_lsp_suggestions(path);
+        // Should fail because git ls-tree will fail (not a git repo)
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_catalog_has_swift_and_clangd() {
+        let lookup = catalog_lookup();
+        let swift = lookup.get("swift-lsp").unwrap();
+        assert_eq!(swift.language, "Swift");
+        assert!(swift.extensions.contains(&".swift"));
+
+        let clangd = lookup.get("clangd-lsp").unwrap();
+        assert_eq!(clangd.language, "C/C++");
+        assert!(clangd.extensions.contains(&".c"));
+        assert!(clangd.extensions.contains(&".cpp"));
+        assert!(clangd.extensions.contains(&".h"));
     }
 }

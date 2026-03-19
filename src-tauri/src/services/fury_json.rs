@@ -111,6 +111,36 @@ mod tests {
     }
 
     #[test]
+    fn test_load_fury_json_missing() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let result = load_fury_json(dir.path()).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_load_fury_json_valid() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            dir.path().join("fury.json"),
+            r#"{"scripts":{"setup":"npm install","run":"npm start"}}"#,
+        )
+        .unwrap();
+        let result = load_fury_json(dir.path()).unwrap();
+        assert!(result.is_some());
+        let cj = result.unwrap();
+        assert_eq!(cj.scripts.setup.as_deref(), Some("npm install"));
+        assert_eq!(cj.scripts.run.as_deref(), Some("npm start"));
+    }
+
+    #[test]
+    fn test_load_fury_json_malformed() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("fury.json"), "not json").unwrap();
+        let result = load_fury_json(dir.path());
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_merge_settings_env_vars_from_db() {
         let mut env = std::collections::HashMap::new();
         env.insert("MY_VAR".to_string(), "value".to_string());

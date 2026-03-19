@@ -725,4 +725,227 @@ mod tests {
             vec!["exec", "--json", "--full-auto", "--model", "o3", "fix the bug"]
         );
     }
+
+    // --- build_env_vars tests ---
+
+    #[test]
+    fn test_build_env_vars_basic() {
+        let ws = crate::test_helpers::test_workspace(uuid::Uuid::new_v4());
+        let repo = crate::test_helpers::test_repo();
+        let settings = crate::test_helpers::test_settings();
+        let env = build_env_vars(&ws, &repo, &settings, None);
+        assert_eq!(env.get("FURY_WORKSPACE_NAME").unwrap(), "test-workspace");
+        assert_eq!(env.get("FURY_DEFAULT_BRANCH").unwrap(), "main");
+        assert!(env.contains_key("FURY_PORT"));
+        assert!(env.contains_key("FURY_ROOT_PATH"));
+        assert!(env.contains_key("FURY_WORKSPACE_PATH"));
+    }
+
+    #[test]
+    fn test_build_env_vars_with_provider_override() {
+        let ws = crate::test_helpers::test_workspace(uuid::Uuid::new_v4());
+        let repo = crate::test_helpers::test_repo();
+        let mut settings = crate::test_helpers::test_settings();
+        settings.provider.env_vars.insert("OPENAI_API_KEY".to_string(), "sk-global".to_string());
+        let override_config = crate::models::settings::ProviderConfig {
+            provider_type: crate::models::settings::ProviderType::Anthropic,
+            env_vars: std::collections::HashMap::from([("OPENAI_API_KEY".to_string(), "sk-repo".to_string())]),
+        };
+        let env = build_env_vars(&ws, &repo, &settings, Some(&override_config));
+        assert_eq!(env.get("OPENAI_API_KEY").unwrap(), "sk-repo");
+    }
+
+    #[test]
+    fn test_build_env_vars_includes_provider_vars() {
+        let ws = crate::test_helpers::test_workspace(uuid::Uuid::new_v4());
+        let repo = crate::test_helpers::test_repo();
+        let mut settings = crate::test_helpers::test_settings();
+        settings.provider.env_vars.insert("OPENAI_API_KEY".to_string(), "sk-test".to_string());
+        let env = build_env_vars(&ws, &repo, &settings, None);
+        assert_eq!(env.get("OPENAI_API_KEY").unwrap(), "sk-test");
+    }
+
+    // --- build_repo_env_vars tests ---
+
+    #[test]
+    fn test_build_repo_env_vars_basic() {
+        let repo = crate::test_helpers::test_repo();
+        let settings = crate::test_helpers::test_settings();
+        let env = build_repo_env_vars(&repo, &settings, None);
+        assert!(env.contains_key("FURY_ROOT_PATH"));
+        assert_eq!(env.get("FURY_DEFAULT_BRANCH").unwrap(), "main");
+        assert!(!env.contains_key("FURY_WORKSPACE_NAME"));
+        assert!(!env.contains_key("FURY_WORKSPACE_PATH"));
+        assert!(!env.contains_key("FURY_PORT"));
+    }
+
+    #[test]
+    fn test_build_repo_env_vars_with_provider_override() {
+        let repo = crate::test_helpers::test_repo();
+        let mut settings = crate::test_helpers::test_settings();
+        settings.provider.env_vars.insert("OPENAI_API_KEY".to_string(), "sk-global".to_string());
+        let override_config = crate::models::settings::ProviderConfig {
+            provider_type: crate::models::settings::ProviderType::Anthropic,
+            env_vars: std::collections::HashMap::from([("OPENAI_API_KEY".to_string(), "sk-repo".to_string())]),
+        };
+        let env = build_repo_env_vars(&repo, &settings, Some(&override_config));
+        assert_eq!(env.get("OPENAI_API_KEY").unwrap(), "sk-repo");
+    }
+
+    #[test]
+    fn test_build_repo_env_vars_includes_provider_vars() {
+        let repo = crate::test_helpers::test_repo();
+        let mut settings = crate::test_helpers::test_settings();
+        settings.provider.env_vars.insert("MY_VAR".to_string(), "val".to_string());
+        let env = build_repo_env_vars(&repo, &settings, None);
+        assert_eq!(env.get("MY_VAR").unwrap(), "val");
+    }
+
+    // --- Additional parse_codex_line edge cases ---
+
+    #[test]
+    fn test_parse_codex_line_missing_type_field() {
+        let line = r#"{"data":"something"}"#;
+        assert!(parse_codex_line(line).is_none());
+    }
+
+    #[test]
+    fn test_parse_codex_line_thread_started_id_fallback() {
+        let line = r#"{"type":"thread.started","id":"alt-id"}"#;
+        let event = parse_codex_line(line).unwrap();
+        match event {
+            FrontendStreamEvent::System { session_id, .. } => {
+                assert_eq!(session_id, Some("alt-id".to_string()));
+            }
+            _ => panic!("Expected System event"),
+        }
+    }
+
+    #[test]
+    fn test_parse_codex_line_thread_started_no_id() {
+        let line = r#"{"type":"thread.started"}"#;
+        let event = parse_codex_line(line).unwrap();
+        match event {
+            FrontendStreamEvent::System { session_id, .. } => {
+                assert!(session_id.is_none());
+            }
+            _ => panic!("Expected System event"),
+        }
+    }
+
+    #[test]
+    fn test_parse_codex_line_item_message_no_content() {
+        let line = r#"{"type":"item.message","item":{"role":"assistant"}}"#;
+        assert!(parse_codex_line(line).is_none());
+    }
+
+    #[test]
+    fn test_parse_codex_line_function_call_with_call_id() {
+        let line = r#"{"type":"item.message","item":{"role":"assistant","content":[{"type":"function_call","call_id":"c1","name":"shell","arguments":"{}"}]}}"#;
+        let event = parse_codex_line(line).unwrap();
+        match event {
+            FrontendStreamEvent::ToolUse { id, .. } => {
+                assert_eq!(id, "c1");
+            }
+            _ => panic!("Expected ToolUse event"),
+        }
+    }
+
+    #[test]
+    fn test_parse_codex_line_function_call_output_missing_output() {
+        let line = r#"{"type":"item.function_call_output","item":{"call_id":"c1"}}"#;
+        let event = parse_codex_line(line).unwrap();
+        match event {
+            FrontendStreamEvent::ToolResult { content, .. } => {
+                assert_eq!(content, "");
+            }
+            _ => panic!("Expected ToolResult"),
+        }
+    }
+
+    #[test]
+    fn test_parse_codex_line_reasoning_no_summary_or_text() {
+        let line = r#"{"type":"item.reasoning","item":{}}"#;
+        assert!(parse_codex_line(line).is_none());
+    }
+
+    #[test]
+    fn test_parse_codex_line_error_with_detail_field() {
+        let line = r#"{"type":"error","detail":"Detailed error info"}"#;
+        let event = parse_codex_line(line).unwrap();
+        match event {
+            FrontendStreamEvent::Result { result, .. } => {
+                assert_eq!(result.as_deref(), Some("Detailed error info"));
+            }
+            _ => panic!("Expected Result"),
+        }
+    }
+
+    #[test]
+    fn test_parse_codex_line_error_with_reason_field() {
+        let line = r#"{"type":"error","reason":"Context too long"}"#;
+        let event = parse_codex_line(line).unwrap();
+        match event {
+            FrontendStreamEvent::Result { result, .. } => {
+                assert_eq!(result.as_deref(), Some("Context too long"));
+            }
+            _ => panic!("Expected Result"),
+        }
+    }
+
+    #[test]
+    fn test_parse_codex_line_image_source_block() {
+        let line = r#"{"type":"item.message","item":{"role":"assistant","content":[{"type":"image","source":{"media_type":"image/jpeg","data":"base64data"}}]}}"#;
+        let event = parse_codex_line(line).unwrap();
+        match event {
+            FrontendStreamEvent::AssistantImage { media_type, data } => {
+                assert_eq!(media_type, "image/jpeg");
+                assert_eq!(data, "base64data");
+            }
+            _ => panic!("Expected AssistantImage"),
+        }
+    }
+
+    #[test]
+    fn test_parse_codex_line_image_source_default_media_type() {
+        let line = r#"{"type":"item.message","item":{"role":"assistant","content":[{"type":"image","source":{"data":"base64data"}}]}}"#;
+        let event = parse_codex_line(line).unwrap();
+        match event {
+            FrontendStreamEvent::AssistantImage { media_type, .. } => {
+                assert_eq!(media_type, "image/png");
+            }
+            _ => panic!("Expected AssistantImage"),
+        }
+    }
+
+    #[test]
+    fn test_parse_codex_line_image_source_without_data() {
+        let line = r#"{"type":"item.message","item":{"role":"assistant","content":[{"type":"image","source":{"media_type":"image/png"}}]}}"#;
+        assert!(parse_codex_line(line).is_none());
+    }
+
+    #[test]
+    fn test_parse_codex_line_item_message_no_item() {
+        let line = r#"{"type":"item.message"}"#;
+        assert!(parse_codex_line(line).is_none());
+    }
+
+    #[test]
+    fn test_parse_codex_line_function_call_no_arguments() {
+        // When arguments key is missing, defaults to "{}" which parses to empty object
+        let line = r#"{"type":"item.message","item":{"role":"assistant","content":[{"type":"function_call","id":"c1","name":"shell"}]}}"#;
+        let event = parse_codex_line(line).unwrap();
+        match event {
+            FrontendStreamEvent::ToolUse { input, .. } => {
+                assert_eq!(input, serde_json::json!({}));
+            }
+            _ => panic!("Expected ToolUse"),
+        }
+    }
+
+    #[test]
+    fn test_build_args_empty_message() {
+        let args = build_args("", None);
+        assert_eq!(args, vec!["exec", "--json", "--full-auto", ""]);
+    }
 }

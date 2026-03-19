@@ -313,6 +313,133 @@ mod tests {
     }
 
     #[test]
+    fn test_list_stashes_empty() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let stashes = list_stashes(&path).unwrap();
+        assert!(stashes.is_empty());
+    }
+
+    #[test]
+    fn test_create_and_list_stash() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::fs::write(path.join("test.txt"), "stash me").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "test.txt"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        let entry = create_stash(&path, Some("test stash"), false).unwrap();
+        assert_eq!(entry.index, 0);
+
+        let stashes = list_stashes(&path).unwrap();
+        assert_eq!(stashes.len(), 1);
+    }
+
+    #[test]
+    fn test_create_stash_no_changes() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let result = create_stash(&path, None, false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_create_stash_untracked() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::fs::write(path.join("untracked.txt"), "content").unwrap();
+        let result = create_stash(&path, Some("with untracked"), true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_apply_stash() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::fs::write(path.join("apply.txt"), "content").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "apply.txt"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        create_stash(&path, None, false).unwrap();
+        assert!(!path.join("apply.txt").exists());
+
+        let result = apply_stash(&path, 0);
+        assert!(result.is_ok());
+        assert!(path.join("apply.txt").exists());
+    }
+
+    #[test]
+    fn test_apply_stash_invalid_index() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let result = apply_stash(&path, 99);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pop_stash() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::fs::write(path.join("pop.txt"), "pop me").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "pop.txt"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        create_stash(&path, None, false).unwrap();
+
+        let result = pop_stash(&path, 0);
+        assert!(result.is_ok());
+        // Stash list should be empty after pop
+        let stashes = list_stashes(&path).unwrap();
+        assert!(stashes.is_empty());
+    }
+
+    #[test]
+    fn test_drop_stash() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::fs::write(path.join("drop.txt"), "content").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "drop.txt"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        create_stash(&path, None, false).unwrap();
+
+        let result = drop_stash(&path, 0);
+        assert!(result.is_ok());
+        let stashes = list_stashes(&path).unwrap();
+        assert!(stashes.is_empty());
+    }
+
+    #[test]
+    fn test_show_stash() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::fs::write(path.join("show.txt"), "show me").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "show.txt"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        create_stash(&path, Some("show test"), false).unwrap();
+
+        let detail = show_stash(&path, 0).unwrap();
+        assert_eq!(detail.index, 0);
+        assert!(!detail.files.is_empty());
+        assert!(!detail.patch.is_empty());
+    }
+
+    #[test]
+    fn test_create_stash_empty_message() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::fs::write(path.join("empty.txt"), "content").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "empty.txt"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        let result = create_stash(&path, Some(""), false);
+        assert!(result.is_ok());
+    }
+
+    #[test]
     fn test_extract_message_from_subject() {
         assert_eq!(
             extract_message_from_subject("WIP on main: abc123 msg"),
