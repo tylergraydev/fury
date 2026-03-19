@@ -23,7 +23,9 @@ export function detectFilePath(
   }
 
   // Tier 2: First line of code is a file path comment
+  /* v8 ignore start -- split always returns at least one element */
   const firstLine = codeText.split("\n")[0]?.trim() ?? "";
+  /* v8 ignore stop */
   const commentMatch = firstLine.match(/^(?:\/\/|#|\/\*)\s*(.+?)(?:\s*\*\/)?$/);
   if (commentMatch) {
     const candidate = commentMatch[1].trim();

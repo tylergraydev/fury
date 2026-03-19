@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
+// Capture recharts callback props so we can invoke them in tests
+const rechartsCallbacks: {
+  xAxisTickFormatters: ((v: any) => string)[];
+  yAxisTickFormatters: ((v: any) => string)[];
+  tooltipFormatters: ((value?: any, name?: string) => any)[];
+} = { xAxisTickFormatters: [], yAxisTickFormatters: [], tooltipFormatters: [] };
+
 vi.mock("recharts", () => ({
   AreaChart: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="area-chart">{children}</div>
@@ -10,9 +17,18 @@ vi.mock("recharts", () => ({
     <div data-testid="bar-chart">{children}</div>
   ),
   Bar: () => <div data-testid="bar" />,
-  XAxis: () => <div data-testid="x-axis" />,
-  YAxis: () => <div data-testid="y-axis" />,
-  Tooltip: () => <div data-testid="tooltip" />,
+  XAxis: ({ tickFormatter }: { tickFormatter?: (v: any) => string }) => {
+    if (tickFormatter) rechartsCallbacks.xAxisTickFormatters.push(tickFormatter);
+    return <div data-testid="x-axis" />;
+  },
+  YAxis: ({ tickFormatter }: { tickFormatter?: (v: any) => string }) => {
+    if (tickFormatter) rechartsCallbacks.yAxisTickFormatters.push(tickFormatter);
+    return <div data-testid="y-axis" />;
+  },
+  Tooltip: ({ formatter }: { formatter?: (value?: any, name?: string) => any }) => {
+    if (formatter) rechartsCallbacks.tooltipFormatters.push(formatter);
+    return <div data-testid="tooltip" />;
+  },
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="responsive-container">{children}</div>
   ),
@@ -61,6 +77,9 @@ beforeEach(() => {
     selectedWorkspaceId: null,
     fetchUsageData: noopFetch,
   });
+  rechartsCallbacks.xAxisTickFormatters = [];
+  rechartsCallbacks.yAxisTickFormatters = [];
+  rechartsCallbacks.tooltipFormatters = [];
   vi.clearAllMocks();
 });
 
@@ -226,5 +245,192 @@ describe("UsageDashboard", () => {
     expect(screen.getByText("50.0K in / 25.0K out")).toBeInTheDocument();
     // Turns subtitle shows formatted duration
     expect(screen.getByText("2.0m")).toBeInTheDocument();
+  });
+
+  it("XAxis tickFormatter strips year prefix", () => {
+    useUsageStore.setState({
+      dataPoints: [
+        makeDataPoint({ timestamp: "2025-03-14T10:00:00Z" }),
+        makeDataPoint({ timestamp: "2025-03-15T10:00:00Z", workspaceId: "ws-2", workspaceName: "Other" }),
+      ],
+    });
+    render(<UsageDashboard />);
+    // There should be XAxis formatters captured (2 charts x 1 XAxis each)
+    expect(rechartsCallbacks.xAxisTickFormatters.length).toBeGreaterThanOrEqual(2);
+    // The formatter should slice off "YYYY-" prefix
+    const fmt = rechartsCallbacks.xAxisTickFormatters[0];
+    expect(fmt("2025-03-14")).toBe("03-14");
+  });
+
+  it("YAxis tickFormatter for cost chart formats as dollar amount", () => {
+    useUsageStore.setState({
+      dataPoints: [
+        makeDataPoint({ timestamp: "2025-03-14T10:00:00Z" }),
+        makeDataPoint({ timestamp: "2025-03-15T10:00:00Z", workspaceId: "ws-2", workspaceName: "Other" }),
+      ],
+    });
+    render(<UsageDashboard />);
+    // First YAxis is cost chart ($X.XX), second is token chart (formatTokens)
+    expect(rechartsCallbacks.yAxisTickFormatters.length).toBeGreaterThanOrEqual(2);
+    const costFmt = rechartsCallbacks.yAxisTickFormatters[0];
+    expect(costFmt(1.5)).toBe("$1.50");
+    const tokenFmt = rechartsCallbacks.yAxisTickFormatters[1];
+    expect(tokenFmt(1500)).toBe("1.5K");
+  });
+
+  it("cost Tooltip formatter handles defined and undefined values", () => {
+    useUsageStore.setState({
+      dataPoints: [
+        makeDataPoint({ timestamp: "2025-03-14T10:00:00Z" }),
+        makeDataPoint({ timestamp: "2025-03-15T10:00:00Z", workspaceId: "ws-2", workspaceName: "Other" }),
+      ],
+    });
+    render(<UsageDashboard />);
+    expect(rechartsCallbacks.tooltipFormatters.length).toBeGreaterThanOrEqual(2);
+    // Cost chart tooltip (first)
+    const costTooltip = rechartsCallbacks.tooltipFormatters[0];
+    expect(costTooltip(0.1234)).toEqual(["$0.1234", "Cost"]);
+    expect(costTooltip(undefined)).toEqual(["—", "Cost"]);
+  });
+
+  it("token Tooltip formatter handles defined and undefined values", () => {
+    useUsageStore.setState({
+      dataPoints: [
+        makeDataPoint({ timestamp: "2025-03-14T10:00:00Z" }),
+        makeDataPoint({ timestamp: "2025-03-15T10:00:00Z", workspaceId: "ws-2", workspaceName: "Other" }),
+      ],
+    });
+    render(<UsageDashboard />);
+    // Token chart tooltip (second)
+    const tokenTooltip = rechartsCallbacks.tooltipFormatters[1];
+    expect(tokenTooltip(2500000, "Input")).toEqual(["2.5M", "Input"]);
+    expect(tokenTooltip(undefined, undefined)).toEqual(["—", ""]);
+    expect(tokenTooltip(500)).toEqual(["500", ""]);
+  });
+
+  it("setSelectedWorkspace is called with null when All Workspaces is selected", () => {
+    const setSelectedWorkspace = vi.fn();
+    useUsageStore.setState({
+      setSelectedWorkspace,
+      selectedWorkspaceId: "ws-1",
+      dataPoints: [
+        makeDataPoint({ workspaceId: "ws-1", workspaceName: "Alpha" }),
+      ],
+    });
+    render(<UsageDashboard />);
+    const select = screen.getByRole("combobox");
+    fireEvent.change(select, { target: { value: "" } });
+    expect(setSelectedWorkspace).toHaveBeenCalledWith(null);
+  });
+
+  it("invokes all recharts callback formatters including bar chart XAxis", () => {
+    useUsageStore.setState({
+      dataPoints: [
+        makeDataPoint({ timestamp: "2025-03-14T10:00:00Z" }),
+        makeDataPoint({ timestamp: "2025-03-15T10:00:00Z", workspaceId: "ws-2", workspaceName: "Other" }),
+      ],
+    });
+    render(<UsageDashboard />);
+    // There should be 2 XAxis formatters (one per chart)
+    expect(rechartsCallbacks.xAxisTickFormatters.length).toBe(2);
+    // Bar chart XAxis (second one) also strips year
+    const barXFmt = rechartsCallbacks.xAxisTickFormatters[1];
+    expect(barXFmt("2025-03-15")).toBe("03-15");
+
+    // There should be 2 YAxis formatters
+    expect(rechartsCallbacks.yAxisTickFormatters.length).toBe(2);
+    // Bar chart YAxis uses formatTokens
+    const barYFmt = rechartsCallbacks.yAxisTickFormatters[1];
+    expect(barYFmt(2000000)).toBe("2.0M");
+    expect(barYFmt(500)).toBe("500");
+
+    // There should be 2 tooltip formatters
+    expect(rechartsCallbacks.tooltipFormatters.length).toBe(2);
+    // Bar chart tooltip (second) uses formatTokens
+    const barTooltip = rechartsCallbacks.tooltipFormatters[1];
+    expect(barTooltip(1000, "Input")).toEqual(["1.0K", "Input"]);
+    expect(barTooltip(undefined, "Output")).toEqual(["—", "Output"]);
+  });
+
+  it("formatCost shows 4 decimal places for small non-zero costs", () => {
+    useUsageStore.setState({
+      dataPoints: [
+        makeDataPoint({
+          totalCostUsd: 0.005,
+          numTurns: 1,
+        }),
+      ],
+    });
+    render(<UsageDashboard />);
+    // Cost of $0.005 is < 0.01 and > 0, should show 4 decimal places
+    expect(screen.getAllByText("$0.0050").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("formatDuration handles sub-second durations", () => {
+    useUsageStore.setState({
+      dataPoints: [
+        makeDataPoint({
+          numTurns: 1,
+          durationMs: 500,
+        }),
+      ],
+    });
+    render(<UsageDashboard />);
+    expect(screen.getByText("500ms")).toBeInTheDocument();
+  });
+
+  it("formatDuration handles second-range durations", () => {
+    useUsageStore.setState({
+      dataPoints: [
+        makeDataPoint({
+          numTurns: 1,
+          durationMs: 15000,
+        }),
+      ],
+    });
+    render(<UsageDashboard />);
+    expect(screen.getByText("15.0s")).toBeInTheDocument();
+  });
+
+  it("formatTokens handles millions", () => {
+    useUsageStore.setState({
+      dataPoints: [
+        makeDataPoint({
+          inputTokens: 2000000,
+          outputTokens: 0,
+        }),
+      ],
+    });
+    render(<UsageDashboard />);
+    expect(screen.getAllByText("2.0M").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("formatTokens handles small numbers", () => {
+    useUsageStore.setState({
+      dataPoints: [
+        makeDataPoint({
+          inputTokens: 500,
+          outputTokens: 0,
+          numTurns: 1,
+        }),
+      ],
+    });
+    render(<UsageDashboard />);
+    // Total tokens = 500, shown as "500"
+    expect(screen.getAllByText("500").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("avgCostPerTurn is zero when no turns", () => {
+    useUsageStore.setState({
+      dataPoints: [
+        makeDataPoint({
+          totalCostUsd: 0,
+          numTurns: 0,
+        }),
+      ],
+    });
+    render(<UsageDashboard />);
+    // avgCostPerTurn = 0 when totalTurns = 0
+    expect(screen.getByText("Avg Cost / Turn")).toBeInTheDocument();
   });
 });

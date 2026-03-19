@@ -93,10 +93,11 @@ describe("snippetStore - createSnippet", () => {
 });
 
 describe("snippetStore - updateSnippet", () => {
-  it("updates a snippet in the list", async () => {
+  it("updates a snippet in the list while preserving others", async () => {
     const original = makeSnippet();
+    const other = makeSnippet({ id: "snippet-2", title: "other" });
     const updated = makeSnippet({ title: "renamed" });
-    useSnippetStore.setState({ snippets: [original] });
+    useSnippetStore.setState({ snippets: [original, other] });
     vi.mocked(updateSnippet).mockResolvedValue(updated);
 
     await useSnippetStore
@@ -104,6 +105,7 @@ describe("snippetStore - updateSnippet", () => {
       .updateSnippet("snippet-1", { title: "renamed" });
 
     expect(useSnippetStore.getState().snippets[0].title).toBe("renamed");
+    expect(useSnippetStore.getState().snippets[1].title).toBe("other");
     expect(updateSnippet).toHaveBeenCalledWith("snippet-1", {
       title: "renamed",
     });

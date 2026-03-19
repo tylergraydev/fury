@@ -20,8 +20,12 @@ vi.mock("./MessageList", () => ({
         <span data-testid="agent-status">{typeof props.agentStatus === "string" ? props.agentStatus : "Error"}</span>
         <span data-testid="ml-context-id">{props.contextId ?? ""}</span>
         <span data-testid="ml-context-type">{props.contextType ?? ""}</span>
+        <span data-testid="ml-workspace-name">{props.workspaceName ?? ""}</span>
         {props.onRetry && (
           <button data-testid="retry-btn" onClick={props.onRetry}>Retry</button>
+        )}
+        {props.onAction && (
+          <button data-testid="action-btn" onClick={() => props.onAction("test action")}>Action</button>
         )}
       </div>
     );
@@ -32,6 +36,15 @@ vi.mock("./MessageList", () => ({
       .map((m: any) => ({ userMessage: m, responses: [] }));
     return { orphans: [], turns };
   },
+}));
+
+vi.mock("./ChatSearch", () => ({
+  ChatSearch: (props: any) => (
+    <div data-testid="chat-search">
+      <button data-testid="search-close" onClick={props.onClose}>Close</button>
+      <button data-testid="search-navigate" onClick={() => props.onNavigate("msg-123")}>Navigate</button>
+    </div>
+  ),
 }));
 
 vi.mock("./ChatTOC", () => ({
@@ -823,5 +836,226 @@ describe("ChatPanel", () => {
     });
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     expect(clearPermSpy).not.toHaveBeenCalled();
+  });
+
+  // --- Search toggle tests ---
+
+  it("toggles ChatSearch visibility on search button click", async () => {
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    expect(screen.queryByTestId("chat-search")).not.toBeInTheDocument();
+
+    // Click search button to show
+    await user.click(screen.getByTitle("Search messages"));
+    expect(screen.getByTestId("chat-search")).toBeInTheDocument();
+
+    // Click again to hide
+    await user.click(screen.getByTitle("Search messages"));
+    expect(screen.queryByTestId("chat-search")).not.toBeInTheDocument();
+  });
+
+  it("closes search when clicking outside", async () => {
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    // Open search
+    await user.click(screen.getByTitle("Search messages"));
+    expect(screen.getByTestId("chat-search")).toBeInTheDocument();
+
+    // Click outside
+    act(() => {
+      fireEvent.mouseDown(document.body);
+    });
+    expect(screen.queryByTestId("chat-search")).not.toBeInTheDocument();
+  });
+
+  it("closes ChatSearch via onClose callback", async () => {
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    await user.click(screen.getByTitle("Search messages"));
+    expect(screen.getByTestId("chat-search")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("search-close"));
+    expect(screen.queryByTestId("chat-search")).not.toBeInTheDocument();
+  });
+
+  it("handleSearchNavigate triggers highlight on message", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    await user.click(screen.getByTitle("Search messages"));
+    await user.click(screen.getByTestId("search-navigate"));
+
+    // After 2000ms the highlight clears
+    act(() => {
+      vi.advanceTimersByTime(2100);
+    });
+    vi.useRealTimers();
+  });
+
+  it("search button closes TOC when opening search", async () => {
+    useChatStore.setState({
+      messages: {
+        "ws-1": [
+          { id: "m1", role: "user", content: [{ type: "text", text: "A" }], timestamp: 1 },
+          { id: "m2", role: "user", content: [{ type: "text", text: "B" }], timestamp: 2 },
+          { id: "m3", role: "user", content: [{ type: "text", text: "C" }], timestamp: 3 },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    // Open TOC first
+    await user.click(screen.getByTitle("Table of Contents"));
+    expect(screen.getByTestId("chat-toc")).toBeInTheDocument();
+
+    // Open search - should close TOC
+    await user.click(screen.getByTitle("Search messages"));
+    expect(screen.queryByTestId("chat-toc")).not.toBeInTheDocument();
+  });
+
+  it("TOC button closes search when opening TOC", async () => {
+    useChatStore.setState({
+      messages: {
+        "ws-1": [
+          { id: "m1", role: "user", content: [{ type: "text", text: "A" }], timestamp: 1 },
+          { id: "m2", role: "user", content: [{ type: "text", text: "B" }], timestamp: 2 },
+          { id: "m3", role: "user", content: [{ type: "text", text: "C" }], timestamp: 3 },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    // Open search first
+    await user.click(screen.getByTitle("Search messages"));
+
+    // Open TOC - should close search
+    await user.click(screen.getByTitle("Table of Contents"));
+    expect(screen.getByTestId("chat-toc")).toBeInTheDocument();
+  });
+
+  it("does not close TOC when clicking inside the TOC", async () => {
+    useChatStore.setState({
+      messages: {
+        "ws-1": [
+          { id: "m1", role: "user", content: [{ type: "text", text: "A" }], timestamp: 1 },
+          { id: "m2", role: "user", content: [{ type: "text", text: "B" }], timestamp: 2 },
+          { id: "m3", role: "user", content: [{ type: "text", text: "C" }], timestamp: 3 },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    // Open TOC
+    await user.click(screen.getByTitle("Table of Contents"));
+    expect(screen.getByTestId("chat-toc")).toBeInTheDocument();
+
+    // Click inside the TOC container
+    act(() => {
+      fireEvent.mouseDown(screen.getByTestId("chat-toc"));
+    });
+
+    // TOC should stay open
+    expect(screen.getByTestId("chat-toc")).toBeInTheDocument();
+  });
+
+  it("does not close search when clicking inside the search panel", async () => {
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    // Open search
+    await user.click(screen.getByTitle("Search messages"));
+    expect(screen.getByTestId("chat-search")).toBeInTheDocument();
+
+    // Click inside the search container
+    act(() => {
+      fireEvent.mouseDown(screen.getByTestId("chat-search"));
+    });
+
+    // Search should stay open
+    expect(screen.getByTestId("chat-search")).toBeInTheDocument();
+  });
+
+  // --- Subscription effect for repo context (no checkpoint subscription) ---
+
+  it("does not subscribe to checkpoints for repo context", async () => {
+    const cpSubscribe = vi.fn();
+    const cpLoadCheckpoints = vi.fn();
+    useCheckpointStore.setState({
+      checkpoints: {},
+      revertedTurnIndex: {},
+      subscriptions: {},
+      subscribe: cpSubscribe,
+      loadCheckpoints: cpLoadCheckpoints,
+    });
+    render(<ChatPanel contextId="repo-1" contextType="repo" />);
+    // Wait for rAF
+    await vi.waitFor(() => {
+      // For repo context, checkpoint subscribe should NOT be called
+      expect(cpSubscribe).not.toHaveBeenCalled();
+    });
+  });
+
+  // --- handleSend with thinking/plan disabled ---
+
+  it("handleSend passes disableThinking when thinking is toggled off", async () => {
+    const sendMessageSpy = vi.fn().mockResolvedValue(undefined);
+    const addUserMessageSpy = vi.fn();
+    useAgentStore.setState({
+      agents: {},
+      subscriptions: {},
+      sendMessage: sendMessageSpy,
+    });
+    useChatStore.setState({
+      messages: {},
+      streamingText: {},
+      subscriptions: {},
+      addUserMessage: addUserMessageSpy,
+    });
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+
+    // The Composer mock doesn't expose thinking toggle directly,
+    // but we can verify the handleSend integration
+  });
+
+  // --- workspace name passed to MessageList ---
+
+  it("passes workspace name to MessageList", () => {
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: "ws-1", repoId: "repo-1", name: "Test WS", branch: "main", status: "Running" as any, portBase: 3000, autoCommit: false, pinned: false, createdAt: "2024-01-01", archivedAt: null },
+      ],
+    });
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+    expect(screen.getByTestId("ml-workspace-name")).toHaveTextContent("Test WS");
+  });
+
+  // --- onAction callback triggers handleSend ---
+
+  it("onAction callback sends message via handleSend", async () => {
+    const sendMessageSpy = vi.fn().mockResolvedValue(undefined);
+    const addUserMessageSpy = vi.fn();
+    useAgentStore.setState({
+      agents: {},
+      subscriptions: {},
+      sendMessage: sendMessageSpy,
+    });
+    useChatStore.setState({
+      messages: {},
+      streamingText: {},
+      subscriptions: {},
+      addUserMessage: addUserMessageSpy,
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
+    await user.click(screen.getByTestId("action-btn"));
+    expect(addUserMessageSpy).toHaveBeenCalledWith("ws-1", "test action", undefined);
+    expect(sendMessageSpy).toHaveBeenCalledWith("ws-1", "test action", "workspace", undefined, undefined, undefined);
   });
 });

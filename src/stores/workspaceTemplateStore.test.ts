@@ -121,6 +121,22 @@ describe("workspaceTemplateStore - updateTemplate", () => {
     });
   });
 
+  it("leaves non-matching templates unchanged during update", async () => {
+    const t1 = makeTemplate({ id: "tmpl-1", name: "first" });
+    const t2 = makeTemplate({ id: "tmpl-2", name: "second" });
+    useWorkspaceTemplateStore.setState({ templates: [t1, t2] });
+    const updated = makeTemplate({ id: "tmpl-1", name: "renamed" });
+    vi.mocked(updateWorkspaceTemplate).mockResolvedValue(updated);
+
+    await useWorkspaceTemplateStore
+      .getState()
+      .updateTemplate("tmpl-1", { name: "renamed" });
+
+    const templates = useWorkspaceTemplateStore.getState().templates;
+    expect(templates[0].name).toBe("renamed");
+    expect(templates[1].name).toBe("second");
+  });
+
   it("sets error on failure", async () => {
     const original = makeTemplate();
     useWorkspaceTemplateStore.setState({ templates: [original] });

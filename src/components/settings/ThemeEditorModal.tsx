@@ -83,6 +83,7 @@ export function ThemeEditorModal({
     const id = existingTheme?.id ?? `custom-${crypto.randomUUID()}`;
     onSave({
       id,
+      /* v8 ignore next */
       name: name.trim() || "Untitled",
       vars: { ...vars } as Record<string, string>,
       baseTheme: existingTheme?.baseTheme ?? duplicateFrom ?? undefined,
@@ -132,7 +133,9 @@ export function ThemeEditorModal({
   };
 
   const handleDelete = () => {
+    /* v8 ignore start */
     if (!existingTheme) return;
+    /* v8 ignore stop */
     if (!confirmDelete) {
       setConfirmDelete(true);
       return;

@@ -271,4 +271,16 @@ describe("extractCodeBlockInfo", () => {
     const result = extractCodeBlockInfo(codeEl, "");
     expect(result.codeText).toBe("");
   });
+
+  it("handles null children in code element", () => {
+    const codeEl = createElement("code", { className: "language-ts" }, null);
+    const result = extractCodeBlockInfo(codeEl, "");
+    expect(result.codeText).toBe("");
+  });
+
+  it("handles empty code text for file path detection", () => {
+    const codeEl = createElement("code", { className: "language-ts" }, "");
+    const result = extractCodeBlockInfo(codeEl, "");
+    expect(result.filePath).toBeNull();
+  });
 });

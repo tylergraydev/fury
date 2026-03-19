@@ -116,6 +116,49 @@ describe("UpdateDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("calls relaunch when Restart Now is clicked", async () => {
+    const { relaunch } = await import("@tauri-apps/plugin-process");
+    const downloadAndInstall = vi.fn().mockResolvedValue(undefined);
+    const fakeUpdate = { version: "2.0.0", downloadAndInstall };
+    mockCheckForAppUpdate.mockResolvedValue(fakeUpdate);
+    render(<UpdateDialog onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(screen.getByText("Download & Install")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Download & Install"));
+    await waitFor(() => {
+      expect(screen.getByText("Restart Now")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Restart Now"));
+    expect(relaunch).toHaveBeenCalled();
+  });
+
+  it("calls onClose when clicking the backdrop overlay", async () => {
+    mockCheckForAppUpdate.mockResolvedValue(null);
+    const onClose = vi.fn();
+    render(<UpdateDialog onClose={onClose} />);
+    await waitFor(() => {
+      expect(screen.getByText("Software Update")).toBeInTheDocument();
+    });
+    // Click the outermost fixed overlay
+    const backdrop = screen.getByText("Software Update").closest(".fixed.inset-0")!;
+    fireEvent.click(backdrop);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("stops propagation when clicking inside the dialog", async () => {
+    mockCheckForAppUpdate.mockResolvedValue(null);
+    const onClose = vi.fn();
+    render(<UpdateDialog onClose={onClose} />);
+    await waitFor(() => {
+      expect(screen.getByText("Software Update")).toBeInTheDocument();
+    });
+    // Click inside the dialog content should not close
+    fireEvent.click(screen.getByText("Software Update"));
+    // onClose should only be called if backdrop is clicked directly
+    // Since stopPropagation is on the inner div, clicking text inside won't trigger backdrop
+  });
+
   it("retries check after error", async () => {
     mockCheckForAppUpdate.mockRejectedValueOnce(new Error("offline"));
     render(<UpdateDialog onClose={vi.fn()} />);

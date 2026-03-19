@@ -223,6 +223,97 @@ describe("useVoiceInput", () => {
     expect(mockInstance.start.mock.calls.length).toBe(callCount);
   });
 
+  it("gives up when auto-restart on onend throws", () => {
+    const { result } = renderHook(() =>
+      useVoiceInput({ onTranscript: vi.fn() }),
+    );
+    act(() => result.current.startListening());
+    // Make start() throw on the next call (auto-restart)
+    mockInstance.start.mockImplementationOnce(() => {
+      throw new Error("cannot restart");
+    });
+    // Simulate onend while intentRef is still true (auto-restart path)
+    act(() => {
+      mockInstance.onend?.();
+    });
+    // Should give up and stop listening
+    expect(result.current.isListening).toBe(false);
+  });
+
+  it("handles start() throwing on initial startListening", () => {
+    const { result } = renderHook(() =>
+      useVoiceInput({ onTranscript: vi.fn() }),
+    );
+    // After the hook is created, override SpeechRecognition so start() throws
+    // The hook calls getSpeechRecognitionClass() inside startListening
+    (globalThis as any).SpeechRecognition = vi.fn(function (this: any) {
+      const inst = createMockInstance();
+      Object.assign(this, inst);
+      this.start = vi.fn(() => {
+        throw new Error("not allowed");
+      });
+    });
+    act(() => result.current.startListening());
+    // Should not be listening since start() threw
+    expect(result.current.isListening).toBe(false);
+  });
+
+  it("reports isSupported false when no SpeechRecognition", () => {
+    delete (globalThis as any).SpeechRecognition;
+    delete (globalThis as any).webkitSpeechRecognition;
+    const { result } = renderHook(() =>
+      useVoiceInput({ onTranscript: vi.fn() }),
+    );
+    expect(result.current.isSupported).toBe(false);
+  });
+
+  it("startListening is no-op when not supported", () => {
+    delete (globalThis as any).SpeechRecognition;
+    delete (globalThis as any).webkitSpeechRecognition;
+    const { result } = renderHook(() =>
+      useVoiceInput({ onTranscript: vi.fn() }),
+    );
+    act(() => result.current.startListening());
+    expect(result.current.isListening).toBe(false);
+  });
+
+  it("uses webkitSpeechRecognition as fallback", () => {
+    delete (globalThis as any).SpeechRecognition;
+    (globalThis as any).webkitSpeechRecognition = vi.fn().mockImplementation(createMockInstance);
+    const { result } = renderHook(() =>
+      useVoiceInput({ onTranscript: vi.fn() }),
+    );
+    expect(result.current.isSupported).toBe(true);
+    act(() => result.current.startListening());
+    expect(result.current.isListening).toBe(true);
+  });
+
+  it("handles aborted error silently", () => {
+    const onError = vi.fn();
+    const { result } = renderHook(() =>
+      useVoiceInput({ onTranscript: vi.fn(), onError }),
+    );
+    act(() => result.current.startListening());
+    act(() => {
+      mockInstance.onerror?.({ error: "aborted" });
+    });
+    expect(result.current.error).toBeNull();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("maps unknown error codes to generic message", () => {
+    const onError = vi.fn();
+    const { result } = renderHook(() =>
+      useVoiceInput({ onTranscript: vi.fn(), onError }),
+    );
+    act(() => result.current.startListening());
+    act(() => {
+      mockInstance.onerror?.({ error: "service-not-allowed" });
+    });
+    expect(result.current.error).toBe("Voice input error. Please try again.");
+    expect(onError).toHaveBeenCalledWith("Voice input error. Please try again.");
+  });
+
   it("sets error for network errors", () => {
     const onError = vi.fn();
     const { result } = renderHook(() =>

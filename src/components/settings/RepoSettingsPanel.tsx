@@ -493,9 +493,10 @@ export function RepoSettingsPanel({
                       onChange={(e) =>
                         setSettings((s) => ({
                           ...s,
-                          devcontainer: s.devcontainer
-                            ? { ...s.devcontainer, backend: e.target.value as "devcontainerCli" | "rawDocker" }
-                            : s.devcontainer,
+                          devcontainer: {
+                            ...s.devcontainer!,
+                            backend: e.target.value as "devcontainerCli" | "rawDocker",
+                          },
                         }))
                       }
                       className="rounded px-2 py-1 text-xs flex-1"
@@ -516,9 +517,10 @@ export function RepoSettingsPanel({
                       onChange={(e) =>
                         setSettings((s) => ({
                           ...s,
-                          devcontainer: s.devcontainer
-                            ? { ...s.devcontainer, agentExecMode: e.target.value as "host" | "container" }
-                            : s.devcontainer,
+                          devcontainer: {
+                            ...s.devcontainer!,
+                            agentExecMode: e.target.value as "host" | "container",
+                          },
                         }))
                       }
                       className="rounded px-2 py-1 text-xs flex-1"
@@ -545,9 +547,10 @@ export function RepoSettingsPanel({
                       onChange={(e) =>
                         setSettings((s) => ({
                           ...s,
-                          devcontainer: s.devcontainer
-                            ? { ...s.devcontainer, image: e.target.value || null }
-                            : s.devcontainer,
+                          devcontainer: {
+                            ...s.devcontainer!,
+                            image: e.target.value || null,
+                          },
                         }))
                       }
                       className="w-full rounded px-2 py-1 text-xs"

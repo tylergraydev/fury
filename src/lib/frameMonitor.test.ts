@@ -5,7 +5,12 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { startFrameMonitor, stopFrameMonitor } from "./frameMonitor";
+import {
+  startFrameMonitor,
+  stopFrameMonitor,
+  pauseFrameMonitor,
+  resumeFrameMonitor,
+} from "./frameMonitor";
 
 let rafCallbacks: Array<(time: number) => void> = [];
 let rafId = 0;
@@ -146,5 +151,45 @@ describe("stopFrameMonitor", () => {
     stopFrameMonitor();
 
     expect(invoke).not.toHaveBeenCalledWith("push_frame_metrics", expect.anything());
+  });
+});
+
+describe("pauseFrameMonitor", () => {
+  it("cancels animation frame and resets lastFrameTime", () => {
+    startFrameMonitor();
+    tickFrame(0); // sets lastFrameTime
+
+    pauseFrameMonitor();
+
+    expect(cancelAnimationFrame).toHaveBeenCalled();
+  });
+
+  it("is safe to call when not started", () => {
+    pauseFrameMonitor(); // no error when rafHandle is null
+  });
+});
+
+describe("resumeFrameMonitor", () => {
+  it("restarts animation frame after pause", () => {
+    startFrameMonitor();
+    tickFrame(0);
+    pauseFrameMonitor();
+
+    vi.clearAllMocks();
+    resumeFrameMonitor();
+    expect(requestAnimationFrame).toHaveBeenCalledTimes(1);
+  });
+
+  it("is a no-op if not started", () => {
+    vi.clearAllMocks();
+    resumeFrameMonitor(); // started is false, should not call rAF
+    expect(requestAnimationFrame).not.toHaveBeenCalled();
+  });
+
+  it("is a no-op if rafHandle is already set (not paused)", () => {
+    startFrameMonitor();
+    vi.clearAllMocks();
+    resumeFrameMonitor(); // rafHandle is not null, should be no-op
+    expect(requestAnimationFrame).not.toHaveBeenCalled();
   });
 });

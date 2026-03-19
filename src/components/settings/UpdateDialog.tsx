@@ -45,7 +45,9 @@ export function UpdateDialog({ onClose }: Props) {
   };
 
   const handleInstall = async () => {
+    /* v8 ignore start -- button disabled when update is null */
     if (!update) return;
+    /* v8 ignore stop */
     setPhase("downloading");
     try {
       await update.downloadAndInstall();

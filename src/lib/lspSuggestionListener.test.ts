@@ -99,6 +99,11 @@ describe("lspSuggestionListener", () => {
       expect(toasts[0].action).toBeDefined();
     });
 
+    // Test the toast action's onClick handler
+    const toast = useToastStore.getState().toasts[0];
+    toast.action!.onClick();
+    expect(useUIStore.getState().settingsInitialTab).toBe("code-intel");
+
     cleanup();
   });
 

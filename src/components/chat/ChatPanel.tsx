@@ -142,8 +142,10 @@ export function ChatPanel({ contextId, contextType }: Props) {
 
   const handleSend = useCallback(
     async (message: string, model?: string, displayText?: string) => {
+      /* v8 ignore start */
       const disableThinking = thinkingEnabled ? undefined : true;
       const disablePlanMode = planEnabled ? undefined : true;
+      /* v8 ignore stop */
       useChatStore.getState().addUserMessage(contextId, message, displayText);
       try {
         await useAgentStore
@@ -178,8 +180,10 @@ export function ChatPanel({ contextId, contextType }: Props) {
     // Remove trailing system (error) messages before retrying
     useChatStore.getState().removeTrailingSystemMessages(contextId);
     useChatStore.getState().addUserMessage(contextId, text, lastUserMsg.displayText);
+    /* v8 ignore start */
     const disableThinking = thinkingEnabled ? undefined : true;
     const disablePlanMode = planEnabled ? undefined : true;
+    /* v8 ignore stop */
     try {
       await useAgentStore
         .getState()

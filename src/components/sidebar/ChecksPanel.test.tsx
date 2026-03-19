@@ -1528,5 +1528,77 @@ describe("ChecksPanel", () => {
       });
       consoleSpy.mockRestore();
     });
+
+    it("collapses an expanded workflow run when toggled again", async () => {
+      setupWithRuns();
+      mockGetRunJobs.mockResolvedValue([]);
+      render(<ChecksPanel workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(screen.getByText("CI")).toBeInTheDocument();
+      });
+      // Expand
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.getByText("View Logs")).toBeInTheDocument();
+      });
+      // Collapse by clicking again
+      fireEvent.click(screen.getByText("CI"));
+      await waitFor(() => {
+        expect(screen.queryByText("View Logs")).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  // === isAdo provider support ===
+
+  it("shows 'Pipelines' label when repo provider is azure_dev_ops", async () => {
+    setupOpenPr();
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: "ws-1", name: "test-ws", branch: "feature-1", repoId: "r1" },
+      ] as any,
+    });
+    const { useRepositoryStore } = await import("../../stores/repositoryStore");
+    useRepositoryStore.setState({
+      repositories: [
+        { id: "r1", name: "ado-repo", path: "/path", defaultBranch: "main", currentBranch: "main", provider: "azure_dev_ops", remoteUrl: null },
+      ] as any,
+    });
+    render(<ChecksPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText(/Pipelines/)).toBeInTheDocument();
+    });
+  });
+
+  it("returns false for isAdo when workspace is not found", async () => {
+    setupOpenPr();
+    useWorkspaceStore.setState({
+      workspaces: [] as any,
+    });
+    render(<ChecksPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText(/Actions/)).toBeInTheDocument();
+    });
+  });
+
+  // === handleSendReviews early return ===
+
+  it("handleSendReviews is a no-op when getReviewFixMessage returns no feedback", async () => {
+    setupOpenPr();
+    const mockGetReviewFixMessage = vi.fn().mockReturnValue("No review feedback found.");
+    usePrStore.setState({
+      reviews: { "ws-1": [{ id: 1, author: "bob", state: "APPROVED", body: "", submittedAt: "" }] },
+      reviewComments: { "ws-1": [] },
+      getReviewFixMessage: mockGetReviewFixMessage,
+    } as any);
+    const addUserMsgSpy = vi.spyOn(useChatStore.getState(), "addUserMessage");
+    render(<ChecksPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Send to agent")).toBeInTheDocument();
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Send to agent"));
+    });
+    expect(addUserMsgSpy).not.toHaveBeenCalled();
   });
 });

@@ -143,4 +143,60 @@ describe("BroadcastComposer", () => {
     render(<BroadcastComposer workspaces={[ws1]} />);
     expect(screen.getByPlaceholderText("Broadcast message to selected workspaces...")).toBeInTheDocument();
   });
+
+  it("re-adds a workspace after unchecking and checking it again", () => {
+    render(<BroadcastComposer workspaces={[ws1, ws2]} />);
+    const checkboxes = screen.getAllByRole("checkbox");
+    // Uncheck ws-1
+    fireEvent.click(checkboxes[0]);
+    expect(screen.getByText("Send to 1")).toBeInTheDocument();
+    // Re-check ws-1
+    fireEvent.click(checkboxes[0]);
+    expect(screen.getByText("Send to 2")).toBeInTheDocument();
+  });
+
+  it("sends message via Cmd/Ctrl+Enter keyboard shortcut", async () => {
+    const broadcastMessage = vi.fn().mockResolvedValue({ succeeded: ["ws-1"], failed: [] });
+    const addUserMessage = vi.fn();
+    useAgentStore.setState({ broadcastMessage });
+    useChatStore.setState({ addUserMessage });
+
+    render(<BroadcastComposer workspaces={[ws1]} />);
+    const textarea = screen.getByPlaceholderText("Broadcast message to selected workspaces...");
+    fireEvent.change(textarea, { target: { value: "keyboard send" } });
+    fireEvent.keyDown(textarea, { key: "Enter", metaKey: true });
+
+    await vi.waitFor(() => {
+      expect(addUserMessage).toHaveBeenCalledWith("ws-1", "keyboard send");
+    });
+    expect(broadcastMessage).toHaveBeenCalledWith(["ws-1"], "keyboard send");
+  });
+
+  it("sends message via Ctrl+Enter keyboard shortcut", async () => {
+    const broadcastMessage = vi.fn().mockResolvedValue({ succeeded: ["ws-1"], failed: [] });
+    const addUserMessage = vi.fn();
+    useAgentStore.setState({ broadcastMessage });
+    useChatStore.setState({ addUserMessage });
+
+    render(<BroadcastComposer workspaces={[ws1]} />);
+    const textarea = screen.getByPlaceholderText("Broadcast message to selected workspaces...");
+    fireEvent.change(textarea, { target: { value: "ctrl send" } });
+    fireEvent.keyDown(textarea, { key: "Enter", ctrlKey: true });
+
+    await vi.waitFor(() => {
+      expect(addUserMessage).toHaveBeenCalledWith("ws-1", "ctrl send");
+    });
+  });
+
+  it("does not send on Enter without meta/ctrl key", () => {
+    const broadcastMessage = vi.fn();
+    useAgentStore.setState({ broadcastMessage });
+
+    render(<BroadcastComposer workspaces={[ws1]} />);
+    const textarea = screen.getByPlaceholderText("Broadcast message to selected workspaces...");
+    fireEvent.change(textarea, { target: { value: "no send" } });
+    fireEvent.keyDown(textarea, { key: "Enter" });
+
+    expect(broadcastMessage).not.toHaveBeenCalled();
+  });
 });

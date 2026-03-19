@@ -48,6 +48,39 @@ beforeEach(() => {
 });
 
 describe("TeamView", () => {
+  it("shows empty state when no repoId and no activeWorkspaceId", () => {
+    useWorkspaceStore.setState({ activeRepoId: null, activeWorkspaceId: null, workspaces: [] });
+    render(<TeamView />);
+    expect(screen.getByText("No workspaces in this repository.")).toBeInTheDocument();
+  });
+
+  it("falls back to activeWorkspace repoId when activeRepoId is null", () => {
+    useWorkspaceStore.setState({
+      activeRepoId: null,
+      activeWorkspaceId: "ws-1",
+      workspaces: [
+        { id: "ws-1", repoId: "repo-1", name: "frontend", branch: "feat/ui", status: "Active", portBase: 3000, autoCommit: true, pinned: false, createdAt: "2024-01-01T00:00:00Z", archivedAt: null },
+      ] as any[],
+    });
+    useRepositoryStore.setState({
+      repositories: [{ id: "repo-1", name: "my-app", path: "/tmp/app", defaultBranch: "main", currentBranch: "main", provider: "git_hub" as const, remoteUrl: null }],
+    });
+    render(<TeamView />);
+    expect(screen.getByText("my-app")).toBeInTheDocument();
+  });
+
+  it("shows 'Repository' fallback when repo is not found", () => {
+    useWorkspaceStore.setState({
+      activeRepoId: "repo-missing",
+      workspaces: [
+        { id: "ws-1", repoId: "repo-missing", name: "frontend", branch: "feat/ui", status: "Active", portBase: 3000, autoCommit: true, pinned: false, createdAt: "2024-01-01T00:00:00Z", archivedAt: null },
+      ] as any[],
+    });
+    useRepositoryStore.setState({ repositories: [] });
+    render(<TeamView />);
+    expect(screen.getByText("Repository")).toBeInTheDocument();
+  });
+
   it("shows empty state when no workspaces", () => {
     useWorkspaceStore.setState({ activeRepoId: "repo-1" });
     render(<TeamView />);

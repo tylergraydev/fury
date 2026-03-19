@@ -1040,4 +1040,192 @@ describe("Sidebar", () => {
       expect(items[1].textContent).toBe("Unpinned");
     });
   });
+
+  describe("Open chat tab", () => {
+    it("opens chat tab when chat button is clicked on workspace item", () => {
+      const openChatTab = vi.fn();
+      useRepositoryStore.setState({ repositories: [makeRepo()] });
+      useWorkspaceStore.setState({
+        workspaces: [makeWorkspace()],
+      });
+      useUIStore.setState({ openChatTab });
+      render(<Sidebar />);
+
+      const chatBtn = screen.getByTitle("Open in new chat tab");
+      fireEvent.click(chatBtn);
+
+      expect(openChatTab).toHaveBeenCalledWith("ws-1", "Feature Work", "workspace");
+    });
+  });
+
+  describe("Keyboard navigation", () => {
+    it("toggles repo via keyboard Enter on repo header", () => {
+      useRepositoryStore.setState({ repositories: [makeRepo()] });
+      useWorkspaceStore.setState({
+        workspaces: [makeWorkspace()],
+      });
+      render(<Sidebar />);
+
+      const repoButton = screen.getByText("my-repo").closest('[role="button"]')!;
+      fireEvent.keyDown(repoButton, { key: "Enter" });
+      expect(screen.queryByText("Feature Work")).not.toBeInTheDocument();
+
+      fireEvent.keyDown(repoButton, { key: " " });
+      expect(screen.getByText("Feature Work")).toBeInTheDocument();
+    });
+
+    it("activates repo branch via keyboard Enter", () => {
+      const setActiveRepo = vi.fn();
+      useRepositoryStore.setState({ repositories: [makeRepo()] });
+      useWorkspaceStore.setState({ setActiveRepo });
+      render(<Sidebar />);
+
+      const branchItems = screen.getAllByText("main");
+      const branchDiv = branchItems[0].closest('[role="button"]')!;
+      fireEvent.keyDown(branchDiv, { key: "Enter" });
+
+      expect(setActiveRepo).toHaveBeenCalledWith("r1");
+    });
+
+    it("activates repo branch via keyboard Space", () => {
+      const setActiveRepo = vi.fn();
+      useRepositoryStore.setState({ repositories: [makeRepo()] });
+      useWorkspaceStore.setState({ setActiveRepo });
+      render(<Sidebar />);
+
+      const branchItems = screen.getAllByText("main");
+      const branchDiv = branchItems[0].closest('[role="button"]')!;
+      fireEvent.keyDown(branchDiv, { key: " " });
+
+      expect(setActiveRepo).toHaveBeenCalledWith("r1");
+    });
+
+    it("activates workspace via keyboard Enter", () => {
+      const setActive = vi.fn();
+      useRepositoryStore.setState({ repositories: [makeRepo()] });
+      useWorkspaceStore.setState({
+        workspaces: [makeWorkspace()],
+        setActive,
+      });
+      render(<Sidebar />);
+
+      const wsName = screen.getByText("Feature Work");
+      const wsDiv = wsName.closest('[role="button"]')!;
+      fireEvent.keyDown(wsDiv, { key: "Enter" });
+
+      expect(setActive).toHaveBeenCalledWith("ws-1");
+    });
+
+    it("activates workspace via keyboard Space", () => {
+      const setActive = vi.fn();
+      useRepositoryStore.setState({ repositories: [makeRepo()] });
+      useWorkspaceStore.setState({
+        workspaces: [makeWorkspace()],
+        setActive,
+      });
+      render(<Sidebar />);
+
+      const wsName = screen.getByText("Feature Work");
+      const wsDiv = wsName.closest('[role="button"]')!;
+      fireEvent.keyDown(wsDiv, { key: " " });
+
+      expect(setActive).toHaveBeenCalledWith("ws-1");
+    });
+  });
+
+  describe("Needs attention on repo branch", () => {
+    it("clears attention when repo branch item is clicked with attention flag", () => {
+      const clearNeedsAttention = vi.fn();
+      const setActiveRepo = vi.fn();
+      useRepositoryStore.setState({ repositories: [makeRepo()] });
+      useWorkspaceStore.setState({ setActiveRepo });
+      useAgentStore.setState({
+        agents: { r1: { workspaceId: "r1", status: "Idle" } as any },
+        needsAttention: { r1: true },
+        clearNeedsAttention,
+      });
+      render(<Sidebar />);
+
+      const branchItems = screen.getAllByText("main");
+      const branchDiv = branchItems[0].closest('[role="button"]')!;
+      fireEvent.click(branchDiv);
+
+      expect(clearNeedsAttention).toHaveBeenCalledWith("r1");
+      expect(setActiveRepo).toHaveBeenCalledWith("r1");
+    });
+
+    it("shows attention styling on repo branch item", () => {
+      useRepositoryStore.setState({ repositories: [makeRepo()] });
+      useWorkspaceStore.setState({ activeRepoId: null, activeWorkspaceId: null });
+      useAgentStore.setState({
+        agents: { r1: { workspaceId: "r1", status: "Idle" } as any },
+        needsAttention: { r1: true },
+      });
+      render(<Sidebar />);
+
+      const branchItems = screen.getAllByText("main");
+      const branchDiv = branchItems[0].closest(".group")! as HTMLElement;
+      expect(branchDiv.style.border).toBe("1px solid var(--accent)");
+    });
+  });
+
+  describe("New workspace dialog uses activeWs repoId", () => {
+    it("uses active workspace's repoId for new workspace dialog", () => {
+      useRepositoryStore.setState({
+        repositories: [
+          makeRepo({ id: "r1", name: "repo-one" }),
+          makeRepo({ id: "r2", name: "repo-two" }),
+        ],
+      });
+      useWorkspaceStore.setState({
+        workspaces: [makeWorkspace({ id: "ws-1", repoId: "r2" })],
+        activeWorkspaceId: "ws-1",
+      });
+      render(<Sidebar />);
+
+      const plusButton = screen.getByTitle("New worktree");
+      fireEvent.click(plusButton);
+
+      expect(screen.getByTestId("new-workspace-dialog")).toBeInTheDocument();
+    });
+
+    it("uses activeRepoId when no active workspace", () => {
+      useRepositoryStore.setState({
+        repositories: [
+          makeRepo({ id: "r1", name: "repo-one" }),
+          makeRepo({ id: "r2", name: "repo-two" }),
+        ],
+      });
+      useWorkspaceStore.setState({
+        workspaces: [],
+        activeWorkspaceId: null,
+        activeRepoId: "r2",
+      });
+      render(<Sidebar />);
+
+      const plusButton = screen.getByTitle("New worktree");
+      fireEvent.click(plusButton);
+
+      expect(screen.getByTestId("new-workspace-dialog")).toBeInTheDocument();
+    });
+  });
+
+  describe("Back to home button", () => {
+    it("resets active workspace and repo when home button is clicked", () => {
+      useRepositoryStore.setState({ repositories: [makeRepo()] });
+      useWorkspaceStore.setState({
+        workspaces: [makeWorkspace()],
+        activeWorkspaceId: "ws-1",
+        activeRepoId: "r1",
+      });
+      render(<Sidebar />);
+
+      const homeBtn = screen.getByTitle("Back to home");
+      fireEvent.click(homeBtn);
+
+      const state = useWorkspaceStore.getState();
+      expect(state.activeWorkspaceId).toBeNull();
+      expect(state.activeRepoId).toBeNull();
+    });
+  });
 });

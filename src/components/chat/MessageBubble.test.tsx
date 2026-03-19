@@ -27,6 +27,15 @@ vi.mock("lucide-react", () => ({
   ImageIcon: (props: Record<string, unknown>) => <span data-testid="icon-image" {...props} />,
 }));
 
+// Mock ImageLightbox
+vi.mock("./ImageLightbox", () => ({
+  ImageLightbox: ({ src, onClose }: { src: string; onClose: () => void }) => (
+    <div data-testid="image-lightbox" data-src={src}>
+      <button data-testid="lightbox-close" onClick={onClose}>Close</button>
+    </div>
+  ),
+}));
+
 // Mock MarkdownContent
 vi.mock("./MarkdownContent", () => ({
   MarkdownContent: ({ content, contextId, contextType }: { content: string; contextId?: string; contextType?: string }) => (
@@ -1766,5 +1775,283 @@ describe("MessageBubble", () => {
     });
     expect(screen.getByText("doc.txt")).toBeInTheDocument();
     expect(screen.getByText("Please review")).toBeInTheDocument();
+  });
+
+  // --- InlineImageGroup (image content blocks in assistant messages) ---
+
+  it("renders inline image group for assistant message with image blocks", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "image", data: "data:image/png;base64,abc123", mediaType: "image/png" },
+          ],
+        })}
+      />,
+    );
+    const img = screen.getByAltText("Image 1");
+    expect(img).toBeInTheDocument();
+    expect(img).toHaveAttribute("src", "data:image/png;base64,abc123");
+  });
+
+  it("renders inline image with http URL prefix", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "image", data: "https://example.com/photo.png", mediaType: "image/png" },
+          ],
+        })}
+      />,
+    );
+    const img = screen.getByAltText("Image 1");
+    expect(img).toHaveAttribute("src", "https://example.com/photo.png");
+  });
+
+  it("renders inline image with base64 data (no data: prefix)", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "image", data: "iVBORw0KGgo=", mediaType: "image/png" },
+          ],
+        })}
+      />,
+    );
+    const img = screen.getByAltText("Image 1");
+    expect(img).toHaveAttribute("src", "data:image/png;base64,iVBORw0KGgo=");
+  });
+
+  it("opens lightbox when inline image is clicked and closes it", async () => {
+    const user = userEvent.setup();
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "image", data: "data:image/png;base64,abc", mediaType: "image/png" },
+          ],
+        })}
+      />,
+    );
+    const button = screen.getByAltText("Image 1").closest("button")!;
+    await user.click(button);
+    // ImageLightbox should appear
+    expect(screen.getByTestId("image-lightbox")).toBeInTheDocument();
+    // Close the lightbox
+    await user.click(screen.getByTestId("lightbox-close"));
+    expect(screen.queryByTestId("image-lightbox")).not.toBeInTheDocument();
+  });
+
+  it("renders multiple inline images", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "image", data: "data:image/png;base64,a", mediaType: "image/png" },
+            { type: "image", data: "data:image/png;base64,b", mediaType: "image/png" },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByAltText("Image 1")).toBeInTheDocument();
+    expect(screen.getByAltText("Image 2")).toBeInTheDocument();
+  });
+
+  // --- Long Bash command truncation ---
+
+  it("truncates long Bash command in summary", () => {
+    const longCmd = "a".repeat(100);
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "Bash", input: { command: longCmd } },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("a".repeat(77) + "...")).toBeInTheDocument();
+  });
+
+  // --- Long Task description truncation ---
+
+  it("truncates long Task description in summary", () => {
+    const longDesc = "b".repeat(100);
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "Task", input: { description: longDesc } },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("b".repeat(57) + "...")).toBeInTheDocument();
+  });
+
+  // --- Default tool summary with non-string first value ---
+
+  it("shows empty summary for default tool with non-string first value", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "unknown_custom", input: { count: 42 } },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("unknown_custom")).toBeInTheDocument();
+  });
+
+  // --- Default tool summary with string first value ---
+
+  it("shows detail for default tool with string first value", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "unknown_custom", input: { action: "do_something" } },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("do_something")).toBeInTheDocument();
+  });
+
+  // --- Default tool with long string first value truncation ---
+
+  it("truncates long default tool detail string", () => {
+    const longVal = "x".repeat(100);
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "unknown_custom", input: { action: longVal } },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("x".repeat(57) + "...")).toBeInTheDocument();
+  });
+
+  // --- System message with rate limit shows retry ---
+
+  it("shows retry button for system rate limit message", () => {
+    const onRetry = vi.fn();
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "system",
+          content: [{ type: "text", text: "Rate limit exceeded" }],
+        })}
+        onRetry={onRetry}
+      />,
+    );
+    expect(screen.getByTitle("Retry last message")).toBeInTheDocument();
+  });
+
+  // --- System message with timed out shows retry ---
+
+  it("shows retry button for system timed out message", () => {
+    const onRetry = vi.fn();
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "system",
+          content: [{ type: "text", text: "Request timed out" }],
+        })}
+        onRetry={onRetry}
+      />,
+    );
+    expect(screen.getByTitle("Retry last message")).toBeInTheDocument();
+  });
+
+  // --- getToolSummary with null input ---
+
+  it("shows empty summary when tool input is null", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "Read", input: null },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Read")).toBeInTheDocument();
+  });
+
+  // --- User message with no text content (empty after attachments) ---
+
+  it("renders user message with only attachments and no remaining text", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "user",
+          content: [{ type: "text", text: "[Attached file: /path/to/doc.pdf]" }],
+        })}
+      />,
+    );
+    expect(screen.getByText("doc.pdf")).toBeInTheDocument();
+  });
+
+  // --- Notebook tool normalization ---
+
+  it("normalizes notebook tool name", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "notebook_tool", input: {} },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Notebook")).toBeInTheDocument();
+  });
+
+  // --- Web tool normalization (generic) ---
+
+  it("normalizes generic web tool name", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "web_browse", input: {} },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Web")).toBeInTheDocument();
+  });
+
+  // --- countLines with empty text ---
+
+  it("shows Read label without line count when result is null", () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          role: "assistant",
+          content: [
+            { type: "toolUse", id: "t1", name: "Read", input: { file_path: "/a.ts" } },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Read")).toBeInTheDocument();
   });
 });

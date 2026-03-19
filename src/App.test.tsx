@@ -58,10 +58,73 @@ vi.mock("./components/history/HistoryView", () => ({
   HistoryView: () => <div data-testid="history-view">HistoryView</div>,
 }));
 
+vi.mock("./components/diff/DiffPanel", () => ({
+  DiffPanel: ({ contextId }: any) => <div data-testid="diff-panel" data-context-id={contextId}>DiffPanel</div>,
+}));
+
+vi.mock("./components/team/TeamView", () => ({
+  TeamView: () => <div data-testid="team-view">TeamView</div>,
+}));
+
+vi.mock("./components/test-runner/TestRunnerPanel", () => ({
+  TestRunnerPanel: ({ contextId, contextType }: any) => (
+    <div data-testid="test-runner-panel" data-context-id={contextId} data-context-type={contextType}>TestRunnerPanel</div>
+  ),
+}));
+
+vi.mock("./components/usage/UsageDashboard", () => ({
+  UsageDashboard: () => <div data-testid="usage-dashboard">UsageDashboard</div>,
+}));
+
+vi.mock("./components/activity-log/ActivityLogView", () => ({
+  ActivityLogView: () => <div data-testid="activity-log-view">ActivityLogView</div>,
+}));
+
+vi.mock("./components/file-viewer/SplitEditorLayout", () => ({
+  SplitEditorLayout: ({ repoId, contextId, contextType }: any) => (
+    <div data-testid="split-editor" data-repo-id={repoId} data-context-id={contextId} data-context-type={contextType}>SplitEditor</div>
+  ),
+}));
+
+vi.mock("./components/chat/SplitChatLayout", () => ({
+  SplitChatLayout: ({ leftContextId, leftContextType, rightContextId, rightContextType }: any) => (
+    <div data-testid="split-chat-layout" data-left-id={leftContextId} data-left-type={leftContextType} data-right-id={rightContextId} data-right-type={rightContextType}>SplitChatLayout</div>
+  ),
+}));
+
+vi.mock("./components/notifications/NotificationPanel", () => ({
+  NotificationPanel: () => <div data-testid="notification-panel">NotificationPanel</div>,
+}));
+
+vi.mock("./components/file-viewer/BookmarkNoteDialog", () => ({
+  BookmarkNoteDialog: () => <div data-testid="bookmark-note-dialog">BookmarkNoteDialog</div>,
+}));
+
+vi.mock("./components/snippets/SnippetManagerDialog", () => ({
+  SnippetManagerDialog: ({ onClose }: any) => (
+    <div data-testid="snippet-manager">
+      <button data-testid="snippet-close" onClick={onClose}>Close</button>
+    </div>
+  ),
+}));
+
+vi.mock("./components/workspace/WorkspaceExportDialog", () => ({
+  WorkspaceExportDialog: ({ workspaceId, onClose }: any) => (
+    <div data-testid="export-dialog" data-ws-id={workspaceId}>
+      <button data-testid="export-close" onClick={onClose}>Close</button>
+    </div>
+  ),
+}));
+
+vi.mock("./components/Toast", () => ({
+  ToastContainer: () => <div data-testid="toast-container">ToastContainer</div>,
+}));
+
 vi.mock("./components/CommandPalette", () => ({
   CommandPalette: ({ open, onOpenChange }: any) =>
     open ? (
       <div data-testid="command-palette" onClick={() => onOpenChange(false)}>
+        <button data-testid="palette-open-true" onClick={(e) => { e.stopPropagation(); onOpenChange(true); }}>OpenTrue</button>
         Palette
       </div>
     ) : null,
@@ -103,9 +166,6 @@ vi.mock("./lib/tauri", () => ({
 }));
 
 const mockApplyTheme = vi.fn();
-vi.mock("./lib/themes", () => ({
-  applyTheme: (...args: any[]) => mockApplyTheme(...args),
-}));
 
 vi.mock("monaco-editor", () => ({}));
 
@@ -126,6 +186,12 @@ vi.mock("./lib/copilot", () => ({
 
 vi.mock("./App.css", () => ({}));
 
+const mockRegisterCustomTheme = vi.fn();
+vi.mock("./lib/themes", () => ({
+  applyTheme: (...args: any[]) => mockApplyTheme(...args),
+  registerCustomTheme: (...args: any[]) => mockRegisterCustomTheme(...args),
+}));
+
 import App from "./App";
 import { useWorkspaceStore } from "./stores/workspaceStore";
 import { useRepositoryStore } from "./stores/repositoryStore";
@@ -133,6 +199,8 @@ import { useUIStore } from "./stores/uiStore";
 import { useFileViewerStore } from "./stores/fileViewerStore";
 import { useChatStore } from "./stores/chatStore";
 import { useCopilotStore } from "./stores/copilotStore";
+import { useTestRunnerStore } from "./stores/testRunnerStore";
+import { useNotificationStore } from "./stores/notificationStore";
 
 beforeEach(() => {
   capturedHandler = null;
@@ -156,6 +224,14 @@ beforeEach(() => {
   mockClearSession.mockResolvedValue(undefined);
   mockApplyTheme.mockClear();
   mockInitializeCopilot.mockClear();
+  mockRegisterCustomTheme.mockClear();
+  useFileViewerStore.setState({ tabs: [], activeTabId: null, splitActive: false });
+  useUIStore.setState({
+    ...useUIStore.getState(),
+    splitChatActive: false,
+    splitChatContextId: null,
+    splitChatContextType: null,
+  });
   vi.clearAllMocks();
 });
 
@@ -632,6 +708,22 @@ describe("App", () => {
       });
       expect(screen.queryByTestId("command-palette")).not.toBeInTheDocument();
     });
+
+    it("keeps palette open and does not reset mode when onOpenChange(true) is called", () => {
+      setWorkspaceContext();
+      render(<App />);
+      // Open the palette first
+      act(() => {
+        capturedHandler?.("toggle-palette");
+      });
+      expect(screen.getByTestId("command-palette")).toBeInTheDocument();
+      // Call onOpenChange(true) via the palette-open-true button
+      act(() => {
+        screen.getByTestId("palette-open-true").click();
+      });
+      // Palette should still be open
+      expect(screen.getByTestId("command-palette")).toBeInTheDocument();
+    });
   });
 
   // --- Landing page integration ---
@@ -681,6 +773,501 @@ describe("App", () => {
       setRepoContext();
       render(<App />);
       expect(screen.getByTestId("top-bar")).toBeInTheDocument();
+    });
+  });
+
+  // --- Additional MainPanel view types ---
+  describe("MainPanel additional views", () => {
+    it("shows DiffPanel when viewTab is diff", async () => {
+      setWorkspaceContext();
+      useUIStore.setState({
+        ...useUIStore.getState(),
+        viewTabs: [
+          { id: "chat", type: "chat" as const, pinned: true, label: "Chat" },
+          { id: "diff", type: "diff" as const, pinned: false, label: "Diff" },
+        ],
+        activeViewTabId: "diff",
+      });
+      render(<App />);
+      expect(await screen.findByTestId("diff-panel")).toBeInTheDocument();
+      expect(screen.queryByTestId("chat-panel")).not.toBeInTheDocument();
+    });
+
+    it("shows TeamView when viewTab is team", async () => {
+      setWorkspaceContext();
+      useUIStore.setState({
+        ...useUIStore.getState(),
+        viewTabs: [
+          { id: "chat", type: "chat" as const, pinned: true, label: "Chat" },
+          { id: "team", type: "team" as const, pinned: false, label: "Team" },
+        ],
+        activeViewTabId: "team",
+      });
+      render(<App />);
+      expect(await screen.findByTestId("team-view")).toBeInTheDocument();
+    });
+
+    it("shows TestRunnerPanel when viewTab is tests", async () => {
+      setWorkspaceContext();
+      useUIStore.setState({
+        ...useUIStore.getState(),
+        viewTabs: [
+          { id: "chat", type: "chat" as const, pinned: true, label: "Chat" },
+          { id: "tests", type: "tests" as const, pinned: false, label: "Tests" },
+        ],
+        activeViewTabId: "tests",
+      });
+      render(<App />);
+      expect(await screen.findByTestId("test-runner-panel")).toBeInTheDocument();
+    });
+
+    it("shows UsageDashboard when viewTab is usage", async () => {
+      setWorkspaceContext();
+      useUIStore.setState({
+        ...useUIStore.getState(),
+        viewTabs: [
+          { id: "chat", type: "chat" as const, pinned: true, label: "Chat" },
+          { id: "usage", type: "usage" as const, pinned: false, label: "Usage" },
+        ],
+        activeViewTabId: "usage",
+      });
+      render(<App />);
+      expect(await screen.findByTestId("usage-dashboard")).toBeInTheDocument();
+    });
+
+    it("shows ActivityLogView when viewTab is activity", async () => {
+      setWorkspaceContext();
+      useUIStore.setState({
+        ...useUIStore.getState(),
+        viewTabs: [
+          { id: "chat", type: "chat" as const, pinned: true, label: "Chat" },
+          { id: "activity", type: "activity" as const, pinned: false, label: "Activity" },
+        ],
+        activeViewTabId: "activity",
+      });
+      render(<App />);
+      expect(await screen.findByTestId("activity-log-view")).toBeInTheDocument();
+    });
+
+    it("shows SplitEditorLayout when splitActive is true", () => {
+      setWorkspaceContext();
+      useFileViewerStore.setState({
+        tabs: [],
+        activeTabId: null,
+        splitActive: true,
+      });
+      render(<App />);
+      expect(screen.getByTestId("split-editor")).toBeInTheDocument();
+      expect(screen.queryByTestId("chat-panel")).not.toBeInTheDocument();
+    });
+
+    it("shows SplitChatLayout when splitChatActive with context", () => {
+      setWorkspaceContext();
+      useUIStore.setState({
+        ...useUIStore.getState(),
+        splitChatActive: true,
+        splitChatContextId: "ws-2",
+        splitChatContextType: "workspace",
+      });
+      useFileViewerStore.setState({ tabs: [], activeTabId: null, splitActive: false });
+      render(<App />);
+      const splitChat = screen.getByTestId("split-chat-layout");
+      expect(splitChat).toBeInTheDocument();
+      expect(splitChat).toHaveAttribute("data-left-id", "ws-1");
+      expect(splitChat).toHaveAttribute("data-left-type", "workspace");
+      expect(splitChat).toHaveAttribute("data-right-id", "ws-2");
+      expect(splitChat).toHaveAttribute("data-right-type", "workspace");
+    });
+
+    it("shows ChatPanel when splitChatActive but no splitChatContextId", () => {
+      setWorkspaceContext();
+      useUIStore.setState({
+        ...useUIStore.getState(),
+        splitChatActive: true,
+        splitChatContextId: null,
+        splitChatContextType: null,
+      });
+      render(<App />);
+      expect(screen.getByTestId("chat-panel")).toBeInTheDocument();
+      expect(screen.queryByTestId("split-chat-layout")).not.toBeInTheDocument();
+    });
+
+    it("uses contextId and contextType from view tab when available", () => {
+      setWorkspaceContext();
+      useUIStore.setState({
+        ...useUIStore.getState(),
+        viewTabs: [
+          { id: "chat", type: "chat" as const, pinned: true, label: "Chat", contextId: "custom-ctx", contextType: "repo" },
+        ],
+        activeViewTabId: "chat",
+      });
+      render(<App />);
+      const chat = screen.getByTestId("chat-panel");
+      expect(chat).toHaveAttribute("data-context-id", "custom-ctx");
+      expect(chat).toHaveAttribute("data-context-type", "repo");
+    });
+  });
+
+  // --- Additional handleAction cases ---
+  describe("handleAction additional cases", () => {
+    it("toggle-notifications toggles notification panel", () => {
+      setWorkspaceContext();
+      const toggleSpy = vi.spyOn(useNotificationStore.getState(), "togglePanel");
+      render(<App />);
+      act(() => {
+        capturedHandler?.("toggle-notifications");
+      });
+      expect(toggleSpy).toHaveBeenCalled();
+    });
+
+    it("right-sidebar-bookmarks sets tab and ensures visible", () => {
+      setWorkspaceContext();
+      const setTabSpy = vi.spyOn(useUIStore.getState(), "setRightSidebarTab");
+      const ensureSpy = vi.spyOn(useUIStore.getState(), "ensureRightSidebarVisible");
+      render(<App />);
+      act(() => {
+        capturedHandler?.("right-sidebar-bookmarks");
+      });
+      expect(setTabSpy).toHaveBeenCalledWith("bookmarks");
+      expect(ensureSpy).toHaveBeenCalled();
+    });
+
+    it("view-team opens team view tab", () => {
+      setWorkspaceContext();
+      const openViewTabSpy = vi.spyOn(useUIStore.getState(), "openViewTab");
+      render(<App />);
+      act(() => {
+        capturedHandler?.("view-team");
+      });
+      expect(openViewTabSpy).toHaveBeenCalledWith("team");
+    });
+
+    it("view-tests opens tests view tab", () => {
+      setWorkspaceContext();
+      const openViewTabSpy = vi.spyOn(useUIStore.getState(), "openViewTab");
+      render(<App />);
+      act(() => {
+        capturedHandler?.("view-tests");
+      });
+      expect(openViewTabSpy).toHaveBeenCalledWith("tests");
+    });
+
+    it("run-tests opens tests view and runs tests with workspace context", () => {
+      setWorkspaceContext();
+      const openViewTabSpy = vi.spyOn(useUIStore.getState(), "openViewTab");
+      const runTestsSpy = vi.spyOn(useTestRunnerStore.getState(), "runTests").mockImplementation(async () => {});
+      render(<App />);
+      act(() => {
+        capturedHandler?.("run-tests");
+      });
+      expect(openViewTabSpy).toHaveBeenCalledWith("tests");
+      expect(runTestsSpy).toHaveBeenCalledWith("ws-1", "workspace");
+      runTestsSpy.mockRestore();
+    });
+
+    it("run-tests opens tests view and runs tests with repo context", () => {
+      setRepoContext();
+      const openViewTabSpy = vi.spyOn(useUIStore.getState(), "openViewTab");
+      const runTestsSpy = vi.spyOn(useTestRunnerStore.getState(), "runTests").mockImplementation(async () => {});
+      render(<App />);
+      act(() => {
+        capturedHandler?.("run-tests");
+      });
+      expect(openViewTabSpy).toHaveBeenCalledWith("tests");
+      expect(runTestsSpy).toHaveBeenCalledWith("r1", "repo");
+      runTestsSpy.mockRestore();
+    });
+
+    it("run-tests opens tests view but does not run when no context", () => {
+      render(<App />);
+      const runTestsSpy = vi.spyOn(useTestRunnerStore.getState(), "runTests").mockImplementation(async () => {});
+      act(() => {
+        capturedHandler?.("run-tests");
+      });
+      expect(runTestsSpy).not.toHaveBeenCalled();
+      runTestsSpy.mockRestore();
+    });
+
+    it("view-usage opens usage view tab", () => {
+      setWorkspaceContext();
+      const openViewTabSpy = vi.spyOn(useUIStore.getState(), "openViewTab");
+      render(<App />);
+      act(() => {
+        capturedHandler?.("view-usage");
+      });
+      expect(openViewTabSpy).toHaveBeenCalledWith("usage");
+    });
+
+    it("view-activity opens activity view tab", () => {
+      setWorkspaceContext();
+      const openViewTabSpy = vi.spyOn(useUIStore.getState(), "openViewTab");
+      render(<App />);
+      act(() => {
+        capturedHandler?.("view-activity");
+      });
+      expect(openViewTabSpy).toHaveBeenCalledWith("activity");
+    });
+
+    it("toggle-split-editor activates split when not active", () => {
+      setWorkspaceContext();
+      useFileViewerStore.setState({ tabs: [], activeTabId: null, splitActive: false });
+      const splitSpy = vi.spyOn(useFileViewerStore.getState(), "splitEditor").mockImplementation(() => {});
+      render(<App />);
+      act(() => {
+        capturedHandler?.("toggle-split-editor");
+      });
+      expect(splitSpy).toHaveBeenCalled();
+      splitSpy.mockRestore();
+    });
+
+    it("toggle-split-editor closes split when active", () => {
+      setWorkspaceContext();
+      useFileViewerStore.setState({ tabs: [], activeTabId: null, splitActive: true });
+      const closeSpy = vi.spyOn(useFileViewerStore.getState(), "closeSplit").mockImplementation(() => {});
+      render(<App />);
+      act(() => {
+        capturedHandler?.("toggle-split-editor");
+      });
+      expect(closeSpy).toHaveBeenCalled();
+      closeSpy.mockRestore();
+    });
+
+    it("open-snippets shows snippet manager dialog", () => {
+      setWorkspaceContext();
+      render(<App />);
+      expect(screen.queryByTestId("snippet-manager")).not.toBeInTheDocument();
+      act(() => {
+        capturedHandler?.("open-snippets");
+      });
+      expect(screen.getByTestId("snippet-manager")).toBeInTheDocument();
+    });
+
+    it("snippet manager can be closed via onClose", () => {
+      setWorkspaceContext();
+      render(<App />);
+      act(() => {
+        capturedHandler?.("open-snippets");
+      });
+      expect(screen.getByTestId("snippet-manager")).toBeInTheDocument();
+      act(() => {
+        screen.getByTestId("snippet-close").click();
+      });
+      expect(screen.queryByTestId("snippet-manager")).not.toBeInTheDocument();
+    });
+
+    it("export-workspace shows export dialog when workspace is active", () => {
+      setWorkspaceContext();
+      render(<App />);
+      expect(screen.queryByTestId("export-dialog")).not.toBeInTheDocument();
+      act(() => {
+        capturedHandler?.("export-workspace");
+      });
+      expect(screen.getByTestId("export-dialog")).toBeInTheDocument();
+      expect(screen.getByTestId("export-dialog")).toHaveAttribute("data-ws-id", "ws-1");
+    });
+
+    it("export-workspace does nothing when no workspace is active", () => {
+      setRepoContext();
+      render(<App />);
+      act(() => {
+        capturedHandler?.("export-workspace");
+      });
+      expect(screen.queryByTestId("export-dialog")).not.toBeInTheDocument();
+    });
+
+    it("export dialog can be closed via onClose", () => {
+      setWorkspaceContext();
+      render(<App />);
+      act(() => {
+        capturedHandler?.("export-workspace");
+      });
+      expect(screen.getByTestId("export-dialog")).toBeInTheDocument();
+      act(() => {
+        screen.getByTestId("export-close").click();
+      });
+      expect(screen.queryByTestId("export-dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  // --- Custom themes ---
+  describe("Custom themes", () => {
+    it("registers custom themes from settings on mount", async () => {
+      mockGetAppSettings.mockResolvedValue({
+        theme: "custom-1",
+        customThemes: [
+          { id: "custom-1", vars: { bgPrimary: "#000" } },
+          { id: "custom-2", vars: { bgPrimary: "#111" } },
+        ],
+      });
+      render(<App />);
+      await waitFor(() => {
+        expect(mockRegisterCustomTheme).toHaveBeenCalledTimes(2);
+        expect(mockRegisterCustomTheme).toHaveBeenCalledWith("custom-1", { bgPrimary: "#000" });
+        expect(mockRegisterCustomTheme).toHaveBeenCalledWith("custom-2", { bgPrimary: "#111" });
+      });
+    });
+
+    it("does not register custom themes when none exist in settings", async () => {
+      mockGetAppSettings.mockResolvedValue({ theme: "dark" });
+      render(<App />);
+      await waitFor(() => {
+        expect(mockGetAppSettings).toHaveBeenCalled();
+      });
+      expect(mockRegisterCustomTheme).not.toHaveBeenCalled();
+    });
+  });
+
+  // --- Copilot settings disabled path ---
+  describe("Copilot disabled path", () => {
+    it("skips copilot initialize when settingsRef.copilotEnabled is false", async () => {
+      // Return copilot disabled from settings
+      mockGetAppSettings.mockResolvedValue({ copilot: { enabled: false } });
+      // First render WITHOUT context so settings load but copilot effect returns early
+      const { rerender } = render(<App />);
+      // Flush microtasks so settingsRef.current gets set via getAppSettings().then()
+      await act(async () => {
+        for (let i = 0; i < 20; i++) await Promise.resolve();
+      });
+
+      const initSpy = vi.spyOn(useCopilotStore.getState(), "initialize").mockImplementation(async () => {});
+      // NOW add workspace context - copilot effect runs with settingsRef.current already set
+      // but copilotEnabled is false, so line 289 false branch is taken
+      act(() => {
+        setWorkspaceContext();
+      });
+      rerender(<App />);
+      await act(async () => {
+        for (let i = 0; i < 20; i++) await Promise.resolve();
+      });
+      expect(initSpy).not.toHaveBeenCalled();
+      initSpy.mockRestore();
+    });
+
+    it("does not initialize copilot when second getAppSettings returns copilot disabled", async () => {
+      // Settings not loaded yet (settingsRef.current is null),
+      // copilot effect will call getAppSettings again
+      mockGetAppSettings.mockResolvedValue({ copilot: { enabled: false } });
+      setWorkspaceContext();
+      const initSpy = vi.spyOn(useCopilotStore.getState(), "initialize").mockImplementation(async () => {});
+      render(<App />);
+      await act(async () => {
+        for (let i = 0; i < 10; i++) await Promise.resolve();
+      });
+      expect(initSpy).not.toHaveBeenCalled();
+      initSpy.mockRestore();
+    });
+  });
+
+  // --- Layout deferral ---
+  describe("Layout deferral", () => {
+    it("defers layout mount when transitioning from no-context to has-context", async () => {
+      render(<App />);
+      expect(screen.getByTestId("landing-page")).toBeInTheDocument();
+
+      act(() => {
+        setWorkspaceContext();
+      });
+
+      // Should eventually show workspace layout after rAF deferral
+      await waitFor(() => {
+        expect(screen.getByTestId("sidebar")).toBeInTheDocument();
+      });
+    });
+
+    it("does not defer layout when hasContext is already true on mount", () => {
+      setWorkspaceContext();
+      render(<App />);
+      // Should show immediately since layoutReadyRef is initialized to true
+      expect(screen.getByTestId("sidebar")).toBeInTheDocument();
+    });
+
+    it("resets layoutReady when context is removed", async () => {
+      setWorkspaceContext();
+      render(<App />);
+      expect(screen.getByTestId("sidebar")).toBeInTheDocument();
+
+      act(() => {
+        useWorkspaceStore.setState({
+          workspaces: [],
+          activeWorkspaceId: null,
+          activeRepoId: null,
+        });
+      });
+
+      expect(screen.getByTestId("landing-page")).toBeInTheDocument();
+    });
+  });
+
+  // --- Right sidebar readiness ---
+  describe("Right sidebar readiness", () => {
+    it("defers right sidebar content after layout ready", async () => {
+      setWorkspaceContext();
+      render(<App />);
+      // Right sidebar should eventually appear
+      expect(await screen.findByTestId("right-sidebar")).toBeInTheDocument();
+    });
+
+    it("resets right sidebar readiness when layout becomes not ready", async () => {
+      setWorkspaceContext();
+      render(<App />);
+      expect(await screen.findByTestId("right-sidebar")).toBeInTheDocument();
+
+      act(() => {
+        useWorkspaceStore.setState({
+          workspaces: [],
+          activeWorkspaceId: null,
+          activeRepoId: null,
+        });
+      });
+
+      expect(screen.queryByTestId("right-sidebar")).not.toBeInTheDocument();
+    });
+  });
+
+  // --- Copilot repo path from repo context ---
+  describe("Copilot repo path", () => {
+    it("returns null for copilotRepoPath when no context", () => {
+      const initSpy = vi.spyOn(useCopilotStore.getState(), "initialize").mockImplementation(async () => {});
+      render(<App />);
+      // copilotRepoPath should be null, copilot effect returns early
+      expect(initSpy).not.toHaveBeenCalled();
+      initSpy.mockRestore();
+    });
+
+    it("derives copilotRepoPath from repo when only repo is active", async () => {
+      mockGetAppSettings.mockResolvedValue({ copilot: { enabled: true } });
+      setRepoContext();
+      const initSpy = vi.spyOn(useCopilotStore.getState(), "initialize").mockImplementation(async () => {});
+
+      render(<App />);
+      await act(async () => {
+        for (let i = 0; i < 10; i++) await Promise.resolve();
+      });
+
+      // Copilot should have been called with the repo path
+      await waitFor(() => {
+        expect(initSpy).toHaveBeenCalledWith("file:///repo/path");
+      });
+      initSpy.mockRestore();
+    });
+
+    it("returns null copilotRepoPath when repo not found in repositories", async () => {
+      mockGetAppSettings.mockResolvedValue({ copilot: { enabled: true } });
+      useWorkspaceStore.setState({
+        workspaces: [{ id: "ws-1", name: "test", branch: "main", repoId: "r-nonexistent" }] as any,
+        activeWorkspaceId: "ws-1",
+      });
+      useRepositoryStore.setState({
+        repositories: [{ id: "r1", name: "my-repo", path: "/path" }] as any,
+      });
+      const initSpy = vi.spyOn(useCopilotStore.getState(), "initialize").mockImplementation(async () => {});
+      render(<App />);
+      await act(async () => {
+        for (let i = 0; i < 10; i++) await Promise.resolve();
+      });
+      // Should not have been called since repo not found
+      expect(initSpy).not.toHaveBeenCalled();
+      initSpy.mockRestore();
     });
   });
 });

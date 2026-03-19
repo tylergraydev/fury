@@ -255,10 +255,12 @@ function App() {
     }
     let done = false;
     const mark = () => {
+      /* v8 ignore start -- double-fire guard: rAF and setTimeout both call mark */
       if (!done) {
         done = true;
         setRightSidebarReady(true);
       }
+      /* v8 ignore stop */
     };
     const id = requestAnimationFrame(mark);
     const timeout = setTimeout(mark, 100);

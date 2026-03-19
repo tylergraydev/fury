@@ -235,6 +235,38 @@ describe("BookmarksPanel", () => {
     await waitFor(() => expect(loadBookmarks).toHaveBeenCalledWith("repo-42"));
   });
 
+  it("activates bookmark via keyboard Enter key", async () => {
+    const user = userEvent.setup();
+    bookmarkStoreValues = {
+      bookmarks: {
+        "repo-1": [makeBookmark({ lineNumber: 42 })],
+      },
+    };
+    render(<BookmarksPanel context={{ type: "workspace", id: "ws-1" }} />);
+
+    const bookmarkRow = screen.getByText("L42").closest('[role="button"]')!;
+    await user.type(bookmarkRow, "{Enter}");
+
+    expect(openFile).toHaveBeenCalledWith("ws-1", "workspace", "src/index.ts", true);
+    expect(setRevealLine).toHaveBeenCalledWith("ws-1:src/index.ts", 42);
+  });
+
+  it("activates bookmark via keyboard Space key", async () => {
+    const user = userEvent.setup();
+    bookmarkStoreValues = {
+      bookmarks: {
+        "repo-1": [makeBookmark({ lineNumber: 42 })],
+      },
+    };
+    render(<BookmarksPanel context={{ type: "workspace", id: "ws-1" }} />);
+
+    const bookmarkRow = screen.getByText("L42").closest('[role="button"]')!;
+    await user.type(bookmarkRow, " ");
+
+    expect(openFile).toHaveBeenCalledWith("ws-1", "workspace", "src/index.ts", true);
+    expect(setRevealLine).toHaveBeenCalledWith("ws-1:src/index.ts", 42);
+  });
+
   it("displays note text or No note italic fallback", () => {
     bookmarkStoreValues = {
       bookmarks: {

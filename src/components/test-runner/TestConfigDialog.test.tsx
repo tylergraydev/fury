@@ -184,4 +184,257 @@ describe("TestConfigDialog", () => {
     const select = screen.getByDisplayValue("Jest") as HTMLSelectElement;
     expect(select.value).toBe("jest");
   });
+
+  it("syncs form with config where all fields are null", () => {
+    const { rerender } = render(
+      <TestConfigDialog contextId={CTX} repoId={REPO} onClose={onClose} />,
+    );
+
+    // Config exists but all fields are null — exercises ?? "" fallbacks
+    useTestRunnerStore.setState({
+      config: {
+        [CTX]: {
+          framework: null,
+          testCommand: null,
+          testFileCommand: null,
+          workingDir: null,
+          coverageCommand: null,
+        },
+      },
+      saveConfig,
+      loadConfig,
+      detectFramework,
+    } as any);
+
+    rerender(
+      <TestConfigDialog contextId={CTX} repoId={REPO} onClose={onClose} />,
+    );
+
+    const select = screen.getByDisplayValue("Not set") as HTMLSelectElement;
+    expect(select.value).toBe("");
+    const inputs = screen.getAllByRole("textbox");
+    expect((inputs[0] as HTMLInputElement).value).toBe("");
+    expect((inputs[1] as HTMLInputElement).value).toBe("");
+    expect((inputs[2] as HTMLInputElement).value).toBe("");
+    expect((inputs[3] as HTMLInputElement).value).toBe("");
+  });
+
+  it("typing into test command input updates value and saves correctly", async () => {
+    const user = userEvent.setup();
+    render(
+      <TestConfigDialog contextId={CTX} repoId={REPO} onClose={onClose} />,
+    );
+
+    const inputs = screen.getAllByRole("textbox");
+    const testCommandInput = inputs[0] as HTMLInputElement;
+    await user.type(testCommandInput, "npm test");
+    expect(testCommandInput.value).toBe("npm test");
+
+    await user.click(screen.getByText("Save"));
+    expect(saveConfig).toHaveBeenCalledWith(REPO, {
+      framework: null,
+      testCommand: "npm test",
+      testFileCommand: null,
+      workingDir: null,
+      coverageCommand: null,
+    });
+  });
+
+  it("typing into test file command input updates value and saves correctly", async () => {
+    const user = userEvent.setup();
+    render(
+      <TestConfigDialog contextId={CTX} repoId={REPO} onClose={onClose} />,
+    );
+
+    const inputs = screen.getAllByRole("textbox");
+    const testFileCommandInput = inputs[1] as HTMLInputElement;
+    await user.clear(testFileCommandInput);
+    await user.click(testFileCommandInput);
+    await user.paste("npm test -- {file}");
+    expect(testFileCommandInput.value).toBe("npm test -- {file}");
+
+    await user.click(screen.getByText("Save"));
+    expect(saveConfig).toHaveBeenCalledWith(REPO, {
+      framework: null,
+      testCommand: null,
+      testFileCommand: "npm test -- {file}",
+      workingDir: null,
+      coverageCommand: null,
+    });
+  });
+
+  it("typing into working directory input updates value and saves correctly", async () => {
+    const user = userEvent.setup();
+    render(
+      <TestConfigDialog contextId={CTX} repoId={REPO} onClose={onClose} />,
+    );
+
+    const inputs = screen.getAllByRole("textbox");
+    const workingDirInput = inputs[2] as HTMLInputElement;
+    await user.type(workingDirInput, "packages/core");
+    expect(workingDirInput.value).toBe("packages/core");
+
+    await user.click(screen.getByText("Save"));
+    expect(saveConfig).toHaveBeenCalledWith(REPO, {
+      framework: null,
+      testCommand: null,
+      testFileCommand: null,
+      workingDir: "packages/core",
+      coverageCommand: null,
+    });
+  });
+
+  it("typing into coverage command input updates value and saves correctly", async () => {
+    const user = userEvent.setup();
+    render(
+      <TestConfigDialog contextId={CTX} repoId={REPO} onClose={onClose} />,
+    );
+
+    const inputs = screen.getAllByRole("textbox");
+    const coverageInput = inputs[3] as HTMLInputElement;
+    await user.type(coverageInput, "npm run coverage");
+    expect(coverageInput.value).toBe("npm run coverage");
+
+    await user.click(screen.getByText("Save"));
+    expect(saveConfig).toHaveBeenCalledWith(REPO, {
+      framework: null,
+      testCommand: null,
+      testFileCommand: null,
+      workingDir: null,
+      coverageCommand: "npm run coverage",
+    });
+  });
+
+  it("changing framework dropdown updates value and saves correctly", async () => {
+    const user = userEvent.setup();
+    render(
+      <TestConfigDialog contextId={CTX} repoId={REPO} onClose={onClose} />,
+    );
+
+    const select = screen.getByDisplayValue("Not set") as HTMLSelectElement;
+    await user.selectOptions(select, "pytest");
+    expect(select.value).toBe("pytest");
+
+    await user.click(screen.getByText("Save"));
+    expect(saveConfig).toHaveBeenCalledWith(REPO, {
+      framework: "pytest",
+      testCommand: null,
+      testFileCommand: null,
+      workingDir: null,
+      coverageCommand: null,
+    });
+  });
+
+  it("renders all form fields with full config including coverageCommand", () => {
+    useTestRunnerStore.setState({
+      config: {
+        [CTX]: {
+          framework: "pytest",
+          testCommand: "pytest --json",
+          testFileCommand: "pytest {file}",
+          workingDir: "backend",
+          coverageCommand: "pytest --cov",
+        },
+      },
+      saveConfig,
+      loadConfig,
+      detectFramework,
+    } as any);
+    render(
+      <TestConfigDialog contextId={CTX} repoId={REPO} onClose={onClose} />,
+    );
+
+    const select = screen.getByDisplayValue("Pytest") as HTMLSelectElement;
+    expect(select.value).toBe("pytest");
+
+    const inputs = screen.getAllByRole("textbox");
+    expect((inputs[0] as HTMLInputElement).value).toBe("pytest --json");
+    expect((inputs[1] as HTMLInputElement).value).toBe("pytest {file}");
+    expect((inputs[2] as HTMLInputElement).value).toBe("backend");
+    expect((inputs[3] as HTMLInputElement).value).toBe("pytest --cov");
+  });
+
+  it("fills all fields and saves with all values populated", async () => {
+    const user = userEvent.setup();
+    render(
+      <TestConfigDialog contextId={CTX} repoId={REPO} onClose={onClose} />,
+    );
+
+    const select = screen.getByDisplayValue("Not set") as HTMLSelectElement;
+    await user.selectOptions(select, "cargotest");
+
+    const inputs = screen.getAllByRole("textbox");
+    await user.type(inputs[0], "cargo test");
+    await user.click(inputs[1]);
+    await user.paste("cargo test {file}");
+    await user.type(inputs[2], "crates/core");
+    await user.type(inputs[3], "cargo tarpaulin");
+
+    await user.click(screen.getByText("Save"));
+    expect(saveConfig).toHaveBeenCalledWith(REPO, {
+      framework: "cargotest",
+      testCommand: "cargo test",
+      testFileCommand: "cargo test {file}",
+      workingDir: "crates/core",
+      coverageCommand: "cargo tarpaulin",
+    });
+    expect(loadConfig).toHaveBeenCalledWith(CTX, REPO);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("renders correct labels for all form fields", () => {
+    render(
+      <TestConfigDialog contextId={CTX} repoId={REPO} onClose={onClose} />,
+    );
+
+    expect(screen.getByText("Framework")).toBeInTheDocument();
+    expect(
+      screen.getByText("Test Command (run all tests)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Test File Command/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Working Directory (relative to repo root, optional)",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Coverage Command (optional, auto-detected for vitest/jest/pytest)",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("renders correct placeholder text for inputs", () => {
+    render(
+      <TestConfigDialog contextId={CTX} repoId={REPO} onClose={onClose} />,
+    );
+
+    expect(
+      screen.getByPlaceholderText("e.g., npx vitest --reporter=json --run"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText(
+        "e.g., npx vitest --reporter=json --run {file}",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("e.g., packages/core"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText(
+        "e.g., npx vitest --coverage --reporter=json --run",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("clicking inside the dialog does not call onClose", async () => {
+    const user = userEvent.setup();
+    render(
+      <TestConfigDialog contextId={CTX} repoId={REPO} onClose={onClose} />,
+    );
+
+    const dialog = screen.getByRole("dialog");
+    await user.click(dialog);
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

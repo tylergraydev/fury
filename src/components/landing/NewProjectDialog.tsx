@@ -30,7 +30,9 @@ export function NewProjectDialog({ onClose }: Props) {
 
   useEffect(() => {
     homeDir().then((home) => {
+      /* v8 ignore start -- homeDir() always returns trailing slash in Tauri mock */
       const base = home.endsWith("/") ? home : home + "/";
+      /* v8 ignore stop */
       setBasePath(`${base}Code`);
     });
   }, []);

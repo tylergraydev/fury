@@ -137,6 +137,42 @@ describe("TeamAgentCard", () => {
     expect(screen.queryByTitle("Stop agent")).not.toBeInTheDocument();
   });
 
+  it("does not show preview when assistant message has no text blocks", () => {
+    useChatStore.setState({
+      messages: {
+        "ws-1": [
+          { id: "m1", role: "assistant", content: [{ type: "tool_use", id: "t1", name: "fn", input: {} }], timestamp: "t1" },
+        ] as any,
+      },
+    });
+    render(<TeamAgentCard workspace={makeWorkspace()} />);
+    // No preview text should be rendered (getLastAssistantPreview returns "")
+    const previewElements = document.querySelectorAll("p.line-clamp-2");
+    expect(previewElements.length).toBe(0);
+  });
+
+  it("shows Stopping status with stop button disabled", () => {
+    useAgentStore.setState({
+      agents: {
+        "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Stopping", startedAt: null } as any,
+      },
+    });
+    render(<TeamAgentCard workspace={makeWorkspace()} />);
+    const stopBtn = screen.getByTitle("Stop agent");
+    expect(stopBtn).toBeDisabled();
+  });
+
+  it("shows stats without cost when totalCostUsd is 0", () => {
+    useChatStore.setState({
+      sessionStats: {
+        "ws-1": { totalCostUsd: 0, totalInputTokens: 100, totalOutputTokens: 50, numTurns: 2 },
+      },
+    });
+    render(<TeamAgentCard workspace={makeWorkspace()} />);
+    expect(screen.getByText("2 turns")).toBeInTheDocument();
+    expect(screen.queryByText("$0.0000")).not.toBeInTheDocument();
+  });
+
   it("does not show stats when numTurns is 0", () => {
     useChatStore.setState({
       sessionStats: {

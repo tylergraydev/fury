@@ -142,6 +142,24 @@ describe("CloneRepoDialog", () => {
     });
   });
 
+  it("uses default path from homeDir (no trailing slash) when path is empty", async () => {
+    (homeDir as ReturnType<typeof vi.fn>).mockResolvedValueOnce("/home/user");
+    const onClose = vi.fn();
+    render(<CloneRepoDialog onClose={onClose} />);
+
+    const urlInput = screen.getByPlaceholderText("https://github.com/user/repo.git");
+    fireEvent.change(urlInput, { target: { value: "https://github.com/user/myrepo.git" } });
+
+    fireEvent.click(screen.getByText("Clone"));
+
+    await waitFor(() => {
+      expect(mockCloneRepo).toHaveBeenCalledWith("https://github.com/user/myrepo.git", "/home/user/Code/myrepo");
+    });
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalled();
+    });
+  });
+
   it("uses default path from homeDir when path is empty", async () => {
     (homeDir as ReturnType<typeof vi.fn>).mockResolvedValueOnce("/home/user/");
     const onClose = vi.fn();

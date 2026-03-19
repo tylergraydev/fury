@@ -48,6 +48,7 @@ let flushInterval: ReturnType<typeof setInterval> | null = null;
 // This logs every IPC call in real-time with timing + concurrency count.
 let _inflight = 0;
 
+/* v8 ignore next 7 -- debug utility only active when __IPC_DEBUG flag set */
 function debugLog(phase: "START" | "END" | "FAIL", cmd: string, ms?: number) {
   if (!(globalThis as Record<string, unknown>).__IPC_DEBUG) return;
   const tag = phase === "START" ? "→" : phase === "END" ? "✓" : "✗";

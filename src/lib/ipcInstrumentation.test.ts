@@ -129,6 +129,43 @@ describe("pushStreamEvent", () => {
   });
 });
 
+describe("debugLog", () => {
+  it("logs to console.warn when __IPC_DEBUG is enabled", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    (globalThis as Record<string, unknown>).__IPC_DEBUG = true;
+
+    (rawInvoke as any).mockResolvedValue("ok");
+    await instrumentedInvoke("test_cmd", { foo: "bar" });
+
+    // debugLog is called on START and END
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[IPC"),
+    );
+    // START log should contain inflight count
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("test_cmd"),
+    );
+
+    warnSpy.mockRestore();
+    delete (globalThis as Record<string, unknown>).__IPC_DEBUG;
+  });
+
+  it("logs FAIL tag when invoke fails with __IPC_DEBUG enabled", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    (globalThis as Record<string, unknown>).__IPC_DEBUG = true;
+
+    (rawInvoke as any).mockRejectedValueOnce(new Error("fail"));
+    await instrumentedInvoke("fail_cmd").catch(() => {});
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/IPC.*fail_cmd/),
+    );
+
+    warnSpy.mockRestore();
+    delete (globalThis as Record<string, unknown>).__IPC_DEBUG;
+  });
+});
+
 describe("startIpcFlush / stopIpcFlush", () => {
   it("flushes on interval when started", async () => {
     (rawInvoke as any).mockResolvedValue(undefined);

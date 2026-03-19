@@ -101,6 +101,21 @@ describe("usageStore", () => {
         expect(getUsageData).toHaveBeenCalled();
       });
     });
+
+    it("passes today since as midnight ISO string", async () => {
+      vi.mocked(getUsageData).mockResolvedValue([]);
+      useUsageStore.getState().setTimePeriod("today");
+
+      await vi.waitFor(() => {
+        expect(getUsageData).toHaveBeenCalled();
+      });
+      const since = vi.mocked(getUsageData).mock.calls[0][1];
+      expect(since).toBeDefined();
+      // "today" should set hours to midnight
+      const parsed = new Date(since!);
+      expect(parsed.getHours()).toBe(0);
+      expect(parsed.getMinutes()).toBe(0);
+    });
   });
 
   describe("setSelectedWorkspace", () => {

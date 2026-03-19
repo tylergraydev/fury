@@ -35,10 +35,11 @@ export function startFrameMonitor() {
   if (started) return;
   started = true;
   rafHandle = requestAnimationFrame(tick);
-  /* v8 ignore next 3 -- flushInterval is always null when rafHandle is null */
+  /* v8 ignore start -- flushInterval is always null when rafHandle is null */
   if (!flushInterval) {
     flushInterval = setInterval(flushFrameBuffer, 2000);
   }
+  /* v8 ignore stop */
 }
 
 export function stopFrameMonitor() {

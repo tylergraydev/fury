@@ -61,6 +61,26 @@ describe("devContainerStore", () => {
         "fetch failed",
       );
     });
+
+    it("stores string error on failure with string rejection", async () => {
+      vi.mocked(getContainerStatus).mockRejectedValue("string error");
+
+      await useDevContainerStore.getState().fetchStatus("ws-1");
+
+      expect(useDevContainerStore.getState().error["ws-1"]).toBe(
+        "string error",
+      );
+    });
+
+    it("stores fallback error for non-string non-Error rejection", async () => {
+      vi.mocked(getContainerStatus).mockRejectedValue(42);
+
+      await useDevContainerStore.getState().fetchStatus("ws-1");
+
+      expect(useDevContainerStore.getState().error["ws-1"]).toBe(
+        "An unexpected error occurred",
+      );
+    });
   });
 
   describe("start", () => {
@@ -125,6 +145,32 @@ describe("devContainerStore", () => {
       ).toBe("stopped");
       expect(useDevContainerStore.getState().loading["ws-1"]).toBe(false);
     });
+
+    it("creates fallback state when no current state exists", async () => {
+      vi.mocked(stopContainer).mockResolvedValue(undefined);
+
+      await useDevContainerStore.getState().stop("ws-1");
+
+      const state =
+        useDevContainerStore.getState().containerStates["ws-1"];
+      expect(state?.status).toBe("stopped");
+      expect(state?.containerId).toBeNull();
+      expect(state?.containerName).toBeNull();
+      expect(state?.logTail).toEqual([]);
+    });
+
+    it("stores error on stop failure", async () => {
+      vi.mocked(stopContainer).mockRejectedValue(
+        new Error("stop failed"),
+      );
+
+      await useDevContainerStore.getState().stop("ws-1");
+
+      expect(useDevContainerStore.getState().error["ws-1"]).toBe(
+        "stop failed",
+      );
+      expect(useDevContainerStore.getState().loading["ws-1"]).toBe(false);
+    });
   });
 
   describe("rebuild", () => {
@@ -138,6 +184,19 @@ describe("devContainerStore", () => {
       expect(
         useDevContainerStore.getState().containerStates["ws-1"],
       ).toEqual(state);
+    });
+
+    it("stores error on rebuild failure", async () => {
+      vi.mocked(rebuildContainer).mockRejectedValue(
+        new Error("rebuild failed"),
+      );
+
+      await useDevContainerStore.getState().rebuild("ws-1");
+
+      expect(useDevContainerStore.getState().error["ws-1"]).toBe(
+        "rebuild failed",
+      );
+      expect(useDevContainerStore.getState().loading["ws-1"]).toBe(false);
     });
   });
 

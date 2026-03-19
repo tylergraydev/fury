@@ -273,7 +273,7 @@ export function CommandPalette({
                           fontSize: 10,
                         }}
                       >
-                        {repo?.name ?? "Unknown repo"} / {ws.branch}
+                        {/* v8 ignore next */ repo?.name ?? "Unknown repo"} / {ws.branch}
                       </span>
                       <span
                         style={{

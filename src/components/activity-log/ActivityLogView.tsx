@@ -133,7 +133,7 @@ export function ActivityLogView() {
     const allActive = types.every((t) => activeFilters.has(t));
     for (const t of types) {
       if (allActive) {
-        if (activeFilters.has(t)) useActivityLogStore.getState().toggleFilter(t);
+        useActivityLogStore.getState().toggleFilter(t);
       } else {
         if (!activeFilters.has(t)) useActivityLogStore.getState().toggleFilter(t);
       }

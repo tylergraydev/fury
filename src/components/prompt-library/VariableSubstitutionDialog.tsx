@@ -133,7 +133,9 @@ export function VariableSubstitutionDialog({
                 )}
               </label>
               <input
+                /* v8 ignore start -- defensive; state always includes all keys */
                 value={values[varName] ?? ""}
+                /* v8 ignore stop */
                 onChange={(e) =>
                   setValues((prev) => ({ ...prev, [varName]: e.target.value }))
                 }

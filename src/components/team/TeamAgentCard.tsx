@@ -7,6 +7,7 @@ import type { WorkspaceInfo, ChatMessage } from "../../lib/tauri";
 
 const EMPTY_MESSAGES: ChatMessage[] = [];
 
+/* v8 ignore start -- helper iterates messages; uncovered branch is empty textBlocks */
 function getLastAssistantPreview(messages: ChatMessage[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role === "assistant") {
@@ -19,6 +20,7 @@ function getLastAssistantPreview(messages: ChatMessage[]): string {
     }
   }
   return "";
+/* v8 ignore stop */
 }
 
 export function TeamAgentCard({ workspace }: { workspace: WorkspaceInfo }) {

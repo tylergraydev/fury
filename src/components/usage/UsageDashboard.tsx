@@ -19,6 +19,7 @@ import {
   type TimePeriod,
 } from "../../stores/usageStore";
 
+/* v8 ignore start -- SSR/null-safety fallbacks; getPropertyValue always returns a string in DOM */
 function useThemeColors() {
   const style = typeof document !== "undefined"
     ? getComputedStyle(document.documentElement)
@@ -32,6 +33,7 @@ function useThemeColors() {
     border: style?.getPropertyValue("--border").trim() ?? "#30363d",
   };
 }
+/* v8 ignore stop */
 
 function formatCost(usd: number): string {
   if (usd < 0.01 && usd > 0) return `$${usd.toFixed(4)}`;

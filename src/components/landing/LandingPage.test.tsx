@@ -226,6 +226,19 @@ describe("LandingPage", () => {
       await user.click(screen.getByText("Open Repository"));
       expect(await screen.findByText("Error: Permission denied")).toBeInTheDocument();
     });
+
+    it("shows error when addRepo fails in QuickActions", async () => {
+      const user = userEvent.setup();
+      (open as ReturnType<typeof vi.fn>).mockResolvedValue("/some/new/repo");
+      const addRepoSpy = vi.fn().mockRejectedValue(new Error("Not a git repo"));
+      useRepositoryStore.setState({
+        repositories: [],
+        addRepo: addRepoSpy,
+      } as any);
+      render(<LandingPage />);
+      await user.click(screen.getByText("Open Repository"));
+      expect(await screen.findByText("Error: Not a git repo")).toBeInTheDocument();
+    });
   });
 
   // --- RecentRepositories ---

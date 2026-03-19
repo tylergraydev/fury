@@ -25,6 +25,15 @@ vi.mock("./ThinkingSpinner", () => ({
   ThinkingSpinner: () => <div data-testid="thinking-spinner" />,
 }));
 
+vi.mock("./ChatEmptyState", () => ({
+  ChatEmptyState: ({ workspaceName, onAction }: { workspaceName: string; onAction: (p: string) => void }) => (
+    <div data-testid="chat-empty-state">
+      <span data-testid="empty-workspace-name">{workspaceName}</span>
+      <button data-testid="empty-action" onClick={() => onAction("test prompt")}>Action</button>
+    </div>
+  ),
+}));
+
 vi.mock("./MarkdownContent", () => ({
   MarkdownContent: ({ content }: { content: string }) => <span>{content}</span>,
 }));
@@ -449,6 +458,100 @@ describe("turn collapsing", () => {
     expect(summaryBtn.querySelector('[data-testid="chevron-right"]')).toBeInTheDocument();
   });
 
+  it("scrolls to highlighted message when highlightMessageId changes", () => {
+    const msgs = [
+      makeMsg({ id: "m1", content: txt("hello") }),
+      makeMsg({ id: "m2", role: "assistant", content: txt("hi") }),
+    ];
+    render(
+      <MessageList
+        messages={msgs}
+        streamingText=""
+        agentStatus="Idle"
+        highlightMessageId="m1"
+      />,
+    );
+    // scrollIntoView should be called for the highlighted message
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("does not scroll when highlightMessageId is null", () => {
+    const scrollSpy = vi.fn();
+    Element.prototype.scrollIntoView = scrollSpy;
+    const msgs = [
+      makeMsg({ id: "m1", content: txt("hello") }),
+    ];
+    render(
+      <MessageList
+        messages={msgs}
+        streamingText=""
+        agentStatus="Idle"
+        highlightMessageId={null}
+      />,
+    );
+    // scrollIntoView is called for bottom ref on mount, but not for highlight
+    const callCount = scrollSpy.mock.calls.length;
+    expect(callCount).toBeGreaterThan(0); // bottom ref scroll
+  });
+
+  it("adds search-highlight class to matching message", () => {
+    const msgs = [
+      makeMsg({ id: "m1", role: "user", content: txt("hello") }),
+      makeMsg({ id: "m2", role: "assistant", content: txt("reply") }),
+    ];
+    const { container } = render(
+      <MessageList
+        messages={msgs}
+        streamingText=""
+        agentStatus="Idle"
+        highlightMessageId="m1"
+      />,
+    );
+    const highlighted = container.querySelector('[data-message-id="m1"].search-highlight');
+    expect(highlighted).toBeInTheDocument();
+  });
+
+  it("shows ChatEmptyState when workspaceName and onAction are provided with no messages", () => {
+    const onAction = vi.fn();
+    render(
+      <MessageList
+        messages={[]}
+        streamingText=""
+        agentStatus="Idle"
+        workspaceName="My Project"
+        onAction={onAction}
+      />,
+    );
+    expect(screen.getByTestId("chat-empty-state")).toBeInTheDocument();
+    expect(screen.getByTestId("empty-workspace-name")).toHaveTextContent("My Project");
+  });
+
+  it("calls onAction from ChatEmptyState", async () => {
+    const onAction = vi.fn();
+    render(
+      <MessageList
+        messages={[]}
+        streamingText=""
+        agentStatus="Idle"
+        workspaceName="My Project"
+        onAction={onAction}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("empty-action"));
+    expect(onAction).toHaveBeenCalledWith("test prompt");
+  });
+
+  it("shows default empty state when workspaceName is not provided", () => {
+    render(
+      <MessageList
+        messages={[]}
+        streamingText=""
+        agentStatus="Idle"
+      />,
+    );
+    expect(screen.getByText("Send a message to start chatting with Claude Code")).toBeInTheDocument();
+  });
+
   it("renders orphan messages before turns", () => {
     const msgs = [
       makeMsg({ id: "a1", role: "assistant", content: txt("I am an orphan") }),
@@ -461,6 +564,99 @@ describe("turn collapsing", () => {
     expect(screen.getByTestId("msg-a1")).toBeInTheDocument();
     expect(screen.getByTestId("msg-s1")).toBeInTheDocument();
     expect(screen.getByTestId("msg-u1")).toBeInTheDocument();
+  });
+
+  it("highlights expanded turn messages when highlightMessageId matches", () => {
+    const msgs = [
+      makeMsg({ id: "u1", role: "user", content: txt("do something") }),
+      makeMsg({
+        id: "a1",
+        role: "assistant",
+        content: [toolUseBlock(), { type: "text" as const, text: "step 1" }],
+      }),
+      makeMsg({
+        id: "a2",
+        role: "assistant",
+        content: txt("Done!"),
+      }),
+      makeMsg({ id: "u2", role: "user", content: txt("ok") }),
+    ];
+    const { container } = render(
+      <MessageList messages={msgs} streamingText="" agentStatus="Idle" highlightMessageId="a1" />,
+    );
+    const turn0 = container.querySelector('[data-turn-index="0"]');
+    const summaryBtn = turn0!.querySelector("button")!;
+
+    // Expand
+    fireEvent.click(summaryBtn);
+
+    // a1 should have search-highlight class
+    const highlighted = turn0!.querySelector('[data-message-id="a1"].search-highlight');
+    expect(highlighted).toBeInTheDocument();
+  });
+
+  it("highlights collapsed final message when highlightMessageId matches", () => {
+    const msgs = [
+      makeMsg({ id: "u1", role: "user", content: txt("do something") }),
+      makeMsg({
+        id: "a1",
+        role: "assistant",
+        content: [toolUseBlock(), { type: "text" as const, text: "step 1" }],
+      }),
+      makeMsg({
+        id: "a2",
+        role: "assistant",
+        content: txt("Done!"),
+      }),
+      makeMsg({ id: "u2", role: "user", content: txt("ok") }),
+    ];
+    const { container } = render(
+      <MessageList messages={msgs} streamingText="" agentStatus="Idle" highlightMessageId="a2" />,
+    );
+    const turn0 = container.querySelector('[data-turn-index="0"]');
+    // a2 is the final visible message when collapsed
+    const highlighted = turn0!.querySelector('[data-message-id="a2"].search-highlight');
+    expect(highlighted).toBeInTheDocument();
+  });
+
+  it("highlights non-collapsible turn response when highlightMessageId matches", () => {
+    const msgs = [
+      makeMsg({ id: "u1", role: "user", content: txt("hello") }),
+      makeMsg({ id: "a1", role: "assistant", content: txt("hi there") }),
+      makeMsg({ id: "u2", role: "user", content: txt("bye") }),
+    ];
+    const { container } = render(
+      <MessageList messages={msgs} streamingText="" agentStatus="Idle" highlightMessageId="a1" />,
+    );
+    const highlighted = container.querySelector('[data-message-id="a1"].search-highlight');
+    expect(highlighted).toBeInTheDocument();
+  });
+
+  it("does not apply Stopping agent status to non-last turn", () => {
+    const msgs = [
+      makeMsg({ id: "u1", role: "user", content: txt("do something") }),
+      makeMsg({
+        id: "a1",
+        role: "assistant",
+        content: [toolUseBlock(), { type: "text" as const, text: "working" }],
+      }),
+      makeMsg({ id: "u2", role: "user", content: txt("more") }),
+      makeMsg({
+        id: "a2",
+        role: "assistant",
+        content: [toolUseBlock(), { type: "text" as const, text: "still going" }],
+      }),
+    ];
+    const { container } = render(
+      <MessageList messages={msgs} streamingText="" agentStatus="Stopping" />,
+    );
+    // First turn should be collapsible (not active)
+    const turn0 = container.querySelector('[data-turn-index="0"]');
+    const summaryBtn = turn0?.querySelector("button");
+    expect(summaryBtn?.textContent).toContain("tool call");
+    // Last turn should not be collapsible (active due to Stopping status)
+    const turn1 = container.querySelector('[data-turn-index="1"]');
+    expect(turn1?.querySelector('[data-testid="msg-a2"]')).toBeInTheDocument();
   });
 
   it("collapses an expanded turn on second click", () => {

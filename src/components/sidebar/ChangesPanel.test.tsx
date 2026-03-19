@@ -418,6 +418,64 @@ describe("ChangesPanel", () => {
   });
 });
 
+// ─── File watcher behavior ──────────────────────────────────────────────────────────────
+describe("ChangesPanel - file watcher", () => {
+  const wsContext = { id: "ws-1", type: "workspace" as const };
+  const repoContext = { id: "repo-1", type: "repo" as const };
+
+  it("falls back to polling when startDiffWatcher fails", async () => {
+    const { startDiffWatcher } = await import("../../lib/tauri");
+    (startDiffWatcher as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("watcher failed"));
+
+    useDiffStore.setState({
+      diffResults: { "ws-1": { files: [], totalAdditions: 0, totalDeletions: 0 } },
+    });
+    render(<ChangesPanel context={wsContext} />);
+    // Should not throw; falls back to 3s poll
+    await waitFor(() => {
+      expect(startDiffWatcher).toHaveBeenCalledWith("ws-1", "workspace");
+    });
+  });
+
+  it("reloads diff when diff-changed event fires for workspace", async () => {
+    const listenMock = await import("@tauri-apps/api/event").then((m) => m.listen) as ReturnType<typeof vi.fn>;
+    const callbacks: Record<string, (() => void)> = {};
+    listenMock.mockImplementation((event: string, cb: () => void) => {
+      callbacks[event] = cb;
+      return Promise.resolve(() => {});
+    });
+
+    useDiffStore.setState({
+      diffResults: { "ws-1": { files: [], totalAdditions: 0, totalDeletions: 0 } },
+    });
+    render(<ChangesPanel context={wsContext} />);
+
+    await waitFor(() => expect(callbacks["diff-changed:ws-1"]).toBeDefined());
+    mockLoadDiff.mockClear();
+    callbacks["diff-changed:ws-1"]();
+    expect(mockLoadDiff).toHaveBeenCalledWith("ws-1");
+  });
+
+  it("reloads repo diff when diff-changed event fires for repo", async () => {
+    const listenMock = await import("@tauri-apps/api/event").then((m) => m.listen) as ReturnType<typeof vi.fn>;
+    const callbacks: Record<string, (() => void)> = {};
+    listenMock.mockImplementation((event: string, cb: () => void) => {
+      callbacks[event] = cb;
+      return Promise.resolve(() => {});
+    });
+
+    useDiffStore.setState({
+      diffResults: { "repo-1": { files: [], totalAdditions: 0, totalDeletions: 0 } },
+    });
+    render(<ChangesPanel context={repoContext} />);
+
+    await waitFor(() => expect(callbacks["diff-changed:repo-1"]).toBeDefined());
+    mockLoadRepoDiff.mockClear();
+    callbacks["diff-changed:repo-1"]();
+    expect(mockLoadRepoDiff).toHaveBeenCalledWith("repo-1");
+  });
+});
+
 // ─── Polling behavior ──────────────────────────────────────────────────────────────────
 describe("ChangesPanel - polling", () => {
   const wsContext = { id: "ws-1", type: "workspace" as const };

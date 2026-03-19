@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useActivityLogStore, type ActivityEntry } from "./activityLogStore";
+import { useWorkspaceStore } from "./workspaceStore";
 
 vi.mock("../lib/tauri", () => ({
   getGitLog: vi.fn(),
@@ -179,6 +180,23 @@ describe("activityLogStore", () => {
       addSample({ type: "commit", workspaceId: "ws-1" });
       addSample({ type: "agent-completed", workspaceId: "ws-1" });
       const filtered = useActivityLogStore.getState().getFilteredEntries("ws-1");
+      expect(filtered).toHaveLength(2);
+    });
+
+    it("falls back to activeWorkspaceId when no workspaceId provided", () => {
+      useWorkspaceStore.setState({ activeWorkspaceId: "ws-1" } as any);
+      addSample({ workspaceId: "ws-1", title: "hit" });
+      addSample({ workspaceId: "ws-2", title: "miss" });
+      const filtered = useActivityLogStore.getState().getFilteredEntries();
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0].title).toBe("hit");
+    });
+
+    it("returns all entries when no workspaceId and no activeWorkspaceId", () => {
+      useWorkspaceStore.setState({ activeWorkspaceId: null } as any);
+      addSample({ workspaceId: "ws-1", title: "a" });
+      addSample({ workspaceId: "ws-2", title: "b" });
+      const filtered = useActivityLogStore.getState().getFilteredEntries();
       expect(filtered).toHaveLength(2);
     });
 

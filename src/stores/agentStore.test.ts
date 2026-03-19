@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 
 vi.mock("../lib/tauri", () => ({
   sendMessage: vi.fn(),
+  sendFollowupMessage: vi.fn(),
   stopAgent: vi.fn(),
   getAgentStatus: vi.fn(),
 }));
@@ -10,6 +11,7 @@ vi.mock("../lib/tauri", () => ({
 import { useAgentStore } from "./agentStore";
 import {
   sendMessage as sendMessageCmd,
+  sendFollowupMessage as sendFollowupCmd,
   stopAgent as stopAgentCmd,
   getAgentStatus,
 } from "../lib/tauri";
@@ -120,6 +122,16 @@ describe("agentStore - sendMessage", () => {
       disableThinking: true,
       disablePlanMode: true,
     });
+  });
+
+  it("sends followup when agent is already Running", async () => {
+    useAgentStore.setState({
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Running" } as any },
+    });
+    vi.mocked(sendFollowupCmd).mockResolvedValue(undefined);
+    await useAgentStore.getState().sendMessage("ws-1", "followup");
+    expect(sendFollowupCmd).toHaveBeenCalledWith("ws-1", "followup");
+    expect(sendMessageCmd).not.toHaveBeenCalled();
   });
 
   it("re-throws errors", async () => {

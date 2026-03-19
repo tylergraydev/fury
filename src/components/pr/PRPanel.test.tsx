@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { PRPanel } from "./PRPanel";
 import { usePrStore } from "../../stores/prStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -187,6 +188,19 @@ describe("PRPanel", () => {
     await act(async () => {
       fireEvent.click(checkbox);
     });
+    expect(checkbox.checked).toBe(true);
+  });
+
+  it("sets draft to true via onChange handler on checkbox", async () => {
+    const user = userEvent.setup();
+    render(<PRPanel workspaceId="ws-1" />);
+    // Wait for the deferred loadPrInfo effect to complete
+    await waitFor(() => expect(mockGetPrFullData).toHaveBeenCalled());
+    const checkbox = (await screen.findByRole("checkbox")) as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+    // Use userEvent.click to properly simulate browser checkbox interaction
+    // which triggers the React onChange handler (line 204)
+    await user.click(checkbox);
     expect(checkbox.checked).toBe(true);
   });
 
@@ -967,6 +981,27 @@ describe("PRPanel", () => {
       expect(screen.getByText("Neutral Check")).toBeInTheDocument();
       expect(screen.getByText("neutral")).toBeInTheDocument();
     });
+  });
+
+  it("shows 'View on Azure DevOps' when provider is azure_dev_ops", async () => {
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: "ws-1", repoId: "r1", name: "Test WS", branch: "feature-1", status: "Active", portBase: 3000, autoCommit: false, pinned: false, createdAt: "2024-01-01", archivedAt: null },
+      ],
+    });
+    const { useRepositoryStore } = await import("../../stores/repositoryStore");
+    useRepositoryStore.setState({
+      repositories: [
+        { id: "r1", name: "ado-repo", path: "/tmp/ado", defaultBranch: "main", currentBranch: "main", provider: "azure_dev_ops" as any, remoteUrl: null },
+      ],
+    });
+    setupOpenPr({ prUrl: "https://dev.azure.com/test/pr/42" });
+    render(<PRPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("View on Azure DevOps")).toBeInTheDocument();
+    });
+    // Clean up
+    useRepositoryStore.setState({ repositories: [] });
   });
 
   it("handleSubmit returns early when title is empty", async () => {

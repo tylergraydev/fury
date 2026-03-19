@@ -19,18 +19,18 @@ class MarkdownErrorBoundary extends Component<
 > {
   state = { hasError: false };
 
-  /* v8 ignore next 3 -- React error boundary lifecycle, requires render-time throw */
+  /* v8 ignore start -- React error boundary lifecycle, requires render-time throw */
   static getDerivedStateFromError(): { hasError: boolean } {
     return { hasError: true };
   }
 
-  /* v8 ignore next 3 -- React error boundary lifecycle, requires render-time throw */
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[MarkdownContent] Render error:", error, info.componentStack);
   }
 
   render() {
     return this.state.hasError ? this.props.fallback : this.props.children;
+  /* v8 ignore stop */
   }
 }
 
@@ -49,7 +49,9 @@ function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
       >
         <img
           src={src}
+          /* v8 ignore start -- alt is always provided by markdown renderer */
           alt={alt ?? ""}
+          /* v8 ignore stop */
           className="max-h-64 max-w-full object-contain"
           draggable={false}
         />

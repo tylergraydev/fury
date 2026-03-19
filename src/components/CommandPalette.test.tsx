@@ -199,6 +199,72 @@ describe("CommandPalette", () => {
       expect(onAction).toHaveBeenCalledWith("new-session");
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
+
+    it("calls onAction with toggle-notifications", () => {
+      const onAction = vi.fn();
+      const onOpenChange = vi.fn();
+      render(
+        <CommandPalette open={true} onOpenChange={onOpenChange} onAction={onAction} />,
+      );
+      screen.getByText("Toggle Notifications").click();
+      expect(onAction).toHaveBeenCalledWith("toggle-notifications");
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it("calls onAction with view-team", () => {
+      const onAction = vi.fn();
+      const onOpenChange = vi.fn();
+      render(
+        <CommandPalette open={true} onOpenChange={onOpenChange} onAction={onAction} />,
+      );
+      screen.getByText("Open Team View").click();
+      expect(onAction).toHaveBeenCalledWith("view-team");
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it("calls onAction with view-usage", () => {
+      const onAction = vi.fn();
+      const onOpenChange = vi.fn();
+      render(
+        <CommandPalette open={true} onOpenChange={onOpenChange} onAction={onAction} />,
+      );
+      screen.getByText("Open Usage Dashboard").click();
+      expect(onAction).toHaveBeenCalledWith("view-usage");
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it("calls onAction with toggle-split-editor", () => {
+      const onAction = vi.fn();
+      const onOpenChange = vi.fn();
+      render(
+        <CommandPalette open={true} onOpenChange={onOpenChange} onAction={onAction} />,
+      );
+      screen.getByText("Toggle Split Editor").click();
+      expect(onAction).toHaveBeenCalledWith("toggle-split-editor");
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it("calls onAction with open-snippets", () => {
+      const onAction = vi.fn();
+      const onOpenChange = vi.fn();
+      render(
+        <CommandPalette open={true} onOpenChange={onOpenChange} onAction={onAction} />,
+      );
+      screen.getByText("Open Snippet Manager").click();
+      expect(onAction).toHaveBeenCalledWith("open-snippets");
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it("calls onAction with export-workspace", () => {
+      const onAction = vi.fn();
+      const onOpenChange = vi.fn();
+      render(
+        <CommandPalette open={true} onOpenChange={onOpenChange} onAction={onAction} />,
+      );
+      screen.getByText("Export Workspace").click();
+      expect(onAction).toHaveBeenCalledWith("export-workspace");
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
   });
 
   // --- Workspace switching ---

@@ -4,6 +4,7 @@ import { NewWorkspaceDialog } from "./NewWorkspaceDialog";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useWorkspaceTemplateStore } from "../../stores/workspaceTemplateStore";
+import { useRepositoryStore } from "../../stores/repositoryStore";
 
 vi.mock("lucide-react", () => ({
   Sparkles: () => <span data-testid="sparkle-icon" />,
@@ -398,6 +399,74 @@ describe("NewWorkspaceDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("sends task description as message after creation from issue mode", async () => {
+    mockListRepoIssues.mockResolvedValue([
+      { number: 10, title: "Login bug", body: "Users can't login", labels: [], state: "open" },
+    ]);
+    const onClose = vi.fn();
+    render(
+      <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={onClose} />,
+    );
+    await waitFor(() => {
+      const select = screen.getByRole("combobox");
+      expect(select).not.toBeDisabled();
+    });
+
+    // Switch to issue mode
+    fireEvent.click(screen.getByText("From Issue"));
+    await waitFor(() => {
+      expect(screen.getByText("Login bug")).toBeInTheDocument();
+    });
+
+    // Select issue (this populates worktreeName and taskDescription)
+    fireEvent.click(screen.getByText("Login bug").closest("button")!);
+
+    fireEvent.click(screen.getByText("Create & Start Chat"));
+
+    await waitFor(() => {
+      expect(mockCreateWs).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(mockSendMsg).toHaveBeenCalledWith(
+        "ws-new",
+        expect.stringContaining("Issue #10: Login bug"),
+      );
+    });
+  });
+
+  it("handles sendMessage error gracefully after creation", async () => {
+    mockSendMsg.mockRejectedValue(new Error("send failed"));
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockListRepoIssues.mockResolvedValue([
+      { number: 10, title: "Login bug", body: "", labels: [], state: "open" },
+    ]);
+    const onClose = vi.fn();
+    render(
+      <NewWorkspaceDialog repoId="r1" repoName="my-repo" onClose={onClose} />,
+    );
+    await waitFor(() => {
+      const select = screen.getByRole("combobox");
+      expect(select).not.toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByText("From Issue"));
+    await waitFor(() => {
+      expect(screen.getByText("Login bug")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Login bug").closest("button")!);
+    fireEvent.click(screen.getByText("Create & Start Chat"));
+
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalled();
+    });
+    // The sendMessage rejection is caught by .catch(console.error)
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalled();
+    });
+    consoleSpy.mockRestore();
+  });
+
   it("does not send message in branch mode (no task description)", async () => {
     const onClose = vi.fn();
 
@@ -429,6 +498,53 @@ describe("NewWorkspaceDialog", () => {
     // Select should be disabled during loading
     const select = screen.getByRole("combobox");
     expect(select).toBeDisabled();
+  });
+
+});
+
+describe("Multi-repo selector", () => {
+  afterEach(() => {
+    useRepositoryStore.setState({ repositories: [] });
+  });
+
+  it("shows repository selector dropdown when multiple repos exist", () => {
+    useRepositoryStore.setState({
+      repositories: [
+        { id: "r1", name: "repo-one", path: "/r1" },
+        { id: "r2", name: "repo-two", path: "/r2" },
+      ] as any,
+    });
+    render(
+      <NewWorkspaceDialog repoId="r1" repoName="repo-one" onClose={vi.fn()} />,
+    );
+    // Should render as a select dropdown for repo
+    expect(screen.getByText("repo-one")).toBeInTheDocument();
+    expect(screen.getByText("repo-two")).toBeInTheDocument();
+  });
+
+  it("allows changing repository via the selector", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        { id: "r1", name: "repo-one", path: "/r1" },
+        { id: "r2", name: "repo-two", path: "/r2" },
+      ] as any,
+    });
+    render(
+      <NewWorkspaceDialog repoId="r1" repoName="repo-one" onClose={vi.fn()} />,
+    );
+    // Find the repo select (first select element on the page)
+    const selects = screen.getAllByRole("combobox");
+    // The repo selector is the first select that contains repo options
+    const repoSelect = selects.find((s) => {
+      const options = s.querySelectorAll("option");
+      return Array.from(options).some((o) => o.textContent === "repo-two");
+    });
+    expect(repoSelect).toBeTruthy();
+    fireEvent.change(repoSelect!, { target: { value: "r2" } });
+    // Should reload branches for the new repo
+    await waitFor(() => {
+      expect(mockListBranches).toHaveBeenCalledWith("r2");
+    });
   });
 });
 

@@ -267,6 +267,78 @@ describe("notificationListeners", () => {
     });
   });
 
+  describe("edge cases", () => {
+    it("skips null prInfo entries", () => {
+      const cleanup = initNotificationListeners();
+      usePrStore.setState({ prInfo: { "ws-1": null as any } });
+      expect(useNotificationStore.getState().notifications).toHaveLength(0);
+      cleanup();
+    });
+
+    it("uses workspace ID prefix when workspace not found", () => {
+      const cleanup = initNotificationListeners();
+      useWorkspaceStore.setState({ workspaces: [] } as any);
+
+      useAgentStore.setState({
+        agents: { "unknown-ws": { workspaceId: "unknown-ws", status: "Running" } as any },
+      });
+      useAgentStore.setState({
+        agents: { "unknown-ws": { workspaceId: "unknown-ws", status: "Idle" } as any },
+      });
+
+      const notifications = useNotificationStore.getState().notifications;
+      expect(notifications).toHaveLength(1);
+      expect(notifications[0].workspaceName).toBe("unknown-");
+      cleanup();
+    });
+
+    it("uses Script as default kind when exit code key has no separator", () => {
+      const cleanup = initNotificationListeners();
+      useScriptStore.setState({ exitCodes: { "ws-1": 1 } });
+
+      const notifications = useNotificationStore.getState().notifications;
+      expect(notifications).toHaveLength(1);
+      expect(notifications[0].title).toContain("Script");
+      cleanup();
+    });
+
+    it("fires pr-checks-pass with all checks message", () => {
+      const cleanup = initNotificationListeners();
+
+      usePrStore.setState({
+        prInfo: {
+          "ws-1": {
+            workspaceId: "ws-1", prNumber: 1, title: "PR",
+            state: "OPEN",
+            checks: [
+              { name: "CI", status: "IN_PROGRESS", conclusion: null },
+              { name: "Lint", status: "IN_PROGRESS", conclusion: null },
+            ],
+          } as any,
+        },
+      });
+
+      usePrStore.setState({
+        prInfo: {
+          "ws-1": {
+            workspaceId: "ws-1", prNumber: 1, title: "PR",
+            state: "OPEN",
+            checks: [
+              { name: "CI", status: "COMPLETED", conclusion: "SUCCESS" },
+              { name: "Lint", status: "COMPLETED", conclusion: "SUCCESS" },
+            ],
+          } as any,
+        },
+      });
+
+      const notifications = useNotificationStore.getState().notifications;
+      expect(notifications).toHaveLength(1);
+      expect(notifications[0].type).toBe("pr-checks-pass");
+      expect(notifications[0].message).toContain("All 2 checks passed");
+      cleanup();
+    });
+  });
+
   describe("cleanup", () => {
     it("stops firing notifications after cleanup", () => {
       const cleanup = initNotificationListeners();

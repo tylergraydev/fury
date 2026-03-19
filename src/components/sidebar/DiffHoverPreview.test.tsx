@@ -41,6 +41,7 @@ beforeEach(() => {
 
 describe("DiffHoverPreview", () => {
   const file = { path: "src/app.ts", status: "Modified" as const, additions: 5, deletions: 2 };
+  const untrackedFile = { path: "src/new.ts", status: "Untracked" as const, additions: 10, deletions: 0 };
 
   it("returns null when anchorEl is null", () => {
     const { container } = render(
@@ -129,6 +130,54 @@ describe("DiffHoverPreview", () => {
       />,
     );
     expect(screen.getByText("(truncated)")).toBeInTheDocument();
+  });
+
+  it("calls loadPatchPreview with isUntracked=true for Untracked files", async () => {
+    const loadPatchPreview = vi.fn();
+    useDiffStore.setState({
+      loadPatchPreview,
+    } as any);
+    vi.useFakeTimers();
+    render(
+      <DiffHoverPreview
+        file={untrackedFile}
+        contextId="ws-1"
+        contextType="workspace"
+        anchorEl={mockAnchor}
+      />,
+    );
+    vi.advanceTimersByTime(300);
+    expect(loadPatchPreview).toHaveBeenCalledWith(
+      "ws-1",
+      "src/new.ts",
+      true,
+      "workspace",
+    );
+    vi.useRealTimers();
+  });
+
+  it("passes contextType='repo' to loadPatchPreview", async () => {
+    const loadPatchPreview = vi.fn();
+    useDiffStore.setState({
+      loadPatchPreview,
+    } as any);
+    vi.useFakeTimers();
+    render(
+      <DiffHoverPreview
+        file={file}
+        contextId="repo-1"
+        contextType="repo"
+        anchorEl={mockAnchor}
+      />,
+    );
+    vi.advanceTimersByTime(300);
+    expect(loadPatchPreview).toHaveBeenCalledWith(
+      "repo-1",
+      "src/app.ts",
+      false,
+      "repo",
+    );
+    vi.useRealTimers();
   });
 
   it("shows overflow message when lines exceed MAX_VISIBLE_LINES", () => {

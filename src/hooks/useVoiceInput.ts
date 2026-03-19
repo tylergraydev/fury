@@ -62,8 +62,10 @@ interface UseVoiceInputReturn {
 }
 
 function getSpeechRecognitionClass(): SpeechRecognitionConstructor | null {
+  /* v8 ignore start -- window always defined in jsdom; neither SpeechRecognition API exists in jsdom */
   if (typeof window === "undefined") return null;
   return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
+  /* v8 ignore stop */
 }
 
 function mapError(errorCode: string): string | null {

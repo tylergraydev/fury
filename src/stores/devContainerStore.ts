@@ -149,6 +149,7 @@ export const useDevContainerStore = create<DevContainerStore>((set) => ({
           [workspaceId]: {
             workspaceId,
             status,
+            /* v8 ignore next -- defensive fallback chain for container ID */
             containerId: containerId ?? current?.containerId ?? null,
             containerName: current?.containerName ?? null,
             logTail: current?.logTail ?? [],

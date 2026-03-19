@@ -61,6 +61,7 @@ vi.mock("lucide-react", () => ({
 let capturedFileTreeProps: {
   onFileClick?: (path: string) => void;
   onFileDoubleClick?: (path: string) => void;
+  onRunTestFile?: (path: string) => void;
 } = {};
 
 vi.mock("../sidebar/FileTreePanel", () => ({
@@ -68,6 +69,7 @@ vi.mock("../sidebar/FileTreePanel", () => ({
     capturedFileTreeProps = {
       onFileClick: props.onFileClick,
       onFileDoubleClick: props.onFileDoubleClick,
+      onRunTestFile: props.onRunTestFile,
     };
     return <div data-testid="file-tree-panel" />;
   },
@@ -77,6 +79,9 @@ vi.mock("../sidebar/ChangesPanel", () => ({
 }));
 vi.mock("../sidebar/ChecksPanel", () => ({
   ChecksPanel: () => <div data-testid="checks-panel" />,
+}));
+vi.mock("../sidebar/BookmarksPanel", () => ({
+  BookmarksPanel: () => <div data-testid="bookmarks-panel" />,
 }));
 vi.mock("../terminal/TerminalPanel", () => ({
   TerminalPanel: () => <div data-testid="terminal-panel" />,
@@ -96,6 +101,7 @@ import { useUIStore } from "../../stores/uiStore";
 import { useDiffStore } from "../../stores/diffStore";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
 import { useMergeStore } from "../../stores/mergeStore";
+import { useTestRunnerStore } from "../../stores/testRunnerStore";
 
 vi.mock("../../lib/tauri", () => ({
   getDiff: vi.fn().mockResolvedValue({ files: [], totalAdditions: 0, totalDeletions: 0 }),
@@ -528,6 +534,201 @@ describe("RightSidebar", () => {
       render(<RightSidebar context={wsContext} />);
       const btn = screen.getByTitle("Push failed");
       expect(btn).toBeInTheDocument();
+    });
+
+    it("does not call syncBranch when already syncing", () => {
+      const syncSpy = vi.fn();
+      useMergeStore.setState({
+        syncing: { "ws-1": true },
+        syncBranch: syncSpy,
+      } as any);
+      render(<RightSidebar context={wsContext} />);
+      // The button is disabled, but let's also verify handleSync guards
+      const btn = screen.getByTitle("Sync with remote");
+      fireEvent.click(btn);
+      expect(syncSpy).not.toHaveBeenCalled();
+    });
+
+    it("shows both ahead and behind counts simultaneously", () => {
+      useMergeStore.setState({
+        branchStatus: {
+          "ws-1": {
+            branch: "fix-bug",
+            defaultBranch: "main",
+            ahead: 4,
+            behind: 2,
+            hasUpstream: true,
+          },
+        },
+      });
+      render(<RightSidebar context={wsContext} />);
+      expect(screen.getByText("4")).toBeInTheDocument();
+      expect(screen.getByText("2")).toBeInTheDocument();
+      expect(screen.getByTestId("arrow-up")).toBeInTheDocument();
+      expect(screen.getByTestId("arrow-down")).toBeInTheDocument();
+    });
+
+    it("shows spinning RefreshCw while syncing", () => {
+      useMergeStore.setState({
+        syncing: { "ws-1": true },
+      });
+      render(<RightSidebar context={wsContext} />);
+      const spinner = screen.getByTestId("refresh-cw");
+      expect(spinner).toHaveClass("h-3.5 w-3.5 animate-spin");
+    });
+
+    it("shows error color on button when syncError is set", () => {
+      useMergeStore.setState({
+        syncError: { "ws-1": "Push failed" },
+      });
+      render(<RightSidebar context={wsContext} />);
+      const btn = screen.getByTitle("Push failed");
+      expect(btn).toHaveStyle({ color: "var(--error)" });
+    });
+
+    it("shows accent color on button when syncing", () => {
+      useMergeStore.setState({
+        syncing: { "ws-1": true },
+      });
+      render(<RightSidebar context={wsContext} />);
+      const btn = screen.getByTitle("Sync with remote");
+      expect(btn).toHaveStyle({ color: "var(--accent)" });
+    });
+
+    it("calls loadBranchStatus via double-rAF on mount", () => {
+      const loadBranchStatusSpy = vi.fn();
+      useMergeStore.setState({ loadBranchStatus: loadBranchStatusSpy } as any);
+
+      // Make rAF synchronous for this test
+      const originalRAF = globalThis.requestAnimationFrame;
+      globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => { cb(0); return 0; };
+
+      render(<RightSidebar context={wsContext} />);
+
+      expect(loadBranchStatusSpy).toHaveBeenCalledWith("ws-1");
+
+      globalThis.requestAnimationFrame = originalRAF;
+    });
+  });
+
+  // --- Double-rAF diff loading ---
+  describe("Diff loading via double-rAF", () => {
+    it("calls loadDiff for workspace context when no cached result", () => {
+      const loadDiffSpy = vi.fn();
+      useDiffStore.setState({ diffResults: {}, loadDiff: loadDiffSpy } as any);
+
+      const originalRAF = globalThis.requestAnimationFrame;
+      globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => { cb(0); return 0; };
+
+      render(<RightSidebar context={wsContext} />);
+
+      expect(loadDiffSpy).toHaveBeenCalledWith("ws-1");
+
+      globalThis.requestAnimationFrame = originalRAF;
+    });
+
+    it("calls loadRepoDiff for repo context when no cached result", () => {
+      const loadRepoDiffSpy = vi.fn();
+      useDiffStore.setState({ diffResults: {}, loadRepoDiff: loadRepoDiffSpy } as any);
+
+      const originalRAF = globalThis.requestAnimationFrame;
+      globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => { cb(0); return 0; };
+
+      render(<RightSidebar context={repoContext} />);
+
+      expect(loadRepoDiffSpy).toHaveBeenCalledWith("r1");
+
+      globalThis.requestAnimationFrame = originalRAF;
+    });
+
+    it("skips diff loading when result is already cached", () => {
+      const loadDiffSpy = vi.fn();
+      useDiffStore.setState({
+        diffResults: {
+          "ws-1": { files: [], totalAdditions: 0, totalDeletions: 0 },
+        },
+        loadDiff: loadDiffSpy,
+      } as any);
+
+      const originalRAF = globalThis.requestAnimationFrame;
+      globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => { cb(0); return 0; };
+
+      render(<RightSidebar context={wsContext} />);
+
+      expect(loadDiffSpy).not.toHaveBeenCalled();
+
+      globalThis.requestAnimationFrame = originalRAF;
+    });
+  });
+
+  // --- Run test file callback ---
+  describe("Run test file callback", () => {
+    it("calls runTests and opens tests view tab on run test file", () => {
+      const runTestsSpy = vi.fn();
+      useTestRunnerStore.setState({ runTests: runTestsSpy } as any);
+      const openViewTabSpy = vi.fn();
+      useUIStore.setState({
+        rightSidebarTab: "files",
+        bottomTab: "terminal",
+        openViewTab: openViewTabSpy,
+      });
+
+      render(<RightSidebar context={wsContext} />);
+
+      expect(capturedFileTreeProps.onRunTestFile).toBeDefined();
+      act(() => {
+        capturedFileTreeProps.onRunTestFile!("src/utils.test.ts");
+      });
+
+      expect(runTestsSpy).toHaveBeenCalledWith("ws-1", "workspace", "src/utils.test.ts");
+      expect(openViewTabSpy).toHaveBeenCalledWith("tests");
+    });
+
+    it("uses repo context type for run test file when context is repo", () => {
+      const runTestsSpy = vi.fn();
+      useTestRunnerStore.setState({ runTests: runTestsSpy } as any);
+      const openViewTabSpy = vi.fn();
+      useUIStore.setState({
+        rightSidebarTab: "files",
+        bottomTab: "terminal",
+        openViewTab: openViewTabSpy,
+      });
+
+      render(<RightSidebar context={repoContext} />);
+
+      act(() => {
+        capturedFileTreeProps.onRunTestFile!("src/utils.test.ts");
+      });
+
+      expect(runTestsSpy).toHaveBeenCalledWith("r1", "repo", "src/utils.test.ts");
+    });
+  });
+
+  // --- Bookmarks tab ---
+  describe("Bookmarks tab", () => {
+    it("switches to Bookmarks tab and shows BookmarksPanel", () => {
+      render(<RightSidebar context={wsContext} />);
+      fireEvent.click(screen.getByText("Bookmarks"));
+      expect(screen.getByTestId("panel-bookmarks")).toBeInTheDocument();
+    });
+  });
+
+  // --- Defensive guard coverage ---
+  describe("Defensive guards", () => {
+    it("toggleBottomPanel does nothing when panel ref is null", () => {
+      // Override the Panel mock to NOT set ref for the bottom panel
+      // ref captured but unused - toggle test only needs the null override below
+      render(<RightSidebar context={wsContext} />);
+      // Null out the ref to simulate missing panel
+      if (capturedPanelProps.ref && typeof capturedPanelProps.ref === "object") {
+        (capturedPanelProps.ref as React.MutableRefObject<any>).current = null;
+      }
+      // Click the toggle button - should early return without error
+      const toggleBtn = screen.getByTitle("Collapse panel");
+      fireEvent.click(toggleBtn);
+      // The panel should still show as expanded since collapse was not called
+      expect(mockPanelCollapse).not.toHaveBeenCalled();
+      expect(mockPanelExpand).not.toHaveBeenCalled();
     });
   });
 });

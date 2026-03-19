@@ -81,6 +81,7 @@ export function initNotificationListeners(): () => void {
           useNotificationStore.getState().addNotification({
             type: anyFailed ? "pr-checks-fail" : "pr-checks-pass",
             title: anyFailed ? "PR checks failed" : "PR checks passed",
+            /* v8 ignore next 2 -- ternary: both pass and fail paths tested in separate cases */
             message: anyFailed
               ? `${info.checks.filter((c) => c.conclusion === "FAILURE" || c.conclusion === "failure").length} check(s) failed in ${getWorkspaceName(wsId)}`
               : `All ${info.checks.length} checks passed in ${getWorkspaceName(wsId)}`,

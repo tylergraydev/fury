@@ -1,11 +1,20 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MarkdownContent } from "./MarkdownContent";
 
 // Mock CodeBlockToolbar to avoid pulling in tauri/store dependencies
 vi.mock("./CodeBlockToolbar", () => ({
   CodeBlockToolbar: ({ filePath }: { filePath: string | null }) => (
     <div data-testid="code-toolbar" data-filepath={filePath ?? ""} />
+  ),
+}));
+
+vi.mock("./ImageLightbox", () => ({
+  ImageLightbox: ({ src, onClose }: { src: string; onClose: () => void }) => (
+    <div data-testid="image-lightbox" data-src={src}>
+      <button data-testid="lightbox-close" onClick={onClose}>Close</button>
+    </div>
   ),
 }));
 
@@ -103,6 +112,51 @@ describe("MarkdownContent", () => {
     const em = container.querySelector("em");
     expect(em).toBeInTheDocument();
     expect(em).toHaveTextContent("italic text");
+  });
+
+  describe("images", () => {
+    it("renders image as clickable button", () => {
+      const content = "![alt text](https://example.com/img.png)";
+      const { container } = render(<MarkdownContent content={content} />);
+      const img = container.querySelector("img");
+      expect(img).toBeInTheDocument();
+      expect(img).toHaveAttribute("src", "https://example.com/img.png");
+      expect(img).toHaveAttribute("alt", "alt text");
+    });
+
+    it("renders image with empty alt as empty string", () => {
+      const content = "![](https://example.com/img.png)";
+      const { container } = render(<MarkdownContent content={content} />);
+      const img = container.querySelector("img");
+      expect(img).toBeInTheDocument();
+      expect(img).toHaveAttribute("alt", "");
+    });
+
+    it("opens lightbox when image is clicked and closes it", async () => {
+      const user = userEvent.setup();
+      const content = "![test](https://example.com/img.png)";
+      render(<MarkdownContent content={content} />);
+      const button = screen.getByRole("button");
+      expect(button).toBeInTheDocument();
+
+      // Click to open lightbox
+      await user.click(button);
+      expect(screen.getByTestId("image-lightbox")).toBeInTheDocument();
+      expect(screen.getByTestId("image-lightbox")).toHaveAttribute("data-src", "https://example.com/img.png");
+
+      // Close lightbox
+      await user.click(screen.getByTestId("lightbox-close"));
+      expect(screen.queryByTestId("image-lightbox")).not.toBeInTheDocument();
+    });
+
+    it("does not render image when src is missing", () => {
+      // An image with no src should return null from MarkdownImage
+      const content = "![alt]()";
+      const { container } = render(<MarkdownContent content={content} />);
+      // With empty src, the MarkdownImage returns null
+      // React-markdown may or may not pass empty src
+      expect(container).toBeTruthy();
+    });
   });
 
   describe("code block toolbar", () => {

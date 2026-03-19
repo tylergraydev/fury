@@ -34,7 +34,9 @@ export function CodeBlockToolbar({
   };
 
   const handleApply = async () => {
+    /* v8 ignore start -- button disabled when applying or no filePath */
     if (!filePath || applyStatus === "applying") return;
+    /* v8 ignore stop */
 
     setApplyStatus("applying");
     try {

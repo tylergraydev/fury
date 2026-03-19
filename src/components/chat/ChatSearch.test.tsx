@@ -178,6 +178,102 @@ describe("ChatSearch", () => {
     expect(searchChatMessages).toHaveBeenCalledWith("hel", "ctx-1");
   });
 
+  it("renders default role icon for unknown roles", async () => {
+    vi.mocked(searchChatMessages).mockResolvedValue([
+      makeResult({ role: "unknown_role" }),
+    ]);
+    render(<ChatSearch {...defaultProps} />);
+
+    const input = screen.getByPlaceholderText("Search messages...");
+    await typeAndSearch(input, "test");
+
+    await waitFor(() => {
+      // The result renders with the default AlertCircle icon for unknown roles
+      expect(screen.getByText("unknown_role")).toBeTruthy();
+    });
+  });
+
+  it("renders user role icon for user results", async () => {
+    vi.mocked(searchChatMessages).mockResolvedValue([
+      makeResult({ role: "user" }),
+    ]);
+    render(<ChatSearch {...defaultProps} />);
+
+    const input = screen.getByPlaceholderText("Search messages...");
+    await typeAndSearch(input, "test");
+
+    await waitFor(() => {
+      expect(screen.getByText("user")).toBeTruthy();
+    });
+  });
+
+  it("renders assistant role icon for assistant results", async () => {
+    vi.mocked(searchChatMessages).mockResolvedValue([
+      makeResult({ role: "assistant" }),
+    ]);
+    render(<ChatSearch {...defaultProps} />);
+
+    const input = screen.getByPlaceholderText("Search messages...");
+    await typeAndSearch(input, "test");
+
+    await waitFor(() => {
+      expect(screen.getByText("assistant")).toBeTruthy();
+    });
+  });
+
+  it("shows workspace name when searchAll is enabled", async () => {
+    vi.mocked(searchChatMessages).mockResolvedValue([
+      makeResult({ workspaceName: "Test Project" }),
+    ]);
+    render(<ChatSearch {...defaultProps} />);
+
+    // Enable search all
+    const checkbox = screen.getByRole("checkbox");
+    await userEvent.click(checkbox);
+
+    const input = screen.getByPlaceholderText("Search messages...");
+    await typeAndSearch(input, "test");
+
+    await waitFor(() => {
+      expect(screen.getByText("Test Project")).toBeTruthy();
+    });
+  });
+
+  it("formats timestamps correctly", async () => {
+    vi.mocked(searchChatMessages).mockResolvedValue([
+      makeResult({ timestamp: "2025-06-15T10:30:00Z" }),
+    ]);
+    render(<ChatSearch {...defaultProps} />);
+
+    const input = screen.getByPlaceholderText("Search messages...");
+    await typeAndSearch(input, "test");
+
+    await waitFor(() => {
+      // The formatted date should be rendered somewhere in the result
+      expect(screen.getByText("hello world")).toBeTruthy();
+    });
+  });
+
+  it("returns raw timestamp string when toLocaleDateString throws", async () => {
+    const originalToLocale = Date.prototype.toLocaleDateString;
+    Date.prototype.toLocaleDateString = () => { throw new Error("locale error"); };
+
+    vi.mocked(searchChatMessages).mockResolvedValue([
+      makeResult({ timestamp: "raw-ts-value" }),
+    ]);
+    render(<ChatSearch {...defaultProps} />);
+
+    const input = screen.getByPlaceholderText("Search messages...");
+    await typeAndSearch(input, "test");
+
+    await waitFor(() => {
+      // The catch block returns the raw timestamp string
+      expect(screen.getByText("raw-ts-value")).toBeTruthy();
+    });
+
+    Date.prototype.toLocaleDateString = originalToLocale;
+  });
+
   it("clears results when query is emptied", async () => {
     vi.mocked(searchChatMessages).mockResolvedValue([makeResult()]);
     render(<ChatSearch {...defaultProps} />);

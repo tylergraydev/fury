@@ -126,6 +126,18 @@ describe("WorkspaceExportDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("shows error toast when export fails", async () => {
+    vi.mocked(save).mockResolvedValue("/tmp/export.json");
+    mockExportWorkspace.mockRejectedValue(new Error("export boom"));
+    render(<WorkspaceExportDialog workspaceId="ws-1" onClose={vi.fn()} />);
+    fireEvent.click(screen.getByText("Export"));
+    await waitFor(() => {
+      expect(mockExportWorkspace).toHaveBeenCalled();
+    });
+    // Should not crash, dialog should still be open
+    expect(screen.getByText("Export Workspace")).toBeInTheDocument();
+  });
+
   it("passes correct options when checkboxes are toggled", async () => {
     vi.mocked(save).mockResolvedValue("/tmp/export.json");
     mockExportWorkspace.mockResolvedValue("{}");

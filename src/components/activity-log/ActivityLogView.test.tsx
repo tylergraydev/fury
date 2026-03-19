@@ -161,4 +161,262 @@ describe("ActivityLogView", () => {
     render(<ActivityLogView />);
     expect(getGitLog).toHaveBeenCalledWith("ws-1", 50);
   });
+
+  it("deactivates category filter when all types are already active", () => {
+    // Set up with commit filter already active
+    useActivityLogStore.setState({
+      activeFilters: new Set(["commit"] as any),
+      entries: [
+        {
+          id: "1",
+          type: "commit",
+          timestamp: Date.now(),
+          workspaceId: "ws-1",
+          workspaceName: "test-workspace",
+          title: "Fix bug",
+          message: "committed abc123",
+        },
+        {
+          id: "2",
+          type: "agent-completed",
+          timestamp: Date.now() - 1000,
+          workspaceId: "ws-1",
+          workspaceName: "test-workspace",
+          title: "Agent done",
+          message: "Task finished",
+        },
+      ],
+    });
+
+    render(<ActivityLogView />);
+    fireEvent.click(screen.getByTestId("filter-toggle"));
+
+    // Click Commits (already active) to deactivate it
+    fireEvent.click(screen.getByText("Commits"));
+
+    // Now no filters active, both entries should show
+    const entries = screen.getAllByTestId("activity-entry");
+    expect(entries).toHaveLength(2);
+  });
+
+  it("shows Clear button when filters are active and clears on click", () => {
+    useActivityLogStore.setState({
+      activeFilters: new Set(["commit"] as any),
+      entries: [
+        {
+          id: "1",
+          type: "commit",
+          timestamp: Date.now(),
+          workspaceId: "ws-1",
+          workspaceName: "test-workspace",
+          title: "Fix bug",
+          message: "committed abc123",
+        },
+      ],
+    });
+
+    render(<ActivityLogView />);
+    fireEvent.click(screen.getByTestId("filter-toggle"));
+    expect(screen.getByText("Clear")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("Clear"));
+    // After clearing, all entries visible (no filters)
+    expect(screen.getAllByTestId("activity-entry")).toHaveLength(1);
+  });
+
+  it("does not load commits when no active workspace", () => {
+    useWorkspaceStore.setState({ activeWorkspaceId: null });
+    vi.mocked(getGitLog).mockClear();
+
+    render(<ActivityLogView />);
+    expect(getGitLog).not.toHaveBeenCalled();
+  });
+
+  it("refresh button does nothing when no active workspace", () => {
+    useWorkspaceStore.setState({ activeWorkspaceId: null });
+    vi.mocked(getGitLog).mockClear();
+
+    render(<ActivityLogView />);
+    fireEvent.click(screen.getByTestId("refresh-button"));
+    expect(getGitLog).not.toHaveBeenCalled();
+  });
+
+  it("refresh button reloads commits when workspace is active", () => {
+    vi.mocked(getGitLog).mockClear();
+
+    render(<ActivityLogView />);
+    // loadCommits was called on mount; clear and click refresh
+    vi.mocked(getGitLog).mockClear();
+    fireEvent.click(screen.getByTestId("refresh-button"));
+    expect(getGitLog).toHaveBeenCalledWith("ws-1", 50);
+  });
+
+  it("relativeTime shows hours for entries several hours old", () => {
+    const hoursAgo = Date.now() - 3 * 60 * 60 * 1000; // 3 hours ago
+    useActivityLogStore.setState({
+      entries: [
+        {
+          id: "1",
+          type: "commit",
+          timestamp: hoursAgo,
+          workspaceId: "ws-1",
+          workspaceName: "test-workspace",
+          title: "Hours ago event",
+          message: "happened hours ago",
+        },
+      ],
+    });
+
+    render(<ActivityLogView />);
+    expect(screen.getByText("3h ago")).toBeTruthy();
+  });
+
+  it("relativeTime shows minutes for entries minutes old", () => {
+    const minutesAgo = Date.now() - 15 * 60 * 1000; // 15 minutes ago
+    useActivityLogStore.setState({
+      entries: [
+        {
+          id: "1",
+          type: "commit",
+          timestamp: minutesAgo,
+          workspaceId: "ws-1",
+          workspaceName: "test-workspace",
+          title: "Minutes ago event",
+          message: "happened minutes ago",
+        },
+      ],
+    });
+
+    render(<ActivityLogView />);
+    expect(screen.getByText("15m ago")).toBeTruthy();
+  });
+
+  it("relativeTime shows days for entries days old", () => {
+    const daysAgo = Date.now() - 5 * 24 * 60 * 60 * 1000; // 5 days ago
+    useActivityLogStore.setState({
+      entries: [
+        {
+          id: "1",
+          type: "commit",
+          timestamp: daysAgo,
+          workspaceId: "ws-1",
+          workspaceName: "test-workspace",
+          title: "Days ago event",
+          message: "happened days ago",
+        },
+      ],
+    });
+
+    render(<ActivityLogView />);
+    expect(screen.getByText("5d ago")).toBeTruthy();
+  });
+
+  it("toggleCategory activates only missing types in a partially active category", () => {
+    // Set up with only one of the two agent types active
+    useActivityLogStore.setState({
+      activeFilters: new Set(["agent-started"] as any),
+      entries: [
+        {
+          id: "1",
+          type: "agent-started",
+          timestamp: Date.now(),
+          workspaceId: "ws-1",
+          workspaceName: "test-workspace",
+          title: "Agent started",
+          message: "started",
+        },
+        {
+          id: "2",
+          type: "agent-completed",
+          timestamp: Date.now() - 1000,
+          workspaceId: "ws-1",
+          workspaceName: "test-workspace",
+          title: "Agent completed",
+          message: "completed",
+        },
+      ],
+    });
+
+    render(<ActivityLogView />);
+    fireEvent.click(screen.getByTestId("filter-toggle"));
+
+    // Click Agent category - agent-started is already active, agent-completed is not
+    // So it should activate agent-completed too (not toggle agent-started off)
+    fireEvent.click(screen.getByText("Agent"));
+
+    // Both agent entries should be visible
+    const entries = screen.getAllByTestId("activity-entry");
+    expect(entries).toHaveLength(2);
+  });
+
+  it("displays entries grouped under Yesterday label", () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const yesterdayTs = today.getTime() - 1000; // 1 second before midnight = yesterday
+
+    useActivityLogStore.setState({
+      entries: [
+        {
+          id: "1",
+          type: "commit",
+          timestamp: yesterdayTs,
+          workspaceId: "ws-1",
+          workspaceName: "test-workspace",
+          title: "Yesterday event",
+          message: "happened yesterday",
+        },
+      ],
+    });
+
+    render(<ActivityLogView />);
+    expect(screen.getByText("Yesterday")).toBeTruthy();
+  });
+
+  it("displays entries grouped under Earlier label", () => {
+    const oldTs = Date.now() - 7 * 24 * 60 * 60 * 1000; // 7 days ago
+
+    useActivityLogStore.setState({
+      entries: [
+        {
+          id: "1",
+          type: "commit",
+          timestamp: oldTs,
+          workspaceId: "ws-1",
+          workspaceName: "test-workspace",
+          title: "Old event",
+          message: "happened long ago",
+        },
+      ],
+    });
+
+    render(<ActivityLogView />);
+    expect(screen.getByText("Earlier")).toBeTruthy();
+  });
+
+  it("displays Today group for entries after midnight but not recent", () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    // 10 minutes after midnight today (not within 5 min of now unless test runs exactly then)
+    const todayTs = today.getTime() + 10 * 60 * 1000;
+
+    // Only use this if it's not within 5 min of now (otherwise it's "Just now")
+    if (Date.now() - todayTs > 5 * 60 * 1000) {
+      useActivityLogStore.setState({
+        entries: [
+          {
+            id: "1",
+            type: "commit",
+            timestamp: todayTs,
+            workspaceId: "ws-1",
+            workspaceName: "test-workspace",
+            title: "Today event",
+            message: "happened today",
+          },
+        ],
+      });
+
+      render(<ActivityLogView />);
+      expect(screen.getByText("Today")).toBeTruthy();
+    }
+  });
 });

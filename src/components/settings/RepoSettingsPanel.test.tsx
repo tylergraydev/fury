@@ -10,6 +10,7 @@ const mockGetRepoSettings = vi.fn().mockResolvedValue({
   envVars: {},
   worktreeBasePath: null,
   providerOverride: null,
+  devcontainer: null,
 });
 const mockUpdateRepoSettings = vi.fn().mockResolvedValue(undefined);
 
@@ -19,8 +20,46 @@ vi.mock("../../lib/tauri", () => ({
   listen: vi.fn().mockResolvedValue(() => {}),
 }));
 
+const mockLoadTemplates = vi.fn().mockResolvedValue(undefined);
+const mockDeleteTemplate = vi.fn().mockResolvedValue(undefined);
+
+vi.mock("../../stores/workspaceTemplateStore", () => ({
+  useWorkspaceTemplateStore: vi.fn(() => ({
+    templates: [],
+    loadTemplates: mockLoadTemplates,
+    deleteTemplate: mockDeleteTemplate,
+  })),
+}));
+
+vi.mock("../workspace/WorkspaceTemplateDialog", () => ({
+  WorkspaceTemplateDialog: ({ onClose }: { onClose: () => void }) => (
+    <div data-testid="workspace-template-dialog">
+      <button onClick={onClose}>Close Template Dialog</button>
+    </div>
+  ),
+}));
+
+// Re-import so we can change the mock return value per test
+import { useWorkspaceTemplateStore } from "../../stores/workspaceTemplateStore";
+const mockedUseWorkspaceTemplateStore = vi.mocked(useWorkspaceTemplateStore);
+
 beforeEach(() => {
   vi.clearAllMocks();
+  mockGetRepoSettings.mockResolvedValue({
+    setupScript: null,
+    runScript: null,
+    archiveScript: null,
+    runScriptMode: "nonconcurrent",
+    envVars: {},
+    worktreeBasePath: null,
+    providerOverride: null,
+    devcontainer: null,
+  });
+  mockedUseWorkspaceTemplateStore.mockReturnValue({
+    templates: [],
+    loadTemplates: mockLoadTemplates,
+    deleteTemplate: mockDeleteTemplate,
+  } as ReturnType<typeof useWorkspaceTemplateStore>);
 });
 
 describe("RepoSettingsPanel", () => {
@@ -69,8 +108,6 @@ describe("RepoSettingsPanel", () => {
     });
   });
 
-  // --- New tests for full coverage ---
-
   it("loads settings on mount", async () => {
     mockGetRepoSettings.mockResolvedValueOnce({
       setupScript: "npm install",
@@ -80,13 +117,13 @@ describe("RepoSettingsPanel", () => {
       envVars: { NODE_ENV: "test" },
       worktreeBasePath: null,
       providerOverride: null,
+      devcontainer: null,
     });
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
     expect(mockGetRepoSettings).toHaveBeenCalledWith("r1");
 
     await waitFor(() => {
       const textareas = screen.getAllByRole("textbox");
-      // textareas[0] is the worktree location input, scripts start at [1]
       const setupTextarea = textareas[1] as HTMLTextAreaElement;
       expect(setupTextarea.value).toBe("npm install");
     });
@@ -101,6 +138,7 @@ describe("RepoSettingsPanel", () => {
       envVars: {},
       worktreeBasePath: null,
       providerOverride: null,
+      devcontainer: null,
     });
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
     await waitFor(() => {
@@ -153,6 +191,7 @@ describe("RepoSettingsPanel", () => {
       envVars: {},
       worktreeBasePath: null,
       providerOverride: null,
+      devcontainer: null,
     });
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
     await waitFor(() => {
@@ -163,7 +202,6 @@ describe("RepoSettingsPanel", () => {
     const textareas = screen.getAllByPlaceholderText("e.g. npm install");
     fireEvent.change(textareas[0], { target: { value: "" } });
 
-    // Now save and check that null was sent
     fireEvent.click(screen.getByText("Save"));
     await waitFor(() => {
       expect(mockUpdateRepoSettings).toHaveBeenCalledWith("r1", expect.objectContaining({
@@ -178,7 +216,6 @@ describe("RepoSettingsPanel", () => {
       expect(mockGetRepoSettings).toHaveBeenCalled();
     });
 
-    // Nonconcurrent should be checked by default
     const nonconcurrentRadio = screen.getByLabelText("Nonconcurrent (kill previous)");
     const concurrentRadio = screen.getByLabelText("Concurrent");
 
@@ -209,6 +246,7 @@ describe("RepoSettingsPanel", () => {
         envVars: {},
         worktreeBasePath: null,
         providerOverride: null,
+        devcontainer: null,
       });
     });
     await waitFor(() => {
@@ -228,7 +266,6 @@ describe("RepoSettingsPanel", () => {
     await waitFor(() => {
       expect(screen.getByText(/Save failed/)).toBeInTheDocument();
     });
-    // Should not be in saving state anymore
     expect(screen.getByText("Save")).toBeInTheDocument();
   });
 
@@ -246,7 +283,6 @@ describe("RepoSettingsPanel", () => {
     await waitFor(() => {
       expect(screen.getByText("Saving...")).toBeInTheDocument();
     });
-    // Save button should be disabled
     expect(screen.getByText("Saving...").closest("button")).toBeDisabled();
 
     resolveSave!();
@@ -270,7 +306,6 @@ describe("RepoSettingsPanel", () => {
       expect(screen.getByText("secret123")).toBeInTheDocument();
     });
 
-    // Key and value inputs should be cleared
     expect(keyInput).toHaveValue("");
     expect(valueInput).toHaveValue("");
   });
@@ -285,7 +320,6 @@ describe("RepoSettingsPanel", () => {
     fireEvent.change(valueInput, { target: { value: "some-value" } });
     fireEvent.click(screen.getByText("Add"));
 
-    // Should not add anything
     expect(screen.queryByText("some-value")).not.toBeInTheDocument();
   });
 
@@ -317,17 +351,15 @@ describe("RepoSettingsPanel", () => {
       envVars: { EXISTING_KEY: "existing-value" },
       worktreeBasePath: null,
       providerOverride: null,
+      devcontainer: null,
     });
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
     await waitFor(() => {
       expect(screen.getByText("EXISTING_KEY")).toBeInTheDocument();
     });
 
-    // The remove button is the "x" text button next to the env var
     const removeButtons = screen.getAllByText("x");
-    // First "x" is the close button in header, second is the env var remove button
     const envRemoveBtn = removeButtons.find((btn) => {
-      // The env var remove button is inside the env vars list
       return btn.closest("button")?.style.color === "var(--error)";
     });
     expect(envRemoveBtn).toBeDefined();
@@ -347,6 +379,7 @@ describe("RepoSettingsPanel", () => {
       envVars: { NODE_ENV: "production", PORT: "3000" },
       worktreeBasePath: null,
       providerOverride: null,
+      devcontainer: null,
     });
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
     await waitFor(() => {
@@ -355,7 +388,6 @@ describe("RepoSettingsPanel", () => {
       expect(screen.getByText("PORT")).toBeInTheDocument();
       expect(screen.getByText("3000")).toBeInTheDocument();
     });
-    // The "=" separator should be present
     const equalsSigns = screen.getAllByText("=");
     expect(equalsSigns.length).toBeGreaterThanOrEqual(2);
   });
@@ -367,21 +399,17 @@ describe("RepoSettingsPanel", () => {
       expect(mockGetRepoSettings).toHaveBeenCalled();
     });
 
-    // Set a setup script
     const textareas = screen.getAllByPlaceholderText("e.g. npm install");
     fireEvent.change(textareas[0], { target: { value: "npm ci" } });
 
-    // Add an env var
     const keyInput = screen.getByPlaceholderText("KEY");
     const valueInput = screen.getByPlaceholderText("value");
     fireEvent.change(keyInput, { target: { value: "CI" } });
     fireEvent.change(valueInput, { target: { value: "true" } });
     fireEvent.click(screen.getByText("Add"));
 
-    // Switch to concurrent mode
     fireEvent.click(screen.getByLabelText("Concurrent"));
 
-    // Save
     fireEvent.click(screen.getByText("Save"));
 
     await waitFor(() => {
@@ -393,6 +421,7 @@ describe("RepoSettingsPanel", () => {
         envVars: { CI: "true" },
         worktreeBasePath: null,
         providerOverride: null,
+        devcontainer: null,
       });
     });
     await waitFor(() => {
@@ -418,8 +447,7 @@ describe("RepoSettingsPanel", () => {
   it("calls onClose when x header button is clicked", () => {
     const onClose = vi.fn();
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={onClose} />);
-    // The header close button says "x"
-    const headerCloseBtn = screen.getAllByText("x")[0].closest("button")!;
+    const headerCloseBtn = screen.getByLabelText("Close settings");
     fireEvent.click(headerCloseBtn);
     expect(onClose).toHaveBeenCalled();
   });
@@ -436,7 +464,6 @@ describe("RepoSettingsPanel", () => {
     await waitFor(() => {
       expect(screen.getByText(/Network error/)).toBeInTheDocument();
     });
-    // Button should show "Save" again, not "Saving..."
     expect(screen.getByText("Save")).toBeInTheDocument();
     expect(screen.getByText("Save").closest("button")).not.toBeDisabled();
   });
@@ -476,7 +503,6 @@ describe("RepoSettingsPanel", () => {
     fireEvent.change(valueInput, { target: { value: "some_val" } });
     fireEvent.keyDown(valueInput, { key: "a" });
 
-    // Should not have added the env var
     expect(screen.queryByText("SOME_KEY")).not.toBeInTheDocument();
   });
 
@@ -490,7 +516,6 @@ describe("RepoSettingsPanel", () => {
     fireEvent.change(worktreeInput, { target: { value: "/custom/path" } });
     expect(worktreeInput).toHaveValue("/custom/path");
 
-    // Save and verify
     fireEvent.click(screen.getByText("Save"));
     await waitFor(() => {
       expect(mockUpdateRepoSettings).toHaveBeenCalledWith("r1", expect.objectContaining({
@@ -508,6 +533,7 @@ describe("RepoSettingsPanel", () => {
       envVars: {},
       worktreeBasePath: "/existing/path",
       providerOverride: null,
+      devcontainer: null,
     });
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
     await waitFor(() => {
@@ -551,7 +577,6 @@ describe("RepoSettingsPanel", () => {
       expect(mockGetRepoSettings).toHaveBeenCalled();
     });
 
-    // Enable then disable
     const checkbox = screen.getByLabelText("Override Provider for this Repository");
     fireEvent.click(checkbox);
     await waitFor(() => {
@@ -576,6 +601,7 @@ describe("RepoSettingsPanel", () => {
         providerType: "Anthropic",
         envVars: { ANTHROPIC_API_KEY: "sk-work-key" },
       },
+      devcontainer: null,
     });
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
     await waitFor(() => {
@@ -624,6 +650,551 @@ describe("RepoSettingsPanel", () => {
     await waitFor(() => {
       expect(mockUpdateRepoSettings).toHaveBeenCalledWith("r1", expect.objectContaining({
         providerOverride: null,
+      }));
+    });
+  });
+
+  // --- Provider override: change provider type ---
+
+  it("changes provider type in override dropdown", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    // Enable provider override
+    fireEvent.click(screen.getByLabelText("Override Provider for this Repository"));
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Enter ANTHROPIC_API_KEY")).toBeInTheDocument();
+    });
+
+    // Change provider to Bedrock
+    const providerSelect = screen.getByDisplayValue("Anthropic");
+    fireEvent.change(providerSelect, { target: { value: "Bedrock" } });
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Enter AWS_ACCESS_KEY_ID")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("Enter AWS_SECRET_ACCESS_KEY")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("Enter AWS_REGION")).toBeInTheDocument();
+    });
+  });
+
+  it("toggles provider key visibility with Show/Hide button", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    // Enable provider override
+    fireEvent.click(screen.getByLabelText("Override Provider for this Repository"));
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Enter ANTHROPIC_API_KEY")).toBeInTheDocument();
+    });
+
+    const apiKeyInput = screen.getByPlaceholderText("Enter ANTHROPIC_API_KEY");
+    // Initially password type
+    expect(apiKeyInput).toHaveAttribute("type", "password");
+
+    // Click Show
+    fireEvent.click(screen.getByText("Show"));
+    expect(apiKeyInput).toHaveAttribute("type", "text");
+
+    // Click Hide
+    fireEvent.click(screen.getByText("Hide"));
+    expect(apiKeyInput).toHaveAttribute("type", "password");
+  });
+
+  it("updates provider env var value", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    fireEvent.click(screen.getByLabelText("Override Provider for this Repository"));
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Enter ANTHROPIC_API_KEY")).toBeInTheDocument();
+    });
+
+    const apiKeyInput = screen.getByPlaceholderText("Enter ANTHROPIC_API_KEY");
+    fireEvent.change(apiKeyInput, { target: { value: "sk-test-123" } });
+    expect(apiKeyInput).toHaveValue("sk-test-123");
+  });
+
+  // --- Dev container section ---
+
+  it("shows dev container checkbox", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    expect(screen.getByText("Dev Container")).toBeInTheDocument();
+    expect(screen.getByLabelText("Enable dev container for new workspaces")).toBeInTheDocument();
+  });
+
+  it("enables dev container and shows backend/agent selects", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    const checkbox = screen.getByLabelText("Enable dev container for new workspaces");
+    fireEvent.click(checkbox);
+
+    await waitFor(() => {
+      expect(screen.getByText("Backend")).toBeInTheDocument();
+      expect(screen.getByText("Agent exec")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("devcontainer CLI")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("Host (default)")).toBeInTheDocument();
+    });
+  });
+
+  it("disables dev container hides backend/agent selects", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    const checkbox = screen.getByLabelText("Enable dev container for new workspaces");
+    // Enable
+    fireEvent.click(checkbox);
+    await waitFor(() => {
+      expect(screen.getByText("Backend")).toBeInTheDocument();
+    });
+
+    // Disable
+    fireEvent.click(checkbox);
+    await waitFor(() => {
+      expect(screen.queryByText("Backend")).not.toBeInTheDocument();
+    });
+  });
+
+  it("changes devcontainer backend to rawDocker and shows image input", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    // Enable devcontainer
+    fireEvent.click(screen.getByLabelText("Enable dev container for new workspaces"));
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("devcontainer CLI")).toBeInTheDocument();
+    });
+
+    // Change backend to rawDocker
+    const backendSelect = screen.getByDisplayValue("devcontainer CLI");
+    fireEvent.change(backendSelect, { target: { value: "rawDocker" } });
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Docker image (e.g. node:20)")).toBeInTheDocument();
+    });
+  });
+
+  it("updates docker image input value", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    // Enable devcontainer
+    fireEvent.click(screen.getByLabelText("Enable dev container for new workspaces"));
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("devcontainer CLI")).toBeInTheDocument();
+    });
+
+    // Change to rawDocker
+    fireEvent.change(screen.getByDisplayValue("devcontainer CLI"), { target: { value: "rawDocker" } });
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Docker image (e.g. node:20)")).toBeInTheDocument();
+    });
+
+    const imageInput = screen.getByPlaceholderText("Docker image (e.g. node:20)");
+    fireEvent.change(imageInput, { target: { value: "node:20" } });
+    expect(imageInput).toHaveValue("node:20");
+  });
+
+  it("sets docker image to null when cleared", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    fireEvent.click(screen.getByLabelText("Enable dev container for new workspaces"));
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("devcontainer CLI")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByDisplayValue("devcontainer CLI"), { target: { value: "rawDocker" } });
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Docker image (e.g. node:20)")).toBeInTheDocument();
+    });
+
+    const imageInput = screen.getByPlaceholderText("Docker image (e.g. node:20)");
+    fireEvent.change(imageInput, { target: { value: "node:20" } });
+    fireEvent.change(imageInput, { target: { value: "" } });
+
+    fireEvent.click(screen.getByText("Save"));
+    await waitFor(() => {
+      expect(mockUpdateRepoSettings).toHaveBeenCalledWith("r1", expect.objectContaining({
+        devcontainer: expect.objectContaining({
+          image: null,
+        }),
+      }));
+    });
+  });
+
+  it("changes agent exec mode to container", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    fireEvent.click(screen.getByLabelText("Enable dev container for new workspaces"));
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Host (default)")).toBeInTheDocument();
+    });
+
+    const agentSelect = screen.getByDisplayValue("Host (default)");
+    fireEvent.change(agentSelect, { target: { value: "container" } });
+
+    expect(screen.getByDisplayValue("Container")).toBeInTheDocument();
+  });
+
+  it("shows detected devcontainer path when present", async () => {
+    mockGetRepoSettings.mockResolvedValueOnce({
+      setupScript: null,
+      runScript: null,
+      archiveScript: null,
+      runScriptMode: "nonconcurrent",
+      envVars: {},
+      worktreeBasePath: null,
+      providerOverride: null,
+      devcontainer: {
+        enabled: true,
+        backend: "devcontainerCli",
+        agentExecMode: "host",
+        image: null,
+        composeFile: null,
+        composeService: null,
+        devcontainerPath: ".devcontainer/devcontainer.json",
+        containerWorkspacePath: null,
+        extraDockerArgs: [],
+        containerEnvVars: {},
+      },
+    });
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(screen.getByText("Detected: .devcontainer/devcontainer.json")).toBeInTheDocument();
+    });
+  });
+
+  it("does not show detected path when devcontainerPath is null", async () => {
+    mockGetRepoSettings.mockResolvedValueOnce({
+      setupScript: null,
+      runScript: null,
+      archiveScript: null,
+      runScriptMode: "nonconcurrent",
+      envVars: {},
+      worktreeBasePath: null,
+      providerOverride: null,
+      devcontainer: {
+        enabled: true,
+        backend: "devcontainerCli",
+        agentExecMode: "host",
+        image: null,
+        composeFile: null,
+        composeService: null,
+        devcontainerPath: null,
+        containerWorkspacePath: null,
+        extraDockerArgs: [],
+        containerEnvVars: {},
+      },
+    });
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(screen.getByText("Backend")).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Detected:/)).not.toBeInTheDocument();
+  });
+
+  it("does not show rawDocker image input for devcontainerCli backend", async () => {
+    mockGetRepoSettings.mockResolvedValueOnce({
+      setupScript: null,
+      runScript: null,
+      archiveScript: null,
+      runScriptMode: "nonconcurrent",
+      envVars: {},
+      worktreeBasePath: null,
+      providerOverride: null,
+      devcontainer: {
+        enabled: true,
+        backend: "devcontainerCli",
+        agentExecMode: "host",
+        image: null,
+        composeFile: null,
+        composeService: null,
+        devcontainerPath: null,
+        containerWorkspacePath: null,
+        extraDockerArgs: [],
+        containerEnvVars: {},
+      },
+    });
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(screen.getByText("Backend")).toBeInTheDocument();
+    });
+    expect(screen.queryByPlaceholderText("Docker image (e.g. node:20)")).not.toBeInTheDocument();
+  });
+
+  it("loads existing devcontainer with rawDocker and shows image", async () => {
+    mockGetRepoSettings.mockResolvedValueOnce({
+      setupScript: null,
+      runScript: null,
+      archiveScript: null,
+      runScriptMode: "nonconcurrent",
+      envVars: {},
+      worktreeBasePath: null,
+      providerOverride: null,
+      devcontainer: {
+        enabled: true,
+        backend: "rawDocker",
+        agentExecMode: "container",
+        image: "node:18",
+        composeFile: null,
+        composeService: null,
+        devcontainerPath: null,
+        containerWorkspacePath: null,
+        extraDockerArgs: [],
+        containerEnvVars: {},
+      },
+    });
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Raw Docker")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("Container")).toBeInTheDocument();
+      const imageInput = screen.getByPlaceholderText("Docker image (e.g. node:20)");
+      expect(imageInput).toHaveValue("node:18");
+    });
+  });
+
+  // --- Workspace templates section ---
+
+  it("shows workspace templates section", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    expect(screen.getByText("Workspace Templates")).toBeInTheDocument();
+    expect(screen.getByText("Save Current Settings as Template")).toBeInTheDocument();
+  });
+
+  it("displays templates list when templates exist", async () => {
+    mockedUseWorkspaceTemplateStore.mockReturnValue({
+      templates: [
+        { id: "t1", name: "Template One", description: "First template", repoId: "r1", settings: {} },
+        { id: "t2", name: "Template Two", description: null, repoId: "r1", settings: {} },
+      ],
+      loadTemplates: mockLoadTemplates,
+      deleteTemplate: mockDeleteTemplate,
+    } as unknown as ReturnType<typeof useWorkspaceTemplateStore>);
+
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+
+    expect(screen.getByText("Template One")).toBeInTheDocument();
+    expect(screen.getByText("First template")).toBeInTheDocument();
+    expect(screen.getByText("Template Two")).toBeInTheDocument();
+  });
+
+  it("does not show description when template description is null", async () => {
+    mockedUseWorkspaceTemplateStore.mockReturnValue({
+      templates: [
+        { id: "t1", name: "No Desc Template", description: null, repoId: "r1", settings: {} },
+      ],
+      loadTemplates: mockLoadTemplates,
+      deleteTemplate: mockDeleteTemplate,
+    } as unknown as ReturnType<typeof useWorkspaceTemplateStore>);
+
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+
+    expect(screen.getByText("No Desc Template")).toBeInTheDocument();
+    // No description element should be present
+    const templateContainer = screen.getByText("No Desc Template").closest("div[class*='flex']");
+    expect(templateContainer).toBeInTheDocument();
+  });
+
+  it("deletes a template when delete button is clicked", async () => {
+    mockedUseWorkspaceTemplateStore.mockReturnValue({
+      templates: [
+        { id: "t1", name: "My Template", description: "desc", repoId: "r1", settings: {} },
+      ],
+      loadTemplates: mockLoadTemplates,
+      deleteTemplate: mockDeleteTemplate,
+    } as unknown as ReturnType<typeof useWorkspaceTemplateStore>);
+
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+
+    expect(screen.getByText("My Template")).toBeInTheDocument();
+
+    // Find the template delete button (the x with error color inside the templates section)
+    const templateDeleteBtns = screen.getAllByText("x").filter((el) => {
+      const btn = el.closest("button");
+      return btn?.style.color === "var(--error)" && el.closest("div[class*='space-y-1']");
+    });
+    expect(templateDeleteBtns.length).toBeGreaterThan(0);
+    fireEvent.click(templateDeleteBtns[0].closest("button")!);
+
+    expect(mockDeleteTemplate).toHaveBeenCalledWith("t1");
+  });
+
+  it("opens template dialog when 'Save Current Settings as Template' is clicked", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    expect(screen.queryByTestId("workspace-template-dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Save Current Settings as Template"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("workspace-template-dialog")).toBeInTheDocument();
+    });
+  });
+
+  it("closes template dialog and reloads templates", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    // Open template dialog
+    fireEvent.click(screen.getByText("Save Current Settings as Template"));
+    await waitFor(() => {
+      expect(screen.getByTestId("workspace-template-dialog")).toBeInTheDocument();
+    });
+
+    // Close it
+    fireEvent.click(screen.getByText("Close Template Dialog"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("workspace-template-dialog")).not.toBeInTheDocument();
+    });
+
+    // loadTemplates should have been called again (once on mount, once on close)
+    expect(mockLoadTemplates).toHaveBeenCalledWith("r1");
+  });
+
+  it("calls loadTemplates on mount", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockLoadTemplates).toHaveBeenCalledWith("r1");
+    });
+  });
+
+  it("shows provider labels in dropdown when override is enabled", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    fireEvent.click(screen.getByLabelText("Override Provider for this Repository"));
+    await waitFor(() => {
+      expect(screen.getByText("Anthropic")).toBeInTheDocument();
+    });
+
+    // Check all provider options exist in the select
+    const selectEl = screen.getByDisplayValue("Anthropic");
+    const options = selectEl.querySelectorAll("option");
+    const optionTexts = Array.from(options).map((o) => o.textContent);
+    expect(optionTexts).toContain("Anthropic");
+    expect(optionTexts).toContain("OpenRouter");
+    expect(optionTexts).toContain("Vercel AI Gateway");
+    expect(optionTexts).toContain("AWS Bedrock");
+    expect(optionTexts).toContain("Google Vertex");
+    expect(optionTexts).toContain("Azure Foundry");
+    expect(optionTexts).toContain("Custom");
+  });
+
+  it("shows no env hints for Custom provider", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    fireEvent.click(screen.getByLabelText("Override Provider for this Repository"));
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Enter ANTHROPIC_API_KEY")).toBeInTheDocument();
+    });
+
+    // Change to Custom (which has no env hints)
+    fireEvent.change(screen.getByDisplayValue("Anthropic"), { target: { value: "Custom" } });
+
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText(/Enter /)).not.toBeInTheDocument();
+    });
+  });
+
+  it("saves devcontainer settings correctly", async () => {
+    const onClose = vi.fn();
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={onClose} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    // Enable devcontainer
+    fireEvent.click(screen.getByLabelText("Enable dev container for new workspaces"));
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("devcontainer CLI")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Save"));
+
+    await waitFor(() => {
+      expect(mockUpdateRepoSettings).toHaveBeenCalledWith("r1", expect.objectContaining({
+        devcontainer: expect.objectContaining({
+          enabled: true,
+          backend: "devcontainerCli",
+          agentExecMode: "host",
+        }),
+      }));
+    });
+  });
+
+  it("does not call onClose when non-Escape key is pressed on backdrop", () => {
+    const onClose = vi.fn();
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={onClose} />);
+    const backdrop = screen.getByRole("dialog", { name: "Settings: My Repo" }).closest(".fixed")!;
+    fireEvent.keyDown(backdrop, { key: "Enter" });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("calls onClose when Escape key is pressed on backdrop", () => {
+    const onClose = vi.fn();
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={onClose} />);
+    const backdrop = screen.getByRole("dialog", { name: "Settings: My Repo" }).closest(".fixed")!;
+    fireEvent.keyDown(backdrop, { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("enables devcontainer with existing null devcontainer creates defaults", async () => {
+    render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(mockGetRepoSettings).toHaveBeenCalled();
+    });
+
+    const checkbox = screen.getByLabelText("Enable dev container for new workspaces");
+    expect(checkbox).not.toBeChecked();
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+
+    fireEvent.click(screen.getByText("Save"));
+    await waitFor(() => {
+      expect(mockUpdateRepoSettings).toHaveBeenCalledWith("r1", expect.objectContaining({
+        devcontainer: expect.objectContaining({
+          enabled: true,
+          backend: "devcontainerCli",
+          agentExecMode: "host",
+          image: null,
+          composeFile: null,
+          composeService: null,
+          devcontainerPath: null,
+          containerWorkspacePath: null,
+          extraDockerArgs: [],
+          containerEnvVars: {},
+        }),
       }));
     });
   });

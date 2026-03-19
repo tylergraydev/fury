@@ -157,6 +157,64 @@ import {
   popStash,
   dropStash,
   showStash,
+  // Followup message
+  sendFollowupMessage,
+  // Diff watcher commands
+  startDiffWatcher,
+  stopDiffWatcher,
+  // Clipboard commands
+  saveClipboardImage,
+  // PR full data commands
+  getPrFullData,
+  getReviewsAndComments,
+  // LSP commands
+  getLspCatalog,
+  listLspPlugins,
+  installLspPlugin,
+  uninstallLspPlugin,
+  detectLspSuggestions,
+  // Workspace template commands
+  createWorkspaceTemplate,
+  listWorkspaceTemplates,
+  updateWorkspaceTemplate,
+  deleteWorkspaceTemplate,
+  // File bookmark commands
+  createBookmark,
+  listBookmarks,
+  updateBookmark,
+  deleteBookmark,
+  toggleBookmark,
+  // Prompt library commands
+  createPrompt,
+  listPrompts,
+  updatePrompt,
+  deletePrompt,
+  // Snippet manager commands
+  createSnippet,
+  listSnippets,
+  updateSnippet,
+  deleteSnippet,
+  // Test runner commands
+  detectTestFramework,
+  getTestRunnerConfig,
+  saveTestRunnerConfig,
+  runTests,
+  stopTests,
+  startTestWatch,
+  stopTestWatch,
+  listTestHistory,
+  runCoverage,
+  // Usage dashboard commands
+  getUsageData,
+  // Export commands
+  exportWorkspace,
+  // Dev container commands
+  startContainer,
+  stopContainer,
+  rebuildContainer,
+  getContainerStatus,
+  updateDevcontainerConfig,
+  detectDevcontainer,
 } from "./tauri";
 import type { ChatMessage, PersistedChatMessage } from "./tauri";
 
@@ -1455,5 +1513,412 @@ describe("toPersisted/fromPersisted with optional fields", () => {
     };
     const result = fromPersisted(persisted);
     expect(result.metadata).toEqual({ durationMs: 1000 });
+  });
+});
+
+// ─── Followup message command ────────────────────────────────────────────────
+
+describe("Followup message command", () => {
+  it("sendFollowupMessage calls invoke with send_followup_message", async () => {
+    await sendFollowupMessage("w1", "follow up text");
+    expect(invoke).toHaveBeenCalledWith("send_followup_message", { workspaceId: "w1", message: "follow up text" });
+  });
+});
+
+// ─── Diff watcher commands ───────────────────────────────────────────────────
+
+describe("Diff watcher commands", () => {
+  it("startDiffWatcher calls invoke with start_diff_watcher", async () => {
+    await startDiffWatcher("ctx1", "workspace");
+    expect(invoke).toHaveBeenCalledWith("start_diff_watcher", { contextId: "ctx1", contextType: "workspace" });
+  });
+
+  it("startDiffWatcher works with repo context type", async () => {
+    await startDiffWatcher("ctx1", "repo");
+    expect(invoke).toHaveBeenCalledWith("start_diff_watcher", { contextId: "ctx1", contextType: "repo" });
+  });
+
+  it("stopDiffWatcher calls invoke with stop_diff_watcher", async () => {
+    await stopDiffWatcher("ctx1");
+    expect(invoke).toHaveBeenCalledWith("stop_diff_watcher", { contextId: "ctx1" });
+  });
+});
+
+// ─── Clipboard commands ─────────────────────────────────────────────────────
+
+describe("Clipboard commands", () => {
+  it("saveClipboardImage calls invoke with save_clipboard_image", async () => {
+    (invoke as any).mockResolvedValueOnce("/tmp/image.png");
+    const result = await saveClipboardImage("base64data", "image/png");
+    expect(invoke).toHaveBeenCalledWith("save_clipboard_image", { data: "base64data", mimeType: "image/png" });
+    expect(result).toBe("/tmp/image.png");
+  });
+});
+
+// ─── PR full data commands ──────────────────────────────────────────────────
+
+describe("PR full data commands", () => {
+  it("getPrFullData calls invoke with get_pr_full_data", async () => {
+    const data = { pr: {}, reviews: [], checks: [] };
+    (invoke as any).mockResolvedValueOnce(data);
+    const result = await getPrFullData("w1");
+    expect(invoke).toHaveBeenCalledWith("get_pr_full_data", { workspaceId: "w1" });
+    expect(result).toEqual(data);
+  });
+
+  it("getReviewsAndComments calls invoke with get_reviews_and_comments", async () => {
+    const data = { reviews: [], comments: [] };
+    (invoke as any).mockResolvedValueOnce(data);
+    const result = await getReviewsAndComments("w1");
+    expect(invoke).toHaveBeenCalledWith("get_reviews_and_comments", { workspaceId: "w1" });
+    expect(result).toEqual(data);
+  });
+});
+
+// ─── LSP commands ────────────────────────────────────────────────────────────
+
+describe("LSP commands", () => {
+  it("getLspCatalog calls invoke with get_lsp_catalog", async () => {
+    const catalog = [{ name: "typescript", description: "TS support" }];
+    (invoke as any).mockResolvedValueOnce(catalog);
+    const result = await getLspCatalog();
+    expect(invoke).toHaveBeenCalledWith("get_lsp_catalog");
+    expect(result).toEqual(catalog);
+  });
+
+  it("listLspPlugins calls invoke with list_lsp_plugins", async () => {
+    const plugins = [{ name: "typescript", enabled: true }];
+    (invoke as any).mockResolvedValueOnce(plugins);
+    const result = await listLspPlugins();
+    expect(invoke).toHaveBeenCalledWith("list_lsp_plugins");
+    expect(result).toEqual(plugins);
+  });
+
+  it("installLspPlugin calls invoke with install_lsp_plugin", async () => {
+    const request = { repoPath: "/path", pluginName: "typescript" };
+    await installLspPlugin(request as any);
+    expect(invoke).toHaveBeenCalledWith("install_lsp_plugin", { request });
+  });
+
+  it("uninstallLspPlugin calls invoke with uninstall_lsp_plugin", async () => {
+    const request = { repoPath: "/path", pluginName: "typescript" };
+    await uninstallLspPlugin(request as any);
+    expect(invoke).toHaveBeenCalledWith("uninstall_lsp_plugin", { request });
+  });
+
+  it("detectLspSuggestions calls invoke with detect_lsp_suggestions", async () => {
+    const suggestions = [{ name: "typescript", installCmd: "npm i" }];
+    (invoke as any).mockResolvedValueOnce(suggestions);
+    const result = await detectLspSuggestions("/path/to/repo");
+    expect(invoke).toHaveBeenCalledWith("detect_lsp_suggestions", { repoPath: "/path/to/repo" });
+    expect(result).toEqual(suggestions);
+  });
+});
+
+// ─── Workspace template commands ─────────────────────────────────────────────
+
+describe("Workspace template commands", () => {
+  it("createWorkspaceTemplate calls invoke with create_workspace_template", async () => {
+    const request = { repoId: "r1", name: "template1" };
+    const template = { id: "t1", repoId: "r1", name: "template1", description: null, setupScript: null, runScript: null, archiveScript: null, runScriptMode: "parallel", envVars: {}, sparseDirs: null, autoCommit: false, createdAt: "2024-01-01", updatedAt: "2024-01-01" };
+    (invoke as any).mockResolvedValueOnce(template);
+    const result = await createWorkspaceTemplate(request);
+    expect(invoke).toHaveBeenCalledWith("create_workspace_template", { request });
+    expect(result).toEqual(template);
+  });
+
+  it("listWorkspaceTemplates calls invoke with list_workspace_templates", async () => {
+    const templates = [{ id: "t1", name: "tmpl" }];
+    (invoke as any).mockResolvedValueOnce(templates);
+    const result = await listWorkspaceTemplates("r1");
+    expect(invoke).toHaveBeenCalledWith("list_workspace_templates", { repoId: "r1" });
+    expect(result).toEqual(templates);
+  });
+
+  it("updateWorkspaceTemplate calls invoke with update_workspace_template", async () => {
+    const request = { name: "updated" };
+    const template = { id: "t1", name: "updated" };
+    (invoke as any).mockResolvedValueOnce(template);
+    const result = await updateWorkspaceTemplate("t1", request);
+    expect(invoke).toHaveBeenCalledWith("update_workspace_template", { templateId: "t1", request });
+    expect(result).toEqual(template);
+  });
+
+  it("deleteWorkspaceTemplate calls invoke with delete_workspace_template", async () => {
+    await deleteWorkspaceTemplate("t1");
+    expect(invoke).toHaveBeenCalledWith("delete_workspace_template", { templateId: "t1" });
+  });
+});
+
+// ─── File bookmark commands ──────────────────────────────────────────────────
+
+describe("File bookmark commands", () => {
+  it("createBookmark calls invoke with create_bookmark", async () => {
+    const request = { repoId: "r1", filePath: "src/main.ts", lineNumber: 10 };
+    const bookmark = { id: "b1", ...request, note: null, color: null, createdAt: "2024-01-01", updatedAt: "2024-01-01" };
+    (invoke as any).mockResolvedValueOnce(bookmark);
+    const result = await createBookmark(request);
+    expect(invoke).toHaveBeenCalledWith("create_bookmark", { request });
+    expect(result).toEqual(bookmark);
+  });
+
+  it("listBookmarks calls invoke with list_bookmarks", async () => {
+    const bookmarks = [{ id: "b1", filePath: "a.ts" }];
+    (invoke as any).mockResolvedValueOnce(bookmarks);
+    const result = await listBookmarks("r1");
+    expect(invoke).toHaveBeenCalledWith("list_bookmarks", { repoId: "r1" });
+    expect(result).toEqual(bookmarks);
+  });
+
+  it("updateBookmark calls invoke with update_bookmark", async () => {
+    const request = { note: "updated note" };
+    const bookmark = { id: "b1", note: "updated note" };
+    (invoke as any).mockResolvedValueOnce(bookmark);
+    const result = await updateBookmark("b1", request);
+    expect(invoke).toHaveBeenCalledWith("update_bookmark", { bookmarkId: "b1", request });
+    expect(result).toEqual(bookmark);
+  });
+
+  it("deleteBookmark calls invoke with delete_bookmark", async () => {
+    await deleteBookmark("b1");
+    expect(invoke).toHaveBeenCalledWith("delete_bookmark", { bookmarkId: "b1" });
+  });
+
+  it("toggleBookmark calls invoke with toggle_bookmark", async () => {
+    const bookmark = { id: "b1", repoId: "r1", filePath: "a.ts", lineNumber: 5, note: null, color: null, createdAt: "2024-01-01", updatedAt: "2024-01-01" };
+    (invoke as any).mockResolvedValueOnce(bookmark);
+    const result = await toggleBookmark("r1", "a.ts", 5);
+    expect(invoke).toHaveBeenCalledWith("toggle_bookmark", { repoId: "r1", filePath: "a.ts", lineNumber: 5 });
+    expect(result).toEqual(bookmark);
+  });
+
+  it("toggleBookmark returns null when bookmark is removed", async () => {
+    (invoke as any).mockResolvedValueOnce(null);
+    const result = await toggleBookmark("r1", "a.ts", 5);
+    expect(invoke).toHaveBeenCalledWith("toggle_bookmark", { repoId: "r1", filePath: "a.ts", lineNumber: 5 });
+    expect(result).toBeNull();
+  });
+});
+
+// ─── Prompt library commands ─────────────────────────────────────────────────
+
+describe("Prompt library commands", () => {
+  it("createPrompt calls invoke with create_prompt", async () => {
+    const request = { name: "My Prompt", content: "Do something" };
+    const prompt = { id: "p1", name: "My Prompt", content: "Do something", description: null, category: null, tags: [], sortOrder: 0, createdAt: "2024-01-01", updatedAt: "2024-01-01" };
+    (invoke as any).mockResolvedValueOnce(prompt);
+    const result = await createPrompt(request);
+    expect(invoke).toHaveBeenCalledWith("create_prompt", { request });
+    expect(result).toEqual(prompt);
+  });
+
+  it("listPrompts calls invoke with list_prompts", async () => {
+    const prompts = [{ id: "p1", name: "prompt" }];
+    (invoke as any).mockResolvedValueOnce(prompts);
+    const result = await listPrompts();
+    expect(invoke).toHaveBeenCalledWith("list_prompts");
+    expect(result).toEqual(prompts);
+  });
+
+  it("updatePrompt calls invoke with update_prompt", async () => {
+    const request = { name: "Updated" };
+    const prompt = { id: "p1", name: "Updated" };
+    (invoke as any).mockResolvedValueOnce(prompt);
+    const result = await updatePrompt("p1", request);
+    expect(invoke).toHaveBeenCalledWith("update_prompt", { promptId: "p1", request });
+    expect(result).toEqual(prompt);
+  });
+
+  it("deletePrompt calls invoke with delete_prompt", async () => {
+    await deletePrompt("p1");
+    expect(invoke).toHaveBeenCalledWith("delete_prompt", { promptId: "p1" });
+  });
+});
+
+// ─── Snippet manager commands ────────────────────────────────────────────────
+
+describe("Snippet manager commands", () => {
+  it("createSnippet calls invoke with create_snippet", async () => {
+    const request = { title: "My Snippet", content: "code here" };
+    const snippet = { id: "s1", title: "My Snippet", content: "code here", language: null, description: null, tags: [], source: null, createdAt: "2024-01-01", updatedAt: "2024-01-01" };
+    (invoke as any).mockResolvedValueOnce(snippet);
+    const result = await createSnippet(request);
+    expect(invoke).toHaveBeenCalledWith("create_snippet", { request });
+    expect(result).toEqual(snippet);
+  });
+
+  it("listSnippets calls invoke with list_snippets", async () => {
+    const snippets = [{ id: "s1", title: "snippet" }];
+    (invoke as any).mockResolvedValueOnce(snippets);
+    const result = await listSnippets();
+    expect(invoke).toHaveBeenCalledWith("list_snippets");
+    expect(result).toEqual(snippets);
+  });
+
+  it("updateSnippet calls invoke with update_snippet", async () => {
+    const request = { title: "Updated" };
+    const snippet = { id: "s1", title: "Updated" };
+    (invoke as any).mockResolvedValueOnce(snippet);
+    const result = await updateSnippet("s1", request);
+    expect(invoke).toHaveBeenCalledWith("update_snippet", { snippetId: "s1", request });
+    expect(result).toEqual(snippet);
+  });
+
+  it("deleteSnippet calls invoke with delete_snippet", async () => {
+    await deleteSnippet("s1");
+    expect(invoke).toHaveBeenCalledWith("delete_snippet", { snippetId: "s1" });
+  });
+});
+
+// ─── Test runner commands ────────────────────────────────────────────────────
+
+describe("Test runner commands", () => {
+  it("detectTestFramework calls invoke with detect_test_framework", async () => {
+    const config = { framework: "vitest", testCommand: "npx vitest", testFileCommand: null, workingDir: null, coverageCommand: null };
+    (invoke as any).mockResolvedValueOnce(config);
+    const result = await detectTestFramework("r1");
+    expect(invoke).toHaveBeenCalledWith("detect_test_framework", { repoId: "r1" });
+    expect(result).toEqual(config);
+  });
+
+  it("getTestRunnerConfig calls invoke with get_test_runner_config", async () => {
+    const config = { framework: "jest", testCommand: "npx jest", testFileCommand: null, workingDir: null, coverageCommand: null };
+    (invoke as any).mockResolvedValueOnce(config);
+    const result = await getTestRunnerConfig("r1");
+    expect(invoke).toHaveBeenCalledWith("get_test_runner_config", { repoId: "r1" });
+    expect(result).toEqual(config);
+  });
+
+  it("saveTestRunnerConfig calls invoke with save_test_runner_config", async () => {
+    const config = { framework: "vitest" as const, testCommand: "npx vitest", testFileCommand: null, workingDir: null, coverageCommand: null };
+    await saveTestRunnerConfig("r1", config);
+    expect(invoke).toHaveBeenCalledWith("save_test_runner_config", { repoId: "r1", config });
+  });
+
+  it("runTests calls invoke with run_tests", async () => {
+    await runTests("ctx1", "workspace");
+    expect(invoke).toHaveBeenCalledWith("run_tests", { contextId: "ctx1", contextType: "workspace", fileFilter: undefined });
+  });
+
+  it("runTests calls invoke with fileFilter", async () => {
+    await runTests("ctx1", "workspace", "src/foo.test.ts");
+    expect(invoke).toHaveBeenCalledWith("run_tests", { contextId: "ctx1", contextType: "workspace", fileFilter: "src/foo.test.ts" });
+  });
+
+  it("stopTests calls invoke with stop_tests", async () => {
+    await stopTests("ctx1");
+    expect(invoke).toHaveBeenCalledWith("stop_tests", { contextId: "ctx1" });
+  });
+
+  it("startTestWatch calls invoke with start_test_watch", async () => {
+    await startTestWatch("ctx1", "repo");
+    expect(invoke).toHaveBeenCalledWith("start_test_watch", { contextId: "ctx1", contextType: "repo" });
+  });
+
+  it("stopTestWatch calls invoke with stop_test_watch", async () => {
+    await stopTestWatch("ctx1");
+    expect(invoke).toHaveBeenCalledWith("stop_test_watch", { contextId: "ctx1" });
+  });
+
+  it("listTestHistory calls invoke with list_test_history", async () => {
+    const history = [{ id: "h1", repoId: "r1", ranAt: "2024-01-01", total: 10, passed: 9, failed: 1, skipped: 0, durationMs: 5000 }];
+    (invoke as any).mockResolvedValueOnce(history);
+    const result = await listTestHistory("r1");
+    expect(invoke).toHaveBeenCalledWith("list_test_history", { repoId: "r1", limit: undefined });
+    expect(result).toEqual(history);
+  });
+
+  it("listTestHistory calls invoke with limit", async () => {
+    (invoke as any).mockResolvedValueOnce([]);
+    await listTestHistory("r1", 5);
+    expect(invoke).toHaveBeenCalledWith("list_test_history", { repoId: "r1", limit: 5 });
+  });
+
+  it("runCoverage calls invoke with run_coverage", async () => {
+    await runCoverage("ctx1", "workspace");
+    expect(invoke).toHaveBeenCalledWith("run_coverage", { contextId: "ctx1", contextType: "workspace" });
+  });
+});
+
+// ─── Usage dashboard commands ────────────────────────────────────────────────
+
+describe("Usage dashboard commands", () => {
+  it("getUsageData calls invoke with get_usage_data", async () => {
+    const data = [{ workspaceId: "w1", workspaceName: "ws", timestamp: "2024-01-01", totalCostUsd: 0.5, inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheCreationTokens: 0, numTurns: 3, durationMs: 10000 }];
+    (invoke as any).mockResolvedValueOnce(data);
+    const result = await getUsageData();
+    expect(invoke).toHaveBeenCalledWith("get_usage_data", { workspaceId: undefined, since: undefined });
+    expect(result).toEqual(data);
+  });
+
+  it("getUsageData calls invoke with workspaceId and since", async () => {
+    (invoke as any).mockResolvedValueOnce([]);
+    await getUsageData("w1", "2024-01-01");
+    expect(invoke).toHaveBeenCalledWith("get_usage_data", { workspaceId: "w1", since: "2024-01-01" });
+  });
+});
+
+// ─── Export commands ─────────────────────────────────────────────────────────
+
+describe("Export commands", () => {
+  it("exportWorkspace calls invoke with export_workspace", async () => {
+    const options = { workspaceId: "w1", includeChat: true, includeTodos: true, includeRepoSettings: false, includeEnvVars: false, includeBookmarks: true, includeSnippets: false };
+    (invoke as any).mockResolvedValueOnce("exported-json-string");
+    const result = await exportWorkspace(options);
+    expect(invoke).toHaveBeenCalledWith("export_workspace", { options });
+    expect(result).toBe("exported-json-string");
+  });
+});
+
+// ─── Dev container commands ──────────────────────────────────────────────────
+
+describe("Dev container commands", () => {
+  it("startContainer calls invoke with start_container", async () => {
+    const state = { workspaceId: "w1", status: "running", containerId: "c1", containerName: "fury-w1", logTail: [] };
+    (invoke as any).mockResolvedValueOnce(state);
+    const result = await startContainer("w1");
+    expect(invoke).toHaveBeenCalledWith("start_container", { workspaceId: "w1" });
+    expect(result).toEqual(state);
+  });
+
+  it("stopContainer calls invoke with stop_container", async () => {
+    await stopContainer("w1");
+    expect(invoke).toHaveBeenCalledWith("stop_container", { workspaceId: "w1" });
+  });
+
+  it("rebuildContainer calls invoke with rebuild_container", async () => {
+    const state = { workspaceId: "w1", status: "running", containerId: "c2", containerName: "fury-w1", logTail: [] };
+    (invoke as any).mockResolvedValueOnce(state);
+    const result = await rebuildContainer("w1");
+    expect(invoke).toHaveBeenCalledWith("rebuild_container", { workspaceId: "w1" });
+    expect(result).toEqual(state);
+  });
+
+  it("getContainerStatus calls invoke with get_container_status", async () => {
+    const state = { workspaceId: "w1", status: "stopped", containerId: null, containerName: null, logTail: [] };
+    (invoke as any).mockResolvedValueOnce(state);
+    const result = await getContainerStatus("w1");
+    expect(invoke).toHaveBeenCalledWith("get_container_status", { workspaceId: "w1" });
+    expect(result).toEqual(state);
+  });
+
+  it("updateDevcontainerConfig calls invoke with update_devcontainer_config", async () => {
+    const config = { enabled: true, backend: "devcontainerCli" as const, agentExecMode: "container" as const, image: null, composeFile: null, composeService: null, devcontainerPath: ".devcontainer", containerWorkspacePath: null, extraDockerArgs: [], containerEnvVars: {} };
+    await updateDevcontainerConfig("w1", config);
+    expect(invoke).toHaveBeenCalledWith("update_devcontainer_config", { workspaceId: "w1", config });
+  });
+
+  it("detectDevcontainer calls invoke with detect_devcontainer", async () => {
+    (invoke as any).mockResolvedValueOnce(".devcontainer/devcontainer.json");
+    const result = await detectDevcontainer("r1");
+    expect(invoke).toHaveBeenCalledWith("detect_devcontainer", { repoId: "r1" });
+    expect(result).toBe(".devcontainer/devcontainer.json");
+  });
+
+  it("detectDevcontainer returns null when no config found", async () => {
+    (invoke as any).mockResolvedValueOnce(null);
+    const result = await detectDevcontainer("r1");
+    expect(invoke).toHaveBeenCalledWith("detect_devcontainer", { repoId: "r1" });
+    expect(result).toBeNull();
   });
 });

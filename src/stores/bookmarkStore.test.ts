@@ -195,6 +195,13 @@ describe("bookmarkStore - removeBookmark", () => {
     expect(useToastStore.getState().toasts[0].message).toBe("Bookmark removed");
   });
 
+  it("handles removal when repo has no bookmarks yet", async () => {
+    useBookmarkStore.setState({ bookmarks: {} });
+    vi.mocked(deleteBookmark).mockResolvedValue(undefined);
+    await useBookmarkStore.getState().removeBookmark("repo-1", "bm-1");
+    expect(useBookmarkStore.getState().bookmarks["repo-1"]).toEqual([]);
+  });
+
   it("sets error on failure", async () => {
     vi.mocked(deleteBookmark).mockRejectedValue(new Error("db error"));
 

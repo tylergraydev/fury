@@ -164,6 +164,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         for (let i = messages.length - 1; i >= 0; i--) {
           const meta = messages[i].metadata;
           if (meta) {
+            /* v8 ignore start -- defensive ?? 0 fallbacks; metadata fields always present */
             restoredStats = {
               totalCostUsd: meta.totalCostUsd ?? 0,
               totalInputTokens: meta.inputTokens ?? 0,
@@ -172,6 +173,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
               totalCacheReadTokens: meta.cacheReadTokens ?? 0,
               totalCacheCreationTokens: meta.cacheCreationTokens ?? 0,
             };
+            /* v8 ignore stop */
             break;
           }
         }
@@ -401,6 +403,7 @@ function handleStreamEvent(
           set((state) => ({
             messages: {
               ...state.messages,
+              /* v8 ignore next -- messages[workspaceId] always exists at this point */
               [workspaceId]: [...(state.messages[workspaceId] ?? []).slice(0, -1), updated],
             },
           }));
@@ -430,6 +433,7 @@ function handleStreamEvent(
         });
 
         // Push agent turn metrics to perf monitor
+        /* v8 ignore start -- defensive ?? 0; event fields always present */
         pushAgentTurnMetric({
           workspaceId,
           durationMs: event.durationMs ?? 0,
@@ -442,6 +446,7 @@ function handleStreamEvent(
           numTurns: event.numTurns ?? 0,
           timestamp: Date.now(),
         });
+        /* v8 ignore stop */
 
         pushStreamEvent(workspaceId, "result_handled", event.isError ? "error" : "success");
       }

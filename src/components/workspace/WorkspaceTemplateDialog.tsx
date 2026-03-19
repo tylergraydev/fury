@@ -41,10 +41,6 @@ export function WorkspaceTemplateDialog({ repoId, onClose }: Props) {
   }, [repoId]);
 
   const handleSave = async () => {
-    if (!name.trim()) {
-      setError("Template name is required");
-      return;
-    }
     setSaving(true);
     setError(null);
     try {

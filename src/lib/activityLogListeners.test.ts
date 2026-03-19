@@ -342,6 +342,56 @@ describe("activityLogListeners", () => {
       expect(entries[0].type).toBe("pr-checks-fail");
       cleanup();
     });
+
+    it("skips null prInfo entries", () => {
+      const cleanup = initActivityLogListeners();
+
+      usePrStore.setState({
+        prInfo: {
+          "ws-1": null as any,
+        },
+      });
+
+      const entries = useActivityLogStore.getState().entries;
+      expect(entries).toHaveLength(0);
+      cleanup();
+    });
+
+    it("fires pr-checks-pass with correct message for all passing", () => {
+      const cleanup = initActivityLogListeners();
+
+      usePrStore.setState({
+        prInfo: {
+          "ws-1": {
+            workspaceId: "ws-1", prNumber: 1, title: "PR",
+            state: "OPEN",
+            checks: [
+              { name: "CI", status: "IN_PROGRESS", conclusion: null },
+              { name: "Lint", status: "IN_PROGRESS", conclusion: null },
+            ],
+          } as any,
+        },
+      });
+
+      usePrStore.setState({
+        prInfo: {
+          "ws-1": {
+            workspaceId: "ws-1", prNumber: 1, title: "PR",
+            state: "OPEN",
+            checks: [
+              { name: "CI", status: "COMPLETED", conclusion: "SUCCESS" },
+              { name: "Lint", status: "COMPLETED", conclusion: "SUCCESS" },
+            ],
+          } as any,
+        },
+      });
+
+      const entries = useActivityLogStore.getState().entries;
+      expect(entries).toHaveLength(1);
+      expect(entries[0].type).toBe("pr-checks-pass");
+      expect(entries[0].message).toContain("All 2 checks passed");
+      cleanup();
+    });
   });
 
   describe("merge conflicts", () => {

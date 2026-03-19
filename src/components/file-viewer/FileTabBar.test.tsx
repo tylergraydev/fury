@@ -335,6 +335,66 @@ describe("FileTabBar", () => {
     expect(mergeSpan).toHaveStyle({ fontStyle: "normal" });
   });
 
+  it("pressing Enter on a view tab activates it", () => {
+    const setActiveViewTab = vi.fn();
+    useUIStore.setState({
+      viewTabs: [
+        { id: "chat", type: "chat", label: "Chat", pinned: true },
+        { id: "merge-1", type: "merge", label: "Merge", pinned: false },
+      ],
+      activeViewTabId: "chat",
+      setActiveViewTab,
+    });
+    render(<FileTabBar />);
+    const mergeTab = screen.getByText("Merge").closest("[role='tab']")!;
+    fireEvent.keyDown(mergeTab, { key: "Enter" });
+    expect(setActiveViewTab).toHaveBeenCalledWith("merge-1");
+  });
+
+  it("pressing Space on a view tab activates it", () => {
+    const setActiveViewTab = vi.fn();
+    useUIStore.setState({
+      viewTabs: [
+        { id: "chat", type: "chat", label: "Chat", pinned: true },
+        { id: "merge-1", type: "merge", label: "Merge", pinned: false },
+      ],
+      activeViewTabId: "chat",
+      setActiveViewTab,
+    });
+    render(<FileTabBar />);
+    const mergeTab = screen.getByText("Merge").closest("[role='tab']")!;
+    fireEvent.keyDown(mergeTab, { key: " " });
+    expect(setActiveViewTab).toHaveBeenCalledWith("merge-1");
+  });
+
+  it("pressing a non-activation key on a view tab does nothing", () => {
+    const setActiveViewTab = vi.fn();
+    useUIStore.setState({
+      viewTabs: [
+        { id: "chat", type: "chat", label: "Chat", pinned: true },
+        { id: "merge-1", type: "merge", label: "Merge", pinned: false },
+      ],
+      activeViewTabId: "chat",
+      setActiveViewTab,
+    });
+    render(<FileTabBar />);
+    const mergeTab = screen.getByText("Merge").closest("[role='tab']")!;
+    fireEvent.keyDown(mergeTab, { key: "Tab" });
+    expect(setActiveViewTab).not.toHaveBeenCalled();
+  });
+
+  it("view tab without matching icon renders without icon", () => {
+    useUIStore.setState({
+      viewTabs: [
+        { id: "chat", type: "chat", label: "Chat", pinned: true },
+        { id: "custom-1", type: "custom" as any, label: "Custom", pinned: false },
+      ],
+      activeViewTabId: "chat",
+    });
+    render(<FileTabBar />);
+    expect(screen.getByText("Custom")).toBeInTheDocument();
+  });
+
   it("unpinned view tab has italic font style", () => {
     useUIStore.setState({
       viewTabs: [
@@ -431,6 +491,166 @@ describe("FileTabBar", () => {
       render(<FileTabBar />);
       expect(screen.getByText("Usage")).toBeInTheDocument();
       expect(screen.getByTestId("barchart-icon")).toBeInTheDocument();
+    });
+
+    it("clicking split toggle when split is active calls closeSplit", () => {
+      const closeSplit = vi.fn();
+      const setActiveViewTab = vi.fn();
+      useFileViewerStore.setState({
+        tabs: [
+          makeTab({ id: "tab-1", filePath: "src/main.ts" }),
+          makeTab({ id: "tab-2", filePath: "src/app.tsx" }),
+        ],
+        activeTabId: "tab-1",
+        splitActive: true,
+        leftActiveTabId: "tab-1",
+        rightActiveTabId: "tab-2",
+        focusedPane: "left",
+        closeSplit,
+      });
+      useUIStore.setState({ setActiveViewTab });
+      render(<FileTabBar />);
+      fireEvent.click(screen.getByTitle("Close split view"));
+      expect(closeSplit).toHaveBeenCalled();
+      expect(setActiveViewTab).toHaveBeenCalledWith("chat");
+    });
+
+    it("clicking split toggle when split is inactive calls splitEditor", () => {
+      const splitEditor = vi.fn();
+      const setActiveViewTab = vi.fn();
+      useFileViewerStore.setState({
+        tabs: [
+          makeTab({ id: "tab-1", filePath: "src/main.ts" }),
+          makeTab({ id: "tab-2", filePath: "src/app.tsx" }),
+        ],
+        activeTabId: "tab-1",
+        splitActive: false,
+        splitEditor,
+      });
+      useUIStore.setState({ setActiveViewTab });
+      render(<FileTabBar />);
+      fireEvent.click(screen.getByTitle("Split editor"));
+      expect(splitEditor).toHaveBeenCalled();
+      expect(setActiveViewTab).toHaveBeenCalledWith("chat");
+    });
+
+    it("pressing Enter on a file tab activates it", () => {
+      const setActiveFileTab = vi.fn();
+      const setActiveViewTab = vi.fn();
+      useFileViewerStore.setState({
+        tabs: [makeTab()],
+        activeTabId: null,
+        setActiveTab: setActiveFileTab,
+      });
+      useUIStore.setState({ setActiveViewTab });
+      render(<FileTabBar />);
+      const tabEl = screen.getByText("main.ts").closest("[role='tab']")!;
+      fireEvent.keyDown(tabEl, { key: "Enter" });
+      expect(setActiveFileTab).toHaveBeenCalledWith("tab-1");
+      expect(setActiveViewTab).toHaveBeenCalledWith("chat");
+    });
+
+    it("pressing Space on a file tab activates it", () => {
+      const setActiveFileTab = vi.fn();
+      const setActiveViewTab = vi.fn();
+      useFileViewerStore.setState({
+        tabs: [makeTab()],
+        activeTabId: null,
+        setActiveTab: setActiveFileTab,
+      });
+      useUIStore.setState({ setActiveViewTab });
+      render(<FileTabBar />);
+      const tabEl = screen.getByText("main.ts").closest("[role='tab']")!;
+      fireEvent.keyDown(tabEl, { key: " " });
+      expect(setActiveFileTab).toHaveBeenCalledWith("tab-1");
+      expect(setActiveViewTab).toHaveBeenCalledWith("chat");
+    });
+
+    it("pressing a non-activation key on a file tab does nothing", () => {
+      const setActiveFileTab = vi.fn();
+      useFileViewerStore.setState({
+        tabs: [makeTab()],
+        activeTabId: null,
+        setActiveTab: setActiveFileTab,
+      });
+      render(<FileTabBar />);
+      const tabEl = screen.getByText("main.ts").closest("[role='tab']")!;
+      fireEvent.keyDown(tabEl, { key: "Tab" });
+      expect(setActiveFileTab).not.toHaveBeenCalled();
+    });
+
+    it("clicking open-in-split button when split is not active calls splitEditor with tabId", () => {
+      const splitEditor = vi.fn();
+      const setActiveViewTab = vi.fn();
+      useFileViewerStore.setState({
+        tabs: [
+          makeTab({ id: "tab-1", filePath: "src/main.ts" }),
+          makeTab({ id: "tab-2", filePath: "src/app.tsx" }),
+        ],
+        activeTabId: "tab-1",
+        splitActive: false,
+        splitEditor,
+      });
+      useUIStore.setState({ setActiveViewTab });
+      render(<FileTabBar />);
+      const splitButtons = screen.getAllByTitle("Open in split view");
+      fireEvent.click(splitButtons[0]);
+      expect(splitEditor).toHaveBeenCalledWith("tab-1");
+      expect(setActiveViewTab).toHaveBeenCalledWith("chat");
+    });
+
+    it("clicking open-in-split button when split is active moves tab to opposite pane", () => {
+      const setActiveTabInPane = vi.fn();
+      const setActiveViewTab = vi.fn();
+      useFileViewerStore.setState({
+        tabs: [
+          makeTab({ id: "tab-1", filePath: "src/main.ts" }),
+          makeTab({ id: "tab-2", filePath: "src/app.tsx" }),
+        ],
+        activeTabId: "tab-1",
+        splitActive: true,
+        focusedPane: "left",
+        leftActiveTabId: "tab-1",
+        rightActiveTabId: "tab-2",
+        setActiveTabInPane,
+      });
+      useUIStore.setState({ setActiveViewTab });
+      render(<FileTabBar />);
+      const splitButtons = screen.getAllByTitle("Open in split view");
+      fireEvent.click(splitButtons[0]);
+      expect(setActiveTabInPane).toHaveBeenCalledWith("right", "tab-1");
+      expect(setActiveViewTab).toHaveBeenCalledWith("chat");
+    });
+
+    it("clicking open-in-split when focused on right pane targets left pane", () => {
+      const setActiveTabInPane = vi.fn();
+      const setActiveViewTab = vi.fn();
+      useFileViewerStore.setState({
+        tabs: [
+          makeTab({ id: "tab-1", filePath: "src/main.ts" }),
+          makeTab({ id: "tab-2", filePath: "src/app.tsx" }),
+        ],
+        activeTabId: "tab-1",
+        splitActive: true,
+        focusedPane: "right",
+        leftActiveTabId: "tab-1",
+        rightActiveTabId: "tab-2",
+        setActiveTabInPane,
+      });
+      useUIStore.setState({ setActiveViewTab });
+      render(<FileTabBar />);
+      const splitButtons = screen.getAllByTitle("Open in split view");
+      fireEvent.click(splitButtons[0]);
+      expect(setActiveTabInPane).toHaveBeenCalledWith("left", "tab-1");
+    });
+
+    it("does not show open-in-split button when fewer than 2 tabs", () => {
+      useFileViewerStore.setState({
+        tabs: [makeTab()],
+        activeTabId: "tab-1",
+      });
+      render(<FileTabBar />);
+      expect(screen.queryByTitle("Open in split view")).not.toBeInTheDocument();
     });
   });
 
@@ -554,6 +774,72 @@ describe("FileTabBar", () => {
       });
       render(<FileTabBar />);
       expect(screen.getByTitle("Close split chat view")).toBeInTheDocument();
+    });
+
+    it("pressing Enter on workspace chat tab activates it", () => {
+      const showChat = vi.fn();
+      const setActiveViewTab = vi.fn();
+      useFileViewerStore.setState({ showChat });
+      useUIStore.setState({
+        viewTabs: [
+          { id: "chat", type: "chat", label: "Chat", pinned: true },
+          { id: "chat-ws-1", type: "chat", label: "My Workspace", pinned: true, contextId: "ws-1", contextType: "workspace" },
+        ],
+        activeViewTabId: "chat",
+        setActiveViewTab,
+      });
+      render(<FileTabBar />);
+      const wsTab = screen.getByText("My Workspace").closest("[role='tab']")!;
+      fireEvent.keyDown(wsTab, { key: "Enter" });
+      expect(showChat).toHaveBeenCalled();
+      expect(setActiveViewTab).toHaveBeenCalledWith("chat-ws-1");
+    });
+
+    it("pressing Space on workspace chat tab activates it", () => {
+      const showChat = vi.fn();
+      const setActiveViewTab = vi.fn();
+      useFileViewerStore.setState({ showChat });
+      useUIStore.setState({
+        viewTabs: [
+          { id: "chat", type: "chat", label: "Chat", pinned: true },
+          { id: "chat-ws-1", type: "chat", label: "My Workspace", pinned: true, contextId: "ws-1", contextType: "workspace" },
+        ],
+        activeViewTabId: "chat",
+        setActiveViewTab,
+      });
+      render(<FileTabBar />);
+      const wsTab = screen.getByText("My Workspace").closest("[role='tab']")!;
+      fireEvent.keyDown(wsTab, { key: " " });
+      expect(showChat).toHaveBeenCalled();
+      expect(setActiveViewTab).toHaveBeenCalledWith("chat-ws-1");
+    });
+
+    it("pressing a non-activation key on workspace chat tab does nothing", () => {
+      const showChat = vi.fn();
+      useFileViewerStore.setState({ showChat });
+      useUIStore.setState({
+        viewTabs: [
+          { id: "chat", type: "chat", label: "Chat", pinned: true },
+          { id: "chat-ws-1", type: "chat", label: "My Workspace", pinned: true, contextId: "ws-1", contextType: "workspace" },
+        ],
+        activeViewTabId: "chat",
+      });
+      render(<FileTabBar />);
+      const wsTab = screen.getByText("My Workspace").closest("[role='tab']")!;
+      fireEvent.keyDown(wsTab, { key: "Tab" });
+      expect(showChat).not.toHaveBeenCalled();
+    });
+
+    it("does not show split chat button when contextId is missing", () => {
+      useUIStore.setState({
+        viewTabs: [
+          { id: "chat", type: "chat", label: "Chat", pinned: true },
+          { id: "chat-ws-1", type: "chat", label: "My Workspace", pinned: true },
+        ],
+        activeViewTabId: "chat",
+      });
+      render(<FileTabBar />);
+      expect(screen.queryByTitle("Open in split chat view")).not.toBeInTheDocument();
     });
 
     it("clicking close split chat button calls closeSplitChat", () => {

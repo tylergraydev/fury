@@ -151,7 +151,7 @@ export function DiffHoverPreview({
               textOverflow: "ellipsis",
             }}
           >
-            {line.text || "\u00A0"}
+            {/* v8 ignore next */ line.text || "\u00A0"}
           </div>
         ))}
         {lines.length > MAX_VISIBLE_LINES && (

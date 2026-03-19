@@ -224,4 +224,120 @@ describe("NotificationPanel", () => {
     render(<NotificationPanel />);
     expect(screen.getByText("just now")).toBeTruthy();
   });
+
+  it("renders relative time in minutes", () => {
+    useNotificationStore.setState({
+      panelOpen: true,
+      notifications: [
+        makeNotification({ timestamp: Date.now() - 5 * 60 * 1000 }),
+      ],
+      unreadCount: 1,
+    });
+    render(<NotificationPanel />);
+    expect(screen.getByText("5m ago")).toBeTruthy();
+  });
+
+  it("renders relative time in hours", () => {
+    useNotificationStore.setState({
+      panelOpen: true,
+      notifications: [
+        makeNotification({ timestamp: Date.now() - 3 * 60 * 60 * 1000 }),
+      ],
+      unreadCount: 1,
+    });
+    render(<NotificationPanel />);
+    expect(screen.getByText("3h ago")).toBeTruthy();
+  });
+
+  it("renders relative time in days", () => {
+    useNotificationStore.setState({
+      panelOpen: true,
+      notifications: [
+        makeNotification({ timestamp: Date.now() - 2 * 24 * 60 * 60 * 1000 }),
+      ],
+      unreadCount: 1,
+    });
+    render(<NotificationPanel />);
+    expect(screen.getByText("2d ago")).toBeTruthy();
+  });
+
+  it("groups notifications into Yesterday and Earlier", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 15, 12, 0, 0));
+    const yesterday = new Date(2026, 0, 14, 0, 0, 0).getTime();
+    useNotificationStore.setState({
+      panelOpen: true,
+      notifications: [
+        makeNotification({ id: "n-y", timestamp: yesterday + 3600000 }), // Yesterday
+        makeNotification({ id: "n-e", timestamp: yesterday - 24 * 3600000 }), // Earlier
+      ],
+    });
+    render(<NotificationPanel />);
+    expect(screen.getByText("Yesterday")).toBeTruthy();
+    expect(screen.getByText("Earlier")).toBeTruthy();
+    vi.useRealTimers();
+  });
+
+  it("clicking notification with viewTab navigateTo opens view tab", async () => {
+    const user = userEvent.setup();
+    const setActive = vi.fn();
+    useWorkspaceStore.setState({ setActive } as any);
+    const openViewTab = vi.fn();
+    useUIStore.setState({ openViewTab } as any);
+    const markRead = vi.fn();
+    const closePanel = vi.fn();
+    useNotificationStore.setState({
+      panelOpen: true,
+      notifications: [
+        makeNotification({
+          navigateTo: { viewTab: "diff" as any },
+        }),
+      ],
+      unreadCount: 1,
+      markRead,
+      closePanel,
+    });
+    render(<NotificationPanel />);
+
+    await user.click(screen.getByText("Agent finished"));
+    expect(openViewTab).toHaveBeenCalledWith("diff");
+  });
+
+  it("clicking notification with both rightSidebarTab and viewTab navigateTo", async () => {
+    const user = userEvent.setup();
+    const setActive = vi.fn();
+    useWorkspaceStore.setState({ setActive } as any);
+    const setRightSidebarTab = vi.fn();
+    const ensureRightSidebarVisible = vi.fn();
+    const openViewTab = vi.fn();
+    useUIStore.setState({ setRightSidebarTab, ensureRightSidebarVisible, openViewTab } as any);
+    const markRead = vi.fn();
+    const closePanel = vi.fn();
+    useNotificationStore.setState({
+      panelOpen: true,
+      notifications: [
+        makeNotification({
+          navigateTo: { rightSidebarTab: "test-runner" as any, viewTab: "diff" as any },
+        }),
+      ],
+      unreadCount: 1,
+      markRead,
+      closePanel,
+    });
+    render(<NotificationPanel />);
+
+    await user.click(screen.getByText("Agent finished"));
+    expect(setRightSidebarTab).toHaveBeenCalledWith("test-runner");
+    expect(openViewTab).toHaveBeenCalledWith("diff");
+  });
+
+  it("does not show Clear button when notifications list is empty", () => {
+    useNotificationStore.setState({
+      panelOpen: true,
+      notifications: [],
+      unreadCount: 0,
+    });
+    render(<NotificationPanel />);
+    expect(screen.queryByText("Clear")).toBeNull();
+  });
 });

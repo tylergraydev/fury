@@ -380,6 +380,26 @@ describe("chatStore - stream events", () => {
     expect(useChatStore.getState().streamingText["ws-1"]).toBe("Hello world");
   });
 
+  it("handles assistantImage event - finalizes text then adds image block", () => {
+    handleEvent({ payload: { type: "assistantText", text: "here is an image" } });
+    handleEvent({
+      payload: {
+        type: "assistantImage",
+        mediaType: "image/png",
+        data: "base64data",
+      },
+    });
+
+    const msgs = useChatStore.getState().messages["ws-1"];
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].content[0]).toEqual({ type: "text", text: "here is an image" });
+    expect(msgs[0].content[1]).toEqual({
+      type: "image",
+      mediaType: "image/png",
+      data: "base64data",
+    });
+  });
+
   it("handles toolUse event - finalizes streaming text then adds tool block", () => {
     handleEvent({ payload: { type: "assistantText", text: "thinking..." } });
     handleEvent({

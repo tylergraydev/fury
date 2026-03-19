@@ -6,6 +6,10 @@ vi.mock("../lib/tauri", () => ({
   getTestRunnerConfig: vi.fn(),
   detectTestFramework: vi.fn(),
   saveTestRunnerConfig: vi.fn(),
+  startTestWatch: vi.fn(),
+  stopTestWatch: vi.fn(),
+  listTestHistory: vi.fn(),
+  runCoverage: vi.fn(),
 }));
 
 vi.mock("@tauri-apps/api/event", () => ({
@@ -19,12 +23,18 @@ import {
   getTestRunnerConfig,
   detectTestFramework,
   saveTestRunnerConfig,
+  startTestWatch as startWatchCmd,
+  stopTestWatch as stopWatchCmd,
+  listTestHistory as listHistoryCmd,
+  runCoverage as runCoverageCmd,
 } from "../lib/tauri";
 import type {
   TestSuite,
   TestResult,
   TestRunSummary,
   TestRunnerConfig,
+  TestRunRecord,
+  CoverageReport,
 } from "../lib/tauri";
 import { listen } from "@tauri-apps/api/event";
 
@@ -89,7 +99,12 @@ beforeEach(() => {
     expandedSuites: {},
     selectedTest: {},
     showOutput: {},
+    watchMode: {},
+    history: {},
+    coverage: {},
+    coverageRunning: {},
     subscriptions: {},
+    watchSubscriptions: {},
   });
   capturedCallback = null;
   vi.clearAllMocks();
@@ -147,6 +162,22 @@ describe("testRunnerStore - event handling", () => {
     capturedCallback!({ payload: { type: "suiteUpdate", suite: updated } });
 
     expect(useTestRunnerStore.getState().suites[CTX]).toEqual([updated]);
+  });
+
+  it("suiteUpdate event replaces suite while preserving other suites", async () => {
+    await useTestRunnerStore.getState().subscribe(CTX);
+    const suiteA = makeSuite({ name: "math", status: "passed" });
+    const suiteB = makeSuite({ name: "utils", status: "passed" });
+    capturedCallback!({ payload: { type: "suiteUpdate", suite: suiteA } });
+    capturedCallback!({ payload: { type: "suiteUpdate", suite: suiteB } });
+
+    const updatedA = makeSuite({ name: "math", status: "failed" });
+    capturedCallback!({ payload: { type: "suiteUpdate", suite: updatedA } });
+
+    const suites = useTestRunnerStore.getState().suites[CTX];
+    expect(suites).toHaveLength(2);
+    expect(suites[0]).toEqual(updatedA);
+    expect(suites[1]).toEqual(suiteB);
   });
 
   it("runComplete event sets summary, suites, running=false", async () => {
@@ -361,5 +392,242 @@ describe("testRunnerStore - UI actions", () => {
     expect(state.output[CTX]).toEqual([]);
     expect(state.error[CTX]).toBeNull();
     expect(state.selectedTest[CTX]).toBeNull();
+  });
+});
+
+describe("testRunnerStore - coverageResult event", () => {
+  it("coverageResult event sets coverage and coverageRunning=false", async () => {
+    await useTestRunnerStore.getState().subscribe(CTX);
+    useTestRunnerStore.setState({ coverageRunning: { [CTX]: true } });
+
+    const report = {
+      lineCoverage: 85.5,
+      branchCoverage: 70.0,
+      functionCoverage: 90.0,
+      files: [],
+    } as unknown as CoverageReport;
+
+    capturedCallback!({ payload: { type: "coverageResult", report } });
+
+    expect(useTestRunnerStore.getState().coverage[CTX]).toEqual(report);
+    expect(useTestRunnerStore.getState().coverageRunning[CTX]).toBe(false);
+  });
+});
+
+describe("testRunnerStore - unsubscribe with watch mode", () => {
+  it("unsubscribe cleans up active watch mode subscription", async () => {
+    const watchUnlisten = vi.fn();
+    useTestRunnerStore.setState({
+      subscriptions: { [CTX]: [mockUnlisten] },
+      watchSubscriptions: { [CTX]: watchUnlisten },
+      watchMode: { [CTX]: true },
+    });
+    vi.mocked(stopWatchCmd).mockRejectedValue(new Error("ignored"));
+
+    useTestRunnerStore.getState().unsubscribe(CTX);
+
+    expect(mockUnlisten).toHaveBeenCalled();
+    expect(watchUnlisten).toHaveBeenCalled();
+    expect(stopWatchCmd).toHaveBeenCalledWith(CTX);
+    expect(useTestRunnerStore.getState().subscriptions[CTX]).toBeUndefined();
+    expect(useTestRunnerStore.getState().watchSubscriptions[CTX]).toBeUndefined();
+    expect(useTestRunnerStore.getState().watchMode[CTX]).toBe(false);
+  });
+
+  it("unsubscribe does not touch watch if no watch subscription exists", async () => {
+    useTestRunnerStore.setState({
+      subscriptions: { [CTX]: [mockUnlisten] },
+    });
+
+    useTestRunnerStore.getState().unsubscribe(CTX);
+
+    expect(mockUnlisten).toHaveBeenCalled();
+    expect(stopWatchCmd).not.toHaveBeenCalled();
+  });
+});
+
+describe("testRunnerStore - toggleWatchMode", () => {
+  it("enables watch mode when currently disabled", async () => {
+    vi.mocked(startWatchCmd).mockResolvedValue(undefined);
+    vi.mocked(runTestsCmd).mockResolvedValue(undefined);
+
+    await useTestRunnerStore.getState().toggleWatchMode(CTX, "workspace");
+
+    expect(startWatchCmd).toHaveBeenCalledWith(CTX, "workspace");
+    expect(listen).toHaveBeenCalledWith(`test-watch:${CTX}`, expect.any(Function));
+    expect(useTestRunnerStore.getState().watchMode[CTX]).toBe(true);
+    expect(useTestRunnerStore.getState().watchSubscriptions[CTX]).toBeDefined();
+  });
+
+  it("disables watch mode when currently enabled", async () => {
+    const watchUnlisten = vi.fn();
+    useTestRunnerStore.setState({
+      watchMode: { [CTX]: true },
+      watchSubscriptions: { [CTX]: watchUnlisten },
+    });
+    vi.mocked(stopWatchCmd).mockResolvedValue(undefined);
+
+    await useTestRunnerStore.getState().toggleWatchMode(CTX, "workspace");
+
+    expect(watchUnlisten).toHaveBeenCalled();
+    expect(stopWatchCmd).toHaveBeenCalledWith(CTX);
+    expect(useTestRunnerStore.getState().watchMode[CTX]).toBe(false);
+    expect(useTestRunnerStore.getState().watchSubscriptions[CTX]).toBeUndefined();
+  });
+
+  it("disabling watch mode handles stopWatchCmd failure gracefully", async () => {
+    const watchUnlisten = vi.fn();
+    useTestRunnerStore.setState({
+      watchMode: { [CTX]: true },
+      watchSubscriptions: { [CTX]: watchUnlisten },
+    });
+    vi.mocked(stopWatchCmd).mockRejectedValue(new Error("stop failed"));
+
+    await useTestRunnerStore.getState().toggleWatchMode(CTX, "workspace");
+
+    expect(useTestRunnerStore.getState().watchMode[CTX]).toBe(false);
+  });
+
+  it("disabling watch mode is safe when no unsub function exists", async () => {
+    useTestRunnerStore.setState({
+      watchMode: { [CTX]: true },
+      watchSubscriptions: {},
+    });
+    vi.mocked(stopWatchCmd).mockResolvedValue(undefined);
+
+    await useTestRunnerStore.getState().toggleWatchMode(CTX, "workspace");
+
+    expect(useTestRunnerStore.getState().watchMode[CTX]).toBe(false);
+  });
+
+  it("enabling watch mode logs error on startWatchCmd failure", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(startWatchCmd).mockRejectedValue(new Error("watch fail"));
+
+    await useTestRunnerStore.getState().toggleWatchMode(CTX, "workspace");
+
+    expect(spy).toHaveBeenCalledWith(
+      "[testRunnerStore] Failed to start watch mode:",
+      expect.any(Error),
+    );
+    expect(useTestRunnerStore.getState().watchMode[CTX]).toBeFalsy();
+    spy.mockRestore();
+  });
+
+  it("watch event triggers runTests when not already running", async () => {
+    vi.mocked(startWatchCmd).mockResolvedValue(undefined);
+    vi.mocked(runTestsCmd).mockResolvedValue(undefined);
+
+    // Capture the watch listener callback by intercepting listen calls
+    let watchCallback: ((event: any) => void) | null = null;
+    vi.mocked(listen).mockImplementation(async (event, cb) => {
+      if (typeof event === "string" && event.startsWith("test-watch:")) {
+        watchCallback = cb as any;
+      }
+      return mockUnlisten;
+    });
+
+    await useTestRunnerStore.getState().toggleWatchMode(CTX, "repo");
+
+    // Simulate watch event while not running
+    useTestRunnerStore.setState({ running: { [CTX]: false } });
+    watchCallback!({ payload: {} });
+
+    expect(runTestsCmd).toHaveBeenCalledWith(CTX, "repo", undefined);
+  });
+
+  it("watch event does not trigger runTests when already running", async () => {
+    vi.mocked(startWatchCmd).mockResolvedValue(undefined);
+    vi.mocked(runTestsCmd).mockResolvedValue(undefined);
+
+    let watchCallback: ((event: any) => void) | null = null;
+    vi.mocked(listen).mockImplementation(async (event, cb) => {
+      if (typeof event === "string" && event.startsWith("test-watch:")) {
+        watchCallback = cb as any;
+      }
+      return mockUnlisten;
+    });
+
+    await useTestRunnerStore.getState().toggleWatchMode(CTX, "repo");
+
+    // Simulate watch event while already running
+    useTestRunnerStore.setState({ running: { [CTX]: true } });
+    watchCallback!({ payload: {} });
+
+    expect(runTestsCmd).not.toHaveBeenCalled();
+  });
+});
+
+describe("testRunnerStore - loadHistory", () => {
+  it("loads and stores history records", async () => {
+    const records: TestRunRecord[] = [
+      {
+        id: "run-1",
+        repoId: "repo-1",
+        timestamp: "2024-01-01T00:00:00Z",
+        ranAt: "2024-01-01T00:00:00Z",
+        total: 10,
+        passed: 9,
+        failed: 1,
+        skipped: 0,
+        durationMs: 5000,
+      } as TestRunRecord,
+    ];
+    vi.mocked(listHistoryCmd).mockResolvedValue(records);
+
+    await useTestRunnerStore.getState().loadHistory(CTX, "repo-1");
+
+    expect(listHistoryCmd).toHaveBeenCalledWith("repo-1", 20);
+    expect(useTestRunnerStore.getState().history[CTX]).toEqual(records);
+  });
+
+  it("logs error on failure", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(listHistoryCmd).mockRejectedValue(new Error("db error"));
+
+    await useTestRunnerStore.getState().loadHistory(CTX, "repo-1");
+
+    expect(spy).toHaveBeenCalledWith(
+      "[testRunnerStore] Failed to load history:",
+      expect.any(Error),
+    );
+    spy.mockRestore();
+  });
+});
+
+describe("testRunnerStore - runCoverage", () => {
+  it("sets coverageRunning=true and clears coverage, then calls runCoverageCmd", async () => {
+    vi.mocked(runCoverageCmd).mockResolvedValue(undefined);
+
+    await useTestRunnerStore.getState().runCoverage(CTX, "workspace");
+
+    expect(runCoverageCmd).toHaveBeenCalledWith(CTX, "workspace");
+    const state = useTestRunnerStore.getState();
+    // coverageRunning stays true until coverageResult event arrives
+    expect(state.coverageRunning[CTX]).toBe(true);
+    expect(state.coverage[CTX]).toBeNull();
+  });
+
+  it("sets coverageRunning=false and error on failure", async () => {
+    vi.mocked(runCoverageCmd).mockRejectedValue(new Error("coverage boom"));
+
+    await useTestRunnerStore.getState().runCoverage(CTX, "repo");
+
+    const state = useTestRunnerStore.getState();
+    expect(state.coverageRunning[CTX]).toBe(false);
+    expect(state.error[CTX]).toContain("Coverage failed:");
+    expect(state.error[CTX]).toContain("coverage boom");
+  });
+});
+
+describe("testRunnerStore - runTests edge cases", () => {
+  it("handles runTests with no existing suites (empty suites path)", async () => {
+    vi.mocked(runTestsCmd).mockResolvedValue(undefined);
+
+    await useTestRunnerStore.getState().runTests(CTX, "repo");
+
+    const state = useTestRunnerStore.getState();
+    expect(state.running[CTX]).toBe(true);
+    expect(state.suites[CTX]).toEqual([]);
   });
 });

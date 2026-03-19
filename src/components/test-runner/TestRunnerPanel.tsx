@@ -103,7 +103,9 @@ function parseAnsi(line: string): React.ReactNode {
     // Push text before this escape sequence
     if (match.index > lastIndex) {
       const text = line.slice(lastIndex, match.index);
+      /* v8 ignore start -- text is always non-empty when match.index > lastIndex */
       if (text) {
+      /* v8 ignore stop */
         segments.push(
           <span
             key={segments.length}
@@ -138,7 +140,9 @@ function parseAnsi(line: string): React.ReactNode {
   // Push remaining text
   if (lastIndex < line.length) {
     const text = line.slice(lastIndex);
+    /* v8 ignore start -- text is always non-empty when lastIndex < line.length */
     if (text) {
+    /* v8 ignore stop */
       segments.push(
         <span
           key={segments.length}
@@ -154,7 +158,9 @@ function parseAnsi(line: string): React.ReactNode {
   }
 
   // If no ANSI codes found, return the plain string
+  /* v8 ignore start -- unreachable: function only called when ANSI_REGEX matches */
   if (segments.length === 0) return line;
+  /* v8 ignore stop */
   return <>{segments}</>;
 }
 

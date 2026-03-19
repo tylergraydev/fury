@@ -68,6 +68,7 @@ function SyncButton({ contextId }: { contextId: string }) {
     };
   }, [contextId]);
 
+  /* v8 ignore next 5 -- @preserve defensive guard; button is disabled when syncing */
   const handleSync = () => {
     if (!syncing) {
       useMergeStore.getState().syncBranch(contextId);

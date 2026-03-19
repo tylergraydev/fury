@@ -340,6 +340,42 @@ describe("StashSection", () => {
     expect(screen.getByText("Loading...")).toBeInTheDocument();
   });
 
+  it("formats timestamp as just now", () => {
+    const now = new Date().toISOString();
+    useStashStore.setState({
+      stashes: { "ws-1": [{ index: 0, message: "fresh", branch: "main", timestamp: now }] },
+    });
+    render(<StashSection workspaceId="ws-1" />);
+    expect(screen.getByText("just now")).toBeInTheDocument();
+  });
+
+  it("formats timestamp as minutes ago", () => {
+    const fiveMinAgo = new Date(Date.now() - 5 * 60000).toISOString();
+    useStashStore.setState({
+      stashes: { "ws-1": [{ index: 0, message: "recent", branch: "main", timestamp: fiveMinAgo }] },
+    });
+    render(<StashSection workspaceId="ws-1" />);
+    expect(screen.getByText("5m ago")).toBeInTheDocument();
+  });
+
+  it("formats timestamp as hours ago", () => {
+    const threeHoursAgo = new Date(Date.now() - 3 * 3600000).toISOString();
+    useStashStore.setState({
+      stashes: { "ws-1": [{ index: 0, message: "old", branch: "main", timestamp: threeHoursAgo }] },
+    });
+    render(<StashSection workspaceId="ws-1" />);
+    expect(screen.getByText("3h ago")).toBeInTheDocument();
+  });
+
+  it("formats timestamp as days ago", () => {
+    const twoDaysAgo = new Date(Date.now() - 2 * 86400000).toISOString();
+    useStashStore.setState({
+      stashes: { "ws-1": [{ index: 0, message: "older", branch: "main", timestamp: twoDaysAgo }] },
+    });
+    render(<StashSection workspaceId="ws-1" />);
+    expect(screen.getByText("2d ago")).toBeInTheDocument();
+  });
+
   it("disables Stash Changes button when loading", () => {
     useStashStore.setState({
       loading: { "ws-1": true },

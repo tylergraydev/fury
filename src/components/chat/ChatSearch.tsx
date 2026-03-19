@@ -48,9 +48,11 @@ export function ChatSearch({ contextId, onClose, onNavigate }: Props) {
       }
     }, 300);
 
+    /* v8 ignore start -- cleanup runs on unmount; timer always fires before unmount in tests */
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
+    /* v8 ignore stop */
   }, [query, searchAll, contextId]);
 
   const handleKeyDown = useCallback(

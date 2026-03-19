@@ -345,3 +345,13 @@ describe("uiStore - split chat", () => {
     expect(useUIStore.getState().splitChatContextId).toBe("ws-2");
   });
 });
+
+describe("uiStore - setSettingsInitialTab", () => {
+  it("sets and clears settingsInitialTab", () => {
+    useUIStore.getState().setSettingsInitialTab("keybindings");
+    expect(useUIStore.getState().settingsInitialTab).toBe("keybindings");
+
+    useUIStore.getState().setSettingsInitialTab(null);
+    expect(useUIStore.getState().settingsInitialTab).toBeNull();
+  });
+});

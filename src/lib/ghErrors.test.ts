@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isGhAuthError, isGhNotFoundError, formatGhError } from "./ghErrors";
+import { isGhAuthError, isGhNotFoundError, isAdoAuthError, formatGhError } from "./ghErrors";
 
 describe("isGhAuthError", () => {
   it("detects 'not authenticated' pattern", () => {
@@ -39,6 +39,20 @@ describe("isGhNotFoundError", () => {
   });
 });
 
+describe("isAdoAuthError", () => {
+  it("detects ADO PAT pattern", () => {
+    expect(isAdoAuthError("Azure DevOps PAT not configured")).toBe(true);
+  });
+
+  it("detects HTTP 401", () => {
+    expect(isAdoAuthError("HTTP 401 Unauthorized")).toBe(true);
+  });
+
+  it("returns false for unrelated errors", () => {
+    expect(isAdoAuthError("git push failed")).toBe(false);
+  });
+});
+
 describe("formatGhError", () => {
   it("formats auth errors with friendly message", () => {
     const result = formatGhError("Not authenticated with github.com");
@@ -50,6 +64,12 @@ describe("formatGhError", () => {
       "GitHub CLI (gh) not found in PATH. Install it from https://cli.github.com/",
     );
     expect(result).toContain("https://cli.github.com/");
+  });
+
+  it("formats ADO auth errors", () => {
+    const result = formatGhError("Azure DevOps PAT not configured");
+    expect(result).toContain("Azure DevOps");
+    expect(result).toContain("Settings");
   });
 
   it("returns null for non-gh errors", () => {

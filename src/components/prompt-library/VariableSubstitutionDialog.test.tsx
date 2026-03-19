@@ -119,4 +119,97 @@ describe("VariableSubstitutionDialog", () => {
     );
     expect(screen.getByText("my-prompt")).toBeInTheDocument();
   });
+
+  it("auto-fills branch variable from context", () => {
+    render(
+      <VariableSubstitutionDialog
+        prompt={makePrompt({ content: "Deploy {{branch}} to staging" })}
+        onClose={vi.fn()}
+        onInsert={vi.fn()}
+        currentBranch="feature/login"
+      />,
+    );
+    const branchInput = screen.getByPlaceholderText("Enter value for branch");
+    expect(branchInput).toHaveValue("feature/login");
+  });
+
+  it("auto-fills workspace variable from context", () => {
+    render(
+      <VariableSubstitutionDialog
+        prompt={makePrompt({ content: "Review {{workspace}} status" })}
+        onClose={vi.fn()}
+        onInsert={vi.fn()}
+        currentWorkspace="my-project"
+      />,
+    );
+    const wsInput = screen.getByPlaceholderText("Enter value for workspace");
+    expect(wsInput).toHaveValue("my-project");
+  });
+
+  it("auto-fills selection variable from context", () => {
+    render(
+      <VariableSubstitutionDialog
+        prompt={makePrompt({ content: "Explain {{selection}}" })}
+        onClose={vi.fn()}
+        onInsert={vi.fn()}
+        currentSelection="const x = 42"
+      />,
+    );
+    const selInput = screen.getByPlaceholderText("Enter value for selection");
+    expect(selInput).toHaveValue("const x = 42");
+  });
+
+  it("shows auto-filled label for auto-fill variables with defaults", () => {
+    render(
+      <VariableSubstitutionDialog
+        prompt={makePrompt({ content: "Check {{file}} on {{branch}}" })}
+        onClose={vi.fn()}
+        onInsert={vi.fn()}
+        currentFilePath="src/index.ts"
+        currentBranch="main"
+      />,
+    );
+    const autoFilledLabels = screen.getAllByText("(auto-filled)");
+    expect(autoFilledLabels).toHaveLength(2);
+  });
+
+  it("does not show auto-filled label for non-auto-fill variables", () => {
+    render(
+      <VariableSubstitutionDialog
+        prompt={makePrompt({ content: "Fix {{custom_var}}" })}
+        onClose={vi.fn()}
+        onInsert={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("(auto-filled)")).not.toBeInTheDocument();
+  });
+
+  it("calls onClose when clicking backdrop", () => {
+    const onClose = vi.fn();
+    render(
+      <VariableSubstitutionDialog
+        prompt={makePrompt()}
+        onClose={onClose}
+        onInsert={vi.fn()}
+      />,
+    );
+    // Click the overlay backdrop (the outermost div)
+    const overlay = screen.getByRole("dialog").parentElement!;
+    fireEvent.click(overlay);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("calls onClose when clicking X button", () => {
+    const onClose = vi.fn();
+    render(
+      <VariableSubstitutionDialog
+        prompt={makePrompt()}
+        onClose={onClose}
+        onInsert={vi.fn()}
+      />,
+    );
+    // Click the X icon button
+    fireEvent.click(screen.getByTestId("x-icon").closest("button")!);
+    expect(onClose).toHaveBeenCalled();
+  });
 });

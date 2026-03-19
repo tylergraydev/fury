@@ -71,6 +71,31 @@ vi.mock("../../lib/keybindings", () => ({
   isMac: false,
 }));
 
+vi.mock("./ThemeEditorModal", () => ({
+  ThemeEditorModal: ({ onClose, onSave, existingTheme, duplicateFrom }: any) => (
+    <div data-testid="theme-editor-modal">
+      <span data-testid="editing-theme">{existingTheme?.id ?? "null"}</span>
+      <span data-testid="duplicate-from">{duplicateFrom ?? "null"}</span>
+      <button onClick={onClose}>CloseEditor</button>
+      <button onClick={() => onSave({ id: "custom-new", name: "New Theme", vars: { "--bg-primary": "#111" } })}>
+        SaveTheme
+      </button>
+      <button onClick={() => onSave({ id: existingTheme?.id ?? "custom-new", name: "Updated", vars: { "--bg-primary": "#222" } })}>
+        SaveExisting
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock("./UpdateDialog", () => ({
+  UpdateDialog: ({ onClose }: any) => (
+    <div data-testid="update-dialog">
+      <span>Software Update</span>
+      <button onClick={onClose}>CloseUpdateDialog</button>
+    </div>
+  ),
+}));
+
 // Mock the dynamic import for @tauri-apps/plugin-shell
 vi.mock("@tauri-apps/plugin-shell", () => ({
   open: vi.fn().mockResolvedValue(undefined),
@@ -82,6 +107,7 @@ import { useUIStore } from "../../stores/uiStore";
 import { useCopilotStore } from "../../stores/copilotStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useRepositoryStore } from "../../stores/repositoryStore";
+import { useLspStore } from "../../stores/lspStore";
 
 vi.mock("lucide-react", () => ({
   X: () => <span data-testid="x-icon" />,
@@ -347,6 +373,274 @@ describe("AppearanceTab", () => {
     expect(
       screen.getByText("GitHub's dark default palette"),
     ).toBeInTheDocument();
+  });
+
+  it("opens theme editor with duplicate from built-in theme", async () => {
+    render(<AppSettingsPanel />);
+    // Click the duplicate button on a built-in theme (Copy icon button)
+    const duplicateButtons = screen.getAllByTitle("Duplicate as custom theme");
+    expect(duplicateButtons.length).toBeGreaterThan(0);
+    fireEvent.click(duplicateButtons[0]);
+    // ThemeEditorModal should be open
+    expect(screen.getByTestId("theme-editor-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("duplicate-from")).toHaveTextContent(/blend|midnight|github-dark/);
+    expect(screen.getByTestId("editing-theme")).toHaveTextContent("null");
+  });
+
+  it("opens theme editor for creating new custom theme", () => {
+    render(<AppSettingsPanel />);
+    fireEvent.click(screen.getByText("Create Custom Theme"));
+    expect(screen.getByTestId("theme-editor-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("duplicate-from")).toHaveTextContent("null");
+    expect(screen.getByTestId("editing-theme")).toHaveTextContent("null");
+  });
+
+  it("closes theme editor when CloseEditor is clicked", () => {
+    render(<AppSettingsPanel />);
+    fireEvent.click(screen.getByText("Create Custom Theme"));
+    expect(screen.getByTestId("theme-editor-modal")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("CloseEditor"));
+    expect(screen.queryByTestId("theme-editor-modal")).not.toBeInTheDocument();
+  });
+
+  it("renders custom themes with swatches and actions", () => {
+    useSettingsStore.setState({
+      appSettings: {
+        ...fullSettings,
+        customThemes: [
+          {
+            id: "custom-1",
+            name: "My Dark Theme",
+            createdAt: "2024-01-01T00:00:00Z",
+            vars: {
+              "--bg-primary": "#000",
+              "--bg-surface": "#111",
+              "--accent": "#0ff",
+              "--text-primary": "#fff",
+            },
+          },
+        ],
+      },
+    });
+    render(<AppSettingsPanel />);
+    expect(screen.getByText("My Dark Theme")).toBeInTheDocument();
+    expect(screen.getByText("Custom theme")).toBeInTheDocument();
+    expect(screen.getByTitle("Edit theme")).toBeInTheDocument();
+    expect(screen.getByTitle("Delete theme")).toBeInTheDocument();
+  });
+
+  it("shows Active indicator on custom theme when selected", () => {
+    useUIStore.setState({ theme: "custom-1" });
+    useSettingsStore.setState({
+      appSettings: {
+        ...fullSettings,
+        customThemes: [
+          {
+            id: "custom-1",
+            name: "My Dark Theme",
+            createdAt: "2024-01-01T00:00:00Z",
+            vars: {
+              "--bg-primary": "#000",
+              "--bg-surface": "#111",
+              "--accent": "#0ff",
+              "--text-primary": "#fff",
+            },
+          },
+        ],
+      },
+    });
+    render(<AppSettingsPanel />);
+    // Should show Active for the custom theme
+    const activeLabels = screen.getAllByText("Active");
+    expect(activeLabels.length).toBe(1);
+  });
+
+  it("clicking custom theme calls setTheme and saveSettings", async () => {
+    const setTheme = vi.fn();
+    const saveSettings = vi.fn().mockResolvedValue(undefined);
+    useUIStore.setState({ theme: "blend", setTheme });
+    useSettingsStore.setState({
+      appSettings: {
+        ...fullSettings,
+        customThemes: [
+          {
+            id: "custom-1",
+            name: "My Dark Theme",
+            createdAt: "2024-01-01T00:00:00Z",
+            vars: { "--bg-primary": "#000", "--bg-surface": "#111", "--accent": "#0ff", "--text-primary": "#fff" },
+          },
+        ],
+      },
+      saveSettings,
+    });
+    render(<AppSettingsPanel />);
+    fireEvent.click(screen.getByText("My Dark Theme"));
+    expect(setTheme).toHaveBeenCalledWith("custom-1");
+    expect(saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ theme: "custom-1" }),
+    );
+  });
+
+  it("opens editor for editing existing custom theme", () => {
+    useSettingsStore.setState({
+      appSettings: {
+        ...fullSettings,
+        customThemes: [
+          {
+            id: "custom-1",
+            name: "My Dark Theme",
+            createdAt: "2024-01-01T00:00:00Z",
+            vars: { "--bg-primary": "#000", "--bg-surface": "#111", "--accent": "#0ff", "--text-primary": "#fff" },
+          },
+        ],
+      },
+    });
+    render(<AppSettingsPanel />);
+    fireEvent.click(screen.getByTitle("Edit theme"));
+    expect(screen.getByTestId("theme-editor-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("editing-theme")).toHaveTextContent("custom-1");
+    expect(screen.getByTestId("duplicate-from")).toHaveTextContent("null");
+  });
+
+  it("deletes custom theme when delete button is clicked", async () => {
+    const saveSettings = vi.fn().mockResolvedValue(undefined);
+    useSettingsStore.setState({
+      appSettings: {
+        ...fullSettings,
+        customThemes: [
+          {
+            id: "custom-1",
+            name: "My Dark Theme",
+            createdAt: "2024-01-01T00:00:00Z",
+            vars: { "--bg-primary": "#000", "--bg-surface": "#111", "--accent": "#0ff", "--text-primary": "#fff" },
+          },
+        ],
+      },
+      saveSettings,
+    });
+    render(<AppSettingsPanel />);
+    await act(async () => {
+      fireEvent.click(screen.getByTitle("Delete theme"));
+    });
+    expect(saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ customThemes: [] }),
+    );
+  });
+
+  it("deletes active custom theme and resets to blend", async () => {
+    const setTheme = vi.fn();
+    const saveSettings = vi.fn().mockResolvedValue(undefined);
+    useUIStore.setState({ theme: "custom-1", setTheme });
+    useSettingsStore.setState({
+      appSettings: {
+        ...fullSettings,
+        theme: "custom-1",
+        customThemes: [
+          {
+            id: "custom-1",
+            name: "My Dark Theme",
+            createdAt: "2024-01-01T00:00:00Z",
+            vars: { "--bg-primary": "#000", "--bg-surface": "#111", "--accent": "#0ff", "--text-primary": "#fff" },
+          },
+        ],
+      },
+      saveSettings,
+    });
+    render(<AppSettingsPanel />);
+    await act(async () => {
+      fireEvent.click(screen.getByTitle("Delete theme"));
+    });
+    expect(setTheme).toHaveBeenCalledWith("blend");
+    expect(saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ theme: "blend", customThemes: [] }),
+    );
+  });
+
+  it("saves custom theme from editor modal", async () => {
+    const saveSettings = vi.fn().mockResolvedValue(undefined);
+    const setTheme = vi.fn();
+    useUIStore.setState({ theme: "blend", setTheme });
+    useSettingsStore.setState({
+      appSettings: fullSettings,
+      saveSettings,
+    });
+    render(<AppSettingsPanel />);
+    fireEvent.click(screen.getByText("Create Custom Theme"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("SaveTheme"));
+    });
+    expect(saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customThemes: expect.arrayContaining([
+          expect.objectContaining({ id: "custom-new" }),
+        ]),
+      }),
+    );
+    expect(setTheme).toHaveBeenCalledWith("custom-new");
+  });
+
+  it("updates an existing custom theme via save", async () => {
+    const saveSettings = vi.fn().mockResolvedValue(undefined);
+    const setTheme = vi.fn();
+    useSettingsStore.setState({
+      appSettings: {
+        ...fullSettings,
+        customThemes: [
+          { id: "existing-ct", name: "Old Name", createdAt: "2024-01-01T00:00:00Z", vars: { "--bg-primary": "#000" } },
+        ],
+      },
+      saveSettings,
+    });
+    useUIStore.setState({ theme: "existing-ct", setTheme } as any);
+    render(<AppSettingsPanel />);
+
+    // Click "Edit" button on the custom theme
+    const editButton = screen.getByTitle("Edit theme");
+    fireEvent.click(editButton);
+    expect(screen.getByTestId("theme-editor-modal")).toBeInTheDocument();
+
+    // Save as existing (updates in place)
+    await act(async () => {
+      fireEvent.click(screen.getByText("SaveExisting"));
+    });
+    expect(saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customThemes: [
+          expect.objectContaining({ id: "existing-ct", name: "Updated" }),
+        ],
+      }),
+    );
+  });
+
+  it("renders custom theme with missing vars (filter falsy swatches)", () => {
+    useSettingsStore.setState({
+      appSettings: {
+        ...fullSettings,
+        customThemes: [
+          {
+            id: "sparse-theme",
+            name: "Sparse",
+            createdAt: "2024-01-01T00:00:00Z",
+            vars: { "--bg-primary": "#000" },
+          },
+        ],
+      },
+    });
+    render(<AppSettingsPanel />);
+    expect(screen.getByText("Sparse")).toBeInTheDocument();
+  });
+});
+
+describe("UpdatesTab - dialog close", () => {
+  it("closes update dialog when CloseUpdateDialog is clicked", async () => {
+    render(<AppSettingsPanel />);
+    fireEvent.click(screen.getByText("Updates"));
+    fireEvent.click(screen.getByText("Check for Updates"));
+    await waitFor(() => {
+      expect(screen.getByTestId("update-dialog")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("CloseUpdateDialog"));
+    expect(screen.queryByTestId("update-dialog")).not.toBeInTheDocument();
   });
 });
 
@@ -2413,5 +2707,392 @@ describe("LinearTab", () => {
       const input = screen.getByPlaceholderText("lin_api_...");
       expect(input).toHaveValue("lin_api_saved_key");
     });
+  });
+});
+
+describe("AzureDevOpsTab", () => {
+  function goToAzureDevOpsTab() {
+    render(<AppSettingsPanel />);
+    fireEvent.click(screen.getByText("Azure DevOps"));
+  }
+
+  it("shows Loading... when appSettings is null", () => {
+    useSettingsStore.setState({
+      appSettings: null,
+      loadSettings: vi.fn().mockResolvedValue(undefined),
+    });
+    render(<AppSettingsPanel />);
+    fireEvent.click(screen.getByText("Azure DevOps"));
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
+  });
+
+  it("shows PAT and Organization inputs", async () => {
+    goToAzureDevOpsTab();
+    await waitFor(() => {
+      expect(screen.getByText("Personal Access Token (PAT)")).toBeInTheDocument();
+      expect(screen.getByText("Default Organization")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("PAT token...")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("my-org")).toBeInTheDocument();
+    });
+  });
+
+  it("toggles PAT visibility with Show/Hide button", async () => {
+    goToAzureDevOpsTab();
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("PAT token...")).toBeInTheDocument();
+    });
+    const input = screen.getByPlaceholderText("PAT token...");
+    expect(input).toHaveAttribute("type", "password");
+    fireEvent.click(screen.getByText("Show"));
+    expect(input).toHaveAttribute("type", "text");
+    fireEvent.click(screen.getByText("Hide"));
+    expect(input).toHaveAttribute("type", "password");
+  });
+
+  it("types in PAT and org fields", async () => {
+    goToAzureDevOpsTab();
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("PAT token...")).toBeInTheDocument();
+    });
+    const patInput = screen.getByPlaceholderText("PAT token...");
+    const orgInput = screen.getByPlaceholderText("my-org");
+    fireEvent.change(patInput, { target: { value: "test-pat" } });
+    fireEvent.change(orgInput, { target: { value: "my-company" } });
+    expect(patInput).toHaveValue("test-pat");
+    expect(orgInput).toHaveValue("my-company");
+  });
+
+  it("saves settings with PAT and org", async () => {
+    const saveSettings = vi.fn().mockResolvedValue(undefined);
+    const closeViewTab = vi.fn();
+    useSettingsStore.setState({ appSettings: fullSettings, saveSettings });
+    useUIStore.setState({ closeViewTab });
+    goToAzureDevOpsTab();
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("PAT token...")).toBeInTheDocument();
+    });
+    fireEvent.change(screen.getByPlaceholderText("PAT token..."), {
+      target: { value: "my-pat-token" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("my-org"), {
+      target: { value: "my-company" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save"));
+    });
+    expect(saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        azureDevops: { pat: "my-pat-token", defaultOrg: "my-company" },
+      }),
+    );
+    expect(closeViewTab).toHaveBeenCalledWith("settings");
+  });
+
+  it("saves null for empty PAT and org", async () => {
+    const saveSettings = vi.fn().mockResolvedValue(undefined);
+    useSettingsStore.setState({ appSettings: fullSettings, saveSettings });
+    goToAzureDevOpsTab();
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("PAT token...")).toBeInTheDocument();
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save"));
+    });
+    expect(saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        azureDevops: { pat: null, defaultOrg: null },
+      }),
+    );
+  });
+
+  it("shows error when save fails", async () => {
+    const saveSettings = vi.fn().mockRejectedValue(new Error("Save error"));
+    useSettingsStore.setState({ appSettings: fullSettings, saveSettings });
+    goToAzureDevOpsTab();
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("PAT token...")).toBeInTheDocument();
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save"));
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/Save error/)).toBeInTheDocument();
+    });
+  });
+
+  it("shows Saving... while save is in progress", async () => {
+    let resolverFn: () => void;
+    const saveSettings = vi.fn().mockImplementation(
+      () => new Promise<void>((resolve) => { resolverFn = resolve; }),
+    );
+    useSettingsStore.setState({ appSettings: fullSettings, saveSettings });
+    goToAzureDevOpsTab();
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("PAT token...")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Save"));
+    await waitFor(() => {
+      expect(screen.getByText("Saving...")).toBeInTheDocument();
+    });
+    await act(async () => {
+      resolverFn!();
+    });
+  });
+
+  it("Cancel closes settings", async () => {
+    const closeViewTab = vi.fn();
+    useUIStore.setState({ closeViewTab } as any);
+    goToAzureDevOpsTab();
+    await waitFor(() => {
+      expect(screen.getByText("Cancel")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Cancel"));
+    expect(closeViewTab).toHaveBeenCalledWith("settings");
+  });
+
+  it("populates PAT and org from saved settings", async () => {
+    useSettingsStore.setState({
+      appSettings: {
+        ...fullSettings,
+        azureDevops: { pat: "saved-pat", defaultOrg: "saved-org" },
+      },
+    });
+    goToAzureDevOpsTab();
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("PAT token...")).toHaveValue("saved-pat");
+      expect(screen.getByPlaceholderText("my-org")).toHaveValue("saved-org");
+    });
+  });
+
+  it("does not save when appSettings is null", async () => {
+    const saveSettings = vi.fn().mockResolvedValue(undefined);
+    useSettingsStore.setState({ appSettings: null, saveSettings, loadSettings: vi.fn() });
+    render(<AppSettingsPanel />);
+    fireEvent.click(screen.getByText("Azure DevOps"));
+    // Loading state, no Save button present
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
+  });
+});
+
+describe("CodeIntelTab", () => {
+  function goToCodeIntelTab() {
+    render(<AppSettingsPanel />);
+    fireEvent.click(screen.getByText("Code Intelligence"));
+  }
+
+  beforeEach(() => {
+    useLspStore.setState({
+      catalog: [],
+      installedPlugins: [],
+      loading: false,
+      error: null,
+      installingPlugins: [],
+      loadCatalog: vi.fn(),
+      loadInstalledPlugins: vi.fn(),
+      installPlugin: vi.fn(),
+      uninstallPlugin: vi.fn(),
+    });
+  });
+
+  it("shows description text", () => {
+    goToCodeIntelTab();
+    expect(screen.getByText(/LSP plugins give Claude Code diagnostics/)).toBeInTheDocument();
+  });
+
+  it("shows loading state", () => {
+    useLspStore.setState({ loading: true });
+    goToCodeIntelTab();
+    expect(screen.getByText(/Loading plugins/)).toBeInTheDocument();
+  });
+
+  it("shows empty state when no plugins installed", () => {
+    goToCodeIntelTab();
+    expect(screen.getByText("No LSP plugins installed.")).toBeInTheDocument();
+  });
+
+  it("shows installed plugins with Ready status when binary found", () => {
+    useLspStore.setState({
+      installedPlugins: [
+        { name: "typescript-lsp", scope: "user", binaryFound: true, installHint: "npm i typescript-lsp", enabled: true, binaryName: "typescript-lsp" } as any,
+      ],
+    });
+    goToCodeIntelTab();
+    expect(screen.getByText("typescript-lsp")).toBeInTheDocument();
+    expect(screen.getByText("user")).toBeInTheDocument();
+    expect(screen.getByText("Ready")).toBeInTheDocument();
+  });
+
+  it("shows binary not found warning when binary missing", () => {
+    useLspStore.setState({
+      installedPlugins: [
+        { name: "rust-lsp", scope: "project", binaryFound: false, installHint: "cargo install rust-analyzer" } as any,
+      ],
+    });
+    goToCodeIntelTab();
+    expect(screen.getByText("rust-lsp")).toBeInTheDocument();
+    expect(screen.getByText(/Binary not found/)).toBeInTheDocument();
+    expect(screen.getByText(/cargo install rust-analyzer/)).toBeInTheDocument();
+  });
+
+  it("shows available plugins when catalog has uninstalled entries", () => {
+    useLspStore.setState({
+      catalog: [
+        { pluginName: "python-lsp", language: "Python", binaryName: "pyright" } as any,
+      ],
+      installedPlugins: [],
+    });
+    goToCodeIntelTab();
+    expect(screen.getByText("Available")).toBeInTheDocument();
+    expect(screen.getByText("Python")).toBeInTheDocument();
+    expect(screen.getByText("python-lsp")).toBeInTheDocument();
+    expect(screen.getByText(/requires: pyright/)).toBeInTheDocument();
+    expect(screen.getByText("Install")).toBeInTheDocument();
+  });
+
+  it("does not show available section when all plugins are installed", () => {
+    useLspStore.setState({
+      catalog: [
+        { pluginName: "ts-lsp", language: "TypeScript", binaryName: "tsc" } as any,
+      ],
+      installedPlugins: [
+        { name: "ts-lsp", scope: "user", binaryFound: true, installHint: "" } as any,
+      ],
+    });
+    goToCodeIntelTab();
+    expect(screen.queryByText("Available")).not.toBeInTheDocument();
+  });
+
+  it("calls installPlugin when Install button is clicked", async () => {
+    const installPlugin = vi.fn().mockResolvedValue(undefined);
+    useLspStore.setState({
+      catalog: [
+        { pluginName: "go-lsp", language: "Go", binaryName: "gopls" } as any,
+      ],
+      installedPlugins: [],
+      installPlugin,
+    });
+    goToCodeIntelTab();
+    await act(async () => {
+      fireEvent.click(screen.getByText("Install"));
+    });
+    expect(installPlugin).toHaveBeenCalledWith("go-lsp", "user");
+  });
+
+  it("shows Installing... while install is in progress", () => {
+    useLspStore.setState({
+      catalog: [
+        { pluginName: "go-lsp", language: "Go", binaryName: "gopls" } as any,
+      ],
+      installedPlugins: [],
+      installingPlugins: ["go-lsp"],
+    });
+    goToCodeIntelTab();
+    expect(screen.getByText(/Installing/)).toBeInTheDocument();
+  });
+
+  it("calls uninstallPlugin when remove button is clicked", async () => {
+    const uninstallPlugin = vi.fn().mockResolvedValue(undefined);
+    useLspStore.setState({
+      installedPlugins: [
+        { name: "ts-lsp", scope: "user", binaryFound: true, installHint: "" } as any,
+      ],
+      uninstallPlugin,
+    });
+    goToCodeIntelTab();
+    // The remove button is the X button in the installed plugin row
+    const pluginRow = screen.getByText("ts-lsp").closest("div");
+    const removeBtn = pluginRow!.querySelector("button");
+    await act(async () => {
+      fireEvent.click(removeBtn!);
+    });
+    expect(uninstallPlugin).toHaveBeenCalledWith("ts-lsp", "user");
+  });
+
+  it("shows store error", () => {
+    useLspStore.setState({ error: "Store LSP error" });
+    goToCodeIntelTab();
+    expect(screen.getByText("Store LSP error")).toBeInTheDocument();
+  });
+
+  it("shows local error when install fails", async () => {
+    const installPlugin = vi.fn().mockRejectedValue(new Error("Install failed"));
+    useLspStore.setState({
+      catalog: [
+        { pluginName: "bad-lsp", language: "Bad", binaryName: "bad" } as any,
+      ],
+      installedPlugins: [],
+      installPlugin,
+    });
+    goToCodeIntelTab();
+    await act(async () => {
+      fireEvent.click(screen.getByText("Install"));
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/Install failed/)).toBeInTheDocument();
+    });
+  });
+
+  it("shows local error when uninstall fails", async () => {
+    const uninstallPlugin = vi.fn().mockRejectedValue(new Error("Uninstall failed"));
+    useLspStore.setState({
+      installedPlugins: [
+        { name: "fail-lsp", scope: "user", binaryFound: true, installHint: "" } as any,
+      ],
+      uninstallPlugin,
+    });
+    goToCodeIntelTab();
+    const pluginRow = screen.getByText("fail-lsp").closest("div");
+    const removeBtn = pluginRow!.querySelector("button");
+    await act(async () => {
+      fireEvent.click(removeBtn!);
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/Uninstall failed/)).toBeInTheDocument();
+    });
+  });
+
+  it("switches install scope via radio buttons", () => {
+    useLspStore.setState({
+      catalog: [
+        { pluginName: "py-lsp", language: "Python", binaryName: "pyright" } as any,
+      ],
+      installedPlugins: [],
+    });
+    goToCodeIntelTab();
+    const userRadio = screen.getByLabelText("User");
+    const projectRadio = screen.getByLabelText("Project");
+    expect(userRadio).toBeChecked();
+    fireEvent.click(projectRadio);
+    expect(projectRadio).toBeChecked();
+  });
+
+  it("installs with project scope when selected", async () => {
+    const installPlugin = vi.fn().mockResolvedValue(undefined);
+    useLspStore.setState({
+      catalog: [
+        { pluginName: "py-lsp", language: "Python", binaryName: "pyright" } as any,
+      ],
+      installedPlugins: [],
+      installPlugin,
+    });
+    goToCodeIntelTab();
+    const projectRadio = screen.getByLabelText("Project");
+    fireEvent.click(projectRadio);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Install"));
+    });
+    expect(installPlugin).toHaveBeenCalledWith("py-lsp", "project");
+  });
+});
+
+describe("settingsInitialTab", () => {
+  it("clears settingsInitialTab on mount when set", () => {
+    const setSettingsInitialTab = vi.fn();
+    useUIStore.setState({
+      settingsInitialTab: "code-intel",
+      setSettingsInitialTab,
+    } as any);
+    render(<AppSettingsPanel />);
+    expect(setSettingsInitialTab).toHaveBeenCalledWith(null);
   });
 });

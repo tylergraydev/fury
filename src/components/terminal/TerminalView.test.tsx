@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, act } from "@testing-library/react";
 import { TerminalView } from "./TerminalView";
 
 const mockWrite = vi.fn();
@@ -30,8 +30,11 @@ vi.mock("@xterm/addon-fit", () => {
   return { FitAddon: FitAddonClass };
 });
 
+let webLinksCallback: ((_event: any, uri: string) => void) | null = null;
 vi.mock("@xterm/addon-web-links", () => {
-  const WebLinksAddonClass = vi.fn();
+  const WebLinksAddonClass = vi.fn(function (_cb: any) {
+    webLinksCallback = _cb;
+  });
   return { WebLinksAddon: WebLinksAddonClass };
 });
 
@@ -164,5 +167,18 @@ describe("TerminalView", () => {
     render(<TerminalView terminalId="t-1" />);
     // requestAnimationFrame is mocked to run synchronously
     expect(mockFit).toHaveBeenCalled();
+  });
+
+  it("opens URI in shell when WebLinksAddon link is clicked", async () => {
+    const { open: shellOpen } = await import("@tauri-apps/plugin-shell");
+    render(<TerminalView terminalId="t-1" />);
+    expect(webLinksCallback).not.toBeNull();
+    await act(async () => {
+      webLinksCallback!(null, "https://example.com");
+    });
+    // The callback dynamically imports the shell plugin and calls open
+    await vi.waitFor(() => {
+      expect(shellOpen).toHaveBeenCalledWith("https://example.com");
+    });
   });
 });

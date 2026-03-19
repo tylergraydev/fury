@@ -97,10 +97,11 @@ describe("promptLibraryStore - createPrompt", () => {
 });
 
 describe("promptLibraryStore - updatePrompt", () => {
-  it("updates a prompt in the list", async () => {
+  it("updates a prompt in the list while preserving others", async () => {
     const original = makePrompt();
+    const other = makePrompt({ id: "prompt-2", name: "other" });
     const updated = makePrompt({ name: "renamed" });
-    usePromptLibraryStore.setState({ prompts: [original] });
+    usePromptLibraryStore.setState({ prompts: [original, other] });
     vi.mocked(updatePrompt).mockResolvedValue(updated);
 
     await usePromptLibraryStore
@@ -110,6 +111,7 @@ describe("promptLibraryStore - updatePrompt", () => {
     expect(usePromptLibraryStore.getState().prompts[0].name).toBe(
       "renamed",
     );
+    expect(usePromptLibraryStore.getState().prompts[1].name).toBe("other");
     expect(updatePrompt).toHaveBeenCalledWith("prompt-1", {
       name: "renamed",
     });

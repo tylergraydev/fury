@@ -146,6 +146,10 @@ describe("prStore - subscribe", () => {
     // Polling should be stopped
     expect(usePrStore.getState().pollIntervals["ws-1"]).toBeUndefined();
   });
+
+  // Line 104 (token.cancelled guard in pr-merged handler) is a defensive guard
+  // that cannot be reached through the public API because subscribe() returns
+  // early at line 76 if already subscribed.
 });
 
 describe("prStore - unsubscribe", () => {
@@ -328,6 +332,20 @@ describe("prStore - loadPrInfo", () => {
     await usePrStore.getState().loadPrInfo("ws-1");
 
     expect(usePrStore.getState().error["ws-1"]).toBe("Error: load fail");
+    expect(usePrStore.getState().loading["ws-1"]).toBe(false);
+  });
+
+  it("preserves existing error when hasCached and load fails", async () => {
+    usePrStore.setState({
+      prInfo: { "ws-1": makePrInfo() as any },
+      error: { "ws-1": null },
+    });
+    vi.mocked(getPrFullData).mockRejectedValue(new Error("reload fail"));
+
+    await usePrStore.getState().loadPrInfo("ws-1");
+
+    // Should NOT set the error since we have cached data
+    expect(usePrStore.getState().error["ws-1"]).toBeNull();
     expect(usePrStore.getState().loading["ws-1"]).toBe(false);
   });
 });

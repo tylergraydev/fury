@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -23,7 +23,12 @@ vi.mock("../../lib/tauri", async (importOriginal) => {
 });
 
 vi.mock("../prompt-library/PromptLibraryDialog", () => ({
-  PromptLibraryDialog: () => <div data-testid="prompt-library-dialog" />,
+  PromptLibraryDialog: ({ onClose, onInsert }: { onClose: () => void; onInsert: (content: string, name: string) => void }) => (
+    <div data-testid="prompt-library-dialog">
+      <button data-testid="prompt-close" onClick={onClose}>Close</button>
+      <button data-testid="prompt-insert" onClick={() => onInsert("resolved content", "/my-prompt")}>Insert</button>
+    </div>
+  ),
 }));
 
 vi.mock("@tauri-apps/api/webview", () => ({
@@ -1597,4 +1602,205 @@ describe("Composer", () => {
     });
   });
 
+  // --- Alt+L opens prompt library ---
+  it("Alt+L opens prompt library dialog", () => {
+    render(<Composer {...defaultProps} />);
+    const textarea = screen.getByRole("textbox");
+    fireEvent.keyDown(textarea, { key: "l", altKey: true });
+    expect(screen.getByTestId("prompt-library-dialog")).toBeInTheDocument();
+  });
+
+  // --- Prompt library via plus menu ---
+  it("opens prompt library from plus menu", async () => {
+    const user = userEvent.setup();
+    render(<Composer {...defaultProps} />);
+    await user.click(screen.getByTitle("Add file or context"));
+    await user.click(screen.getByText("Prompt Library"));
+    expect(screen.getByTestId("prompt-library-dialog")).toBeInTheDocument();
+  });
+
+  // --- Prompt library slash command with custom variables ---
+  describe("prompt library commands", () => {
+    const makePrompt = (overrides: Record<string, unknown> = {}) => ({
+      id: "p1",
+      name: "greet",
+      content: "Hello {{name}}",
+      description: "A greeting",
+      category: null,
+      tags: [],
+      sortOrder: 0,
+      createdAt: "2025-01-01",
+      updatedAt: "2025-01-01",
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      usePromptLibraryStore.setState({
+        prompts: [
+          makePrompt({ id: "p1", name: "greet", content: "Hello {{name}}", description: "A greeting" }),
+          makePrompt({ id: "p2", name: "simple", content: "Do something simple", description: "No vars" }),
+        ],
+        loadPrompts: vi.fn(),
+      });
+    });
+
+    it("shows prompt library commands in slash menu", async () => {
+      const user = userEvent.setup();
+      const { container } = render(<Composer {...defaultProps} />);
+      const textarea = screen.getByRole("textbox");
+      await user.type(textarea, "/prompt:");
+
+      // Check that prompt commands appear - they use the format /<name>
+      const buttons = container.querySelectorAll("button");
+      const promptButtons = Array.from(buttons).filter((b) => b.textContent?.includes("prompt:greet"));
+      expect(promptButtons.length).toBeGreaterThan(0);
+    });
+
+    it("opens prompt library dialog for prompt with custom variables", async () => {
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      const textarea = screen.getByRole("textbox");
+      await user.type(textarea, "/prompt:gre");
+      // Verify the menu is showing
+      await waitFor(() => {
+        const items = screen.queryAllByText(/prompt:greet/);
+        expect(items.length).toBeGreaterThan(0);
+      });
+      await user.keyboard("{Enter}");
+      // Should open PromptLibraryDialog for variable substitution
+      expect(screen.getByTestId("prompt-library-dialog")).toBeInTheDocument();
+    });
+
+    it("auto-substitutes prompt without custom variables", async () => {
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      const textarea = screen.getByRole("textbox");
+      await user.type(textarea, "/prompt:sim");
+      await user.keyboard("{Enter}");
+      // No custom variables, so it auto-substitutes and sets pending command
+      expect(screen.queryByTestId("prompt-library-dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  // --- Cmd+Shift+Enter for plan approval (without permission request) ---
+  it("approves plan with Cmd+Shift+Enter when no permission request", async () => {
+    const onApprovePlan = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <Composer
+        {...defaultProps}
+        isPlanApproval
+        onApprovePlan={onApprovePlan}
+      />,
+    );
+    const textarea = screen.getByRole("textbox");
+    await user.click(textarea);
+    await user.keyboard("{Meta>}{Shift>}{Enter}{/Shift}{/Meta}");
+    expect(onApprovePlan).toHaveBeenCalledOnce();
+  });
+
+  // --- Cmd+I without onLinkIssue (noop) ---
+  it("Cmd+I does nothing when onLinkIssue is not provided", () => {
+    render(<Composer {...defaultProps} />);
+    const textarea = screen.getByRole("textbox");
+    fireEvent.keyDown(textarea, { key: "i", metaKey: true });
+    // Should not crash
+  });
+
+  // --- Running placeholder text ---
+  it("shows running placeholder when agent is running", () => {
+    render(<Composer {...defaultProps} agentStatus="Running" />);
+    expect(screen.getByPlaceholderText("Send a follow-up message...")).toBeInTheDocument();
+  });
+
+  // --- Model reset on agent type change ---
+  it("resets selected model when agent type changes", () => {
+    const { rerender } = render(<Composer {...defaultProps} />);
+    useSettingsStore.setState({
+      appSettings: { agentType: "codex_cli" } as any,
+    });
+    rerender(<Composer {...defaultProps} />);
+    // Model should be reset to empty (default)
+    expect(screen.getByText("codex")).toBeInTheDocument();
+  });
+
+  // --- Context usage indicator mouseLeave hides tooltip ---
+  it("hides context tooltip on mouse leave", async () => {
+    useChatStore.setState({
+      sessionStats: {
+        "ws-1": { totalInputTokens: 50_000, totalOutputTokens: 1000, totalCostUsd: 0.25, numTurns: 3 },
+      },
+    });
+    const user = userEvent.setup();
+    render(<Composer {...defaultProps} />);
+    const ring = screen.getByLabelText(/Context usage: 25%/);
+    const parent = ring.parentElement!;
+    await user.hover(parent);
+    expect(screen.getByText("Context")).toBeInTheDocument();
+    await user.unhover(parent);
+    expect(screen.queryByText("Context")).not.toBeInTheDocument();
+  });
+
+  // --- PromptLibraryDialog onClose ---
+  it("closes prompt library dialog via onClose", async () => {
+    const user = userEvent.setup();
+    render(<Composer {...defaultProps} />);
+    const textarea = screen.getByRole("textbox");
+    // Open prompt library via Alt+L
+    fireEvent.keyDown(textarea, { key: "l", altKey: true });
+    expect(screen.getByTestId("prompt-library-dialog")).toBeInTheDocument();
+    // Close it
+    await user.click(screen.getByTestId("prompt-close"));
+    expect(screen.queryByTestId("prompt-library-dialog")).not.toBeInTheDocument();
+  });
+
+  // --- PromptLibraryDialog onInsert ---
+  it("inserts prompt content via prompt library dialog", async () => {
+    const onSend = vi.fn();
+    const user = userEvent.setup();
+    render(<Composer {...defaultProps} onSend={onSend} />);
+    const textarea = screen.getByRole("textbox");
+    // Open prompt library via Alt+L
+    fireEvent.keyDown(textarea, { key: "l", altKey: true });
+    expect(screen.getByTestId("prompt-library-dialog")).toBeInTheDocument();
+    // Insert prompt
+    await user.click(screen.getByTestId("prompt-insert"));
+    expect(screen.queryByTestId("prompt-library-dialog")).not.toBeInTheDocument();
+    // The text and pendingCommandName should be set
+    // Send the message
+    await user.click(screen.getByTitle("Send message"));
+    expect(onSend).toHaveBeenCalledWith("resolved content", undefined, "/my-prompt");
+  });
+
+  // --- Voice input error callback ---
+  it("triggers onError callback on voice recognition error", async () => {
+    let errorCallback: any = null;
+    (window as any).SpeechRecognition = class MockSpeechRecognition {
+      continuous = false;
+      interimResults = false;
+      lang = "";
+      onstart: any = null;
+      onresult: any = null;
+      onerror: any = null;
+      onend: any = null;
+      start = vi.fn(() => { this.onstart?.(); });
+      stop = vi.fn(() => { this.onend?.(); });
+      abort = vi.fn();
+      constructor() {
+        errorCallback = () => {
+          this.onerror?.({ error: "not-allowed" });
+        };
+      }
+    };
+    const user = userEvent.setup();
+    render(<Composer {...defaultProps} />);
+    await user.click(screen.getByTitle("Start voice input (⌥V)"));
+    // Trigger the error which calls onError -> useToastStore.addToast
+    act(() => {
+      errorCallback?.();
+    });
+    // Voice should stop after error
+    expect(screen.queryByTitle("Stop voice input (⌥V)")).not.toBeInTheDocument();
+    delete (window as any).SpeechRecognition;
+  });
 });

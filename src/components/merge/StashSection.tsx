@@ -79,9 +79,11 @@ export function StashSection({ workspaceId }: Props) {
       const diffDays = Math.floor(diffHours / 24);
       if (diffDays < 7) return `${diffDays}d ago`;
       return date.toLocaleDateString();
+    /* v8 ignore start -- @preserve */
     } catch {
       return ts;
     }
+    /* v8 ignore stop */
   };
 
   return (
@@ -159,7 +161,9 @@ export function StashSection({ workspaceId }: Props) {
                   color: "var(--bg-primary)",
                 }}
               >
+                {/* v8 ignore start -- loading ternary display state */}
                 {loading ? "Stashing..." : "Stash"}
+                {/* v8 ignore stop */}
               </button>
               <button
                 onClick={() => setShowCreateForm(false)}

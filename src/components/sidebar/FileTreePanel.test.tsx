@@ -196,4 +196,191 @@ describe("FileTreePanel", () => {
     // Should not throw when no callback
     expect(() => fireEvent.click(file)).not.toThrow();
   });
+
+  it("opens context menu on right-click when onRunTestFile is provided", async () => {
+    vi.mocked(listWorkspaceFiles).mockResolvedValue(["test.spec.ts"]);
+    const onRunTestFile = vi.fn();
+    render(
+      <FileTreePanel
+        context={{ id: "ws-1", type: "workspace" }}
+        onRunTestFile={onRunTestFile}
+      />,
+    );
+    const file = await screen.findByText("test.spec.ts");
+    fireEvent.contextMenu(file);
+    expect(screen.getByText("Run Tests")).toBeInTheDocument();
+  });
+
+  it("does not open context menu on right-click when onRunTestFile is not provided", async () => {
+    vi.mocked(listWorkspaceFiles).mockResolvedValue(["test.spec.ts"]);
+    render(
+      <FileTreePanel context={{ id: "ws-1", type: "workspace" }} />,
+    );
+    const file = await screen.findByText("test.spec.ts");
+    fireEvent.contextMenu(file);
+    expect(screen.queryByText("Run Tests")).not.toBeInTheDocument();
+  });
+
+  it("does not open context menu when right-clicking a directory", async () => {
+    vi.mocked(listWorkspaceFiles).mockResolvedValue(["src/main.ts"]);
+    const onRunTestFile = vi.fn();
+    render(
+      <FileTreePanel
+        context={{ id: "ws-1", type: "workspace" }}
+        onRunTestFile={onRunTestFile}
+      />,
+    );
+    const srcDir = await screen.findByText("src");
+    fireEvent.contextMenu(srcDir);
+    expect(screen.queryByText("Run Tests")).not.toBeInTheDocument();
+  });
+
+  it("calls onRunTestFile and closes context menu when Run Tests is clicked", async () => {
+    vi.mocked(listWorkspaceFiles).mockResolvedValue(["test.spec.ts"]);
+    const onRunTestFile = vi.fn();
+    render(
+      <FileTreePanel
+        context={{ id: "ws-1", type: "workspace" }}
+        onRunTestFile={onRunTestFile}
+      />,
+    );
+    const file = await screen.findByText("test.spec.ts");
+    fireEvent.contextMenu(file);
+    const runButton = screen.getByText("Run Tests");
+    fireEvent.click(runButton);
+    expect(onRunTestFile).toHaveBeenCalledWith("test.spec.ts");
+    expect(screen.queryByText("Run Tests")).not.toBeInTheDocument();
+  });
+
+  it("closes context menu when clicking outside", async () => {
+    vi.mocked(listWorkspaceFiles).mockResolvedValue(["test.spec.ts"]);
+    const onRunTestFile = vi.fn();
+    render(
+      <FileTreePanel
+        context={{ id: "ws-1", type: "workspace" }}
+        onRunTestFile={onRunTestFile}
+      />,
+    );
+    const file = await screen.findByText("test.spec.ts");
+    fireEvent.contextMenu(file);
+    expect(screen.getByText("Run Tests")).toBeInTheDocument();
+    // Click outside the context menu
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByText("Run Tests")).not.toBeInTheDocument();
+  });
+
+  it("closes context menu when Escape key is pressed", async () => {
+    vi.mocked(listWorkspaceFiles).mockResolvedValue(["test.spec.ts"]);
+    const onRunTestFile = vi.fn();
+    render(
+      <FileTreePanel
+        context={{ id: "ws-1", type: "workspace" }}
+        onRunTestFile={onRunTestFile}
+      />,
+    );
+    const file = await screen.findByText("test.spec.ts");
+    fireEvent.contextMenu(file);
+    expect(screen.getByText("Run Tests")).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByText("Run Tests")).not.toBeInTheDocument();
+  });
+
+  it("does not close context menu when clicking inside it", async () => {
+    vi.mocked(listWorkspaceFiles).mockResolvedValue(["test.spec.ts"]);
+    const onRunTestFile = vi.fn();
+    render(
+      <FileTreePanel
+        context={{ id: "ws-1", type: "workspace" }}
+        onRunTestFile={onRunTestFile}
+      />,
+    );
+    const file = await screen.findByText("test.spec.ts");
+    fireEvent.contextMenu(file);
+    const runButton = screen.getByText("Run Tests");
+    // mouseDown inside the menu should not close it
+    fireEvent.mouseDown(runButton);
+    expect(screen.getByText("Run Tests")).toBeInTheDocument();
+  });
+
+  it("skips loading when files are already cached", async () => {
+    // Pre-populate the store with files for the context
+    const loadFilesSpy = vi.spyOn(useFileTreeStore.getState(), "loadFiles");
+    const loadRepoFilesSpy = vi.spyOn(useFileTreeStore.getState(), "loadRepoFiles");
+    useFileTreeStore.setState({
+      files: { "ws-2": ["cached.ts"] },
+    });
+    render(
+      <FileTreePanel context={{ id: "ws-2", type: "workspace" }} />,
+    );
+    expect(screen.getByText("cached.ts")).toBeInTheDocument();
+    // Wait for double-rAF to complete by creating our own double-rAF
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          resolve();
+        });
+      });
+    });
+    // Neither loadFiles nor loadRepoFiles should be called because files are cached
+    expect(loadFilesSpy).not.toHaveBeenCalled();
+    expect(loadRepoFilesSpy).not.toHaveBeenCalled();
+    loadFilesSpy.mockRestore();
+    loadRepoFilesSpy.mockRestore();
+  });
+
+  it("double-clicking a file without onFileDoubleClick does not throw", async () => {
+    vi.mocked(listWorkspaceFiles).mockResolvedValue(["readme.md"]);
+    render(
+      <FileTreePanel context={{ id: "ws-1", type: "workspace" }} />,
+    );
+    const file = await screen.findByText("readme.md");
+    expect(() => fireEvent.doubleClick(file)).not.toThrow();
+  });
+
+  it("does not close context menu on non-Escape key press", async () => {
+    vi.mocked(listWorkspaceFiles).mockResolvedValue(["test.spec.ts"]);
+    const onRunTestFile = vi.fn();
+    render(
+      <FileTreePanel
+        context={{ id: "ws-1", type: "workspace" }}
+        onRunTestFile={onRunTestFile}
+      />,
+    );
+    const file = await screen.findByText("test.spec.ts");
+    fireEvent.contextMenu(file);
+    expect(screen.getByText("Run Tests")).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Enter" });
+    expect(screen.getByText("Run Tests")).toBeInTheDocument();
+  });
+
+  it("cleans up event listeners when context menu unmounts", async () => {
+    vi.mocked(listWorkspaceFiles).mockResolvedValue(["test.spec.ts"]);
+    const onRunTestFile = vi.fn();
+    const removeMouseSpy = vi.spyOn(document, "removeEventListener");
+    render(
+      <FileTreePanel
+        context={{ id: "ws-1", type: "workspace" }}
+        onRunTestFile={onRunTestFile}
+      />,
+    );
+    const file = await screen.findByText("test.spec.ts");
+    fireEvent.contextMenu(file);
+    expect(screen.getByText("Run Tests")).toBeInTheDocument();
+    // Close the menu to trigger cleanup
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(removeMouseSpy).toHaveBeenCalledWith("mousedown", expect.any(Function));
+    expect(removeMouseSpy).toHaveBeenCalledWith("keydown", expect.any(Function));
+    removeMouseSpy.mockRestore();
+  });
+
+  it("cancels animation frames on unmount", async () => {
+    const cancelSpy = vi.spyOn(window, "cancelAnimationFrame");
+    vi.mocked(listWorkspaceFiles).mockResolvedValue([]);
+    const { unmount } = render(
+      <FileTreePanel context={{ id: "ws-1", type: "workspace" }} />,
+    );
+    unmount();
+    expect(cancelSpy).toHaveBeenCalled();
+    cancelSpy.mockRestore();
+  });
 });

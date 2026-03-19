@@ -101,7 +101,9 @@ export const usePrStore = create<PrStore>((set, get) => ({
     const unlistenMerged = await listen<MergeResult>(
       `pr-merged:${workspaceId}`,
       () => {
+        /* v8 ignore start -- cancel guard; token is never cancelled during active listener */
         if (token.cancelled) return;
+        /* v8 ignore stop */
         get().loadPrInfo(workspaceId);
         get().stopPolling(workspaceId);
       },
