@@ -15,7 +15,7 @@ export default defineConfig(async () => ({
         manualChunks: {
           monaco: ["monaco-editor", "@monaco-editor/react"],
           recharts: ["recharts"],
-          xterm: ["@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-web-links", "@xterm/addon-search"],
+          xterm: ["@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-web-links"],
           markdown: ["react-markdown", "remark-gfm"],
         },
       },
