@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getAppVersion } from "../../../lib/autoUpdate";
 import { UpdateDialog } from "../UpdateDialog";
 
 export function UpdatesTab() {
@@ -6,10 +7,7 @@ export function UpdatesTab() {
   const [appVersion, setAppVersion] = useState<string | null>(null);
 
   useEffect(() => {
-    import("@tauri-apps/api/app")
-      .then((mod) => mod.getVersion())
-      .then((v) => setAppVersion(v))
-      .catch(() => {});
+    getAppVersion().then(setAppVersion).catch(() => {});
   }, []);
 
   return (

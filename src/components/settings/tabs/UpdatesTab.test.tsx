@@ -1,12 +1,7 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "./test-helpers";
 import { AppSettingsPanel } from "../AppSettingsPanel";
-
-vi.mock("@tauri-apps/api/app", () => ({
-  getVersion: vi.fn().mockResolvedValue("1.4.1"),
-  getName: vi.fn().mockResolvedValue("Fury"),
-}));
 
 describe("UpdatesTab - dialog close", () => {
   it("closes update dialog when CloseUpdateDialog is clicked", async () => {
