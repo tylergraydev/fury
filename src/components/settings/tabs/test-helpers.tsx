@@ -76,6 +76,7 @@ vi.mock("../../../lib/keybindings", () => ({
 }));
 
 vi.mock("../ThemeEditorModal", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ThemeEditorModal: ({ onClose, onSave, existingTheme, duplicateFrom }: any) => (
     <div data-testid="theme-editor-modal">
       <span data-testid="editing-theme">{existingTheme?.id ?? "null"}</span>
@@ -92,6 +93,7 @@ vi.mock("../ThemeEditorModal", () => ({
 }));
 
 vi.mock("../UpdateDialog", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   UpdateDialog: ({ onClose }: any) => (
     <div data-testid="update-dialog">
       <span>Software Update</span>

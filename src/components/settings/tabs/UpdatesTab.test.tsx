@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import "./test-helpers.test";
+import "./test-helpers";
 import { AppSettingsPanel } from "../AppSettingsPanel";
 
 vi.mock("@tauri-apps/api/app", () => ({

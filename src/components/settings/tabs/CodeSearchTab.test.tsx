@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
-import "./test-helpers.test";
-import { fullSettings, mockListIndexingStatuses, mockIndexRepository } from "./test-helpers.test";
+import "./test-helpers";
+import { fullSettings, mockListIndexingStatuses, mockIndexRepository } from "./test-helpers";
 import { AppSettingsPanel } from "../AppSettingsPanel";
 import { useSettingsStore } from "../../../stores/settingsStore";
 import { useRepositoryStore } from "../../../stores/repositoryStore";
