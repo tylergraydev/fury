@@ -26,6 +26,8 @@ pub mod terminal;
 pub mod test_runner;
 pub mod todo;
 pub mod workspace;
+pub mod workspace_config;
+pub mod workspace_links;
 pub mod workspace_template;
 pub mod prompt;
 pub mod snippet;
