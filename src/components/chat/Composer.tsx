@@ -1,116 +1,21 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Square, Copy, ArrowRightFromLine, Check, ShieldCheck, ShieldX, X, FileText as FileIcon, Sparkles, Brain, BookOpen, ArrowUp, Plus, Paperclip, CircleDot, Link2, Mic, MicOff } from "lucide-react";
-import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
-import type { AgentStatus, SlashCommand } from "../../lib/tauri";
-import { readFileBase64, saveClipboardImage } from "../../lib/tauri";
-import { formatTokens, formatCost } from "../../lib/format";
-import type { PermissionRequestInfo, SessionStats } from "../../stores/chatStore";
+import { Square, Copy, ArrowRightFromLine, Check, ShieldCheck, ShieldX, X, Sparkles, Brain, BookOpen, ArrowUp, Plus, Paperclip, CircleDot, Link2, Mic, MicOff } from "lucide-react";
+import type { AgentStatus } from "../../lib/tauri";
+import type { PermissionRequestInfo } from "../../stores/chatStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useTodoStore } from "../../stores/todoStore";
 import { useSlashCommandStore } from "../../stores/slashCommandStore";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
 import { usePromptLibraryStore } from "../../stores/promptLibraryStore";
-import { BUILTIN_COMMANDS, type BuiltinCommand } from "../../lib/builtinCommands";
-import { extractVariables, substituteVariables, isAutoFillVariable } from "../../lib/promptVariables";
 import { PromptLibraryDialog } from "../prompt-library/PromptLibraryDialog";
 import { useVoiceInput } from "../../hooks/useVoiceInput";
 import { useToastStore } from "../../stores/toastStore";
-
-function ActionBar({ icon, description, bgStyle, secondaryActions, primaryAction }: {
-  icon?: React.ReactNode;
-  description: React.ReactNode;
-  bgStyle: React.CSSProperties;
-  secondaryActions?: React.ReactNode;
-  primaryAction?: React.ReactNode;
-}) {
-  return (
-    <div className="mb-2 flex items-center gap-2 rounded-lg px-3 py-2" style={bgStyle}>
-      {icon}
-      <span className="flex-1 text-xs" style={{ color: "var(--text-secondary)" }}>{description}</span>
-      {secondaryActions}
-      {primaryAction}
-    </div>
-  );
-}
-
-const IMAGE_EXTENSIONS = new Set([
-  "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "tiff", "tif", "avif",
-]);
-
-interface DroppedFile {
-  id: string;
-  path: string;
-  name: string;
-  isImage: boolean;
-  dataUrl?: string; // undefined = loading, "error" = failed, string = loaded
-}
-
-let fileIdCounter = 0;
-
-function isImageFile(path: string): boolean {
-  const ext = path.split(".").pop()?.toLowerCase() ?? "";
-  return IMAGE_EXTENSIONS.has(ext);
-}
-
-function FileChipIcon({ file }: { file: DroppedFile }) {
-  if (file.isImage && file.dataUrl && file.dataUrl !== "error") {
-    return (
-      <img
-        src={file.dataUrl}
-        alt={file.name}
-        className="h-5 w-5 rounded object-cover"
-      />
-    );
-  }
-  if (file.isImage && !file.dataUrl) {
-    // Still loading — only reachable via Tauri drag-drop which loads images async
-    /* v8 ignore start */
-    return (
-      <div
-        className="flex h-5 w-5 items-center justify-center rounded"
-        style={{ backgroundColor: "var(--bg-surface)" }}
-      >
-        <div className="h-3 w-3 animate-pulse rounded-sm" style={{ backgroundColor: "var(--text-muted)" }} />
-      </div>
-    );
-    /* v8 ignore stop */
-  }
-  // Non-image or failed image load
-  return <FileIcon className="h-3 w-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />;
-}
-
-function ActionBarButton({ onClick, icon: Icon, label, color, bgColor, showShortcut, disabled, title, className }: {
-  onClick?: () => void;
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  color: string;
-  bgColor?: string;
-  showShortcut?: boolean;
-  disabled?: boolean;
-  title?: string;
-  className?: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors hover:opacity-80 ${bgColor ? "font-medium" : ""} ${className ?? ""}`}
-      style={{ color, ...(bgColor ? { backgroundColor: bgColor } : {}) }}
-    >
-      <Icon className="h-3.5 w-3.5" />
-      {label}
-      {showShortcut && (
-        <kbd className="ml-1 rounded bg-[var(--bg-hover)] px-1 py-0.5 text-[9px] font-normal" style={{ color: "inherit" }}>
-          ⌘⇧↵
-        </kbd>
-      )}
-    </button>
-  );
-}
-
+import { ActionBar, ActionBarButton } from "./ActionBar";
+import { ContextUsageIndicator, CONTEXT_WINDOW_TOKENS } from "./ContextUsageIndicator";
+import { FileChipIcon } from "./FileChipIcon";
+import { useFileDropHandler } from "../../hooks/useFileDropHandler";
+import { useSlashCommandAutocomplete } from "../../hooks/useSlashCommandAutocomplete";
 
 const CLAUDE_MODEL_OPTIONS = [
   { value: "", label: "Default", displayName: "Opus 4.6" },
@@ -127,121 +32,12 @@ const CODEX_MODEL_OPTIONS = [
   { value: "gpt-4.1", label: "GPT-4.1", displayName: "GPT-4.1" },
 ] as const;
 
-const EMPTY_COMMANDS: SlashCommand[] = [];
 const EMPTY_FILES: string[] = [];
 
 interface AtMenuItem {
   label: string;
   description: string;
   value: string;
-}
-
-const CONTEXT_WINDOW_TOKENS = 200_000;
-
-function ContextTooltip({ stats, pct, color }: {
-  stats: SessionStats;
-  pct: number;
-  color: string;
-}) {
-  const rows: Array<{ label: string; value: string }> = [
-    {
-      label: "Context",
-      value: `${formatTokens(stats.totalInputTokens)} / ${formatTokens(CONTEXT_WINDOW_TOKENS)} (${pct.toFixed(0)}%)`,
-    },
-    {
-      label: "Output",
-      value: formatTokens(stats.totalOutputTokens),
-    },
-  ];
-
-  if (stats.totalCacheReadTokens && stats.totalCacheReadTokens > 0) {
-    rows.push({ label: "Cache read", value: formatTokens(stats.totalCacheReadTokens) });
-  }
-
-  rows.push(
-    { label: "Turns", value: String(stats.numTurns) },
-    { label: "Cost", value: formatCost(stats.totalCostUsd) },
-  );
-
-  return (
-    <div
-      className="absolute bottom-full right-0 z-30 mb-2 rounded-lg shadow-lg"
-      style={{
-        backgroundColor: "var(--bg-surface)",
-        border: "1px solid var(--border)",
-        padding: "8px 12px",
-        minWidth: "180px",
-        fontSize: "11px",
-      }}
-    >
-      <div
-        className="mb-2 h-1 w-full rounded-full overflow-hidden"
-        style={{ backgroundColor: "var(--bg-hover)" }}
-      >
-        <div
-          className="h-full rounded-full"
-          style={{ width: `${pct}%`, backgroundColor: color }}
-        />
-      </div>
-      {rows.map((row, i) => (
-        <div key={i} className="flex items-center justify-between gap-4 py-0.5">
-          <span style={{ color: "var(--text-muted)" }}>{row.label}</span>
-          <span style={{ color: "var(--text-primary)" }}>{row.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ContextUsageIndicator({ stats }: { stats: SessionStats }) {
-  const [showTooltip, setShowTooltip] = useState(false);
-
-  const pct = Math.min(100, (stats.totalInputTokens / CONTEXT_WINDOW_TOKENS) * 100);
-  const isWarning = pct >= 75;
-  const isCritical = pct >= 90;
-
-  let color = "var(--text-muted)";
-  if (isCritical) color = "var(--error)";
-  else if (isWarning) color = "var(--accent-orange)";
-
-  const radius = 9;
-  const circumference = 2 * Math.PI * radius;
-  const dashoffset = circumference * (1 - pct / 100);
-
-  return (
-    <div
-      className="relative"
-      onMouseEnter={() => setShowTooltip(true)}
-      onMouseLeave={() => setShowTooltip(false)}
-    >
-      <div
-        className="flex items-center justify-center cursor-default"
-        style={{ width: 24, height: 24 }}
-        aria-label={`Context usage: ${pct.toFixed(0)}%`}
-      >
-        <svg width={24} height={24} viewBox="0 0 24 24">
-          <circle
-            cx={12} cy={12} r={radius}
-            fill="none"
-            stroke="var(--bg-hover)"
-            strokeWidth={3}
-          />
-          <circle
-            cx={12} cy={12} r={radius}
-            fill="none"
-            stroke={color}
-            strokeWidth={3}
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={dashoffset}
-            transform="rotate(-90 12 12)"
-            style={{ transition: "stroke-dashoffset 0.3s ease, stroke 0.3s ease" }}
-          />
-        </svg>
-      </div>
-      {showTooltip && <ContextTooltip stats={stats} pct={pct} color={color} />}
-    </div>
-  );
 }
 
 interface Props {
@@ -273,19 +69,20 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
   const [selectedModel, setSelectedModel] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Slash command autocomplete state
-  const [showSlashMenu, setShowSlashMenu] = useState(false);
-  const [slashFilter, setSlashFilter] = useState("");
-  const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
-
   // @mention autocomplete state
   const [showAtMenu, setShowAtMenu] = useState(false);
   const [atFilter, setAtFilter] = useState("");
   const [selectedAtIndex, setSelectedAtIndex] = useState(0);
 
-  // File drop state
-  const [droppedFiles, setDroppedFiles] = useState<DroppedFile[]>([]);
-  const [isDragOver, setIsDragOver] = useState(false);
+  // File drop hook
+  const {
+    droppedFiles,
+    isDragOver,
+    handleAddAttachment,
+    handlePaste,
+    removeDroppedFile,
+    clearDroppedFiles,
+  } = useFileDropHandler();
 
   // Model popover state
   const [showModelMenu, setShowModelMenu] = useState(false);
@@ -300,6 +97,28 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
 
   // Prompt library state
   const [showPromptLibrary, setShowPromptLibrary] = useState(false);
+
+  const openPromptLibrary = useCallback(() => setShowPromptLibrary(true), []);
+
+  // Slash command autocomplete hook
+  const getText = useCallback(() => text, [text]);
+  const {
+    showSlashMenu,
+    setShowSlashMenu,
+    selectedSlashIndex,
+    matchingCommands,
+    selectSlashCommand,
+    handleSlashInput,
+    handleSlashKeyDown,
+  } = useSlashCommandAutocomplete(
+    contextId,
+    getText,
+    setText,
+    textareaRef,
+    setPendingCommandName,
+    setPendingCommandContent,
+    openPromptLibrary,
+  );
 
   // Voice input
   const {
@@ -364,81 +183,6 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     }
   }, [text]);
 
-  // Listen for Tauri drag-drop events
-  useEffect(() => {
-    let cancelled = false;
-    let unlisten: (() => void) | undefined;
-
-    try {
-      getCurrentWebview()
-        .onDragDropEvent((event) => {
-          /* v8 ignore start -- Tauri drag-drop events not available in jsdom */
-          if (cancelled) return;
-          if (event.payload.type === "over") {
-            setIsDragOver(true);
-          } else if (event.payload.type === "leave") {
-            setIsDragOver(false);
-          } else if (event.payload.type === "drop") {
-            setIsDragOver(false);
-            const paths = event.payload.paths;
-            // Build files and load base64 for images
-            const newFiles: DroppedFile[] = paths.map((p) => ({
-              id: String(++fileIdCounter),
-              path: p,
-              name: p.split(/[/\\]/).pop() ?? p,
-              isImage: isImageFile(p),
-            }));
-            setDroppedFiles((prev) => [...prev, ...newFiles]);
-            // Async: load data URLs for image files
-            for (const f of newFiles) {
-              if (f.isImage) {
-                readFileBase64(f.path)
-                  .then((dataUrl) => {
-                    if (cancelled) return;
-                    setDroppedFiles((prev) =>
-                      prev.map((df) =>
-                        df.id === f.id ? { ...df, dataUrl } : df,
-                      ),
-                    );
-                  })
-                  .catch((err) => {
-                    console.warn(`Failed to load image preview for ${f.name}:`, err);
-                    if (cancelled) return;
-                    setDroppedFiles((prev) =>
-                      prev.map((df) =>
-                        df.id === f.id ? { ...df, dataUrl: "error" } : df,
-                      ),
-                    );
-                  });
-              }
-            }
-          }
-          /* v8 ignore stop */
-        })
-        .then((fn) => {
-          /* v8 ignore start */
-          if (cancelled) {
-            fn();
-          } else {
-            unlisten = fn;
-          }
-          /* v8 ignore stop */
-        })
-        .catch((err) => {
-          /* v8 ignore start */
-          console.warn("Failed to register drag-drop event listener:", err);
-          /* v8 ignore stop */
-        });
-    } catch {
-      // getCurrentWebview() throws synchronously outside Tauri (e.g. browser/test)
-    }
-
-    return () => {
-      cancelled = true;
-      unlisten?.();
-    };
-  }, []);
-
   // Close model menu on outside click
   useEffect(() => {
     if (!showModelMenu) return;
@@ -461,130 +205,10 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     };
   }, [showPlusMenu]);
 
-  const handleAddAttachment = useCallback(async () => {
+  const handleAddAttachmentFromMenu = useCallback(() => {
     setShowPlusMenu(false);
-    let selected;
-    try {
-      selected = await openFileDialog({
-        multiple: true,
-        title: "Add attachment",
-      });
-    } catch (e) {
-      console.error("Failed to open file dialog:", e);
-      return;
-    }
-    if (!selected) return;
-    const paths = Array.isArray(selected) ? selected : [selected];
-    const newFiles: DroppedFile[] = paths.map((p) => {
-      const name = p.split("/").pop() ?? p;
-      return { id: `file-${++fileIdCounter}`, path: p, name, isImage: isImageFile(p) };
-    });
-    setDroppedFiles((prev) => [...prev, ...newFiles]);
-    for (const f of newFiles) {
-      if (f.isImage) {
-        readFileBase64(f.path)
-          .then((dataUrl) => {
-            setDroppedFiles((prev) =>
-              prev.map((df) => (df.id === f.id ? { ...df, dataUrl } : df)),
-            );
-          })
-          .catch((err) => {
-            console.warn(`Failed to load image preview for ${f.name}:`, err);
-            setDroppedFiles((prev) =>
-              prev.map((df) => (df.id === f.id ? { ...df, dataUrl: "error" } : df)),
-            );
-          });
-      }
-    }
-  }, []);
-
-  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-
-    for (const item of Array.from(items)) {
-      if (!item.type.startsWith("image/")) continue;
-
-      const blob = item.getAsFile();
-      if (!blob) continue;
-
-      e.preventDefault();
-
-      const base64Data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const dataUrl = reader.result as string;
-          resolve(dataUrl.split(",")[1]);
-        };
-        reader.onerror = () => reject(reader.error);
-        reader.readAsDataURL(blob);
-      });
-      const mimeType = item.type;
-
-      const ext = mimeType.split("/")[1]?.replace("svg+xml", "svg") ?? "png";
-      const tempName = `paste-${Date.now()}.${ext}`;
-
-      const fileId = `paste-${++fileIdCounter}`;
-      setDroppedFiles((prev) => [...prev, {
-        id: fileId,
-        path: "",
-        name: tempName,
-        isImage: true,
-      }]);
-
-      try {
-        const filePath = await saveClipboardImage(base64Data, mimeType);
-        const dataUrl = `data:${mimeType};base64,${base64Data}`;
-        setDroppedFiles((prev) =>
-          prev.map((f) =>
-            f.id === fileId
-              /* v8 ignore start -- nullish coalesce: .pop() always returns a string on non-empty split */
-              ? { ...f, path: filePath, name: filePath.split(/[/\\]/).pop() ?? tempName, dataUrl }
-              /* v8 ignore stop */
-              : f,
-          ),
-        );
-      } catch (err) {
-        console.warn("Failed to save pasted image:", err);
-        setDroppedFiles((prev) => prev.filter((f) => f.id !== fileId));
-      }
-
-      break;
-    }
-  }, []);
-
-  const removeDroppedFile = useCallback((index: number) => {
-    setDroppedFiles((prev) => prev.filter((_, i) => i !== index));
-  }, []);
-
-  const fileCommands = useSlashCommandStore((s) =>
-    s.commands[contextId] ?? EMPTY_COMMANDS,
-  );
-  const discoveredSkills = useSlashCommandStore((s) =>
-    s.discoveredSkills[contextId] ?? EMPTY_COMMANDS,
-  );
-  const libraryPrompts = usePromptLibraryStore((s) => s.prompts);
-  const promptCommands: SlashCommand[] = useMemo(() => {
-    return libraryPrompts.map((p) => ({
-      name: `prompt:${p.name}`,
-      source: "built-in" as const,
-      /* v8 ignore start -- defensive fallback; prompts always have description */
-      description: p.description ?? `Prompt: ${p.name}`,
-      /* v8 ignore stop */
-      content: p.content,
-    }));
-  }, [libraryPrompts]);
-  const allCommands: SlashCommand[] = useMemo(() => {
-    // File-discovered commands take priority; add stream-discovered skills that aren't duplicates
-    const knownNames = new Set(fileCommands.map((c) => c.name));
-    const uniqueSkills = discoveredSkills.filter((s) => !knownNames.has(s.name));
-    return [...BUILTIN_COMMANDS, ...promptCommands, ...fileCommands, ...uniqueSkills];
-  }, [fileCommands, discoveredSkills, promptCommands]);
-  const matchingCommands = useMemo(() => {
-    if (!slashFilter) return allCommands;
-    const lower = slashFilter.toLowerCase();
-    return allCommands.filter((c) => c.name.toLowerCase().startsWith(lower));
-  }, [allCommands, slashFilter]);
+    handleAddAttachment();
+  }, [handleAddAttachment]);
 
   // @mention autocomplete items: @todos + file paths
   const files = useFileTreeStore((s) => s.files[contextId] ?? EMPTY_FILES);
@@ -628,7 +252,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
 
     onSend(message, selectedModel || undefined, pendingCommandName || undefined);
     setText("");
-    setDroppedFiles([]);
+    clearDroppedFiles();
     setShowSlashMenu(false);
     setShowAtMenu(false);
     setPendingCommandName(null);
@@ -637,57 +261,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-  }, [canSend, text, droppedFiles, onSend, workspaceId, selectedModel, pendingCommandName, pendingCommandContent, stopVoice]);
-
-  const selectSlashCommand = useCallback(
-    (cmd: SlashCommand) => {
-      const ta = textareaRef.current;
-      /* v8 ignore next -- @preserve */
-      const cursorPos = ta?.selectionStart ?? text.length;
-      const textBeforeCursor = text.substring(0, cursorPos);
-      const lastNewline = textBeforeCursor.lastIndexOf("\n");
-      const lineStart = lastNewline + 1;
-      const textAfterCursor = text.substring(cursorPos);
-      const textBeforeLine = text.substring(0, lineStart);
-
-      // Action commands execute immediately without sending a message
-      const asBuiltin = cmd as BuiltinCommand;
-      if (asBuiltin.action) {
-        asBuiltin.action();
-        setText(textBeforeLine + textAfterCursor);
-        setShowSlashMenu(false);
-        return;
-      }
-
-      // Prompt library commands: check for variables and auto-substitute
-      if (cmd.name.startsWith("prompt:") && cmd.content) {
-        const variables = extractVariables(cmd.content);
-        const hasCustomVars = variables.some((v) => !isAutoFillVariable(v));
-        if (hasCustomVars) {
-          // Open prompt library dialog for variable substitution
-          setText(textBeforeLine + textAfterCursor);
-          setShowSlashMenu(false);
-          setShowPromptLibrary(true);
-          return;
-        }
-        // Auto-fill only — substitute immediately
-        const values: Record<string, string> = {};
-        // Auto-fill variables would be populated by the PromptLibraryDialog
-        const resolved = substituteVariables(cmd.content, values);
-        setText(textBeforeLine + textAfterCursor);
-        setPendingCommandName(`/${cmd.name}`);
-        setPendingCommandContent(resolved);
-        setShowSlashMenu(false);
-        return;
-      }
-
-      setText(textBeforeLine + `/${cmd.name}` + textAfterCursor);
-      setPendingCommandName(`/${cmd.name}`);
-      setPendingCommandContent(cmd.content);
-      setShowSlashMenu(false);
-    },
-    [text],
-  );
+  }, [canSend, text, droppedFiles, onSend, workspaceId, selectedModel, pendingCommandName, pendingCommandContent, stopVoice, clearDroppedFiles, setShowSlashMenu]);
 
   const selectAtItem = useCallback(
     (item: AtMenuItem) => {
@@ -711,30 +285,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Slash command menu keyboard navigation
-    if (showSlashMenu && matchingCommands.length > 0) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setSelectedSlashIndex((prev) =>
-          Math.min(prev + 1, matchingCommands.length - 1),
-        );
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSelectedSlashIndex((prev) => Math.max(prev - 1, 0));
-        return;
-      }
-      if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault();
-        selectSlashCommand(matchingCommands[selectedSlashIndex]);
-        return;
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setShowSlashMenu(false);
-        return;
-      }
-    }
+    if (handleSlashKeyDown(e)) return;
 
     // @mention menu keyboard navigation
     if (showAtMenu && atMenuItems.length > 0) {
@@ -852,13 +403,9 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     const currentLine = textBeforeCursor.substring(lineStart);
 
     // Detect slash command trigger: "/" at start of line
+    handleSlashInput(currentLine);
     if (currentLine.startsWith("/")) {
-      setShowSlashMenu(true);
-      setSlashFilter(currentLine.substring(1));
-      setSelectedSlashIndex(0);
       setShowAtMenu(false);
-    } else {
-      setShowSlashMenu(false);
     }
 
     // Detect @mention trigger
@@ -1222,7 +769,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
                     }}
                   >
                     <button
-                      onClick={handleAddAttachment}
+                      onClick={handleAddAttachmentFromMenu}
                       className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--bg-hover)]"
                       style={{ color: "var(--text-primary)" }}
                     >
