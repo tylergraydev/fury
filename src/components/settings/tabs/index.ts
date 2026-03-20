@@ -1,0 +1,12 @@
+export { AppearanceTab } from "./AppearanceTab";
+export { ProviderTab } from "./ProviderTab";
+export { CopilotTab } from "./CopilotTab";
+export { CodeSearchTab } from "./CodeSearchTab";
+export { CodeIntelTab } from "./CodeIntelTab";
+export { McpTab } from "./McpTab";
+export { MigrationTab } from "./MigrationTab";
+export { ExperimentalTab } from "./ExperimentalTab";
+export { UpdatesTab } from "./UpdatesTab";
+export { LinearTab } from "./LinearTab";
+export { AzureDevOpsTab } from "./AzureDevOpsTab";
+export type { SettingsTab } from "./types";
