@@ -58,11 +58,12 @@ pub fn run() {
             commands::workspace_links::stop_spotlight,
             // Agent commands
             commands::agent::send_message,
-            commands::agent::stop_agent,
-            commands::agent::get_agent_status,
-            commands::agent::clear_session,
             commands::agent::respond_to_permission,
             commands::agent::send_followup_message,
+            // Agent lifecycle commands
+            commands::agent_lifecycle::stop_agent,
+            commands::agent_lifecycle::get_agent_status,
+            commands::agent_lifecycle::clear_session,
             // Chat commands
             commands::chat::save_chat_message,
             commands::chat::list_chat_messages,

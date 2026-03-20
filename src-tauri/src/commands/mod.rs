@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod agent_lifecycle;
 pub mod bookmark;
 pub mod chat;
 pub mod checkpoint;
