@@ -4,10 +4,11 @@ import {
   X,
   GitFork,
   ChevronDown,
-  GitPullRequest,
-  CircleDot,
-  Search,
 } from "lucide-react";
+import { PrModeContent } from "./PrModeContent";
+import { IssueModeContent } from "./IssueModeContent";
+import { LinearModeContent } from "./LinearModeContent";
+import { TemplateModeContent } from "./TemplateModeContent";
 import {
   listBranches,
   listRepoPrs,
@@ -411,348 +412,56 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
 
         {/* PR selector */}
         {mode === "pr" && (
-          <div className="mb-4">
-            <div className="relative mb-2">
-              <Search
-                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
-                style={{ color: "var(--text-muted)" }}
-              />
-              <input
-                type="text"
-                value={prSearch}
-                onChange={(e) => setPrSearch(e.target.value)}
-                placeholder="Search pull requests..."
-                className="w-full rounded-lg py-2 pl-8 pr-3 text-xs"
-                style={inputStyle}
-                autoFocus
-              />
-            </div>
-            <div
-              className="max-h-40 overflow-y-auto rounded-lg"
-              style={{ border: "1px solid var(--border)" }}
-            >
-              {loadingPrs ? (
-                <div
-                  className="px-3 py-4 text-center text-xs"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Loading pull requests...
-                </div>
-              ) : prError ? (
-                <div
-                  className="px-3 py-4 text-center text-xs"
-                  style={{ color: "var(--error)" }}
-                >
-                  Failed to load pull requests: {prError}
-                </div>
-              ) : filteredPrs.length === 0 ? (
-                <div
-                  className="px-3 py-4 text-center text-xs"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  {prs.length === 0
-                    ? "No open pull requests"
-                    : "No matching pull requests"}
-                </div>
-              ) : (
-                filteredPrs.map((pr) => (
-                  <button
-                    key={pr.number}
-                    onClick={() => handleSelectPr(pr)}
-                    className="flex w-full items-start gap-2 px-3 py-2 text-left transition-colors"
-                    style={{
-                      backgroundColor:
-                        selectedPr?.number === pr.number
-                          ? "var(--bg-hover)"
-                          : "transparent",
-                      borderBottom: "1px solid var(--border)",
-                    }}
-                  >
-                    <GitPullRequest
-                      className="mt-0.5 h-3.5 w-3.5 shrink-0"
-                      style={{ color: "var(--accent-green)" }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div
-                        className="truncate text-xs"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        <span style={{ color: "var(--text-muted)" }}>
-                          #{pr.number}
-                        </span>{" "}
-                        {pr.title}
-                      </div>
-                      <div
-                        className="text-[11px]"
-                        style={{ color: "var(--text-muted)" }}
-                      >
-                        {pr.headBranch} &larr; {pr.baseBranch}
-                        {pr.author && ` by ${pr.author}`}
-                      </div>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
+          <PrModeContent
+            prs={prs}
+            filteredPrs={filteredPrs}
+            loadingPrs={loadingPrs}
+            prError={prError}
+            prSearch={prSearch}
+            selectedPr={selectedPr}
+            onSearchChange={setPrSearch}
+            onSelectPr={handleSelectPr}
+            inputStyle={inputStyle}
+          />
         )}
 
         {/* Issue selector */}
         {mode === "issue" && (
-          <div className="mb-4">
-            <div className="relative mb-2">
-              <Search
-                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
-                style={{ color: "var(--text-muted)" }}
-              />
-              <input
-                type="text"
-                value={issueSearch}
-                onChange={(e) => setIssueSearch(e.target.value)}
-                placeholder="Search issues..."
-                className="w-full rounded-lg py-2 pl-8 pr-3 text-xs"
-                style={inputStyle}
-                autoFocus
-              />
-            </div>
-            <div
-              className="max-h-40 overflow-y-auto rounded-lg"
-              style={{ border: "1px solid var(--border)" }}
-            >
-              {loadingIssues ? (
-                <div
-                  className="px-3 py-4 text-center text-xs"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Loading issues...
-                </div>
-              ) : issueError ? (
-                <div
-                  className="px-3 py-4 text-center text-xs"
-                  style={{ color: "var(--error)" }}
-                >
-                  Failed to load issues: {issueError}
-                </div>
-              ) : filteredIssues.length === 0 ? (
-                <div
-                  className="px-3 py-4 text-center text-xs"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  {/* v8 ignore next 2 -- ternary branch for empty vs filtered issues */
-                  issues.length === 0
-                    ? "No open issues"
-                    : "No matching issues"}
-                </div>
-              ) : (
-                filteredIssues.map((issue) => (
-                  <button
-                    key={issue.number}
-                    onClick={() => handleSelectIssue(issue)}
-                    className="flex w-full items-start gap-2 px-3 py-2 text-left transition-colors"
-                    style={{
-                      backgroundColor:
-                        selectedIssue?.number === issue.number
-                          ? "var(--bg-hover)"
-                          : "transparent",
-                      borderBottom: "1px solid var(--border)",
-                    }}
-                  >
-                    <CircleDot
-                      className="mt-0.5 h-3.5 w-3.5 shrink-0"
-                      style={{ color: "var(--accent-green)" }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div
-                        className="truncate text-xs"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        <span style={{ color: "var(--text-muted)" }}>
-                          #{issue.number}
-                        </span>{" "}
-                        {issue.title}
-                      </div>
-                      {issue.labels.length > 0 && (
-                        <div className="mt-0.5 flex gap-1">
-                          {issue.labels.slice(0, 3).map((label) => (
-                            <span
-                              key={label}
-                              className="rounded px-1.5 py-0.5 text-[10px]"
-                              style={{
-                                backgroundColor: "var(--bg-surface)",
-                                color: "var(--text-muted)",
-                              }}
-                            >
-                              {label}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
+          <IssueModeContent
+            issues={issues}
+            filteredIssues={filteredIssues}
+            loadingIssues={loadingIssues}
+            issueError={issueError}
+            issueSearch={issueSearch}
+            selectedIssue={selectedIssue}
+            onSearchChange={setIssueSearch}
+            onSelectIssue={handleSelectIssue}
+            inputStyle={inputStyle}
+          />
         )}
 
         {/* Linear issue selector */}
         {mode === "linear" && (
-          <div className="mb-4">
-            <div className="relative mb-2">
-              <Search
-                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
-                style={{ color: "var(--text-muted)" }}
-              />
-              <input
-                type="text"
-                value={linearSearch}
-                onChange={(e) => setLinearSearch(e.target.value)}
-                placeholder="Search Linear issues..."
-                className="w-full rounded-lg py-2 pl-8 pr-3 text-xs"
-                style={inputStyle}
-                autoFocus
-              />
-            </div>
-            <div
-              className="max-h-40 overflow-y-auto rounded-lg"
-              style={{
-                border: linearSearch
-                  ? "1px solid var(--border)"
-                  : "none",
-              }}
-            >
-              {/* v8 ignore next */ linearSearching ? (
-                <div
-                  className="px-3 py-4 text-center text-xs"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Searching...
-                </div>
-              ) : linearError ? (
-                <div
-                  className="px-3 py-4 text-center text-xs"
-                  style={{ color: "var(--error)" }}
-                >
-                  {linearError}
-                </div>
-              ) : !linearSearch.trim() ? (
-                <div
-                  className="px-3 py-4 text-center text-xs"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Type to search Linear issues
-                </div>
-              ) : linearIssues.length === 0 ? (
-                <div
-                  className="px-3 py-4 text-center text-xs"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  No matching issues
-                </div>
-              ) : (
-                linearIssues.map((issue) => (
-                  <button
-                    key={issue.id}
-                    onClick={() => handleSelectLinearIssue(issue)}
-                    className="flex w-full items-start gap-2 px-3 py-2 text-left transition-colors"
-                    style={{
-                      backgroundColor:
-                        selectedLinearIssue?.id === issue.id
-                          ? "var(--bg-hover)"
-                          : "transparent",
-                      borderBottom: "1px solid var(--border)",
-                    }}
-                  >
-                    <CircleDot
-                      className="mt-0.5 h-3.5 w-3.5 shrink-0"
-                      style={{ color: "var(--accent)" }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div
-                        className="truncate text-xs"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        <span style={{ color: "var(--text-muted)" }}>
-                          {issue.identifier}
-                        </span>{" "}
-                        {issue.title}
-                      </div>
-                      <div
-                        className="text-[11px]"
-                        style={{ color: "var(--text-muted)" }}
-                      >
-                        {[issue.teamName, issue.stateName]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </div>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
+          <LinearModeContent
+            linearIssues={linearIssues}
+            linearSearch={linearSearch}
+            linearSearching={linearSearching}
+            linearError={linearError}
+            selectedLinearIssue={selectedLinearIssue}
+            onSearchChange={setLinearSearch}
+            onSelectLinearIssue={handleSelectLinearIssue}
+            inputStyle={inputStyle}
+          />
         )}
 
         {/* Template selector */}
         {mode === "template" && (
-          <div className="mb-4">
-            <div
-              className="max-h-40 overflow-y-auto rounded-lg"
-              style={{ border: "1px solid var(--border)" }}
-            >
-              {loadingTemplates ? (
-                <div
-                  className="px-3 py-4 text-center text-xs"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Loading templates...
-                </div>
-              ) : templates.length === 0 ? (
-                <div
-                  className="px-3 py-4 text-center text-xs"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  No templates saved yet. Create one from Repo Settings.
-                </div>
-              ) : (
-                templates.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => handleSelectTemplate(t)}
-                    className="flex w-full items-start gap-2 px-3 py-2 text-left transition-colors"
-                    style={{
-                      backgroundColor:
-                        selectedTemplate?.id === t.id
-                          ? "var(--bg-hover)"
-                          : "transparent",
-                      borderBottom: "1px solid var(--border)",
-                    }}
-                  >
-                    <Sparkles
-                      className="mt-0.5 h-3.5 w-3.5 shrink-0"
-                      style={{ color: "var(--accent)" }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div
-                        className="truncate text-xs font-medium"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        {t.name}
-                      </div>
-                      {t.description && (
-                        <div
-                          className="truncate text-[11px]"
-                          style={{ color: "var(--text-muted)" }}
-                        >
-                          {t.description}
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
+          <TemplateModeContent
+            templates={templates}
+            loadingTemplates={loadingTemplates}
+            selectedTemplate={selectedTemplate}
+            onSelectTemplate={handleSelectTemplate}
+          />
         )}
 
         {/* Worktree Name */}
