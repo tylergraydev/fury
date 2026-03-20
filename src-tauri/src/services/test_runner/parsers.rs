@@ -1,256 +1,7 @@
 use std::collections::HashMap;
-use std::path::Path;
-use std::sync::{Arc, Mutex};
 
-use tauri::{AppHandle, Emitter};
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::{Child, Command};
-use uuid::Uuid;
-
-use crate::db::Database;
 use crate::error::AppError;
 use crate::models::test_runner::*;
-use crate::platform;
-
-/// Detect the test framework based on files present in the repo root.
-pub fn detect_framework(repo_path: &Path) -> Option<TestFramework> {
-    // Vitest
-    for name in &[
-        "vitest.config.ts",
-        "vitest.config.js",
-        "vitest.config.mts",
-        "vitest.config.mjs",
-    ] {
-        if repo_path.join(name).exists() {
-            return Some(TestFramework::Vitest);
-        }
-    }
-
-    // Jest (check config files first, then package.json)
-    for name in &["jest.config.js", "jest.config.ts", "jest.config.mjs"] {
-        if repo_path.join(name).exists() {
-            return Some(TestFramework::Jest);
-        }
-    }
-    if let Ok(contents) = std::fs::read_to_string(repo_path.join("package.json")) {
-        if contents.contains("\"jest\"") {
-            return Some(TestFramework::Jest);
-        }
-    }
-
-    // Pytest
-    if repo_path.join("pytest.ini").exists() || repo_path.join("conftest.py").exists() {
-        return Some(TestFramework::Pytest);
-    }
-    if let Ok(contents) = std::fs::read_to_string(repo_path.join("pyproject.toml")) {
-        if contents.contains("[tool.pytest") {
-            return Some(TestFramework::Pytest);
-        }
-    }
-    if let Ok(contents) = std::fs::read_to_string(repo_path.join("setup.cfg")) {
-        if contents.contains("[tool:pytest]") {
-            return Some(TestFramework::Pytest);
-        }
-    }
-
-    // Cargo test
-    if repo_path.join("Cargo.toml").exists() {
-        return Some(TestFramework::CargoTest);
-    }
-
-    // Go test
-    if repo_path.join("go.mod").exists() {
-        return Some(TestFramework::GoTest);
-    }
-
-    None
-}
-
-/// Return default commands for a given framework.
-pub fn default_commands(framework: &TestFramework) -> TestRunnerConfig {
-    match framework {
-        TestFramework::Vitest => TestRunnerConfig {
-            framework: Some(TestFramework::Vitest),
-            test_command: Some("npx vitest --reporter=json --run 2>/dev/null".to_string()),
-            test_file_command: Some(
-                "npx vitest --reporter=json --run {file} 2>/dev/null".to_string(),
-            ),
-            working_dir: None,
-            coverage_command: None,
-        },
-        TestFramework::Jest => TestRunnerConfig {
-            framework: Some(TestFramework::Jest),
-            test_command: Some("npx jest --json 2>/dev/null".to_string()),
-            test_file_command: Some("npx jest --json {file} 2>/dev/null".to_string()),
-            working_dir: None,
-            coverage_command: None,
-        },
-        TestFramework::Pytest => TestRunnerConfig {
-            framework: Some(TestFramework::Pytest),
-            test_command: Some("python -m pytest -v --tb=short".to_string()),
-            test_file_command: Some("python -m pytest -v --tb=short {file}".to_string()),
-            working_dir: None,
-            coverage_command: None,
-        },
-        TestFramework::CargoTest => TestRunnerConfig {
-            framework: Some(TestFramework::CargoTest),
-            test_command: Some("cargo test 2>&1".to_string()),
-            test_file_command: Some("cargo test {file} 2>&1".to_string()),
-            working_dir: None,
-            coverage_command: None,
-        },
-        TestFramework::GoTest => TestRunnerConfig {
-            framework: Some(TestFramework::GoTest),
-            test_command: Some("go test -v -json ./...".to_string()),
-            test_file_command: Some("go test -v -json {file}".to_string()),
-            working_dir: None,
-            coverage_command: None,
-        },
-        TestFramework::Custom => TestRunnerConfig {
-            framework: Some(TestFramework::Custom),
-            test_command: None,
-            test_file_command: None,
-            working_dir: None,
-            coverage_command: None,
-        },
-    }
-}
-
-/// Spawn a test process and stream output, then parse results on completion.
-#[allow(clippy::too_many_arguments)]
-pub async fn spawn_test_run(
-    context_id: Uuid,
-    command: &str,
-    working_dir: &Path,
-    framework: &TestFramework,
-    env_vars: HashMap<String, String>,
-    app_handle: AppHandle,
-    db: Arc<Mutex<Option<Database>>>,
-    repo_id: Uuid,
-) -> Result<Child, AppError> {
-    let shell = platform::default_shell();
-    let flag = platform::shell_exec_flag();
-
-    let mut cmd = Command::new(shell);
-    cmd.arg(flag)
-        .arg(command)
-        .current_dir(working_dir)
-        .envs(&env_vars)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped());
-
-    #[cfg(unix)]
-    unsafe {
-        cmd.pre_exec(|| {
-            libc::setpgid(0, 0);
-            Ok(())
-        });
-    }
-
-    #[cfg(windows)]
-    cmd.creation_flags(0x08000200); // CREATE_NO_WINDOW
-
-    let mut child = cmd.spawn().map_err(|e| {
-        AppError::ScriptError(format!("Failed to spawn test command: {}", e))
-    })?;
-
-    let event_name = format!("test-runner:{}", context_id);
-    let framework_clone = framework.clone();
-
-    // Collect stdout for parsing
-    let stdout_lines = std::sync::Arc::new(tokio::sync::Mutex::new(Vec::<String>::new()));
-
-    // Stream stdout
-    let stdout_handle = if let Some(stdout) = child.stdout.take() {
-        let app_out = app_handle.clone();
-        let event_out = event_name.clone();
-        let lines_ref = std::sync::Arc::clone(&stdout_lines);
-        Some(tokio::spawn(async move {
-            let reader = BufReader::new(stdout);
-            let mut lines = reader.lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                lines_ref.lock().await.push(line.clone());
-                let _ = app_out.emit(
-                    &event_out,
-                    &TestRunEvent::OutputLine {
-                        line,
-                        stream: "stdout".to_string(),
-                    },
-                );
-            }
-        }))
-    } else {
-        None
-    };
-
-    // Stream stderr
-    if let Some(stderr) = child.stderr.take() {
-        let app_err = app_handle.clone();
-        let event_err = event_name.clone();
-        tokio::spawn(async move {
-            let reader = BufReader::new(stderr);
-            let mut lines = reader.lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                let _ = app_err.emit(
-                    &event_err,
-                    &TestRunEvent::OutputLine {
-                        line,
-                        stream: "stderr".to_string(),
-                    },
-                );
-            }
-        });
-    }
-
-    // Background task: wait for stdout reader to finish, then parse output and emit results
-    let app_final = app_handle.clone();
-    let event_final = event_name;
-    let lines_final = stdout_lines;
-    tokio::spawn(async move {
-        // Wait for the stdout reader to finish (i.e., process closed its stdout)
-        if let Some(handle) = stdout_handle {
-            let _ = handle.await;
-        }
-
-        let collected = lines_final.lock().await;
-        let full_stdout = collected.join("\n");
-        drop(collected);
-
-        let summary = parse_output(&framework_clone, &full_stdout);
-        match summary {
-            Ok(s) => {
-                // Persist test run history
-                if let Ok(db_guard) = db.lock() {
-                    if let Some(ref db_ref) = *db_guard {
-                        let _ = db_ref.insert_test_run(&repo_id, &s);
-                    }
-                }
-                let _ = app_final.emit(&event_final, &TestRunEvent::RunComplete { summary: s });
-            }
-            Err(e) => {
-                let _ = app_final.emit(
-                    &event_final,
-                    &TestRunEvent::Error {
-                        message: format!("Failed to parse test output: {}", e),
-                    },
-                );
-            }
-        }
-    });
-
-    Ok(child)
-}
-
-/// Parse test output based on framework.
-pub fn parse_output(framework: &TestFramework, stdout: &str) -> Result<TestRunSummary, AppError> {
-    match framework {
-        TestFramework::Vitest | TestFramework::Jest => parse_vitest_json(stdout),
-        TestFramework::Pytest => parse_pytest_verbose(stdout),
-        TestFramework::CargoTest => parse_cargo_test(stdout),
-        TestFramework::GoTest => parse_go_test_json(stdout),
-        TestFramework::Custom => parse_generic(stdout),
-    }
-}
 
 // ─── Vitest / Jest JSON Parser ───
 
@@ -298,14 +49,13 @@ struct VitestAssertion {
 
 pub fn parse_vitest_json(stdout: &str) -> Result<TestRunSummary, AppError> {
     // The JSON output might be preceded by non-JSON lines; find the first '{'
-    let json_start = stdout.find('{').ok_or_else(|| {
-        AppError::ScriptError("No JSON found in test output".to_string())
-    })?;
+    let json_start = stdout
+        .find('{')
+        .ok_or_else(|| AppError::ScriptError("No JSON found in test output".to_string()))?;
     // Find the matching closing brace
     let json_str = &stdout[json_start..];
-    let output: VitestOutput = serde_json::from_str(json_str).map_err(|e| {
-        AppError::ScriptError(format!("Failed to parse vitest/jest JSON: {}", e))
-    })?;
+    let output: VitestOutput = serde_json::from_str(json_str)
+        .map_err(|e| AppError::ScriptError(format!("Failed to parse vitest/jest JSON: {}", e)))?;
 
     let mut suites = Vec::new();
     let mut total_duration = 0.0;
@@ -393,10 +143,9 @@ pub fn parse_pytest_verbose(stdout: &str) -> Result<TestRunSummary, AppError> {
     let mut in_failures_section = false;
 
     for line in stdout.lines() {
-        if line.starts_with("= FAILURES =") || line.starts_with("=== FAILURES ===")
-            || line.contains("FAILURES")
-                && line.starts_with('=')
-                && line.ends_with('=')
+        if line.starts_with("= FAILURES =")
+            || line.starts_with("=== FAILURES ===")
+            || line.contains("FAILURES") && line.starts_with('=') && line.ends_with('=')
         {
             in_failures_section = true;
             continue;
@@ -709,7 +458,10 @@ pub fn parse_go_test_json(stdout: &str) -> Result<TestRunSummary, AppError> {
             Some(t) => t.clone(),
             None => continue,
         };
-        let package = event.package.clone().unwrap_or_else(|| "(unknown)".to_string());
+        let package = event
+            .package
+            .clone()
+            .unwrap_or_else(|| "(unknown)".to_string());
         let key = format!("{}::{}", package, test_name);
 
         match event.action.as_str() {
@@ -854,7 +606,7 @@ pub fn parse_generic(stdout: &str) -> Result<TestRunSummary, AppError> {
 
 // ─── Helpers ───
 
-fn make_relative_path(path: &str) -> String {
+pub(crate) fn make_relative_path(path: &str) -> String {
     // Try to extract a relative path from an absolute one
     // Look for common project directories
     for marker in &["/src/", "/tests/", "/test/", "/spec/", "/e2e/"] {
@@ -871,184 +623,20 @@ fn make_relative_path(path: &str) -> String {
     }
 }
 
-// ─── Coverage Parsing ───
-
-/// Parse Istanbul v8 coverage-final.json format (Vitest/Jest)
-pub fn parse_istanbul_coverage(json_str: &str) -> Result<CoverageReport, AppError> {
-    let raw: serde_json::Value =
-        serde_json::from_str(json_str).map_err(|e| AppError::ScriptError(e.to_string()))?;
-
-    let obj = raw
-        .as_object()
-        .ok_or_else(|| AppError::ScriptError("Coverage JSON is not an object".to_string()))?;
-
-    let mut files = Vec::new();
-    let mut total_covered = 0u64;
-    let mut total_statements = 0u64;
-
-    for (file_path, data) in obj {
-        let s_map = data.get("s").and_then(|v| v.as_object());
-        let statement_map = data.get("statementMap").and_then(|v| v.as_object());
-
-        let (covered, total_s, uncovered) = if let (Some(s), Some(sm)) = (s_map, statement_map) {
-            let mut covered = 0u64;
-            let mut uncovered_lines = Vec::new();
-
-            for (key, count) in s {
-                let c = count.as_u64().unwrap_or(0);
-                if c > 0 {
-                    covered += 1;
-                } else if let Some(mapping) = sm.get(key) {
-                    if let Some(start) = mapping.get("start").and_then(|s| s.get("line")).and_then(|l| l.as_u64()) {
-                        uncovered_lines.push(start as u32);
-                    }
-                }
-            }
-            (covered, s.len() as u64, uncovered_lines)
-        } else {
-            (0, 0, vec![])
-        };
-
-        let lines_pct = if total_s > 0 {
-            (covered as f32 / total_s as f32) * 100.0
-        } else {
-            100.0
-        };
-
-        total_covered += covered;
-        total_statements += total_s;
-
-        files.push(FileCoverage {
-            file: make_relative_path(file_path),
-            lines_pct,
-            branches_pct: 0.0, // simplified — branch coverage requires parsing 'b' map
-            uncovered_lines: uncovered,
-        });
-    }
-
-    let total_lines_pct = if total_statements > 0 {
-        (total_covered as f32 / total_statements as f32) * 100.0
-    } else {
-        100.0
-    };
-
-    Ok(CoverageReport {
-        files,
-        total_lines_pct,
-        total_branches_pct: 0.0,
-    })
-}
-
-/// Parse pytest-cov terminal table output
-pub fn parse_pytest_cov(stdout: &str) -> Result<CoverageReport, AppError> {
-    let mut files = Vec::new();
-    let mut in_table = false;
-
-    for line in stdout.lines() {
-        let trimmed = line.trim();
-
-        // Detect table header
-        if trimmed.starts_with("Name") && trimmed.contains("Cover") {
-            in_table = true;
-            continue;
-        }
-        if trimmed.starts_with("---") || trimmed.starts_with("===") {
-            continue;
-        }
-        if trimmed.starts_with("TOTAL") {
-            // Parse total line
-            let parts: Vec<&str> = trimmed.split_whitespace().collect();
-            if parts.len() >= 4 {
-                if let Some(pct_str) = parts.last() {
-                    let pct = pct_str.trim_end_matches('%').parse::<f32>().unwrap_or(0.0);
-                    return Ok(CoverageReport {
-                        files,
-                        total_lines_pct: pct,
-                        total_branches_pct: 0.0,
-                    });
-                }
-            }
-            break;
-        }
-
-        if in_table && !trimmed.is_empty() {
-            let parts: Vec<&str> = trimmed.split_whitespace().collect();
-            if parts.len() >= 4 {
-                let file = parts[0].to_string();
-                let cover_pct = parts
-                    .iter()
-                    .rev()
-                    .find_map(|p| p.trim_end_matches('%').parse::<f32>().ok())
-                    .unwrap_or(0.0);
-                files.push(FileCoverage {
-                    file,
-                    lines_pct: cover_pct,
-                    branches_pct: 0.0,
-                    uncovered_lines: vec![],
-                });
-            }
-        }
-    }
-
-    // If we didn't find a TOTAL line, compute from files
-    let total_pct = if files.is_empty() {
-        0.0
-    } else {
-        files.iter().map(|f| f.lines_pct).sum::<f32>() / files.len() as f32
-    };
-
-    Ok(CoverageReport {
-        files,
-        total_lines_pct: total_pct,
-        total_branches_pct: 0.0,
-    })
-}
-
-/// Default coverage commands for each framework
-pub fn default_coverage_command(framework: &TestFramework) -> Option<String> {
+/// Parse test output based on framework.
+pub fn parse_output(framework: &TestFramework, stdout: &str) -> Result<TestRunSummary, AppError> {
     match framework {
-        TestFramework::Vitest => Some("npx vitest --coverage --reporter=json --run 2>/dev/null".to_string()),
-        TestFramework::Jest => Some("npx jest --coverage --json 2>/dev/null".to_string()),
-        TestFramework::Pytest => Some("python -m pytest --cov --cov-report=term -q".to_string()),
-        _ => None,
+        TestFramework::Vitest | TestFramework::Jest => parse_vitest_json(stdout),
+        TestFramework::Pytest => parse_pytest_verbose(stdout),
+        TestFramework::CargoTest => parse_cargo_test(stdout),
+        TestFramework::GoTest => parse_go_test_json(stdout),
+        TestFramework::Custom => parse_generic(stdout),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_detect_framework_none() {
-        let tmp = std::env::temp_dir().join("fury_test_empty");
-        let _ = std::fs::create_dir_all(&tmp);
-        assert_eq!(detect_framework(&tmp), None);
-        let _ = std::fs::remove_dir_all(&tmp);
-    }
-
-    #[test]
-    fn test_detect_framework_vitest() {
-        let tmp = std::env::temp_dir().join("fury_test_vitest");
-        let _ = std::fs::create_dir_all(&tmp);
-        std::fs::write(tmp.join("vitest.config.ts"), "export default {}").unwrap();
-        assert_eq!(detect_framework(&tmp), Some(TestFramework::Vitest));
-        let _ = std::fs::remove_dir_all(&tmp);
-    }
-
-    #[test]
-    fn test_detect_framework_cargo() {
-        let tmp = std::env::temp_dir().join("fury_test_cargo");
-        let _ = std::fs::create_dir_all(&tmp);
-        std::fs::write(tmp.join("Cargo.toml"), "[package]").unwrap();
-        assert_eq!(detect_framework(&tmp), Some(TestFramework::CargoTest));
-        let _ = std::fs::remove_dir_all(&tmp);
-    }
-
-    #[test]
-    fn test_default_commands_vitest() {
-        let config = default_commands(&TestFramework::Vitest);
-        assert!(config.test_command.unwrap().contains("vitest"));
-    }
 
     #[test]
     fn test_parse_vitest_json() {
@@ -1177,166 +765,34 @@ ZeroDivisionError: division by zero
         assert_eq!(summary.failed, 1);
     }
 
-    // --- detect_framework additional tests ---
-
-    #[test]
-    fn test_detect_framework_jest_config() {
-        let tmp = tempfile::tempdir().unwrap();
-        std::fs::write(tmp.path().join("jest.config.js"), "module.exports = {}").unwrap();
-        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Jest));
-    }
-
-    #[test]
-    fn test_detect_framework_jest_from_package_json() {
-        let tmp = tempfile::tempdir().unwrap();
-        std::fs::write(tmp.path().join("package.json"), r#"{"jest":{"testEnvironment":"jsdom"}}"#).unwrap();
-        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Jest));
-    }
-
-    #[test]
-    fn test_detect_framework_pytest_ini() {
-        let tmp = tempfile::tempdir().unwrap();
-        std::fs::write(tmp.path().join("pytest.ini"), "[pytest]").unwrap();
-        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Pytest));
-    }
-
-    #[test]
-    fn test_detect_framework_conftest() {
-        let tmp = tempfile::tempdir().unwrap();
-        std::fs::write(tmp.path().join("conftest.py"), "import pytest").unwrap();
-        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Pytest));
-    }
-
-    #[test]
-    fn test_detect_framework_pyproject_toml() {
-        let tmp = tempfile::tempdir().unwrap();
-        std::fs::write(tmp.path().join("pyproject.toml"), "[tool.pytest.ini_options]\naddopts = \"-v\"").unwrap();
-        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Pytest));
-    }
-
-    #[test]
-    fn test_detect_framework_setup_cfg() {
-        let tmp = tempfile::tempdir().unwrap();
-        std::fs::write(tmp.path().join("setup.cfg"), "[tool:pytest]\naddopts = -v").unwrap();
-        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Pytest));
-    }
-
-    #[test]
-    fn test_detect_framework_go() {
-        let tmp = tempfile::tempdir().unwrap();
-        std::fs::write(tmp.path().join("go.mod"), "module example.com/mymod").unwrap();
-        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::GoTest));
-    }
-
-    #[test]
-    fn test_detect_framework_vitest_mts() {
-        let tmp = tempfile::tempdir().unwrap();
-        std::fs::write(tmp.path().join("vitest.config.mts"), "export default {}").unwrap();
-        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Vitest));
-    }
-
-    #[test]
-    fn test_detect_framework_vitest_mjs() {
-        let tmp = tempfile::tempdir().unwrap();
-        std::fs::write(tmp.path().join("vitest.config.mjs"), "export default {}").unwrap();
-        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Vitest));
-    }
-
-    #[test]
-    fn test_detect_framework_priority_vitest_over_jest() {
-        // If both vitest and jest configs exist, vitest should win
-        let tmp = tempfile::tempdir().unwrap();
-        std::fs::write(tmp.path().join("vitest.config.ts"), "export default {}").unwrap();
-        std::fs::write(tmp.path().join("jest.config.js"), "module.exports = {}").unwrap();
-        assert_eq!(detect_framework(tmp.path()), Some(TestFramework::Vitest));
-    }
-
-    // --- default_commands tests ---
-
-    #[test]
-    fn test_default_commands_jest() {
-        let config = default_commands(&TestFramework::Jest);
-        assert!(config.test_command.unwrap().contains("jest"));
-    }
-
-    #[test]
-    fn test_default_commands_pytest() {
-        let config = default_commands(&TestFramework::Pytest);
-        assert!(config.test_command.unwrap().contains("pytest"));
-    }
-
-    #[test]
-    fn test_default_commands_cargo() {
-        let config = default_commands(&TestFramework::CargoTest);
-        assert!(config.test_command.unwrap().contains("cargo test"));
-    }
-
-    #[test]
-    fn test_default_commands_go() {
-        let config = default_commands(&TestFramework::GoTest);
-        assert!(config.test_command.unwrap().contains("go test"));
-    }
-
-    #[test]
-    fn test_default_commands_custom() {
-        let config = default_commands(&TestFramework::Custom);
-        assert!(config.test_command.is_none());
-        assert!(config.test_file_command.is_none());
-    }
-
-    // --- default_coverage_command tests ---
-
-    #[test]
-    fn test_default_coverage_command_vitest() {
-        assert!(default_coverage_command(&TestFramework::Vitest).unwrap().contains("coverage"));
-    }
-
-    #[test]
-    fn test_default_coverage_command_jest() {
-        assert!(default_coverage_command(&TestFramework::Jest).unwrap().contains("coverage"));
-    }
-
-    #[test]
-    fn test_default_coverage_command_pytest() {
-        assert!(default_coverage_command(&TestFramework::Pytest).unwrap().contains("cov"));
-    }
-
-    #[test]
-    fn test_default_coverage_command_cargo_none() {
-        assert!(default_coverage_command(&TestFramework::CargoTest).is_none());
-    }
-
-    #[test]
-    fn test_default_coverage_command_go_none() {
-        assert!(default_coverage_command(&TestFramework::GoTest).is_none());
-    }
-
-    // --- parse_pytest_line tests ---
-
     #[test]
     fn test_parse_pytest_line_passed() {
-        let (path, status) = parse_pytest_line("tests/test_math.py::test_add PASSED  [ 50%]").unwrap();
+        let (path, status) =
+            parse_pytest_line("tests/test_math.py::test_add PASSED  [ 50%]").unwrap();
         assert_eq!(path, "tests/test_math.py::test_add");
         assert_eq!(status, "PASSED");
     }
 
     #[test]
     fn test_parse_pytest_line_failed() {
-        let (path, status) = parse_pytest_line("tests/test_math.py::test_div FAILED [100%]").unwrap();
+        let (path, status) =
+            parse_pytest_line("tests/test_math.py::test_div FAILED [100%]").unwrap();
         assert_eq!(path, "tests/test_math.py::test_div");
         assert_eq!(status, "FAILED");
     }
 
     #[test]
     fn test_parse_pytest_line_skipped() {
-        let (path, status) = parse_pytest_line("tests/test_math.py::test_skip SKIPPED [ 75%]").unwrap();
+        let (path, status) =
+            parse_pytest_line("tests/test_math.py::test_skip SKIPPED [ 75%]").unwrap();
         assert_eq!(path, "tests/test_math.py::test_skip");
         assert_eq!(status, "SKIPPED");
     }
 
     #[test]
     fn test_parse_pytest_line_error() {
-        let (path, status) = parse_pytest_line("tests/test_math.py::test_err ERROR [100%]").unwrap();
+        let (path, status) =
+            parse_pytest_line("tests/test_math.py::test_err ERROR [100%]").unwrap();
         assert_eq!(path, "tests/test_math.py::test_err");
         assert_eq!(status, "ERROR");
     }
@@ -1348,12 +804,11 @@ ZeroDivisionError: division by zero
 
     #[test]
     fn test_parse_pytest_line_class_method() {
-        let (path, status) = parse_pytest_line("tests/test_cls.py::TestClass::test_method PASSED [100%]").unwrap();
+        let (path, status) =
+            parse_pytest_line("tests/test_cls.py::TestClass::test_method PASSED [100%]").unwrap();
         assert_eq!(path, "tests/test_cls.py::TestClass::test_method");
         assert_eq!(status, "PASSED");
     }
-
-    // --- split_pytest_path tests ---
 
     #[test]
     fn test_split_pytest_path_simple() {
@@ -1376,39 +831,50 @@ ZeroDivisionError: division by zero
         assert_eq!(name, "test_bar");
     }
 
-    // --- make_relative_path tests ---
-
     #[test]
     fn test_make_relative_path_tests_dir() {
-        assert_eq!(make_relative_path("/home/user/project/tests/test_foo.py"), "tests/test_foo.py");
+        assert_eq!(
+            make_relative_path("/home/user/project/tests/test_foo.py"),
+            "tests/test_foo.py"
+        );
     }
 
     #[test]
     fn test_make_relative_path_test_dir() {
-        assert_eq!(make_relative_path("/home/user/project/test/foo.spec.ts"), "test/foo.spec.ts");
+        assert_eq!(
+            make_relative_path("/home/user/project/test/foo.spec.ts"),
+            "test/foo.spec.ts"
+        );
     }
 
     #[test]
     fn test_make_relative_path_spec_dir() {
-        assert_eq!(make_relative_path("/home/user/project/spec/helper.rb"), "spec/helper.rb");
+        assert_eq!(
+            make_relative_path("/home/user/project/spec/helper.rb"),
+            "spec/helper.rb"
+        );
     }
 
     #[test]
     fn test_make_relative_path_e2e_dir() {
-        assert_eq!(make_relative_path("/home/user/project/e2e/login.test.ts"), "e2e/login.test.ts");
+        assert_eq!(
+            make_relative_path("/home/user/project/e2e/login.test.ts"),
+            "e2e/login.test.ts"
+        );
     }
 
     #[test]
     fn test_make_relative_path_no_marker_extracts_filename() {
-        assert_eq!(make_relative_path("/home/user/project/lib/utils.ts"), "utils.ts");
+        assert_eq!(
+            make_relative_path("/home/user/project/lib/utils.ts"),
+            "utils.ts"
+        );
     }
 
     #[test]
     fn test_make_relative_path_no_slashes() {
         assert_eq!(make_relative_path("test.ts"), "test.ts");
     }
-
-    // --- parse_vitest_json additional tests ---
 
     #[test]
     fn test_parse_vitest_json_no_json() {
@@ -1499,8 +965,6 @@ ZeroDivisionError: division by zero
         assert!(summary.suites.is_empty());
     }
 
-    // --- parse_cargo_test additional tests ---
-
     #[test]
     fn test_parse_cargo_test_ignored() {
         let output = "test my_mod::my_test ... ignored\n";
@@ -1544,19 +1008,20 @@ test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured
         assert_eq!(summary.failed, 1);
         let test = &summary.suites[0].tests[0];
         assert!(test.failure_message.is_some());
-        assert!(test.failure_message.as_ref().unwrap().contains("assertion failed"));
+        assert!(test
+            .failure_message
+            .as_ref()
+            .unwrap()
+            .contains("assertion failed"));
     }
 
     #[test]
     fn test_parse_cargo_test_unknown_result() {
         let output = "test my_mod::test_bench ... bench: 100 ns/iter\n";
         let summary = parse_cargo_test(output).unwrap();
-        // "bench: 100 ns/iter" doesn't match known results, skipped as unknown
         assert_eq!(summary.total, 1);
         assert_eq!(summary.skipped, 1);
     }
-
-    // --- parse_go_test_json additional tests ---
 
     #[test]
     fn test_parse_go_test_json_skip() {
@@ -1586,7 +1051,6 @@ test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured
     fn test_parse_go_test_json_no_test_field_skipped() {
         let output = r#"{"Action":"pass","Package":"pkg","Elapsed":1.0}"#;
         let summary = parse_go_test_json(output).unwrap();
-        // Events without Test field are skipped
         assert_eq!(summary.total, 0);
     }
 
@@ -1609,7 +1073,6 @@ test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured
     fn test_parse_go_test_json_duration_conversion() {
         let output = r#"{"Action":"pass","Package":"pkg","Test":"TestA","Elapsed":1.5}"#;
         let summary = parse_go_test_json(output).unwrap();
-        // 1.5 seconds = 1500ms
         assert_eq!(summary.suites[0].tests[0].duration_ms, Some(1500.0));
     }
 
@@ -1619,8 +1082,6 @@ test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured
         let summary = parse_go_test_json(output).unwrap();
         assert_eq!(summary.suites[0].name, "(unknown)");
     }
-
-    // --- parse_generic additional tests ---
 
     #[test]
     fn test_parse_generic_empty() {
@@ -1656,8 +1117,6 @@ test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured
         assert!(summary.suites[0].tests[0].failure_message.is_some());
     }
 
-    // --- parse_output dispatch tests ---
-
     #[test]
     fn test_parse_output_dispatches_to_vitest() {
         let json = r#"{"numTotalTests":1,"numPassedTests":1,"numFailedTests":0,"numPendingTests":0,"testResults":[]}"#;
@@ -1679,8 +1138,6 @@ test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured
         assert_eq!(summary.total, 1);
     }
 
-    // --- parse_pytest_verbose additional tests ---
-
     #[test]
     fn test_parse_pytest_verbose_empty() {
         let summary = parse_pytest_verbose("").unwrap();
@@ -1699,89 +1156,10 @@ test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured
 
     #[test]
     fn test_parse_pytest_verbose_multiple_suites() {
-        let output = "tests/test_a.py::test_one PASSED [50%]\ntests/test_b.py::test_two FAILED [100%]";
+        let output =
+            "tests/test_a.py::test_one PASSED [50%]\ntests/test_b.py::test_two FAILED [100%]";
         let summary = parse_pytest_verbose(output).unwrap();
         assert_eq!(summary.total, 2);
         assert_eq!(summary.suites.len(), 2);
-    }
-
-    // --- parse_istanbul_coverage tests ---
-
-    #[test]
-    fn test_parse_istanbul_coverage_basic() {
-        let json = r#"{
-            "/home/user/src/app.ts": {
-                "s": {"0": 5, "1": 0, "2": 3},
-                "statementMap": {
-                    "0": {"start": {"line": 1, "column": 0}, "end": {"line": 1, "column": 10}},
-                    "1": {"start": {"line": 5, "column": 0}, "end": {"line": 5, "column": 10}},
-                    "2": {"start": {"line": 10, "column": 0}, "end": {"line": 10, "column": 10}}
-                }
-            }
-        }"#;
-        let report = parse_istanbul_coverage(json).unwrap();
-        assert_eq!(report.files.len(), 1);
-        assert_eq!(report.files[0].uncovered_lines, vec![5]);
-        // 2/3 covered = ~66.67%
-        assert!(report.total_lines_pct > 66.0 && report.total_lines_pct < 67.0);
-    }
-
-    #[test]
-    fn test_parse_istanbul_coverage_empty_object() {
-        let report = parse_istanbul_coverage("{}").unwrap();
-        assert!(report.files.is_empty());
-        assert_eq!(report.total_lines_pct, 100.0);
-    }
-
-    #[test]
-    fn test_parse_istanbul_coverage_invalid_json() {
-        assert!(parse_istanbul_coverage("not json").is_err());
-    }
-
-    #[test]
-    fn test_parse_istanbul_coverage_not_object() {
-        assert!(parse_istanbul_coverage("[1,2,3]").is_err());
-    }
-
-    #[test]
-    fn test_parse_istanbul_coverage_no_statement_map() {
-        let json = r#"{"/src/app.ts": {"s": {"0": 1}}}"#;
-        let report = parse_istanbul_coverage(json).unwrap();
-        assert_eq!(report.files[0].lines_pct, 100.0); // no statement map, falls to (0,0)
-    }
-
-    // --- parse_pytest_cov tests ---
-
-    #[test]
-    fn test_parse_pytest_cov_basic() {
-        let output = r#"
-Name                      Stmts   Miss  Cover
------------------------------------------------
-src/app.py                   50     10    80%
-src/utils.py                 30      5    83%
------------------------------------------------
-TOTAL                        80     15    81%
-"#;
-        let report = parse_pytest_cov(output).unwrap();
-        assert_eq!(report.files.len(), 2);
-        assert_eq!(report.total_lines_pct, 81.0);
-        assert_eq!(report.files[0].file, "src/app.py");
-        assert_eq!(report.files[0].lines_pct, 80.0);
-    }
-
-    #[test]
-    fn test_parse_pytest_cov_empty() {
-        let report = parse_pytest_cov("").unwrap();
-        assert!(report.files.is_empty());
-        assert_eq!(report.total_lines_pct, 0.0);
-    }
-
-    #[test]
-    fn test_parse_pytest_cov_no_total_line() {
-        let output = "Name    Stmts   Miss  Cover\n---\nsrc/a.py  10  2  80%\nsrc/b.py  20  10  50%\n";
-        let report = parse_pytest_cov(output).unwrap();
-        assert_eq!(report.files.len(), 2);
-        // Average of 80 and 50 = 65
-        assert_eq!(report.total_lines_pct, 65.0);
     }
 }
