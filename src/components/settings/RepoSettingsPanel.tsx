@@ -4,9 +4,11 @@ import {
   type ProviderType,
   getRepoSettings,
   updateRepoSettings,
+  detectDevcontainer,
 } from "../../lib/tauri";
 import { WorkspaceTemplateDialog } from "../workspace/WorkspaceTemplateDialog";
 import { useWorkspaceTemplateStore } from "../../stores/workspaceTemplateStore";
+import ContainerizePanel from "../devcontainer/ContainerizePanel";
 
 const PROVIDER_ENV_HINTS: Record<ProviderType, string[]> = {
   Anthropic: ["ANTHROPIC_API_KEY"],
@@ -32,12 +34,14 @@ interface RepoSettingsPanelProps {
   repoId: string;
   repoName: string;
   onClose: () => void;
+  workspaceId?: string;
 }
 
 export function RepoSettingsPanel({
   repoId,
   repoName,
   onClose,
+  workspaceId,
 }: RepoSettingsPanelProps) {
   const [settings, setSettings] = useState<RepoSettings>({
     setupScript: null,
@@ -55,6 +59,7 @@ export function RepoSettingsPanel({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [detectedDevcontainer, setDetectedDevcontainer] = useState<string | null>(null);
   const { templates, loadTemplates, deleteTemplate } = useWorkspaceTemplateStore();
 
   useEffect(() => {
@@ -62,6 +67,9 @@ export function RepoSettingsPanel({
       .then(setSettings)
       .catch((e) => setError(String(e)));
     loadTemplates(repoId);
+    detectDevcontainer(repoId)
+      .then(setDetectedDevcontainer)
+      .catch(() => setDetectedDevcontainer(null));
   }, [repoId]);
 
   const handleSave = async () => {
@@ -456,6 +464,16 @@ export function RepoSettingsPanel({
             >
               Dev Container
             </label>
+            {/* Quick containerize option */}
+            {workspaceId && !settings.devcontainer?.enabled && (
+              <ContainerizePanel
+                workspaceId={workspaceId}
+                existingDevcontainer={detectedDevcontainer}
+                onContainerized={() => {
+                  getRepoSettings(repoId).then(setSettings).catch(() => {});
+                }}
+              />
+            )}
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-primary)" }}>
                 <input

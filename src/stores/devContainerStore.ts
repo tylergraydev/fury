@@ -8,6 +8,8 @@ import {
   stopContainer,
   rebuildContainer,
   updateDevcontainerConfig,
+  containerizeRepo,
+  applyDevcontainerConfig,
 } from "../lib/tauri";
 
 function errorMessage(e: unknown): string {
@@ -20,6 +22,9 @@ interface DevContainerStore {
   containerStates: Record<string, ContainerState>;
   loading: Record<string, boolean>;
   error: Record<string, string | null>;
+  containerizing: Record<string, boolean>;
+  proposedConfig: Record<string, string>;
+  containerizeError: Record<string, string | null>;
 
   fetchStatus: (workspaceId: string) => Promise<void>;
   start: (workspaceId: string) => Promise<void>;
@@ -34,12 +39,23 @@ interface DevContainerStore {
     status: ContainerStatus,
     containerId: string | null,
   ) => void;
+  containerize: (workspaceId: string) => Promise<void>;
+  applyConfig: (
+    workspaceId: string,
+    configJson: string,
+    commitToRepo: boolean,
+    devcontainerPath?: string,
+  ) => Promise<void>;
+  clearProposedConfig: (workspaceId: string) => void;
 }
 
 export const useDevContainerStore = create<DevContainerStore>((set) => ({
   containerStates: {},
   loading: {},
   error: {},
+  containerizing: {},
+  proposedConfig: {},
+  containerizeError: {},
 
   fetchStatus: async (workspaceId: string) => {
     try {
@@ -156,6 +172,65 @@ export const useDevContainerStore = create<DevContainerStore>((set) => ({
           },
         },
       };
+    });
+  },
+
+  containerize: async (workspaceId: string) => {
+    set((s) => ({
+      containerizing: { ...s.containerizing, [workspaceId]: true },
+      containerizeError: { ...s.containerizeError, [workspaceId]: null },
+    }));
+    try {
+      const json = await containerizeRepo(workspaceId);
+      set((s) => ({
+        proposedConfig: { ...s.proposedConfig, [workspaceId]: json },
+        containerizing: { ...s.containerizing, [workspaceId]: false },
+      }));
+    } catch (e) {
+      set((s) => ({
+        containerizing: { ...s.containerizing, [workspaceId]: false },
+        containerizeError: {
+          ...s.containerizeError,
+          [workspaceId]: e instanceof Error ? e.message : String(e),
+        },
+      }));
+    }
+  },
+
+  applyConfig: async (
+    workspaceId: string,
+    configJson: string,
+    commitToRepo: boolean,
+    devcontainerPath?: string,
+  ) => {
+    set((s) => ({
+      containerizeError: { ...s.containerizeError, [workspaceId]: null },
+    }));
+    try {
+      await applyDevcontainerConfig(
+        workspaceId,
+        configJson,
+        commitToRepo,
+        devcontainerPath,
+      );
+      set((s) => {
+        const { [workspaceId]: _, ...rest } = s.proposedConfig;
+        return { proposedConfig: rest };
+      });
+    } catch (e) {
+      set((s) => ({
+        containerizeError: {
+          ...s.containerizeError,
+          [workspaceId]: e instanceof Error ? e.message : String(e),
+        },
+      }));
+    }
+  },
+
+  clearProposedConfig: (workspaceId: string) => {
+    set((s) => {
+      const { [workspaceId]: _, ...rest } = s.proposedConfig;
+      return { proposedConfig: rest };
     });
   },
 }));

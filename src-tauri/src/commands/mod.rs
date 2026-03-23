@@ -4,6 +4,7 @@ pub mod bookmark;
 pub mod chat;
 pub mod checkpoint;
 pub mod claude_context;
+pub mod containerize;
 pub mod devcontainer;
 pub mod copilot;
 pub mod diff_watcher;
