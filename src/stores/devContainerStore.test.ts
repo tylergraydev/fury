@@ -7,6 +7,8 @@ vi.mock("../lib/tauri", () => ({
   stopContainer: vi.fn(),
   rebuildContainer: vi.fn(),
   updateDevcontainerConfig: vi.fn(),
+  containerizeRepo: vi.fn(),
+  applyDevcontainerConfig: vi.fn(),
 }));
 
 import {
@@ -15,6 +17,8 @@ import {
   stopContainer,
   rebuildContainer,
   updateDevcontainerConfig,
+  containerizeRepo,
+  applyDevcontainerConfig,
 } from "../lib/tauri";
 
 function makeContainerState(workspaceId: string) {
@@ -33,6 +37,9 @@ describe("devContainerStore", () => {
       containerStates: {},
       loading: {},
       error: {},
+      containerizing: {},
+      proposedConfig: {},
+      containerizeError: {},
     });
     vi.clearAllMocks();
   });
@@ -282,6 +289,78 @@ describe("devContainerStore", () => {
       expect(state?.status).toBe("stopped");
       expect(state?.containerId).toBe("old-id");
       expect(state?.containerName).toBe("my-container");
+    });
+  });
+
+  describe("containerize actions", () => {
+    const workspaceId = "test-ws-id";
+
+    it("containerize sets containerizing flag and stores proposed config on success", async () => {
+      const mockJson = '{"image":"node:18"}';
+      vi.mocked(containerizeRepo).mockResolvedValue(mockJson);
+
+      await useDevContainerStore.getState().containerize(workspaceId);
+
+      expect(containerizeRepo).toHaveBeenCalledWith(workspaceId);
+      expect(
+        useDevContainerStore.getState().containerizing[workspaceId],
+      ).toBe(false);
+      expect(
+        useDevContainerStore.getState().proposedConfig[workspaceId],
+      ).toBe(mockJson);
+      expect(
+        useDevContainerStore.getState().containerizeError[workspaceId],
+      ).toBeNull();
+    });
+
+    it("containerize sets error on failure", async () => {
+      vi.mocked(containerizeRepo).mockRejectedValue(
+        new Error("analysis failed"),
+      );
+
+      await useDevContainerStore.getState().containerize(workspaceId);
+
+      expect(
+        useDevContainerStore.getState().containerizing[workspaceId],
+      ).toBe(false);
+      expect(
+        useDevContainerStore.getState().containerizeError[workspaceId],
+      ).toBe("analysis failed");
+    });
+
+    it("applyConfig calls IPC and clears proposed config", async () => {
+      const configJson = '{"image":"node:18"}';
+      useDevContainerStore.setState({
+        proposedConfig: { [workspaceId]: configJson },
+      });
+      vi.mocked(applyDevcontainerConfig).mockResolvedValue(undefined);
+
+      await useDevContainerStore
+        .getState()
+        .applyConfig(workspaceId, configJson, true);
+
+      expect(applyDevcontainerConfig).toHaveBeenCalledWith(
+        workspaceId,
+        configJson,
+        true,
+        undefined,
+      );
+      expect(
+        useDevContainerStore.getState().proposedConfig[workspaceId],
+      ).toBeUndefined();
+    });
+
+    it("clearProposedConfig removes config for workspace", () => {
+      const configJson = '{"image":"node:18"}';
+      useDevContainerStore.setState({
+        proposedConfig: { [workspaceId]: configJson },
+      });
+
+      useDevContainerStore.getState().clearProposedConfig(workspaceId);
+
+      expect(
+        useDevContainerStore.getState().proposedConfig[workspaceId],
+      ).toBeUndefined();
     });
   });
 });
