@@ -3,7 +3,6 @@ use std::process::Command as StdCommand;
 
 use crate::error::AppError;
 
-#[allow(dead_code)]
 const MANIFEST_FILES: &[&str] = &[
     "package.json",
     "Cargo.toml",
@@ -18,10 +17,8 @@ const MANIFEST_FILES: &[&str] = &[
     "mix.exs",
 ];
 
-#[allow(dead_code)]
 const MAX_MANIFEST_LINES: usize = 200;
 
-#[allow(dead_code)]
 pub fn gather_repo_context(repo_path: &Path, setup_script: Option<&str>) -> String {
     let mut sections: Vec<String> = Vec::new();
 
@@ -69,7 +66,6 @@ pub fn gather_repo_context(repo_path: &Path, setup_script: Option<&str>) -> Stri
     sections.join("\n\n")
 }
 
-#[allow(dead_code)]
 pub fn extract_json_from_response(response: &str) -> Result<String, AppError> {
     let trimmed = response.trim();
 
@@ -104,7 +100,6 @@ fn extract_from_code_fence(text: &str) -> Option<String> {
     None
 }
 
-#[allow(dead_code)]
 pub fn build_containerize_prompt(repo_context: &str) -> String {
     format!(
         r#"Analyze this repository and generate a devcontainer.json configuration.
@@ -123,7 +118,6 @@ Repository context:
     )
 }
 
-#[allow(dead_code)]
 fn list_dir_shallow(path: &Path) -> String {
     match std::fs::read_dir(path) {
         Ok(entries) => {

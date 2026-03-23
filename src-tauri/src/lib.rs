@@ -244,6 +244,9 @@ pub fn run() {
             commands::devcontainer::get_container_status,
             commands::devcontainer::update_devcontainer_config,
             commands::devcontainer::detect_devcontainer,
+            // Containerize commands
+            commands::containerize::containerize_repo,
+            commands::containerize::apply_devcontainer_config,
         ])
         .setup(|app| {
             let app_data_dir = app
