@@ -918,3 +918,5 @@ export interface ContainerStatusEvent {
   status: ContainerStatus;
   containerId: string | null;
 }
+
+export type ContainerizeStatus = "analyzing" | "done" | "error";

@@ -36,3 +36,23 @@ export async function detectDevcontainer(
 ): Promise<string | null> {
   return invoke<string | null>("detect_devcontainer", { repoId });
 }
+
+export async function containerizeRepo(
+  workspaceId: string,
+): Promise<string> {
+  return invoke<string>("containerize_repo", { workspaceId });
+}
+
+export async function applyDevcontainerConfig(
+  workspaceId: string,
+  configJson: string,
+  commitToRepo: boolean,
+  devcontainerPath?: string,
+): Promise<void> {
+  return invoke("apply_devcontainer_config", {
+    workspaceId,
+    configJson,
+    commitToRepo,
+    devcontainerPath: devcontainerPath ?? null,
+  });
+}
