@@ -203,16 +203,28 @@ export const useDevContainerStore = create<DevContainerStore>((set) => ({
     commitToRepo: boolean,
     devcontainerPath?: string,
   ) => {
-    await applyDevcontainerConfig(
-      workspaceId,
-      configJson,
-      commitToRepo,
-      devcontainerPath,
-    );
-    set((s) => {
-      const { [workspaceId]: _, ...rest } = s.proposedConfig;
-      return { proposedConfig: rest };
-    });
+    set((s) => ({
+      containerizeError: { ...s.containerizeError, [workspaceId]: null },
+    }));
+    try {
+      await applyDevcontainerConfig(
+        workspaceId,
+        configJson,
+        commitToRepo,
+        devcontainerPath,
+      );
+      set((s) => {
+        const { [workspaceId]: _, ...rest } = s.proposedConfig;
+        return { proposedConfig: rest };
+      });
+    } catch (e) {
+      set((s) => ({
+        containerizeError: {
+          ...s.containerizeError,
+          [workspaceId]: e instanceof Error ? e.message : String(e),
+        },
+      }));
+    }
   },
 
   clearProposedConfig: (workspaceId: string) => {

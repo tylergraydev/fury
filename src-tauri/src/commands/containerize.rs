@@ -168,22 +168,26 @@ pub async fn containerize_repo(
 
     // Step 8: Parse JSON output — format is {"result": "...assistant text...", ...}
     let result_text = match serde_json::from_str::<serde_json::Value>(&stdout) {
-        Ok(val) => val
-            .get("result")
-            .and_then(|r| r.as_str())
-            .unwrap_or(&stdout)
-            .to_string(),
-        Err(_) => stdout.clone(),
+        Ok(val) => match val.get("result").and_then(|r| r.as_str()) {
+            Some(text) => text.to_string(),
+            None => {
+                return Err(AppError::AgentError(format!(
+                    "Claude output missing 'result' string field. Raw: {}",
+                    &stdout[..stdout.len().min(500)]
+                )));
+            }
+        },
+        Err(e) => {
+            return Err(AppError::AgentError(format!(
+                "Failed to parse Claude JSON output: {}. Raw: {}",
+                e,
+                &stdout[..stdout.len().min(500)]
+            )));
+        }
     };
 
-    // Step 9: Extract JSON from the result text
-    match ctz_svc::extract_json_from_response(&result_text) {
-        Ok(json) => Ok(json),
-        Err(_) => {
-            // Return raw text for frontend error state
-            Ok(result_text)
-        }
-    }
+    // Step 9: Extract devcontainer JSON from the result text
+    ctz_svc::extract_json_from_response(&result_text)
 }
 
 #[tauri::command]
@@ -216,39 +220,59 @@ pub async fn apply_devcontainer_config(
                 ws.worktree_path.clone()
             };
 
-            // Write devcontainer.json to disk
+            // Write devcontainer.json to disk (async I/O)
             let dc_dir = worktree_path.join(".devcontainer");
-            std::fs::create_dir_all(&dc_dir).map_err(|e| {
+            tokio::fs::create_dir_all(&dc_dir).await.map_err(|e| {
                 AppError::ContainerError(format!(
                     "Failed to create .devcontainer directory: {}",
                     e
                 ))
             })?;
             let dc_file = dc_dir.join("devcontainer.json");
-            std::fs::write(&dc_file, &config_json).map_err(|e| {
+            tokio::fs::write(&dc_file, &config_json).await.map_err(|e| {
                 AppError::ContainerError(format!(
                     "Failed to write devcontainer.json: {}",
                     e
                 ))
             })?;
 
-            // git add + git commit
-            let git_add = std::process::Command::new("git")
+            // git add + git commit (async process)
+            let add_output = tokio::process::Command::new("git")
                 .args(["add", ".devcontainer/devcontainer.json"])
                 .current_dir(&worktree_path)
-                .output();
+                .output()
+                .await
+                .map_err(|e| {
+                    AppError::ContainerError(format!("Failed to run git add: {}", e))
+                })?;
 
-            if let Ok(add_output) = git_add {
-                if add_output.status.success() {
-                    let _ = std::process::Command::new("git")
-                        .args([
-                            "commit",
-                            "-m",
-                            "chore: add devcontainer configuration",
-                        ])
-                        .current_dir(&worktree_path)
-                        .output();
-                }
+            if !add_output.status.success() {
+                let stderr = String::from_utf8_lossy(&add_output.stderr);
+                return Err(AppError::ContainerError(format!(
+                    "git add failed: {}",
+                    stderr
+                )));
+            }
+
+            let commit_output = tokio::process::Command::new("git")
+                .args([
+                    "commit",
+                    "-m",
+                    "chore: add devcontainer configuration",
+                ])
+                .current_dir(&worktree_path)
+                .output()
+                .await
+                .map_err(|e| {
+                    AppError::ContainerError(format!("Failed to run git commit: {}", e))
+                })?;
+
+            if !commit_output.status.success() {
+                let stderr = String::from_utf8_lossy(&commit_output.stderr);
+                return Err(AppError::ContainerError(format!(
+                    "git commit failed: {}",
+                    stderr
+                )));
             }
         }
     }
@@ -269,7 +293,13 @@ pub async fn apply_devcontainer_config(
     {
         let db_guard = state.db.lock().unwrap();
         if let Some(db) = db_guard.as_ref() {
-            let _ = db.update_workspace_devcontainer_config(&ws_id, Some(&config));
+            db.update_workspace_devcontainer_config(&ws_id, Some(&config))
+                .map_err(|e| {
+                    AppError::ContainerError(format!(
+                        "Failed to persist devcontainer config: {}",
+                        e
+                    ))
+                })?;
         }
     }
 

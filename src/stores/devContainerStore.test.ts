@@ -350,6 +350,45 @@ describe("devContainerStore", () => {
       ).toBeUndefined();
     });
 
+    it("applyConfig sets error and preserves proposedConfig on failure", async () => {
+      const configJson = '{"image":"node:18"}';
+      useDevContainerStore.setState({
+        proposedConfig: { [workspaceId]: configJson },
+      });
+      vi.mocked(applyDevcontainerConfig).mockRejectedValue(
+        new Error("git commit failed"),
+      );
+
+      await useDevContainerStore
+        .getState()
+        .applyConfig(workspaceId, configJson, true);
+
+      expect(
+        useDevContainerStore.getState().containerizeError[workspaceId],
+      ).toBe("git commit failed");
+      // proposedConfig should NOT be cleared on failure
+      expect(
+        useDevContainerStore.getState().proposedConfig[workspaceId],
+      ).toBe(configJson);
+    });
+
+    it("containerize clears previous error on retry", async () => {
+      useDevContainerStore.setState({
+        containerizeError: { [workspaceId]: "previous failure" },
+      });
+      const mockJson = '{"image":"node:18"}';
+      vi.mocked(containerizeRepo).mockResolvedValue(mockJson);
+
+      await useDevContainerStore.getState().containerize(workspaceId);
+
+      expect(
+        useDevContainerStore.getState().containerizeError[workspaceId],
+      ).toBeNull();
+      expect(
+        useDevContainerStore.getState().proposedConfig[workspaceId],
+      ).toBe(mockJson);
+    });
+
     it("clearProposedConfig removes config for workspace", () => {
       const configJson = '{"image":"node:18"}';
       useDevContainerStore.setState({

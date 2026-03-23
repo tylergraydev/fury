@@ -1,7 +1,6 @@
 import { useState } from "react";
 import Editor from "@monaco-editor/react";
 import { useDevContainerStore } from "../../stores/devContainerStore";
-import { applyDevcontainerConfig } from "../../lib/tauri";
 
 const buttonStyle = {
   border: "1px solid var(--border)",
@@ -45,13 +44,20 @@ export default function ContainerizePanel({
   const handleApply = async (commitToRepo: boolean) => {
     if (!displayConfig) return;
     await applyConfig(workspaceId, displayConfig, commitToRepo);
-    setEditedConfig(null);
-    onContainerized?.();
+    // Only call onContainerized if no error was set
+    const error = useDevContainerStore.getState().containerizeError[workspaceId];
+    if (!error) {
+      setEditedConfig(null);
+      onContainerized?.();
+    }
   };
 
   const handleUseExisting = async () => {
-    await applyDevcontainerConfig(workspaceId, "", false, existingDevcontainer ?? undefined);
-    onContainerized?.();
+    await applyConfig(workspaceId, "", false, existingDevcontainer ?? undefined);
+    const error = useDevContainerStore.getState().containerizeError[workspaceId];
+    if (!error) {
+      onContainerized?.();
+    }
   };
 
   const handleCancel = () => {

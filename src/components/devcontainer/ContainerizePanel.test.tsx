@@ -5,10 +5,6 @@ import { useDevContainerStore } from "../../stores/devContainerStore";
 
 vi.mock("../../stores/devContainerStore");
 
-vi.mock("../../lib/tauri", () => ({
-  applyDevcontainerConfig: vi.fn().mockResolvedValue(undefined),
-}));
-
 vi.mock("@monaco-editor/react", () => ({
   default: ({ value, onChange }: { value: string; onChange?: (v: string | undefined) => void }) => (
     <textarea
@@ -39,6 +35,7 @@ describe("ContainerizePanel", () => {
     vi.mocked(useDevContainerStore).mockImplementation((selector: any) =>
       selector(defaultState)
     );
+    (useDevContainerStore as any).getState = () => defaultState;
   });
 
   it("renders Containerize button in idle state", () => {
@@ -100,8 +97,33 @@ describe("ContainerizePanel", () => {
     expect(screen.getByText("Retry")).toBeInTheDocument();
   });
 
+  it("calls containerize on Retry click in error state", () => {
+    vi.mocked(useDevContainerStore).mockImplementation((selector: any) =>
+      selector({ ...defaultState, containerizeError: { [workspaceId]: "CLI failed" } })
+    );
+    render(<ContainerizePanel workspaceId={workspaceId} />);
+    fireEvent.click(screen.getByText("Retry"));
+    expect(mockContainerize).toHaveBeenCalledWith(workspaceId);
+  });
+
+  it("calls clearProposedConfig on Cancel click in review state", () => {
+    const config = '{"image": "node:20"}';
+    vi.mocked(useDevContainerStore).mockImplementation((selector: any) =>
+      selector({ ...defaultState, proposedConfig: { [workspaceId]: config } })
+    );
+    render(<ContainerizePanel workspaceId={workspaceId} />);
+    fireEvent.click(screen.getByText("Cancel"));
+    expect(mockClearProposedConfig).toHaveBeenCalledWith(workspaceId);
+  });
+
   it("shows Use existing devcontainer button when detected", () => {
     render(<ContainerizePanel workspaceId={workspaceId} existingDevcontainer=".devcontainer/devcontainer.json" />);
     expect(screen.getByText("Use existing devcontainer")).toBeInTheDocument();
+  });
+
+  it("calls applyConfig through store when using existing devcontainer", () => {
+    render(<ContainerizePanel workspaceId={workspaceId} existingDevcontainer=".devcontainer/devcontainer.json" />);
+    fireEvent.click(screen.getByText("Use existing devcontainer"));
+    expect(mockApplyConfig).toHaveBeenCalledWith(workspaceId, "", false, ".devcontainer/devcontainer.json");
   });
 });
