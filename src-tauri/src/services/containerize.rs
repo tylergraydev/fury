@@ -1,6 +1,8 @@
 use std::path::Path;
 use std::process::Command as StdCommand;
 
+use crate::error::AppError;
+
 #[allow(dead_code)]
 const MANIFEST_FILES: &[&str] = &[
     "package.json",
@@ -65,6 +67,41 @@ pub fn gather_repo_context(repo_path: &Path, setup_script: Option<&str>) -> Stri
     }
 
     sections.join("\n\n")
+}
+
+#[allow(dead_code)]
+pub fn extract_json_from_response(response: &str) -> Result<String, AppError> {
+    let trimmed = response.trim();
+
+    // Strategy 1: direct parse
+    if serde_json::from_str::<serde_json::Value>(trimmed).is_ok() {
+        return Ok(trimmed.to_string());
+    }
+
+    // Strategy 2: extract from code fences
+    if let Some(json_str) = extract_from_code_fence(trimmed) {
+        if serde_json::from_str::<serde_json::Value>(&json_str).is_ok() {
+            return Ok(json_str);
+        }
+    }
+
+    Err(AppError::ContainerError(format!(
+        "Could not parse valid JSON from agent response. Raw output:\n{}",
+        trimmed
+    )))
+}
+
+fn extract_from_code_fence(text: &str) -> Option<String> {
+    let start_markers = ["```json\n", "```json\r\n", "```\n", "```\r\n"];
+    for marker in &start_markers {
+        if let Some(start) = text.find(marker) {
+            let content_start = start + marker.len();
+            if let Some(end) = text[content_start..].find("```") {
+                return Some(text[content_start..content_start + end].trim().to_string());
+            }
+        }
+    }
+    None
 }
 
 #[allow(dead_code)]
@@ -173,5 +210,53 @@ mod tests {
         setup_repo(&dir, &[]);
         let ctx = gather_repo_context(dir.path(), None);
         assert!(ctx.contains("File listing"));
+    }
+
+    #[test]
+    fn test_extract_json_direct() {
+        let input = r#"{"image": "node:20"}"#;
+        let result = extract_json_from_response(input).unwrap();
+        assert!(result.contains("node:20"));
+    }
+
+    #[test]
+    fn test_extract_json_from_markdown_fences() {
+        let input = "Here's the config:\n```json\n{\"image\": \"node:20\"}\n```\nDone!";
+        let result = extract_json_from_response(input).unwrap();
+        assert!(result.contains("node:20"));
+    }
+
+    #[test]
+    fn test_extract_json_from_bare_fences() {
+        let input = "```\n{\"image\": \"node:20\"}\n```";
+        let result = extract_json_from_response(input).unwrap();
+        assert!(result.contains("node:20"));
+    }
+
+    #[test]
+    fn test_extract_json_invalid() {
+        let input = "I couldn't figure out the config, sorry!";
+        let result = extract_json_from_response(input);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_extract_json_nested_object() {
+        let input = r#"```json
+{
+  "name": "test",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "postCreateCommand": "npm install"
+}
+```"#;
+        let result = extract_json_from_response(input).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(
+            parsed["image"],
+            "mcr.microsoft.com/devcontainers/typescript-node:20"
+        );
     }
 }
