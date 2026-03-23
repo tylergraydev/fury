@@ -105,6 +105,25 @@ fn extract_from_code_fence(text: &str) -> Option<String> {
 }
 
 #[allow(dead_code)]
+pub fn build_containerize_prompt(repo_context: &str) -> String {
+    format!(
+        r#"Analyze this repository and generate a devcontainer.json configuration.
+
+Requirements:
+- Use Microsoft devcontainer base images (mcr.microsoft.com/devcontainers/...)
+- Include appropriate "features" for common tools (git, GitHub CLI, etc.)
+- Set "postCreateCommand" to install dependencies based on the detected package manager
+- Only return valid JSON — no markdown, no commentary, no explanation
+- The JSON should be a valid devcontainer.json that works with the devcontainer CLI
+
+Repository context:
+
+{}"#,
+        repo_context
+    )
+}
+
+#[allow(dead_code)]
 fn list_dir_shallow(path: &Path) -> String {
     match std::fs::read_dir(path) {
         Ok(entries) => {
@@ -258,5 +277,14 @@ mod tests {
             parsed["image"],
             "mcr.microsoft.com/devcontainers/typescript-node:20"
         );
+    }
+
+    #[test]
+    fn test_build_prompt_includes_context() {
+        let context = "## File listing\npackage.json\nsrc/index.ts";
+        let prompt = build_containerize_prompt(context);
+        assert!(prompt.contains("package.json"));
+        assert!(prompt.contains("devcontainer.json"));
+        assert!(prompt.contains("mcr.microsoft.com/devcontainers"));
     }
 }
