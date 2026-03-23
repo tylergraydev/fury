@@ -13,11 +13,21 @@ const mockGetRepoSettings = vi.fn().mockResolvedValue({
   devcontainer: null,
 });
 const mockUpdateRepoSettings = vi.fn().mockResolvedValue(undefined);
+const mockDetectDevcontainer = vi.fn().mockResolvedValue(null);
 
 vi.mock("../../lib/tauri", () => ({
   getRepoSettings: (...args: unknown[]) => mockGetRepoSettings(...args),
   updateRepoSettings: (...args: unknown[]) => mockUpdateRepoSettings(...args),
+  detectDevcontainer: (...args: unknown[]) => mockDetectDevcontainer(...args),
   listen: vi.fn().mockResolvedValue(() => {}),
+}));
+
+vi.mock("../devcontainer/ContainerizePanel", () => ({
+  default: ({ workspaceId, existingDevcontainer }: { workspaceId: string; existingDevcontainer?: string | null; onContainerized?: () => void }) => (
+    <div data-testid="containerize-panel" data-workspace-id={workspaceId} data-existing={existingDevcontainer ?? ""}>
+      ContainerizePanel
+    </div>
+  ),
 }));
 
 const mockLoadTemplates = vi.fn().mockResolvedValue(undefined);
@@ -55,6 +65,7 @@ beforeEach(() => {
     providerOverride: null,
     devcontainer: null,
   });
+  mockDetectDevcontainer.mockResolvedValue(null);
   mockedUseWorkspaceTemplateStore.mockReturnValue({
     templates: [],
     loadTemplates: mockLoadTemplates,
@@ -1196,6 +1207,89 @@ describe("RepoSettingsPanel", () => {
           containerEnvVars: {},
         }),
       }));
+    });
+  });
+
+  describe("ContainerizePanel integration", () => {
+    it("renders ContainerizePanel when workspaceId is provided and devcontainer is not enabled", async () => {
+      render(
+        <RepoSettingsPanel
+          repoId="r1"
+          repoName="My Repo"
+          onClose={vi.fn()}
+          workspaceId="ws1"
+        />
+      );
+      await waitFor(() => {
+        expect(mockGetRepoSettings).toHaveBeenCalled();
+      });
+      expect(screen.getByTestId("containerize-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("containerize-panel")).toHaveAttribute("data-workspace-id", "ws1");
+    });
+
+    it("does not render ContainerizePanel when workspaceId is not provided", async () => {
+      render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
+      await waitFor(() => {
+        expect(mockGetRepoSettings).toHaveBeenCalled();
+      });
+      expect(screen.queryByTestId("containerize-panel")).not.toBeInTheDocument();
+    });
+
+    it("does not render ContainerizePanel when devcontainer is already enabled", async () => {
+      mockGetRepoSettings.mockResolvedValue({
+        setupScript: null,
+        runScript: null,
+        archiveScript: null,
+        runScriptMode: "nonconcurrent",
+        envVars: {},
+        worktreeBasePath: null,
+        providerOverride: null,
+        devcontainer: {
+          enabled: true,
+          backend: "devcontainerCli",
+          agentExecMode: "host",
+          image: null,
+          composeFile: null,
+          composeService: null,
+          devcontainerPath: null,
+          containerWorkspacePath: null,
+          extraDockerArgs: [],
+          containerEnvVars: {},
+        },
+      });
+      render(
+        <RepoSettingsPanel
+          repoId="r1"
+          repoName="My Repo"
+          onClose={vi.fn()}
+          workspaceId="ws1"
+        />
+      );
+      await waitFor(() => {
+        expect(mockGetRepoSettings).toHaveBeenCalled();
+      });
+      expect(screen.queryByTestId("containerize-panel")).not.toBeInTheDocument();
+    });
+
+    it("passes detectedDevcontainer to ContainerizePanel", async () => {
+      mockDetectDevcontainer.mockResolvedValue(".devcontainer/devcontainer.json");
+      render(
+        <RepoSettingsPanel
+          repoId="r1"
+          repoName="My Repo"
+          onClose={vi.fn()}
+          workspaceId="ws1"
+        />
+      );
+      await waitFor(() => {
+        expect(mockDetectDevcontainer).toHaveBeenCalledWith("r1");
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId("containerize-panel")).toHaveAttribute(
+          "data-existing",
+          ".devcontainer/devcontainer.json"
+        );
+      });
     });
   });
 });
