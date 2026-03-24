@@ -1,0 +1,56 @@
+---
+title: Workspace Templates
+description: Save and reuse workspace configurations across projects
+---
+
+Templates let you save workspace settings — scripts, environment variables, sparse directories, and more — so you can quickly spin up new workspaces with a consistent configuration.
+
+## Creating a template
+
+Templates are created from **Repository Settings**:
+
+1. Open **Settings** for a repository
+2. Configure your desired scripts, environment variables, and other options
+3. Click **Save as Template**
+4. Fill in the template details:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| **Template name** | Yes | A descriptive name for the template |
+| **Description** | No | Brief explanation of what this template is for |
+| **Setup script** | No | Shell commands to run during workspace setup (e.g., `npm install`) |
+| **Run script** | No | Shell commands for the run action |
+| **Archive script** | No | Shell commands to run when archiving |
+| **Run script mode** | No | `Nonconcurrent` (kill previous run) or `Concurrent` (allow parallel runs) |
+| **Sparse checkout directories** | No | Comma-separated paths for partial checkouts (e.g., `src, tests`) |
+| **Auto-commit** | No | Automatically commit changes after each agent turn |
+| **Environment variables** | No | Key-value pairs injected at runtime |
+
+## Using a template
+
+When creating a new workspace:
+
+1. Press <Tooltip tip="Ctrl+N on Windows/Linux">**Cmd+N**</Tooltip> to open the new workspace dialog
+2. Select the **From Template** tab
+3. Choose a template from the list — each shows its name and description
+4. Enter a **worktree name** and select a **base branch**
+5. Optionally toggle **auto-commit** (pre-filled from the template)
+6. Click **Create & Start Chat**
+
+The workspace is created with the template's sparse checkout directories applied.
+
+## What templates save
+
+Templates capture reusable workspace configuration:
+
+- Setup, run, and archive scripts
+- Run script mode (concurrent vs. nonconcurrent)
+- Environment variables
+- Sparse checkout directories
+- Auto-commit preference
+
+Templates do **not** capture workspace state, file changes, branches, or dev container configuration.
+
+## Managing templates
+
+Templates are scoped to a repository. Each repository has its own set of templates, and they appear in the **From Template** tab when that repository is selected in the new workspace dialog.

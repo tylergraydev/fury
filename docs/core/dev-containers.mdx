@@ -120,6 +120,30 @@ Containers inherit the workspace's environment variables. You can also configure
 
 Scripts running inside containers have access to the same `FURY_*` environment variables as host scripts — see [scripts](/core/scripts).
 
+## One-click containerization
+
+For repositories that don't have a `devcontainer.json`, Fury can generate one using AI.
+
+### How it works
+
+1. In the dev container panel, click **Containerize**
+2. Fury analyzes your repository — files, dependencies, frameworks, and languages
+3. An AI agent generates a `devcontainer.json` tailored to your project
+4. Review the generated config in an embedded editor — you can edit the JSON directly
+5. Choose how to apply:
+
+| Option | What it does |
+|--------|-------------|
+| **Commit to repo** | Writes `.devcontainer/devcontainer.json`, stages it, and creates a git commit |
+| **Save to Fury only** | Stores the config in workspace settings without writing any files |
+| **Cancel** | Discards the generated config |
+
+If an error occurs during analysis, you can **Retry** or **Cancel**.
+
+### Existing devcontainer detected
+
+If Fury finds an existing `devcontainer.json` in your repository, the panel shows a **Use existing devcontainer** button instead of the containerize option.
+
 ## Tips
 
 - **Start with Host mode** if you're unsure — it's less disruptive since only terminals and scripts run in the container

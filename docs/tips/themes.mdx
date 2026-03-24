@@ -1,26 +1,76 @@
 ---
 title: Themes
-description: Customize Fury's appearance
+description: Customize Fury's appearance with built-in or custom themes
 ---
 
-Fury comes with three built-in themes. Change themes in **Settings**.
+Fury comes with three built-in themes and a full theme editor for creating your own. Change themes in **Settings > Appearance**.
 
-## Available themes
+## Built-in themes
 
 ### Blend (default)
 
-A custom dark theme with blue accents. Designed for comfortable extended use.
+Black base with blue accents. Designed for comfortable extended use.
 
 ### Midnight
 
-A high-contrast dark theme with deeper blacks and brighter highlights.
+Pure black with white accents. A minimalist, high-contrast aesthetic.
 
-### GitHub
+### GitHub Dark
 
-A theme that matches GitHub's color scheme, familiar to developers who spend time on github.com.
+Matches GitHub's dark default palette, familiar to developers who spend time on github.com.
 
 ## Changing themes
 
 1. Open **Settings** (<Tooltip tip="Ctrl+, on Windows/Linux">**Cmd+,**</Tooltip>)
-2. Under **Theme**, select your preferred option
-3. The theme applies immediately
+2. Navigate to **Appearance**
+3. Click a theme card to apply it — the change is immediate
+
+## Custom themes
+
+Create your own theme with full control over every color in the interface.
+
+### Creating a custom theme
+
+1. In **Settings > Appearance**, click **Create Custom Theme**
+2. The theme editor opens with all color variables organized into groups:
+   - **Backgrounds** — Primary, secondary, surface, hover
+   - **Text** — Primary, secondary, muted
+   - **Accents** — Primary accent, hover, green, purple, orange
+   - **Borders & Status** — Border, success, warning, error, overlays
+3. Use the color pickers and hex inputs to adjust each variable
+4. Changes preview live as you edit
+5. Give your theme a name and click **Save**
+
+### Duplicating a built-in theme
+
+Hover over a built-in theme card and click the **copy icon** to create a custom theme based on its colors. This is the easiest way to start — tweak a few colors from a theme you already like.
+
+### Editing a custom theme
+
+Hover over a custom theme card and click the **pencil icon** to reopen the editor.
+
+### Deleting a custom theme
+
+Hover over a custom theme card and click the **trash icon**, then confirm.
+
+### Import and export
+
+The theme editor includes **Export** and **Import** buttons:
+
+- **Export** copies your theme as JSON to the clipboard
+- **Import** pastes JSON to load a theme from someone else
+
+The format is:
+
+```json
+{
+  "name": "My Theme",
+  "vars": {
+    "--bg-primary": "#000000",
+    "--bg-secondary": "#0d1117",
+    "--accent": "#58a6ff"
+  }
+}
+```
+
+All 20+ theme variables must be present for a valid import.

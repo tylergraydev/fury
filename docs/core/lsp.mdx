@@ -1,0 +1,48 @@
+---
+title: Language Servers
+description: LSP plugins for diagnostics, completions, and code intelligence
+---
+
+Fury integrates with Language Server Protocol (LSP) plugins to give your AI agents richer code intelligence — diagnostics after edits, jump-to-definition, find-references, and type information.
+
+## Setup
+
+Open **Settings > Code Intelligence** to manage LSP plugins.
+
+## Available language servers
+
+| Language | Plugin | Binary | Install command |
+|----------|--------|--------|----------------|
+| TypeScript | `typescript-lsp` | `typescript-language-server` | `npm install -g typescript-language-server typescript` |
+| Python | `pyright-lsp` | `pyright-langserver` | `npm install -g pyright` |
+| Rust | `rust-analyzer-lsp` | `rust-analyzer` | `rustup component add rust-analyzer` |
+| Go | `gopls-lsp` | `gopls` | `go install golang.org/x/tools/gopls@latest` |
+| Swift | `swift-lsp` | `sourcekit-lsp` | Included with Xcode |
+| C/C++ | `clangd-lsp` | `clangd` | `brew install llvm` (macOS) or `apt install clangd` (Linux) |
+| C# | `csharp-lsp` | `csharp-ls` | `dotnet tool install -g csharp-ls` |
+| Java | `jdtls-lsp` | `jdtls` | `brew install jdtls` (macOS) or download from eclipse.org |
+| Kotlin | `kotlin-lsp` | `kotlin-language-server` | `brew install kotlin-language-server` (macOS) |
+| Lua | `lua-lsp` | `lua-language-server` | `brew install lua-language-server` (macOS) |
+| PHP | `php-lsp` | `intelephense` | `npm install -g intelephense` |
+
+## Installing a plugin
+
+1. Open **Settings > Code Intelligence**
+2. Browse the **Available** section for uninstalled plugins
+3. Select the scope: **User** (all projects) or **Project** (current project only)
+4. Click **Install**
+
+If the binary isn't found on your `PATH`, a yellow warning shows the install command.
+
+## Auto-detection
+
+Fury scans your repository files and suggests LSP plugins for languages with 5 or more files that don't already have a plugin installed. Suggestions appear sorted by file count.
+
+## Status indicators
+
+- **Ready** (green checkmark) — Plugin installed and binary found
+- **Binary not found** (yellow alert) — Plugin installed but the language server binary isn't on your `PATH`. Follow the install hint to add it.
+
+## Uninstalling
+
+Hover over an installed plugin and click the **X** icon to uninstall it.

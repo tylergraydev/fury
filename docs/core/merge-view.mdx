@@ -54,6 +54,25 @@ Choose a resolution strategy for each file, then continue the merge.
 
 If the conflicts are too complex, abort the merge to return to your previous state.
 
+## Git stash
+
+The merge view includes a stash section for saving and restoring work-in-progress changes.
+
+### Creating a stash
+
+Click **Stash Changes** to save your current working directory changes. Optionally provide a message and toggle whether to include untracked files.
+
+### Managing stashes
+
+Your stash stack is displayed as a list. For each stash entry you can:
+
+| Action | Description |
+|--------|-------------|
+| **Apply** | Apply the stash's changes without removing it from the stack |
+| **Pop** | Apply the changes and remove the stash |
+| **Drop** | Delete the stash (click once to reveal confirm, click again to confirm) |
+| **Expand** | View affected files with addition/deletion statistics |
+
 ## Cross-worktree comparison
 
 When two workspaces are [linked](/core/workspaces), you can compare their changes against each other. This shows a diff between the two workspace worktrees, useful for reviewing related features or comparing approaches.

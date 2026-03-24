@@ -1,0 +1,57 @@
+---
+title: Activity Log
+description: Timeline of workspace events including commits, agent actions, and PR updates
+---
+
+The activity log provides a timeline of everything that happens in a workspace — commits, agent runs, script executions, PR updates, and merge events.
+
+## Opening the activity log
+
+Press <Tooltip tip="Ctrl+Shift+A on Windows/Linux">**Cmd+Shift+A**</Tooltip> to open the activity log for the current workspace.
+
+## Activity types
+
+| Type | Icon | Description |
+|------|------|-------------|
+| **Commit** | Git commit | New commits pushed or created |
+| **Agent started** | Robot | AI agent began processing |
+| **Agent completed** | Robot | AI agent finished |
+| **Chat (user)** | Message | User sent a message |
+| **Chat (agent)** | Message | Agent responded |
+| **Script started** | Play | Script execution began |
+| **Script succeeded** | Check | Script completed successfully |
+| **Script failed** | X | Script encountered an error |
+| **PR opened** | PR icon | Pull request was created |
+| **PR checks pass** | Check | CI checks passed |
+| **PR checks fail** | X | CI checks failed |
+| **PR merged** | Merge | Pull request was merged |
+| **Merge conflict detected** | Alert | Conflict found during sync |
+| **Merge conflict resolved** | Check | Conflict was resolved |
+
+## Time grouping
+
+Activities are grouped into time sections:
+
+- **Just now** — Last 5 minutes
+- **Today** — Same calendar day
+- **Yesterday** — Previous calendar day
+- **Earlier** — Everything else
+
+Each entry shows a relative timestamp (e.g., "2m ago").
+
+## Filtering
+
+Click the **filter icon** to toggle filter buttons. Filter by category:
+
+- Commits
+- Agent events
+- Chat messages
+- Script events
+- PR events
+- Merge events
+
+Multiple filters can be active simultaneously. Click **Clear** to reset all filters.
+
+## Git history
+
+The activity log also loads recent git commit history for the workspace, displayed alongside other activity entries in chronological order.

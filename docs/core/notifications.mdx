@@ -1,0 +1,41 @@
+---
+title: Notifications
+description: In-app alerts for agent completions, PR updates, and build events
+---
+
+Fury shows in-app notifications for important events like agent completions, CI check results, and merge conflicts. Notifications appear as a badge on the bell icon and are collected in a dropdown panel.
+
+## Notification types
+
+| Type | Color | Triggered when |
+|------|-------|---------------|
+| **Agent complete** | Blue | An AI agent finishes processing |
+| **PR checks pass** | Green | CI checks pass on a pull request |
+| **PR checks fail** | Red | CI checks fail on a pull request |
+| **PR merged** | Purple | A pull request is merged |
+| **Build error** | Red | A build or script fails |
+| **Merge conflict** | Yellow | A conflict is detected during branch sync |
+
+## Viewing notifications
+
+Click the **bell icon** to open the notification panel. Unread notifications show a count badge.
+
+Notifications are grouped by time:
+
+- **Just now** — Last 5 minutes
+- **Today** — Same calendar day
+- **Yesterday** — Previous day
+- **Earlier** — Everything else
+
+Each notification shows a type icon, title, relative timestamp, and a message preview.
+
+## Interacting with notifications
+
+- **Click a notification** to navigate to the relevant workspace and view tab, then mark it as read
+- **Mark all read** — Click the button in the panel header to clear all unread indicators
+- **Clear** — Remove all notifications from the panel
+- **Dismiss** — Close individual notifications
+
+## Limits
+
+Notifications are stored in memory (not persisted across app restarts) with a maximum of 200 entries. The oldest notifications are automatically removed when the limit is reached.
