@@ -626,6 +626,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
                   <span className="max-w-[150px] truncate">{file.name}</span>
                   <button
                     onClick={() => removeDroppedFile(i)}
+                    aria-label={`Remove ${file.name}`}
                     className="ml-0.5 rounded-sm p-0.5 transition-colors hover:bg-white/10"
                     style={{ color: "var(--text-muted)" }}
                   >
@@ -646,6 +647,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
               onPaste={handlePaste}
               placeholder={placeholderText}
               disabled={isRunning || isStopping}
+              aria-label="Chat message"
               rows={1}
               className="w-full resize-none bg-transparent text-sm outline-none"
               style={{
@@ -686,16 +688,37 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
                 {/* Model dropdown popover */}
                 {showModelMenu && (
                   <div
+                    role="menu"
                     className="absolute bottom-full left-0 z-30 mb-1 rounded-lg shadow-lg py-1"
                     style={{
                       backgroundColor: "var(--bg-surface)",
                       border: "1px solid var(--border)",
                       minWidth: "120px",
                     }}
+                    onKeyDown={(e) => {
+                      const options = MODEL_OPTIONS;
+                      const currentIdx = options.findIndex((o) => o.value === selectedModel);
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        const next = options[(currentIdx + 1) % options.length];
+                        setSelectedModel(next.value);
+                      } else if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        const prev = options[(currentIdx - 1 + options.length) % options.length];
+                        setSelectedModel(prev.value);
+                      } else if (e.key === "Enter") {
+                        e.preventDefault();
+                        setShowModelMenu(false);
+                      } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        setShowModelMenu(false);
+                      }
+                    }}
                   >
                     {MODEL_OPTIONS.map((opt) => (
                       <button
                         key={opt.value}
+                        role="menuitem"
                         onClick={() => {
                           setSelectedModel(opt.value);
                           setShowModelMenu(false);

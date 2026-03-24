@@ -95,7 +95,6 @@ beforeEach(() => {
     loading: {},
     error: {},
     subscriptions: {},
-    pollIntervals: {},
   });
   useWorkspaceStore.setState({
     workspaces: [

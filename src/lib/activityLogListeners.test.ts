@@ -14,11 +14,12 @@ import { useMergeStore } from "../stores/mergeStore";
 import { useChatStore } from "../stores/chatStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useActivityLogStore } from "../stores/activityLogStore";
-import { initActivityLogListeners } from "./activityLogListeners";
+import { initActivityLogListeners, resetAllTracking } from "./activityLogListeners";
 
 beforeEach(() => {
+  resetAllTracking();
   useAgentStore.setState({ agents: {}, subscriptions: {} });
-  usePrStore.setState({ prInfo: {}, reviews: {}, reviewComments: {}, workflowRuns: {}, loading: {}, error: {}, subscriptions: {}, pollIntervals: {}, workflowLoading: {}, reviewsLoading: {} });
+  usePrStore.setState({ prInfo: {}, reviews: {}, reviewComments: {}, workflowRuns: {}, loading: {}, error: {}, subscriptions: {}, workflowLoading: {}, reviewsLoading: {} });
   useScriptStore.setState({ output: {}, running: {}, exitCodes: {}, subscriptions: {} });
   useMergeStore.setState({ conflictedFiles: {} });
   useChatStore.setState({ messages: {}, streamingText: {}, planApproval: {}, permissionRequest: {}, subscriptions: {}, sessionStats: {} });

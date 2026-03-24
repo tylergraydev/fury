@@ -30,8 +30,12 @@ const LANGUAGES = [
 ];
 
 export function SnippetManagerDialog({ onClose, onInsert }: Props) {
-  const { snippets, loading, loadSnippets, createSnippet, updateSnippet, deleteSnippet } =
-    useSnippetStore();
+  const snippets = useSnippetStore((s) => s.snippets);
+  const loading = useSnippetStore((s) => s.loading);
+  const loadSnippets = useSnippetStore((s) => s.loadSnippets);
+  const createSnippet = useSnippetStore((s) => s.createSnippet);
+  const updateSnippet = useSnippetStore((s) => s.updateSnippet);
+  const deleteSnippet = useSnippetStore((s) => s.deleteSnippet);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null);

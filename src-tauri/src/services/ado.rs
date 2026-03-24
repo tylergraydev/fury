@@ -7,8 +7,8 @@ use crate::models::pr::{
     WorkflowStep,
 };
 
-/// Build a `reqwest::blocking::Client` with the ADO PAT as Basic auth.
-fn client(pat: &str) -> Result<reqwest::blocking::Client, AppError> {
+/// Build a `reqwest::Client` with the ADO PAT as Basic auth.
+fn client(pat: &str) -> Result<reqwest::Client, AppError> {
     let encoded = base64::engine::general_purpose::STANDARD.encode(format!(":{}", pat));
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
@@ -17,7 +17,7 @@ fn client(pat: &str) -> Result<reqwest::blocking::Client, AppError> {
             .map_err(|e| AppError::AzureDevOpsError(format!("Invalid PAT: {}", e)))?,
     );
 
-    reqwest::blocking::Client::builder()
+    reqwest::Client::builder()
         .default_headers(headers)
         .build()
         .map_err(|e| AppError::AzureDevOpsError(format!("Failed to build HTTP client: {}", e)))
@@ -33,17 +33,17 @@ fn ado_err(msg: impl std::fmt::Display) -> AppError {
 
 /// Verify PAT authentication by listing projects.
 #[allow(dead_code)]
-pub fn check_auth(pat: &str, org: &str) -> Result<(), AppError> {
+pub async fn check_auth(pat: &str, org: &str) -> Result<(), AppError> {
     let c = client(pat)?;
     let url = format!(
         "https://dev.azure.com/{}/_apis/projects?api-version=7.1&$top=1",
         org
     );
-    let resp = c.get(&url).send().map_err(ado_err)?;
+    let resp = c.get(&url).send().await.map_err(ado_err)?;
 
     if !resp.status().is_success() {
         let status = resp.status();
-        let text = resp.text().unwrap_or_default();
+        let text = resp.text().await.unwrap_or_default();
         return Err(ado_err(format!(
             "Authentication failed (HTTP {}): {}",
             status, text
@@ -54,7 +54,7 @@ pub fn check_auth(pat: &str, org: &str) -> Result<(), AppError> {
 
 /// Create a pull request via the Azure DevOps REST API.
 #[allow(clippy::too_many_arguments)]
-pub fn create_pr(
+pub async fn create_pr(
     pat: &str,
     org: &str,
     project: &str,
@@ -81,23 +81,23 @@ pub fn create_pr(
         "isDraft": draft,
     });
 
-    let resp = c.post(&url).json(&payload).send().map_err(ado_err)?;
+    let resp = c.post(&url).json(&payload).send().await.map_err(ado_err)?;
 
     if !resp.status().is_success() {
         let status = resp.status();
-        let text = resp.text().unwrap_or_default();
+        let text = resp.text().await.unwrap_or_default();
         return Err(ado_err(format!(
             "Create PR failed (HTTP {}): {}",
             status, text
         )));
     }
 
-    let raw: serde_json::Value = resp.json().map_err(ado_err)?;
+    let raw: serde_json::Value = resp.json().await.map_err(ado_err)?;
     Ok(parse_pr_info(&raw, workspace_id))
 }
 
 /// Get PR info for the current branch.
-pub fn get_pr_by_branch(
+pub async fn get_pr_by_branch(
     pat: &str,
     org: &str,
     project: &str,
@@ -113,18 +113,18 @@ pub fn get_pr_by_branch(
         branch
     );
 
-    let resp = c.get(&url).send().map_err(ado_err)?;
+    let resp = c.get(&url).send().await.map_err(ado_err)?;
 
     if !resp.status().is_success() {
         let status = resp.status();
-        let text = resp.text().unwrap_or_default();
+        let text = resp.text().await.unwrap_or_default();
         return Err(ado_err(format!(
             "Get PR by branch failed (HTTP {}): {}",
             status, text
         )));
     }
 
-    let raw: serde_json::Value = resp.json().map_err(ado_err)?;
+    let raw: serde_json::Value = resp.json().await.map_err(ado_err)?;
     let prs = raw["value"].as_array();
 
     match prs.and_then(|arr| arr.first()) {
@@ -134,7 +134,7 @@ pub fn get_pr_by_branch(
 }
 
 /// Get build status checks for a PR.
-pub fn get_pr_checks(
+pub async fn get_pr_checks(
     pat: &str,
     org: &str,
     project: &str,
@@ -150,21 +150,21 @@ pub fn get_pr_checks(
         pr_id
     );
 
-    let resp = c.get(&url).send().map_err(ado_err)?;
+    let resp = c.get(&url).send().await.map_err(ado_err)?;
 
     if !resp.status().is_success() {
         // Fall back to empty checks rather than erroring
         return Ok(Vec::new());
     }
 
-    let raw: serde_json::Value = resp.json().map_err(ado_err)?;
+    let raw: serde_json::Value = resp.json().await.map_err(ado_err)?;
     let statuses = raw["value"].as_array().cloned().unwrap_or_default();
 
     Ok(statuses.iter().map(parse_pr_check).collect())
 }
 
 /// Merge (complete) a pull request.
-pub fn merge_pr(
+pub async fn merge_pr(
     pat: &str,
     org: &str,
     project: &str,
@@ -187,11 +187,11 @@ pub fn merge_pr(
     };
 
     // First get the last merge source commit
-    let get_resp = c.get(&url).send().map_err(ado_err)?;
+    let get_resp = c.get(&url).send().await.map_err(ado_err)?;
     if !get_resp.status().is_success() {
         return Err(ado_err("Failed to fetch PR for merge"));
     }
-    let pr_data: serde_json::Value = get_resp.json().map_err(ado_err)?;
+    let pr_data: serde_json::Value = get_resp.json().await.map_err(ado_err)?;
     let last_merge_source_commit = pr_data["lastMergeSourceCommit"]["commitId"]
         .as_str()
         .unwrap_or("")
@@ -208,11 +208,11 @@ pub fn merge_pr(
         }
     });
 
-    let resp = c.patch(&url).json(&payload).send().map_err(ado_err)?;
+    let resp = c.patch(&url).json(&payload).send().await.map_err(ado_err)?;
 
     if !resp.status().is_success() {
         let status = resp.status();
-        let text = resp.text().unwrap_or_default();
+        let text = resp.text().await.unwrap_or_default();
         return Err(ado_err(format!("Merge failed (HTTP {}): {}", status, text)));
     }
 
@@ -224,7 +224,7 @@ pub fn merge_pr(
 }
 
 /// Get PR threads (reviews + comments).
-pub fn get_pr_threads(
+pub async fn get_pr_threads(
     pat: &str,
     org: &str,
     project: &str,
@@ -239,13 +239,13 @@ pub fn get_pr_threads(
         pr_id
     );
 
-    let resp = c.get(&url).send().map_err(ado_err)?;
+    let resp = c.get(&url).send().await.map_err(ado_err)?;
 
     if !resp.status().is_success() {
         return Ok((Vec::new(), Vec::new()));
     }
 
-    let raw: serde_json::Value = resp.json().map_err(ado_err)?;
+    let raw: serde_json::Value = resp.json().await.map_err(ado_err)?;
     let threads = raw["value"].as_array().cloned().unwrap_or_default();
 
     let mut reviews = Vec::new();
@@ -308,7 +308,7 @@ pub fn get_pr_threads(
 }
 
 /// Get reviewer votes as reviews.
-pub fn get_pr_reviewers(
+pub async fn get_pr_reviewers(
     pat: &str,
     org: &str,
     project: &str,
@@ -323,13 +323,13 @@ pub fn get_pr_reviewers(
         pr_id
     );
 
-    let resp = c.get(&url).send().map_err(ado_err)?;
+    let resp = c.get(&url).send().await.map_err(ado_err)?;
 
     if !resp.status().is_success() {
         return Ok(Vec::new());
     }
 
-    let raw: serde_json::Value = resp.json().map_err(ado_err)?;
+    let raw: serde_json::Value = resp.json().await.map_err(ado_err)?;
     let reviewers = raw["value"].as_array().cloned().unwrap_or_default();
 
     Ok(reviewers
@@ -354,7 +354,7 @@ pub fn get_pr_reviewers(
 }
 
 /// List pull requests for a repository.
-pub fn list_prs(
+pub async fn list_prs(
     pat: &str,
     org: &str,
     project: &str,
@@ -367,25 +367,25 @@ pub fn list_prs(
         repo_name
     );
 
-    let resp = c.get(&url).send().map_err(ado_err)?;
+    let resp = c.get(&url).send().await.map_err(ado_err)?;
 
     if !resp.status().is_success() {
         let status = resp.status();
-        let text = resp.text().unwrap_or_default();
+        let text = resp.text().await.unwrap_or_default();
         return Err(ado_err(format!(
             "List PRs failed (HTTP {}): {}",
             status, text
         )));
     }
 
-    let raw: serde_json::Value = resp.json().map_err(ado_err)?;
+    let raw: serde_json::Value = resp.json().await.map_err(ado_err)?;
     let prs = raw["value"].as_array().cloned().unwrap_or_default();
 
     Ok(prs.iter().map(parse_pr_list_item).collect())
 }
 
 /// Get pipeline/build runs for a branch.
-pub fn get_pipeline_runs(
+pub async fn get_pipeline_runs(
     pat: &str,
     org: &str,
     project: &str,
@@ -398,20 +398,20 @@ pub fn get_pipeline_runs(
         branch
     );
 
-    let resp = c.get(&url).send().map_err(ado_err)?;
+    let resp = c.get(&url).send().await.map_err(ado_err)?;
 
     if !resp.status().is_success() {
         return Ok(Vec::new());
     }
 
-    let raw: serde_json::Value = resp.json().map_err(ado_err)?;
+    let raw: serde_json::Value = resp.json().await.map_err(ado_err)?;
     let builds = raw["value"].as_array().cloned().unwrap_or_default();
 
     Ok(builds.iter().map(parse_workflow_run).collect())
 }
 
 /// Get build timeline (jobs/steps).
-pub fn get_build_timeline(
+pub async fn get_build_timeline(
     pat: &str,
     org: &str,
     project: &str,
@@ -424,13 +424,13 @@ pub fn get_build_timeline(
         build_id
     );
 
-    let resp = c.get(&url).send().map_err(ado_err)?;
+    let resp = c.get(&url).send().await.map_err(ado_err)?;
 
     if !resp.status().is_success() {
         return Ok(Vec::new());
     }
 
-    let raw: serde_json::Value = resp.json().map_err(ado_err)?;
+    let raw: serde_json::Value = resp.json().await.map_err(ado_err)?;
     let records = raw["records"].as_array().cloned().unwrap_or_default();
 
     // ADO timeline has a flat list of records with parentId relationships.

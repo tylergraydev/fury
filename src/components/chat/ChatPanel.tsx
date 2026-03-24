@@ -134,10 +134,19 @@ export function ChatPanel({ contextId, contextType }: Props) {
     return () => document.removeEventListener("mousedown", handleMouseDown);
   }, [showSearch]);
 
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    };
+  }, []);
+
   const handleSearchNavigate = useCallback((messageId: string) => {
     setHighlightMessageId(messageId);
     // Clear highlight after animation
-    setTimeout(() => setHighlightMessageId(null), 2000);
+    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    highlightTimeoutRef.current = setTimeout(() => setHighlightMessageId(null), 2000);
   }, []);
 
   const handleSend = useCallback(
@@ -243,6 +252,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
               backgroundColor: showSearch ? "var(--bg-surface)" : "transparent",
             }}
             title="Search messages"
+            aria-label="Search messages"
           >
             <Search className="h-4 w-4" />
           </button>
@@ -259,6 +269,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
                 backgroundColor: showTOC ? "var(--bg-surface)" : "transparent",
               }}
               title="Table of Contents"
+              aria-label="Table of contents"
             >
               <List className="h-4 w-4" />
             </button>

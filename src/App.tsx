@@ -384,7 +384,7 @@ function App() {
         setShowSnippets(true);
         break;
       case "export-workspace":
-        if (activeWorkspaceId) setShowExport(true);
+        if (useWorkspaceStore.getState().activeWorkspaceId) setShowExport(true);
         break;
       case "new-workspace":
         setShowPalette(true);
@@ -430,8 +430,14 @@ function App() {
 
         {showSettingsOverlay && (
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Settings"
             className="fixed inset-0 z-40 overflow-y-auto"
             style={{ backgroundColor: "var(--bg-primary)" }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") useUIStore.getState().closeViewTab("settings");
+            }}
           >
             <AppSettingsPanel />
           </div>
@@ -454,7 +460,7 @@ function App() {
   const activeRepo = activeWs
     ? repositories.find((r) => r.id === activeWs.repoId)
     : repositories.find((r) =>
-        useWorkspaceStore.getState().activeRepoId === r.id
+        activeRepoId === r.id
       );
 
   const sidebarContext: SidebarContext | null = activeWorkspaceId
@@ -503,8 +509,14 @@ function App() {
 
       {activeViewTabId === "settings" && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Settings"
           className="fixed inset-0 z-40 overflow-y-auto"
           style={{ backgroundColor: "var(--bg-primary)" }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") useUIStore.getState().closeViewTab("settings");
+          }}
         >
           <AppSettingsPanel />
         </div>

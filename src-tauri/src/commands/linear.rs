@@ -62,9 +62,7 @@ pub async fn search_linear_issues(
 ) -> Result<Vec<LinearIssue>, AppError> {
     let api_key = extract_linear_api_key(&state)?;
 
-    tokio::task::spawn_blocking(move || linear_svc::search_issues(&api_key, &query))
-        .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    linear_svc::search_issues(&api_key, &query).await
 }
 
 #[tauri::command]

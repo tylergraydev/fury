@@ -169,6 +169,9 @@ export function computeWorkspaceBreakdown(dataPoints: UsageDataPoint[]): Workspa
     .sort((a, b) => b.totalCostUsd - a.totalCostUsd);
 }
 
+// Request counter to prevent stale fetch results from overwriting newer data
+let _usageFetchCounter = 0;
+
 export const useUsageStore = create<UsageStore>((set, get) => ({
   dataPoints: [],
   loading: false,
@@ -188,6 +191,7 @@ export const useUsageStore = create<UsageStore>((set, get) => ({
 
   fetchUsageData: async () => {
     const { timePeriod, selectedWorkspaceId } = get();
+    const requestId = ++_usageFetchCounter;
     set({ loading: true, error: null });
 
     try {
@@ -196,9 +200,14 @@ export const useUsageStore = create<UsageStore>((set, get) => ({
         selectedWorkspaceId ?? undefined,
         since,
       );
-      set({ dataPoints: data, loading: false });
+      // Only update if no newer request was started
+      if (requestId === _usageFetchCounter) {
+        set({ dataPoints: data, loading: false });
+      }
     } catch (e) {
-      set({ error: String(e), loading: false });
+      if (requestId === _usageFetchCounter) {
+        set({ error: String(e), loading: false });
+      }
     }
   },
 }));

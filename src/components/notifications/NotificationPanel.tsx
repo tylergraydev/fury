@@ -108,8 +108,17 @@ export function NotificationPanel() {
         useNotificationStore.getState().closePanel();
       }
     };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        useNotificationStore.getState().closePanel();
+      }
+    };
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [panelOpen]);
 
   if (!panelOpen) return null;
@@ -119,6 +128,9 @@ export function NotificationPanel() {
   return (
     <div
       ref={panelRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Notifications"
       className="fixed z-50 rounded-lg shadow-xl"
       style={{
         top: 60,

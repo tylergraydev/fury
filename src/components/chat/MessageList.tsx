@@ -134,11 +134,22 @@ export function MessageList({
   onAction,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [expandedTurns, setExpandedTurns] = useState<Set<string>>(new Set());
+  const [isNearBottom, setIsNearBottom] = useState(true);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const threshold = 100;
+    setIsNearBottom(el.scrollHeight - el.scrollTop - el.clientHeight < threshold);
+  }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamingText]);
+    if (isNearBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, streamingText, isNearBottom]);
 
   // Scroll to highlighted message from search
   useEffect(() => {
@@ -164,6 +175,11 @@ export function MessageList({
     });
   }, []);
 
+  const scrollToBottom = useCallback(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    setIsNearBottom(true);
+  }, []);
+
   const { orphans, turns } = useMemo(() => segmentTurns(messages), [messages]);
 
   if (messages.length === 0 && !streamingText) {
@@ -185,7 +201,7 @@ export function MessageList({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-6 py-5">
+    <div className="relative flex-1 overflow-y-auto px-6 py-5" ref={scrollContainerRef} onScroll={handleScroll}>
       {/* Render any orphaned messages before the first user message */}
       {orphans.map((msg) => (
         /* v8 ignore start -- ternary branch for highlight is V8 branch artifact */
@@ -290,6 +306,19 @@ export function MessageList({
       {isRunning && !streamingText && <ThinkingSpinner />}
 
       <div ref={bottomRef} />
+      {!isNearBottom && (
+        <button
+          onClick={scrollToBottom}
+          className="sticky bottom-2 left-1/2 -translate-x-1/2 rounded-full px-3 py-1 text-xs shadow-lg"
+          style={{
+            backgroundColor: "var(--bg-surface)",
+            color: "var(--text-secondary)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          Scroll to bottom
+        </button>
+      )}
     </div>
   );
 }

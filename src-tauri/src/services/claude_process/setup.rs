@@ -159,6 +159,10 @@ pub(crate) fn build_command(
         docker_args.push("-w".to_string());
         docker_args.push(ctx.container_working_dir.clone());
         for (key, value) in env_vars {
+            if !is_valid_env_key(key) {
+                eprintln!("[build_command] Skipping invalid env var key: {:?}", key);
+                continue;
+            }
             docker_args.push("-e".to_string());
             docker_args.push(format!("{}={}", key, value));
         }
@@ -176,9 +180,29 @@ pub(crate) fn build_command(
     }
 }
 
+use crate::services::utils::is_valid_env_key;
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // --- is_valid_env_key tests ---
+
+    #[test]
+    fn test_valid_env_keys() {
+        assert!(is_valid_env_key("PATH"));
+        assert!(is_valid_env_key("_PRIVATE"));
+        assert!(is_valid_env_key("MY_VAR_2"));
+    }
+
+    #[test]
+    fn test_invalid_env_keys() {
+        assert!(!is_valid_env_key(""));
+        assert!(!is_valid_env_key("1BAD"));
+        assert!(!is_valid_env_key("key with spaces"));
+        assert!(!is_valid_env_key("key=value"));
+        assert!(!is_valid_env_key("key;injection"));
+    }
 
     // --- build_env_vars tests ---
 

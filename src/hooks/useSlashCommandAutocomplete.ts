@@ -127,7 +127,9 @@ export function useSlashCommandAutocomplete(
     }
     if (e.key === "Enter" || e.key === "Tab") {
       e.preventDefault();
-      selectSlashCommand(matchingCommands[selectedSlashIndex]);
+      const idx = Math.min(selectedSlashIndex, matchingCommands.length - 1);
+      if (idx < 0 || !matchingCommands[idx]) return true;
+      selectSlashCommand(matchingCommands[idx]);
       return true;
     }
     if (e.key === "Escape") {

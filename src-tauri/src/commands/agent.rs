@@ -350,10 +350,19 @@ pub async fn send_message(
     );
 
     // Resolve linked workspace directories (for --add-dir)
+    // Get link IDs from db first, then drop the db lock before acquiring workspaces lock
+    // to respect lock ordering (workspaces before db)
     let linked_dirs = if request.workspace_id.is_some() {
-        let db = state.db.lock().unwrap();
-        if let Some(db) = db.as_ref() {
-            let link_ids = db.get_workspace_links(&context_id).unwrap_or_default();
+        let link_ids = {
+            let db = state.db.lock().unwrap();
+            if let Some(db) = db.as_ref() {
+                db.get_workspace_links(&context_id).unwrap_or_default()
+            } else {
+                vec![]
+            }
+        };
+        // Now get workspace data (db lock is dropped)
+        if !link_ids.is_empty() {
             let workspaces = state.workspaces.read().unwrap();
             link_ids
                 .iter()

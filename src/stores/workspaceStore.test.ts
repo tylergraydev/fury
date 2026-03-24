@@ -113,7 +113,7 @@ describe("workspaceStore - archiveWs", () => {
     expect(useWorkspaceStore.getState().archivedWorkspaces).toContainEqual(ws);
   });
 
-  it("clears activeWorkspaceId when archiving the active workspace", async () => {
+  it("clears activeWorkspaceId and activeRepoId when archiving the active workspace", async () => {
     const ws = makeWs({ id: "ws-1", repoId: "repo-1" });
     useWorkspaceStore.setState({
       workspaces: [ws],
@@ -124,7 +124,7 @@ describe("workspaceStore - archiveWs", () => {
     await useWorkspaceStore.getState().archiveWs("ws-1");
 
     expect(useWorkspaceStore.getState().activeWorkspaceId).toBeNull();
-    expect(useWorkspaceStore.getState().activeRepoId).toBe("repo-1");
+    expect(useWorkspaceStore.getState().activeRepoId).toBeNull();
   });
 
   it("preserves activeWorkspaceId when archiving a non-active workspace", async () => {
@@ -162,7 +162,7 @@ describe("workspaceStore - archiveWs", () => {
     expect(useWorkspaceStore.getState().archivedWorkspaces).toEqual([]);
   });
 
-  it("sets activeRepoId from workspace repoId when archiving active workspace without repoId", async () => {
+  it("clears activeRepoId when archiving active workspace even if activeRepoId was set", async () => {
     // Create a workspace without repoId
     const ws = makeWs({ id: "ws-1", repoId: undefined as any });
     useWorkspaceStore.setState({
@@ -175,8 +175,8 @@ describe("workspaceStore - archiveWs", () => {
     await useWorkspaceStore.getState().archiveWs("ws-1");
 
     expect(useWorkspaceStore.getState().activeWorkspaceId).toBeNull();
-    // Falls back to existing activeRepoId since workspace.repoId is undefined
-    expect(useWorkspaceStore.getState().activeRepoId).toBe("existing-repo");
+    // activeRepoId is cleared to prevent stale references
+    expect(useWorkspaceStore.getState().activeRepoId).toBeNull();
   });
 });
 
@@ -191,7 +191,7 @@ describe("workspaceStore - deleteWs", () => {
     expect(useWorkspaceStore.getState().workspaces).toHaveLength(0);
   });
 
-  it("clears activeWorkspaceId when deleting the active workspace", async () => {
+  it("clears activeWorkspaceId and activeRepoId when deleting the active workspace", async () => {
     const ws = makeWs({ id: "ws-1", repoId: "repo-1" });
     useWorkspaceStore.setState({
       workspaces: [ws],
@@ -202,7 +202,7 @@ describe("workspaceStore - deleteWs", () => {
     await useWorkspaceStore.getState().deleteWs("ws-1");
 
     expect(useWorkspaceStore.getState().activeWorkspaceId).toBeNull();
-    expect(useWorkspaceStore.getState().activeRepoId).toBe("repo-1");
+    expect(useWorkspaceStore.getState().activeRepoId).toBeNull();
   });
 
   it("preserves activeWorkspaceId when deleting non-active workspace", async () => {
@@ -231,7 +231,7 @@ describe("workspaceStore - deleteWs", () => {
     expect(useWorkspaceStore.getState().error).toBe("Error: delete fail");
   });
 
-  it("uses fallback activeRepoId when deleting active workspace without repoId", async () => {
+  it("clears activeRepoId when deleting active workspace even if activeRepoId was set", async () => {
     const ws = makeWs({ id: "ws-1", repoId: undefined as any });
     useWorkspaceStore.setState({
       workspaces: [ws],
@@ -243,7 +243,8 @@ describe("workspaceStore - deleteWs", () => {
     await useWorkspaceStore.getState().deleteWs("ws-1");
 
     expect(useWorkspaceStore.getState().activeWorkspaceId).toBeNull();
-    expect(useWorkspaceStore.getState().activeRepoId).toBe("existing-repo");
+    // activeRepoId is cleared to prevent stale references
+    expect(useWorkspaceStore.getState().activeRepoId).toBeNull();
   });
 });
 

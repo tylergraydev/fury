@@ -34,11 +34,18 @@ const mockLoadTemplates = vi.fn().mockResolvedValue(undefined);
 const mockDeleteTemplate = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("../../stores/workspaceTemplateStore", () => ({
-  useWorkspaceTemplateStore: vi.fn(() => ({
-    templates: [],
-    loadTemplates: mockLoadTemplates,
-    deleteTemplate: mockDeleteTemplate,
-  })),
+  useWorkspaceTemplateStore: vi.fn((selector?: (s: any) => unknown) => {
+    const state = {
+      templates: [],
+      loading: false,
+      error: null,
+      loadTemplates: mockLoadTemplates,
+      createTemplate: vi.fn(),
+      updateTemplate: vi.fn(),
+      deleteTemplate: mockDeleteTemplate,
+    };
+    return selector ? selector(state) : state;
+  }),
 }));
 
 vi.mock("../workspace/WorkspaceTemplateDialog", () => ({
@@ -66,11 +73,18 @@ beforeEach(() => {
     devcontainer: null,
   });
   mockDetectDevcontainer.mockResolvedValue(null);
-  mockedUseWorkspaceTemplateStore.mockReturnValue({
-    templates: [],
-    loadTemplates: mockLoadTemplates,
-    deleteTemplate: mockDeleteTemplate,
-  } as ReturnType<typeof useWorkspaceTemplateStore>);
+  mockedUseWorkspaceTemplateStore.mockImplementation((selector?: (s: any) => unknown) => {
+    const state = {
+      templates: [],
+      loading: false,
+      error: null,
+      loadTemplates: mockLoadTemplates,
+      createTemplate: vi.fn(),
+      updateTemplate: vi.fn(),
+      deleteTemplate: mockDeleteTemplate,
+    };
+    return selector ? selector(state) : state;
+  });
 });
 
 describe("RepoSettingsPanel", () => {
@@ -993,14 +1007,17 @@ describe("RepoSettingsPanel", () => {
   });
 
   it("displays templates list when templates exist", async () => {
-    mockedUseWorkspaceTemplateStore.mockReturnValue({
-      templates: [
-        { id: "t1", name: "Template One", description: "First template", repoId: "r1", settings: {} },
-        { id: "t2", name: "Template Two", description: null, repoId: "r1", settings: {} },
-      ],
-      loadTemplates: mockLoadTemplates,
-      deleteTemplate: mockDeleteTemplate,
-    } as unknown as ReturnType<typeof useWorkspaceTemplateStore>);
+    mockedUseWorkspaceTemplateStore.mockImplementation((selector?: (s: any) => unknown) => {
+      const state = {
+        templates: [
+          { id: "t1", name: "Template One", description: "First template", repoId: "r1", settings: {} },
+          { id: "t2", name: "Template Two", description: null, repoId: "r1", settings: {} },
+        ],
+        loadTemplates: mockLoadTemplates,
+        deleteTemplate: mockDeleteTemplate,
+      };
+      return selector ? selector(state) : state;
+    });
 
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
 
@@ -1010,13 +1027,16 @@ describe("RepoSettingsPanel", () => {
   });
 
   it("does not show description when template description is null", async () => {
-    mockedUseWorkspaceTemplateStore.mockReturnValue({
-      templates: [
-        { id: "t1", name: "No Desc Template", description: null, repoId: "r1", settings: {} },
-      ],
-      loadTemplates: mockLoadTemplates,
-      deleteTemplate: mockDeleteTemplate,
-    } as unknown as ReturnType<typeof useWorkspaceTemplateStore>);
+    mockedUseWorkspaceTemplateStore.mockImplementation((selector?: (s: any) => unknown) => {
+      const state = {
+        templates: [
+          { id: "t1", name: "No Desc Template", description: null, repoId: "r1", settings: {} },
+        ],
+        loadTemplates: mockLoadTemplates,
+        deleteTemplate: mockDeleteTemplate,
+      };
+      return selector ? selector(state) : state;
+    });
 
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
 
@@ -1027,13 +1047,16 @@ describe("RepoSettingsPanel", () => {
   });
 
   it("deletes a template when delete button is clicked", async () => {
-    mockedUseWorkspaceTemplateStore.mockReturnValue({
-      templates: [
-        { id: "t1", name: "My Template", description: "desc", repoId: "r1", settings: {} },
-      ],
-      loadTemplates: mockLoadTemplates,
-      deleteTemplate: mockDeleteTemplate,
-    } as unknown as ReturnType<typeof useWorkspaceTemplateStore>);
+    mockedUseWorkspaceTemplateStore.mockImplementation((selector?: (s: any) => unknown) => {
+      const state = {
+        templates: [
+          { id: "t1", name: "My Template", description: "desc", repoId: "r1", settings: {} },
+        ],
+        loadTemplates: mockLoadTemplates,
+        deleteTemplate: mockDeleteTemplate,
+      };
+      return selector ? selector(state) : state;
+    });
 
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
 

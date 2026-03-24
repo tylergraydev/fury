@@ -28,6 +28,8 @@ interface ScriptStore {
   isRunning: (contextId: string, kind: ScriptKind) => boolean;
 }
 
+const MAX_OUTPUT_LINES = 5000;
+
 function key(workspaceId: string, kind: ScriptKind): string {
   return `${workspaceId}:${kind}`;
 }
@@ -48,12 +50,19 @@ export const useScriptStore = create<ScriptStore>((set, get) => ({
       (event) => {
         const prefix =
           event.payload.stream === "stderr" ? "[stderr] " : "";
-        set((state) => ({
-          output: {
-            ...state.output,
-            [k]: [...(state.output[k] ?? []), prefix + event.payload.line],
-          },
-        }));
+        set((state) => {
+          const currentOutput = state.output[k] ?? [];
+          const newOutput = [...currentOutput, prefix + event.payload.line];
+          const trimmed = newOutput.length > MAX_OUTPUT_LINES
+            ? newOutput.slice(-MAX_OUTPUT_LINES)
+            : newOutput;
+          return {
+            output: {
+              ...state.output,
+              [k]: trimmed,
+            },
+          };
+        });
       },
     );
 

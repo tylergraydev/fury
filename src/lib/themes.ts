@@ -138,6 +138,11 @@ export function applyTheme(name: ThemeName): void {
     return;
   }
   const root = document.documentElement;
+  // Remove all existing theme CSS custom properties before applying new ones
+  const allKeys = Object.keys(builtInThemes.blend) as (keyof ThemeVars)[];
+  for (const key of allKeys) {
+    root.style.removeProperty(key);
+  }
   for (const [key, value] of Object.entries(vars)) {
     root.style.setProperty(key, value);
   }

@@ -16,7 +16,7 @@ import { initNotificationListeners } from "./notificationListeners";
 
 beforeEach(() => {
   useAgentStore.setState({ agents: {}, subscriptions: {} });
-  usePrStore.setState({ prInfo: {}, reviews: {}, reviewComments: {}, workflowRuns: {}, loading: {}, error: {}, subscriptions: {}, pollIntervals: {}, workflowLoading: {}, reviewsLoading: {} });
+  usePrStore.setState({ prInfo: {}, reviews: {}, reviewComments: {}, workflowRuns: {}, loading: {}, error: {}, subscriptions: {}, workflowLoading: {}, reviewsLoading: {} });
   useScriptStore.setState({ output: {}, running: {}, exitCodes: {}, subscriptions: {} });
   useMergeStore.setState({ conflictedFiles: {} });
   useNotificationStore.setState({ notifications: [], unreadCount: 0, panelOpen: false });

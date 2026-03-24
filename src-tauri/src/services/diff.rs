@@ -1,6 +1,7 @@
 use crate::error::AppError;
 use crate::models::diff::{DiffResult, FileDiff, FileDiffContent, FilePatchPreview, FileStatus};
 use crate::platform;
+use crate::services::path_validation::validate_path_within_root;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
@@ -39,8 +40,17 @@ pub fn get_workspace_diff(
                 .current_dir(worktree_path)
                 .output()
         });
-        (h1.join().unwrap(), h2.join().unwrap(), h3.join().unwrap())
-    });
+        let r1 = h1
+            .join()
+            .map_err(|_| std::io::Error::other("git name-status thread panicked"))?;
+        let r2 = h2
+            .join()
+            .map_err(|_| std::io::Error::other("git numstat thread panicked"))?;
+        let r3 = h3
+            .join()
+            .map_err(|_| std::io::Error::other("git ls-files thread panicked"))?;
+        Ok::<_, std::io::Error>((r1, r2, r3))
+    })?;
 
     let name_status_output = name_status_result?;
     let numstat_output = numstat_result?;
@@ -167,8 +177,9 @@ pub fn get_file_diff_content(
         String::new() // New file — no original content
     };
 
-    // Get modified content from filesystem
+    // Get modified content from filesystem — validate path stays within worktree
     let full_path = worktree_path.join(file_path);
+    validate_path_within_root(&full_path, worktree_path)?;
     let modified = std::fs::read_to_string(&full_path).unwrap_or_default();
 
     let language = detect_language(file_path);
@@ -242,6 +253,7 @@ pub fn get_file_patch_preview(
 /// Generate a synthetic unified diff for an untracked file (all lines are additions).
 fn generate_untracked_patch(worktree_path: &Path, file_path: &str) -> Result<String, AppError> {
     let full_path = worktree_path.join(file_path);
+    validate_path_within_root(&full_path, worktree_path)?;
     let meta = std::fs::metadata(&full_path).ok();
 
     if meta.as_ref().map(|m| m.len()).unwrap_or(0) > MAX_UNTRACKED_FILE_SIZE {

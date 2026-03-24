@@ -15,7 +15,7 @@ vi.mock("../lib/tauri", () => ({
   getWorkflowRuns: vi.fn(),
 }));
 
-import { usePrStore } from "./prStore";
+import { usePrStore, _pollIntervals } from "./prStore";
 import { listen } from "@tauri-apps/api/event";
 import {
   createPr,
@@ -51,18 +51,18 @@ beforeEach(() => {
       loading: {},
       error: {},
       subscriptions: {},
-      pollIntervals: {},
     },
   );
+  // Clear module-level poll intervals
+  _pollIntervals.forEach((interval) => clearInterval(interval));
+  _pollIntervals.clear();
   vi.clearAllMocks();
 });
 
 afterEach(() => {
   // Clean up any remaining intervals
-  const state = usePrStore.getState();
-  Object.keys(state.pollIntervals).forEach((key) => {
-    clearInterval(state.pollIntervals[key]);
-  });
+  _pollIntervals.forEach((interval) => clearInterval(interval));
+  _pollIntervals.clear();
   vi.useRealTimers();
 });
 
@@ -135,7 +135,7 @@ describe("prStore - subscribe", () => {
     await usePrStore.getState().subscribe("ws-1");
     // Start polling so we can verify it gets stopped
     usePrStore.getState().startPolling("ws-1");
-    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeDefined();
+    expect(_pollIntervals.get("ws-1")).toBeDefined();
 
     mergedHandler({ payload: { success: true } });
 
@@ -144,7 +144,7 @@ describe("prStore - subscribe", () => {
       expect(getPrFullData).toHaveBeenCalledWith("ws-1");
     });
     // Polling should be stopped
-    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeUndefined();
+    expect(_pollIntervals.get("ws-1")).toBeUndefined();
   });
 
   // Line 104 (token.cancelled guard in pr-merged handler) is a defensive guard
@@ -179,11 +179,11 @@ describe("prStore - unsubscribe", () => {
     });
     // Start polling first
     usePrStore.getState().startPolling("ws-1");
-    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeDefined();
+    expect(_pollIntervals.get("ws-1")).toBeDefined();
 
     usePrStore.getState().unsubscribe("ws-1");
 
-    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeUndefined();
+    expect(_pollIntervals.get("ws-1")).toBeUndefined();
   });
 });
 
@@ -381,7 +381,7 @@ describe("prStore - refreshChecks", () => {
 
     await usePrStore.getState().refreshChecks("ws-1");
 
-    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeUndefined();
+    expect(_pollIntervals.get("ws-1")).toBeUndefined();
   });
 
   it("keeps polling when checks are still running", async () => {
@@ -394,7 +394,7 @@ describe("prStore - refreshChecks", () => {
 
     await usePrStore.getState().refreshChecks("ws-1");
 
-    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeDefined();
+    expect(_pollIntervals.get("ws-1")).toBeDefined();
     // Clean up
     usePrStore.getState().stopPolling("ws-1");
   });
@@ -419,7 +419,7 @@ describe("prStore - refreshChecks", () => {
     await usePrStore.getState().refreshChecks("ws-1");
 
     // Checks are done but workflow runs are not → keep polling
-    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeDefined();
+    expect(_pollIntervals.get("ws-1")).toBeDefined();
     usePrStore.getState().stopPolling("ws-1");
   });
 
@@ -448,7 +448,7 @@ describe("prStore - createPr", () => {
     expect(result).toEqual(info);
     expect(usePrStore.getState().prInfo["ws-1"]).toEqual(info);
     expect(usePrStore.getState().loading["ws-1"]).toBe(false);
-    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeDefined();
+    expect(_pollIntervals.get("ws-1")).toBeDefined();
     // Clean up
     usePrStore.getState().stopPolling("ws-1");
   });
@@ -476,7 +476,7 @@ describe("prStore - pushChanges", () => {
 
     expect(pushChanges).toHaveBeenCalledWith("ws-1");
     expect(usePrStore.getState().loading["ws-1"]).toBe(false);
-    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeDefined();
+    expect(_pollIntervals.get("ws-1")).toBeDefined();
     usePrStore.getState().stopPolling("ws-1");
   });
 
@@ -538,15 +538,15 @@ describe("prStore - polling", () => {
   it("startPolling sets up an interval", () => {
     usePrStore.getState().startPolling("ws-1");
 
-    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeDefined();
+    expect(_pollIntervals.get("ws-1")).toBeDefined();
     usePrStore.getState().stopPolling("ws-1");
   });
 
   it("startPolling skips if already polling", () => {
     usePrStore.getState().startPolling("ws-1");
-    const first = usePrStore.getState().pollIntervals["ws-1"];
+    const first = _pollIntervals.get("ws-1");
     usePrStore.getState().startPolling("ws-1");
-    const second = usePrStore.getState().pollIntervals["ws-1"];
+    const second = _pollIntervals.get("ws-1");
 
     expect(first).toBe(second);
     usePrStore.getState().stopPolling("ws-1");
@@ -554,11 +554,11 @@ describe("prStore - polling", () => {
 
   it("stopPolling clears the interval", () => {
     usePrStore.getState().startPolling("ws-1");
-    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeDefined();
+    expect(_pollIntervals.get("ws-1")).toBeDefined();
 
     usePrStore.getState().stopPolling("ws-1");
 
-    expect(usePrStore.getState().pollIntervals["ws-1"]).toBeUndefined();
+    expect(_pollIntervals.get("ws-1")).toBeUndefined();
   });
 
   it("polling interval calls refreshChecks", async () => {

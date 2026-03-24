@@ -89,6 +89,7 @@ pub(crate) fn build_error_state(ws_id: Uuid, error_msg: &str) -> ContainerState 
 }
 
 /// Update workspace devcontainer config in-memory and in DB.
+#[cfg(test)]
 pub(crate) fn update_devcontainer_config_inner(
     workspaces: &mut HashMap<Uuid, Workspace>,
     db: Option<&crate::db::Database>,
@@ -192,11 +193,7 @@ pub async fn stop_container(
 ) -> Result<(), AppError> {
     let ws_id = parse_workspace_id(&workspace_id)?;
 
-    let container_id = {
-        let states = state.container_states.lock().unwrap();
-        get_container_id(&states, ws_id)?
-    };
-
+    // Acquire workspaces lock first, then container_states, to respect lock ordering
     let (config, workspace_folder) = {
         let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
@@ -204,6 +201,11 @@ pub async fn stop_container(
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
         let config = ws.devcontainer_config.clone().unwrap_or_default();
         (config, ws.worktree_path.clone())
+    };
+
+    let container_id = {
+        let states = state.container_states.lock().unwrap();
+        get_container_id(&states, ws_id)?
     };
 
     dc_svc::container_stop(&container_id, &config, Some(&workspace_folder)).await?;
@@ -266,10 +268,23 @@ pub async fn update_devcontainer_config(
 ) -> Result<(), AppError> {
     let ws_id = parse_workspace_id(&workspace_id)?;
 
-    // Update in-memory state and persist
-    let mut workspaces = state.workspaces.write().unwrap();
+    // Update in-memory state first, then drop workspaces lock before acquiring db lock
+    // to respect lock ordering (workspaces before db, never both simultaneously)
+    {
+        let mut workspaces = state.workspaces.write().unwrap();
+        let ws = workspaces
+            .get_mut(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        ws.devcontainer_config = Some(config.clone());
+    }
+
+    // Now persist to db (workspaces lock is dropped)
     let db_guard = state.db.lock().unwrap();
-    update_devcontainer_config_inner(&mut workspaces, db_guard.as_ref(), ws_id, config)
+    if let Some(db) = db_guard.as_ref() {
+        db.update_workspace_devcontainer_config(&ws_id, Some(&config))?;
+    }
+
+    Ok(())
 }
 
 #[tauri::command]

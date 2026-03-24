@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, memo, type ReactNode, useMemo, useState } from "react";
+import { Component, type ErrorInfo, memo, type ReactNode, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
@@ -150,8 +150,10 @@ const staticComponents: Partial<Components> = {
   img: ({ src, alt }) => <MarkdownImage src={src} alt={alt} />,
 };
 
+const REMARK_PLUGINS = [remarkGfm];
+
 function buildComponents(
-  content: string,
+  contentRef: React.RefObject<string>,
   contextId?: string,
   contextType?: "workspace" | "repo",
 ): Components {
@@ -186,7 +188,7 @@ function buildComponents(
 
     pre: ({ children }) => {
       const { codeText, filePath } = showToolbar
-        ? extractCodeBlockInfo(children, content)
+        ? extractCodeBlockInfo(children, contentRef.current)
         : { codeText: "", filePath: null };
 
       return (
@@ -214,9 +216,12 @@ function buildComponents(
 }
 
 export const MarkdownContent = memo(function MarkdownContent({ content, contextId, contextType }: Props) {
+  const contentRef = useRef(content);
+  contentRef.current = content;
+
   const components = useMemo(
-    () => buildComponents(content, contextId, contextType),
-    [content, contextId, contextType],
+    () => buildComponents(contentRef, contextId, contextType),
+    [contextId, contextType],
   );
 
   if (!content) return null;
@@ -226,7 +231,7 @@ export const MarkdownContent = memo(function MarkdownContent({ content, contextI
       fallback={<div className="whitespace-pre-wrap">{content}</div>}
     >
       <div className="markdown-content">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
           {content}
         </ReactMarkdown>
       </div>

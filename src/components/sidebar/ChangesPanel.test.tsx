@@ -489,10 +489,11 @@ describe("ChangesPanel - polling", () => {
     vi.useRealTimers();
   });
 
-  it("polls loadDiff every 3 seconds for workspace context", () => {
+  it("polls loadDiff every 3 seconds for workspace context when agent is running", () => {
     useDiffStore.setState({
       diffResults: { "ws-1": { files: [], totalAdditions: 0, totalDeletions: 0 } },
     });
+    useAgentStore.setState({ agents: { "ws-1": { status: "Running" } as ReturnType<typeof useAgentStore.getState>["agents"][string] } });
     render(<ChangesPanel context={wsContext} />);
     mockLoadDiff.mockClear();
 
@@ -504,14 +505,28 @@ describe("ChangesPanel - polling", () => {
     expect(mockLoadDiff).toHaveBeenCalledWith("ws-1");
   });
 
-  it("polls loadRepoDiff every 3 seconds for repo context", () => {
+  it("polls loadDiff every 15 seconds when agent is idle", () => {
+    useDiffStore.setState({
+      diffResults: { "ws-1": { files: [], totalAdditions: 0, totalDeletions: 0 } },
+    });
+    render(<ChangesPanel context={wsContext} />);
+    mockLoadDiff.mockClear();
+
+    act(() => { vi.advanceTimersByTime(3000); });
+    expect(mockLoadDiff).not.toHaveBeenCalled();
+
+    act(() => { vi.advanceTimersByTime(12000); });
+    expect(mockLoadDiff).toHaveBeenCalledWith("ws-1");
+  });
+
+  it("polls loadRepoDiff every 15 seconds for idle repo context", () => {
     useDiffStore.setState({
       diffResults: { "repo-1": { files: [], totalAdditions: 0, totalDeletions: 0 } },
     });
     render(<ChangesPanel context={repoContext} />);
     mockLoadRepoDiff.mockClear();
 
-    act(() => { vi.advanceTimersByTime(3000); });
+    act(() => { vi.advanceTimersByTime(15000); });
     expect(mockLoadRepoDiff).toHaveBeenCalledWith("repo-1");
   });
 
@@ -524,7 +539,7 @@ describe("ChangesPanel - polling", () => {
 
     unmount();
 
-    act(() => { vi.advanceTimersByTime(6000); });
+    act(() => { vi.advanceTimersByTime(20000); });
     expect(mockLoadDiff).not.toHaveBeenCalled();
   });
 
@@ -536,7 +551,7 @@ describe("ChangesPanel - polling", () => {
     mockLoadDiff.mockClear();
     mockRefresh.mockClear();
 
-    act(() => { vi.advanceTimersByTime(3000); });
+    act(() => { vi.advanceTimersByTime(15000); });
     expect(mockLoadDiff).toHaveBeenCalled();
     expect(mockRefresh).not.toHaveBeenCalled();
   });

@@ -343,12 +343,24 @@ pub async fn send_request(
         AppError::CopilotError("Failed to send request to Copilot LS".to_string())
     })?;
 
-    let response = tokio::time::timeout(std::time::Duration::from_secs(30), rx)
-        .await
-        .map_err(|_| AppError::CopilotError(format!("Copilot LS request timed out: {}", method)))?
-        .map_err(|_| {
-            AppError::CopilotError("Copilot LS response channel closed".to_string())
-        })?;
+    let response = match tokio::time::timeout(std::time::Duration::from_secs(30), rx).await {
+        Ok(Ok(resp)) => resp,
+        Ok(Err(_)) => {
+            // Channel closed — clean up pending entry
+            handle.pending.lock().await.remove(&id);
+            return Err(AppError::CopilotError(
+                "Copilot LS response channel closed".to_string(),
+            ));
+        }
+        Err(_) => {
+            // Timeout — clean up pending entry to prevent leak
+            handle.pending.lock().await.remove(&id);
+            return Err(AppError::CopilotError(format!(
+                "Copilot LS request timed out: {}",
+                method
+            )));
+        }
+    };
 
     // Check for JSON-RPC error
     if let Some(error) = response.get("error") {

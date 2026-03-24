@@ -27,11 +27,7 @@ pub async fn get_workflow_runs(
             let pat = get_ado_pat(&state)?;
             let (org, project, _repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-            tokio::task::spawn_blocking(move || {
-                ado_svc::get_pipeline_runs(&pat, &org, &project, &ctx.branch)
-            })
-            .await
-            .map_err(|e| AppError::PrError(format!("task failed: {}", e)))?
+            ado_svc::get_pipeline_runs(&pat, &org, &project, &ctx.branch).await
         }
         GitProvider::Unknown => Ok(Vec::new()),
     }
@@ -58,11 +54,7 @@ pub async fn get_run_jobs(
             let pat = get_ado_pat(&state)?;
             let (org, project, _repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-            tokio::task::spawn_blocking(move || {
-                ado_svc::get_build_timeline(&pat, &org, &project, run_id)
-            })
-            .await
-            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+            ado_svc::get_build_timeline(&pat, &org, &project, run_id).await
         }
         GitProvider::Unknown => Ok(Vec::new()),
     }

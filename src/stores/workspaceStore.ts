@@ -12,6 +12,23 @@ import {
   setWorkspacePinned,
 } from "../lib/tauri";
 import { useUIStore } from "./uiStore";
+import { useChatStore } from "./chatStore";
+import { useAgentStore } from "./agentStore";
+import { usePrStore } from "./prStore";
+import { cleanupWorkspaceTracking as cleanupActivityTracking } from "../lib/activityLogListeners";
+import { cleanupWorkspaceTracking as cleanupNotificationTracking } from "../lib/notificationListeners";
+
+/**
+ * Cross-store cleanup when a workspace is archived or deleted.
+ * Unsubscribes event listeners from other stores to prevent memory leaks.
+ */
+function _cleanupWorkspace(workspaceId: string) {
+  try { useChatStore.getState().unsubscribe(workspaceId); } catch (e) { console.warn(`[workspaceStore] chat cleanup failed for ${workspaceId}:`, e); }
+  try { useAgentStore.getState().unsubscribe(workspaceId); } catch (e) { console.warn(`[workspaceStore] agent cleanup failed for ${workspaceId}:`, e); }
+  try { usePrStore.getState().unsubscribe(workspaceId); } catch (e) { console.warn(`[workspaceStore] pr cleanup failed for ${workspaceId}:`, e); }
+  cleanupActivityTracking(workspaceId);
+  cleanupNotificationTracking(workspaceId);
+}
 
 interface WorkspaceStore {
   workspaces: WorkspaceInfo[];
@@ -72,16 +89,21 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       const archived = get().workspaces.find((w) => w.id === id);
       const wasActive = get().activeWorkspaceId === id;
       useUIStore.getState().closeChatTabsForContext(id);
+      const remaining = get().workspaces.filter((w) => w.id !== id);
+      const nextActive = wasActive
+        ? (remaining[0]?.id ?? null)
+        : get().activeWorkspaceId;
       set({
-        workspaces: get().workspaces.filter((w) => w.id !== id),
+        workspaces: remaining,
         archivedWorkspaces: archived
           ? [...get().archivedWorkspaces, archived]
           : get().archivedWorkspaces,
-        activeWorkspaceId: wasActive ? null : get().activeWorkspaceId,
-        activeRepoId: wasActive
-          ? (archived?.repoId ?? get().activeRepoId)
-          : get().activeRepoId,
+        activeWorkspaceId: nextActive,
+        activeRepoId: wasActive ? null : get().activeRepoId,
       });
+
+      // Cross-store cleanup for the archived workspace
+      _cleanupWorkspace(id);
     } catch (e) {
       set({ error: String(e) });
       throw e;
@@ -90,17 +112,21 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
   deleteWs: async (id: string) => {
     try {
-      const deleted = get().workspaces.find((w) => w.id === id);
       const wasActive = get().activeWorkspaceId === id;
       await deleteWorkspace(id);
       useUIStore.getState().closeChatTabsForContext(id);
+      const remaining = get().workspaces.filter((w) => w.id !== id);
+      const nextActive = wasActive
+        ? (remaining[0]?.id ?? null)
+        : get().activeWorkspaceId;
       set({
-        workspaces: get().workspaces.filter((w) => w.id !== id),
-        activeWorkspaceId: wasActive ? null : get().activeWorkspaceId,
-        activeRepoId: wasActive
-          ? (deleted?.repoId ?? get().activeRepoId)
-          : get().activeRepoId,
+        workspaces: remaining,
+        activeWorkspaceId: nextActive,
+        activeRepoId: wasActive ? null : get().activeRepoId,
       });
+
+      // Cross-store cleanup for the deleted workspace
+      _cleanupWorkspace(id);
     } catch (e) {
       set({ error: String(e) });
     }

@@ -78,6 +78,8 @@ interface TestRunnerStore {
   ) => Promise<void>;
 }
 
+const MAX_OUTPUT_LINES = 5000;
+
 export const useTestRunnerStore = create<TestRunnerStore>((set, get) => ({
   suites: {},
   summary: {},
@@ -129,15 +131,19 @@ export const useTestRunnerStore = create<TestRunnerStore>((set, get) => ({
           case "outputLine": {
             const prefix =
               payload.stream === "stderr" ? "[stderr] " : "";
-            set((state) => ({
-              output: {
-                ...state.output,
-                [contextId]: [
-                  ...(state.output[contextId] ?? []),
-                  prefix + payload.line,
-                ],
-              },
-            }));
+            set((state) => {
+              const currentOutput = state.output[contextId] ?? [];
+              const newOutput = [...currentOutput, prefix + payload.line];
+              const trimmed = newOutput.length > MAX_OUTPUT_LINES
+                ? newOutput.slice(-MAX_OUTPUT_LINES)
+                : newOutput;
+              return {
+                output: {
+                  ...state.output,
+                  [contextId]: trimmed,
+                },
+              };
+            });
             break;
           }
           case "error": {

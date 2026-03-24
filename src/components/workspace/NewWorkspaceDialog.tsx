@@ -96,6 +96,15 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
   const { templates, loadTemplates, loading: loadingTemplates } = useWorkspaceTemplateStore();
   const [selectedTemplate, setSelectedTemplate] = useState<WorkspaceTemplate | null>(null);
 
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   // Reset mode-specific data when repo changes
   useEffect(() => {
     setPrs([]);

@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::error::AppError;
 use crate::models::agent::{AgentInfo, AgentStatus, AgentStatusEvent, FrontendStreamEvent};
+use crate::services::utils::safe_truncate;
 use crate::models::repository::Repository;
 use crate::models::settings::{AppSettings, ProviderConfig};
 use crate::models::workspace::Workspace;
@@ -86,6 +87,8 @@ pub fn build_repo_env_vars(
     env
 }
 
+use crate::services::utils::is_valid_env_key;
+
 /// Build CLI arguments for `codex exec`.
 ///
 /// Always passes `--full-auto` because Codex CLI without it expects
@@ -137,6 +140,10 @@ pub async fn spawn_and_stream(
             "-w".to_string(), ctx.container_working_dir.clone(),
         ];
         for (key, value) in &env_vars {
+            if !is_valid_env_key(key) {
+                eprintln!("[codex-spawn] Skipping invalid env var key: {:?}", key);
+                continue;
+            }
             docker_args.push("-e".to_string());
             docker_args.push(format!("{}={}", key, value));
         }
@@ -275,7 +282,7 @@ pub fn parse_codex_line(line: &str) -> Option<FrontendStreamEvent> {
             eprintln!(
                 "[codex-parse] Failed to parse JSONL: {} -- line: {}",
                 e,
-                &line[..line.len().min(200)]
+                safe_truncate(line, 200)
             );
             return None;
         }
@@ -285,7 +292,7 @@ pub fn parse_codex_line(line: &str) -> Option<FrontendStreamEvent> {
         None => {
             eprintln!(
                 "[codex-parse] JSONL missing 'type' field: {}",
-                &line[..line.len().min(200)]
+                safe_truncate(line, 200)
             );
             return None;
         }
@@ -452,7 +459,7 @@ pub fn parse_codex_line(line: &str) -> Option<FrontendStreamEvent> {
             eprintln!(
                 "[codex-parse] Unrecognized event type '{}': {}",
                 event_type,
-                &line[..line.len().min(200)]
+                safe_truncate(line, 200)
             );
             None
         }

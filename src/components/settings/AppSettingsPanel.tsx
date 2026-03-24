@@ -86,6 +86,7 @@ export function AppSettingsPanel() {
           </h2>
           <button
             onClick={closeSettings}
+            aria-label="Close settings"
             className="rounded-lg p-1 transition-colors hover:bg-[var(--bg-hover)]"
             style={{ color: "var(--text-muted)" }}
           >
