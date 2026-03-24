@@ -1,0 +1,42 @@
+---
+title: Team View
+description: Orchestrate multiple AI agents across workspaces
+---
+
+Team view lets you monitor and coordinate multiple AI agents working in parallel across different workspaces in the same repository.
+
+## When it's available
+
+Team view activates automatically when a repository has **2 or more workspaces**. If fewer than 2 exist, a message prompts you to create more.
+
+## Agent cards
+
+Each workspace appears as a card in a responsive grid showing:
+
+- **Status indicator** — Animated green dot (running), red (error), or gray (idle)
+- **Workspace name** and git branch
+- **Live preview** — Last 120 characters of the agent's latest response or streaming output
+- **Cost and turn count** — Session statistics when available
+- **Stop button** — Appears while the agent is running
+
+Click any card to navigate to that workspace's chat view.
+
+## Broadcast messaging
+
+The broadcast composer at the bottom lets you send the same message to multiple agents simultaneously.
+
+### Sending a broadcast
+
+1. **Select workspaces** — Check the boxes next to the workspaces you want to message. Use **Select all / Deselect all** to toggle everything.
+2. **Type your message** in the text area
+3. Click **Send to N** or press <Tooltip tip="Ctrl+Enter on Windows/Linux">**Cmd+Enter**</Tooltip>
+
+The message is sent independently to each selected workspace. Results are tracked — you'll see which succeeded and which failed.
+
+<Tip>
+You cannot broadcast to workspaces where the agent is already running. The send button is disabled if all selected workspaces have active agents.
+</Tip>
+
+## Bulk actions
+
+- **Stop All** — A red button in the header stops all running agents across the repository at once

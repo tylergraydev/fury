@@ -1,0 +1,84 @@
+---
+title: Test Runner
+description: Run tests, view results, track coverage, and watch for changes
+---
+
+The built-in test runner detects your test framework, runs tests, displays results in real time, and tracks history and code coverage.
+
+## Opening the test runner
+
+- Press <Tooltip tip="Ctrl+Shift+T on Windows/Linux">**Cmd+Shift+T**</Tooltip> to open the test runner panel
+- Press <Tooltip tip="Ctrl+Shift+R on Windows/Linux">**Cmd+Shift+R**</Tooltip> to open the test runner and immediately run all tests
+
+## Supported frameworks
+
+| Framework | Language | Auto-detected via |
+|-----------|----------|-------------------|
+| **Vitest** | JavaScript / TypeScript | `package.json` |
+| **Jest** | JavaScript / TypeScript | `package.json` |
+| **Pytest** | Python | `pyproject.toml`, `setup.py` |
+| **Cargo Test** | Rust | `Cargo.toml` |
+| **Go Test** | Go | `go.mod` |
+| **Custom** | Any | Manual configuration |
+
+## Configuration
+
+Click the **gear icon** in the test runner toolbar to configure:
+
+| Setting | Description |
+|---------|-------------|
+| **Framework** | Select from detected or available frameworks |
+| **Test command** | Command to run all tests (e.g., `npx vitest --reporter=json --run`) |
+| **Test file command** | Command with `{file}` placeholder for single-file runs |
+| **Working directory** | Relative to repo root (useful for monorepos) |
+| **Coverage command** | Command to generate coverage reports |
+
+Click **Detect** to auto-detect the framework and populate commands based on your project files.
+
+## Running tests
+
+| Action | How |
+|--------|-----|
+| **Run all** | Click **Run All** or press <Tooltip tip="Ctrl+Shift+R on Windows/Linux">**Cmd+Shift+R**</Tooltip> |
+| **Run a suite** | Hover over a test suite row and click the play icon |
+| **Run a file** | Right-click a test file in the file tree and select **Run Tests** |
+| **Re-run failed** | Click **Re-run Failed** after a run with failures |
+| **Stop** | Click **Stop** to cancel a running test |
+
+## Viewing results
+
+The test runner displays a hierarchical tree of suites and individual test cases.
+
+### Summary bar
+
+Shows total count, passed (green), failed (red), skipped (gray), and duration.
+
+### Test tree
+
+- **Suite rows** — Expand/collapse to see individual tests, with a summary of pass/fail/skip counts
+- **Test case rows** — Status dot, test name, duration, and status label
+- Click a failed test to view its failure message in the detail pane
+
+### Output pane
+
+Toggle the output pane to see raw stdout/stderr from the test run. ANSI color codes are rendered with syntax highlighting.
+
+## Filtering
+
+- **Status filter** — Toggle between All, Failed, Passed, and Skipped
+- **Name search** — Type to filter tests by name in real time
+
+## Watch mode
+
+Click the **Watch** button to enable watch mode. Tests automatically re-run when source files change. Click again to disable.
+
+## Test history
+
+Click **History** to view the last 20 test runs for the current repository. A mini bar chart shows pass rates over time, with a detailed table of each run's passed, failed, skipped counts and duration.
+
+## Code coverage
+
+Click **Coverage** to run your coverage command. Results show:
+
+- **Total coverage** — Percentage with color-coded bar (green ≥ 80%, orange 50–79%, red < 50%)
+- **Per-file breakdown** — Sorted by lowest coverage first, with file path, line coverage percentage, and progress bar

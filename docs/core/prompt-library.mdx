@@ -1,0 +1,71 @@
+---
+title: Prompt Library
+description: Create reusable prompt templates with variable substitution
+---
+
+The prompt library stores reusable prompt templates that you can quickly insert into the chat composer. Prompts support variable placeholders that are automatically filled or prompted at insertion time.
+
+## Accessing the prompt library
+
+Two ways to open it:
+
+- Click the **book icon** in the chat composer toolbar
+- Type **`/prompt:`** in the composer to browse prompts as slash commands
+
+## Creating a prompt
+
+1. Open the prompt library
+2. Click **New Prompt**
+3. Fill in the fields:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| **Name** | Yes | Prompt name (also used as the slash command) |
+| **Content** | Yes | Template text with optional `{{variable}}` placeholders |
+| **Description** | No | Brief explanation |
+| **Category** | No | Group prompts by category (e.g., "Code Review") |
+| **Tags** | No | Comma-separated tags |
+
+4. Click **Create**
+
+## Variable substitution
+
+Use double-bracket syntax to add placeholders: `{{variable}}`
+
+### Auto-filled variables
+
+These variables are automatically populated from context:
+
+| Variable | Value |
+|----------|-------|
+| `{{file}}` | Current file path |
+| `{{selection}}` | Current text selection |
+| `{{branch}}` | Current git branch |
+| `{{workspace}}` | Current workspace name |
+
+### Custom variables
+
+Any `{{variable}}` that isn't an auto-fill variable will prompt you for input when the prompt is inserted. A substitution dialog shows all variables with auto-fill values pre-populated.
+
+### Example
+
+```
+Review {{file}} for {{concern}} issues. Focus on the {{selection}} section.
+Pay attention to {{branch}} compatibility.
+```
+
+When inserting this prompt, `{{file}}`, `{{selection}}`, and `{{branch}}` auto-fill from context, while `{{concern}}` prompts for user input.
+
+## Using prompts as slash commands
+
+Every prompt is available as a slash command. Type `/prompt:` in the composer and select from the autocomplete list. For example, a prompt named "code-review" is accessible as `/prompt:code-review`.
+
+## Searching and filtering
+
+- **Search** — Filter by name, description, content, or tags
+- **Category filter** — Click category buttons to filter by group
+
+## Editing and deleting
+
+- **Edit** — Hover over a prompt and click the pencil icon
+- **Delete** — Hover over a prompt and click the trash icon

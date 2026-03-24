@@ -1,0 +1,52 @@
+---
+title: Bookmarks
+description: Mark important code locations with notes and color coding
+---
+
+Bookmarks let you mark specific lines of code for quick navigation. Add optional notes and color labels to organize your reference points.
+
+## Adding a bookmark
+
+### Quick toggle
+
+Click the **left gutter margin** in the file editor to toggle a bookmark at that line. A marker appears in the gutter.
+
+### With a note
+
+Right-click in the editor and select **Add Bookmark with Note** to open a dialog where you can set a note and color before saving.
+
+## Bookmark colors
+
+Choose from five colors to categorize bookmarks:
+
+| Color | Use case example |
+|-------|-----------------|
+| **Blue** (default) | General reference |
+| **Green** | Approved / good pattern |
+| **Yellow** | Needs attention |
+| **Red** | Bug / critical issue |
+| **Purple** | Special / notable |
+
+## Viewing bookmarks
+
+Press <Tooltip tip="Ctrl+6 on Windows/Linux">**Cmd+6**</Tooltip> to open the **Bookmarks panel** in the right sidebar.
+
+Bookmarks are grouped by file with a count badge, and sorted by line number within each file. Each bookmark shows:
+
+- Color dot
+- Line number (e.g., "L42")
+- Note text (or "No note" if empty)
+- Edit and delete icons on hover
+
+## Navigating to a bookmark
+
+Click any bookmark in the sidebar panel to open the file and scroll to that line in the editor.
+
+## Editing and deleting
+
+- **Edit** — Hover over a bookmark in the sidebar and click the pencil icon to change the note or color
+- **Delete** — Hover and click the trash icon, or click the same gutter position again to toggle it off
+
+## Scope
+
+Bookmarks are **per-repository**, not per-workspace. All workspaces for the same repository share the same bookmarks.

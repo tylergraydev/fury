@@ -1,0 +1,51 @@
+---
+title: Azure DevOps
+description: Pull requests, CI pipelines, and code reviews with Azure DevOps
+---
+
+Fury supports Azure DevOps (ADO) repositories alongside GitHub. When your repository remote points to `dev.azure.com`, Fury uses the ADO API for pull requests, CI checks, and reviews.
+
+## Setup
+
+1. Open **Settings > Azure DevOps**
+2. Enter your **Personal Access Token (PAT)**
+   - Create one at **dev.azure.com > User Settings > Personal access tokens**
+   - Required scopes: **Code** (Read & Write), **Build** (Read)
+3. Optionally set a **Default Organization** (auto-detected from your repo remote if not set)
+4. Click **Save**
+
+## Supported features
+
+### Pull requests
+
+All PR operations work the same as with GitHub repositories:
+
+- **Create PRs** — Push changes and create a pull request
+- **View PR info** — See title, description, status, and reviewers
+- **Merge PRs** — Merge with your preferred strategy
+- **List PRs** — Browse open pull requests for the repository
+
+### CI checks
+
+- **View build status** — See pipeline run results on your PR
+- **Check details** — View individual jobs and steps within a build
+- **Pipeline runs** — Browse the last 20 builds for your branch
+
+### Reviews and comments
+
+- **Reviewer status** — See reviewer votes (approved, changes requested, no vote)
+- **PR threads** — View review comments, both file-specific and top-level
+
+## Status mapping
+
+| ADO Status | Fury Display |
+|------------|-------------|
+| Active | Open |
+| Completed | Merged |
+| Abandoned | Closed |
+| Approved (vote 10/5) | Approved |
+| Rejected (vote -5/-10) | Changes Requested |
+
+## Auto-detection
+
+Fury automatically detects Azure DevOps repositories by parsing the remote URL and extracting the organization, project, and repository name. No manual URL configuration is needed.
