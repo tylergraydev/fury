@@ -57,9 +57,6 @@ pub enum AppError {
     #[error("Path traversal denied: {0}")]
     PathTraversal(String),
 
-    #[error("Invalid input: {0}")]
-    InvalidInput(String),
-
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
 }

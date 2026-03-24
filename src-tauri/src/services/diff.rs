@@ -40,15 +40,15 @@ pub fn get_workspace_diff(
                 .current_dir(worktree_path)
                 .output()
         });
-        let r1 = h1.join().map_err(|_| {
-            std::io::Error::new(std::io::ErrorKind::Other, "git name-status thread panicked")
-        })?;
-        let r2 = h2.join().map_err(|_| {
-            std::io::Error::new(std::io::ErrorKind::Other, "git numstat thread panicked")
-        })?;
-        let r3 = h3.join().map_err(|_| {
-            std::io::Error::new(std::io::ErrorKind::Other, "git ls-files thread panicked")
-        })?;
+        let r1 = h1
+            .join()
+            .map_err(|_| std::io::Error::other("git name-status thread panicked"))?;
+        let r2 = h2
+            .join()
+            .map_err(|_| std::io::Error::other("git numstat thread panicked"))?;
+        let r3 = h3
+            .join()
+            .map_err(|_| std::io::Error::other("git ls-files thread panicked"))?;
         Ok::<_, std::io::Error>((r1, r2, r3))
     })?;
 

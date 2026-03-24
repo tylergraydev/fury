@@ -87,18 +87,7 @@ pub fn build_repo_env_vars(
     env
 }
 
-/// Validate that an environment variable key matches `[A-Za-z_][A-Za-z0-9_]*`.
-fn is_valid_env_key(key: &str) -> bool {
-    if key.is_empty() {
-        return false;
-    }
-    let mut chars = key.chars();
-    let first = chars.next().unwrap();
-    if !first.is_ascii_alphabetic() && first != '_' {
-        return false;
-    }
-    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
-}
+use crate::services::utils::is_valid_env_key;
 
 /// Build CLI arguments for `codex exec`.
 ///

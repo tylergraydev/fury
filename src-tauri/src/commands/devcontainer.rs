@@ -89,6 +89,7 @@ pub(crate) fn build_error_state(ws_id: Uuid, error_msg: &str) -> ContainerState 
 }
 
 /// Update workspace devcontainer config in-memory and in DB.
+#[cfg(test)]
 pub(crate) fn update_devcontainer_config_inner(
     workspaces: &mut HashMap<Uuid, Workspace>,
     db: Option<&crate::db::Database>,

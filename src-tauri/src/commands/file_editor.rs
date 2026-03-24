@@ -239,12 +239,18 @@ pub async fn read_file_base64(
     // Collect allowed roots: repo paths, workspace worktree paths, and temp dir
     let mut allowed_roots: Vec<PathBuf> = Vec::new();
 
-    if let Ok(repos) = state.repositories.read() {
+    {
+        let repos = state.repositories.read().map_err(|_| {
+            AppError::GitError("Repository state corrupted (lock poisoned)".to_string())
+        })?;
         for repo in repos.values() {
             allowed_roots.push(repo.path.clone());
         }
     }
-    if let Ok(workspaces) = state.workspaces.read() {
+    {
+        let workspaces = state.workspaces.read().map_err(|_| {
+            AppError::GitError("Workspace state corrupted (lock poisoned)".to_string())
+        })?;
         for ws in workspaces.values() {
             allowed_roots.push(ws.worktree_path.clone());
         }

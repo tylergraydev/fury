@@ -15,15 +15,19 @@ import { useUIStore } from "./uiStore";
 import { useChatStore } from "./chatStore";
 import { useAgentStore } from "./agentStore";
 import { usePrStore } from "./prStore";
+import { cleanupWorkspaceTracking as cleanupActivityTracking } from "../lib/activityLogListeners";
+import { cleanupWorkspaceTracking as cleanupNotificationTracking } from "../lib/notificationListeners";
 
 /**
  * Cross-store cleanup when a workspace is archived or deleted.
  * Unsubscribes event listeners from other stores to prevent memory leaks.
  */
 function _cleanupWorkspace(workspaceId: string) {
-  try { useChatStore.getState().unsubscribe(workspaceId); } catch (_e) { /* noop */ }
-  try { useAgentStore.getState().unsubscribe(workspaceId); } catch (_e) { /* noop */ }
-  try { usePrStore.getState().unsubscribe(workspaceId); } catch (_e) { /* noop */ }
+  try { useChatStore.getState().unsubscribe(workspaceId); } catch (e) { console.warn(`[workspaceStore] chat cleanup failed for ${workspaceId}:`, e); }
+  try { useAgentStore.getState().unsubscribe(workspaceId); } catch (e) { console.warn(`[workspaceStore] agent cleanup failed for ${workspaceId}:`, e); }
+  try { usePrStore.getState().unsubscribe(workspaceId); } catch (e) { console.warn(`[workspaceStore] pr cleanup failed for ${workspaceId}:`, e); }
+  cleanupActivityTracking(workspaceId);
+  cleanupNotificationTracking(workspaceId);
 }
 
 interface WorkspaceStore {

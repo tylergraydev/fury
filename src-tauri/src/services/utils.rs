@@ -28,6 +28,20 @@ pub fn safe_truncate_end(s: &str, max_chars: usize) -> String {
     }
 }
 
+/// Validate that an environment variable key matches `[A-Za-z_][A-Za-z0-9_]*`.
+/// Used to prevent argument injection when passing env vars to `docker exec -e`.
+pub fn is_valid_env_key(key: &str) -> bool {
+    if key.is_empty() {
+        return false;
+    }
+    let mut chars = key.chars();
+    let first = chars.next().unwrap();
+    if !first.is_ascii_alphabetic() && first != '_' {
+        return false;
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
