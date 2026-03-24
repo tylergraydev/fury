@@ -175,6 +175,11 @@ export function MessageList({
     });
   }, []);
 
+  const scrollToBottom = useCallback(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    setIsNearBottom(true);
+  }, []);
+
   const { orphans, turns } = useMemo(() => segmentTurns(messages), [messages]);
 
   if (messages.length === 0 && !streamingText) {
@@ -194,11 +199,6 @@ export function MessageList({
       </div>
     );
   }
-
-  const scrollToBottom = useCallback(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    setIsNearBottom(true);
-  }, []);
 
   return (
     <div className="relative flex-1 overflow-y-auto px-6 py-5" ref={scrollContainerRef} onScroll={handleScroll}>
