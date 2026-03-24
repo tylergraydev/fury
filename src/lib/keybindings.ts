@@ -85,7 +85,7 @@ export function useKeyboardShortcuts(
       for (const shortcut of SHORTCUTS) {
         const modMatch = shortcut.mod ? mod : !mod || shortcut.key === "Escape";
         const keyMatch = e.key.toLowerCase() === shortcut.key.toLowerCase();
-        const shiftMatch = shortcut.shift ? e.shiftKey : true;
+        const shiftMatch = shortcut.shift ? e.shiftKey : !e.shiftKey;
 
         if (modMatch && keyMatch && shiftMatch) {
           if (

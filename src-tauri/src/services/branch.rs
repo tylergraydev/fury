@@ -7,6 +7,7 @@ use crate::models::merge::{
 };
 use crate::platform;
 use crate::services::diff::detect_language;
+use crate::services::path_validation::validate_path_within_root;
 
 /// Get ahead/behind counts for the current branch relative to the default branch.
 pub fn get_branch_status(
@@ -198,8 +199,9 @@ pub fn get_conflict_content(
     // Theirs (incoming) - stage 3
     let theirs = git_show_stage(worktree_path, 3, file_path);
 
-    // Current file content with conflict markers
+    // Current file content with conflict markers — validate path stays within repo
     let full_path = worktree_path.join(file_path);
+    validate_path_within_root(&full_path, worktree_path)?;
     let merged = std::fs::read_to_string(&full_path).unwrap_or_default();
 
     let language = detect_language(file_path);

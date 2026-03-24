@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::models::agent::{AgentInfo, FrontendStreamEvent};
 use crate::services::perf_server::{SharedPerfMetrics, StreamEventMetric};
+use crate::services::utils::{safe_truncate, safe_truncate_end};
 
 /// Try to capture session_id from a stream event and save it to agent info.
 /// Returns true if a session_id was found and stored.
@@ -62,11 +63,7 @@ pub(crate) fn stream_event_detail(event: &FrontendStreamEvent) -> String {
         } => {
             if *is_error {
                 let msg = result.as_deref().unwrap_or("(no message)");
-                let truncated = if msg.len() > 150 {
-                    format!("{}...", &msg[..150])
-                } else {
-                    msg.to_string()
-                };
+                let truncated = safe_truncate(msg, 150);
                 format!("result:ERROR — {}", truncated)
             } else {
                 "result:ok".to_string()
@@ -108,11 +105,7 @@ pub(crate) fn enrich_error_from_stderr(
             let buf = stderr_buffer.lock().unwrap_or_else(|e| e.into_inner());
             if !buf.is_empty() {
                 let joined: String = buf.iter().cloned().collect::<Vec<_>>().join("\n");
-                let truncated = if joined.len() > 500 {
-                    format!("...{}", &joined[joined.len() - 497..])
-                } else {
-                    joined
-                };
+                let truncated = safe_truncate_end(&joined, 497);
                 *result = Some(truncated);
             }
         }

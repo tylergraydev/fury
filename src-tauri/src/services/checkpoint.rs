@@ -1,6 +1,7 @@
 use crate::error::AppError;
 use crate::models::checkpoint::Checkpoint;
 use crate::platform;
+use crate::services::utils::safe_truncate;
 use std::path::Path;
 use std::thread;
 use std::time::Duration;
@@ -21,11 +22,7 @@ pub fn create_checkpoint(
     let tree_sha = git_write_tree(worktree_path)?;
 
     // 3. Create a commit object pointing to the tree
-    let truncated_msg = if user_message.len() > 72 {
-        format!("{}...", &user_message[..69])
-    } else {
-        user_message.to_string()
-    };
+    let truncated_msg = safe_truncate(user_message, 69);
     let commit_msg = format!("Checkpoint turn {}: {}", turn_index, truncated_msg);
     let commit_sha = git_commit_tree(worktree_path, &tree_sha, &commit_msg)?;
 

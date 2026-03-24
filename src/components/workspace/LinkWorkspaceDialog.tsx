@@ -20,8 +20,8 @@ export function LinkWorkspaceDialog({
   repoId,
   onClose,
 }: LinkWorkspaceDialogProps) {
-  const { workspaces } = useWorkspaceStore();
-  const { repositories } = useRepositoryStore();
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const repositories = useRepositoryStore((s) => s.repositories);
   const [linkedIds, setLinkedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

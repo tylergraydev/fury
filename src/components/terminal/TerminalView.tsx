@@ -111,6 +111,8 @@ export function TerminalView({ terminalId }: TerminalViewProps) {
   return (
     <div
       ref={containerRef}
+      role="region"
+      aria-label="Terminal"
       className="h-full w-full"
       style={{ backgroundColor: "#000000" }}
     />

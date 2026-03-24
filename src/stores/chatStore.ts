@@ -52,6 +52,10 @@ interface ChatStore {
   clearPermissionRequest: (workspaceId: string) => void;
 }
 
+// Cancel tokens for in-flight subscribe calls — prevents double-subscription
+// when subscribe is called multiple times before the first await completes.
+const _chatSubscribeTokens = new Map<string, { cancelled: boolean }>();
+
 export const useChatStore = create<ChatStore>((set, get) => ({
   messages: {},
   streamingText: {},
@@ -63,19 +67,44 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   subscribe: async (workspaceId: string) => {
     if (get().subscriptions[workspaceId]) return;
 
+    // Cancel any in-flight subscribe for this workspace
+    const existing = _chatSubscribeTokens.get(workspaceId);
+    if (existing) existing.cancelled = true;
+
+    const token = { cancelled: false };
+    _chatSubscribeTokens.set(workspaceId, token);
+
     // Load persisted messages if we don't have any in memory
     if (!(get().messages[workspaceId]?.length)) {
       await get().loadMessages(workspaceId);
     }
 
+    if (token.cancelled) {
+      _chatSubscribeTokens.delete(workspaceId);
+      return;
+    }
+
+    // Re-check after await — another subscribe may have completed
+    if (get().subscriptions[workspaceId]) {
+      _chatSubscribeTokens.delete(workspaceId);
+      return;
+    }
+
     const unlisten = await listen<FrontendStreamEvent>(
       `agent-stream:${workspaceId}`,
       (event) => {
+        if (token.cancelled) return;
         const payload = event.payload;
         pushStreamEvent(workspaceId, "event_received", payload.type);
         handleStreamEvent(workspaceId, payload, set, get);
       },
     );
+
+    if (token.cancelled) {
+      unlisten();
+      _chatSubscribeTokens.delete(workspaceId);
+      return;
+    }
 
     set((state) => ({
       subscriptions: { ...state.subscriptions, [workspaceId]: unlisten },
@@ -83,6 +112,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   unsubscribe: (workspaceId: string) => {
+    // Cancel any in-flight subscribe so it bails out on resume
+    const token = _chatSubscribeTokens.get(workspaceId);
+    if (token) {
+      token.cancelled = true;
+      _chatSubscribeTokens.delete(workspaceId);
+    }
+
     const unsub = get().subscriptions[workspaceId];
     if (unsub) {
       unsub();
@@ -395,20 +431,33 @@ function handleStreamEvent(
       const hasMetadata = Object.values(metadata).some((v) => v != null);
 
       // Attach metadata to last assistant message and persist (before error message changes lastMsg)
-      const messages = get().messages[workspaceId] ?? [];
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg && lastMsg.role === "assistant") {
-        const updated = hasMetadata ? { ...lastMsg, metadata } : lastMsg;
-        if (hasMetadata) {
-          set((state) => ({
-            messages: {
-              ...state.messages,
-              /* v8 ignore next -- messages[workspaceId] always exists at this point */
-              [workspaceId]: [...(state.messages[workspaceId] ?? []).slice(0, -1), updated],
-            },
-          }));
+      // Read state inside set() to avoid stale closure over messages
+      let updatedForPersist: ChatMessage | null = null;
+      if (hasMetadata) {
+        set((state) => {
+          const msgs = state.messages[workspaceId] ?? [];
+          const lastMsg = msgs[msgs.length - 1];
+          if (lastMsg && lastMsg.role === "assistant") {
+            const updated = { ...lastMsg, metadata };
+            updatedForPersist = updated;
+            return {
+              messages: {
+                ...state.messages,
+                [workspaceId]: [...msgs.slice(0, -1), updated],
+              },
+            };
+          }
+          return state;
+        });
+      } else {
+        const msgs = get().messages[workspaceId] ?? [];
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg && lastMsg.role === "assistant") {
+          updatedForPersist = lastMsg;
         }
-        persistMessage(workspaceId, updated);
+      }
+      if (updatedForPersist) {
+        persistMessage(workspaceId, updatedForPersist);
       }
 
       // Update session stats with cumulative totals from the CLI result event.
@@ -508,39 +557,46 @@ function appendContentBlock(
   workspaceId: string,
   block: ContentBlock,
   set: (fn: (state: ChatStore) => Partial<ChatStore>) => void,
-  get: () => ChatStore,
+  _get: () => ChatStore,
 ) {
-  const messages = get().messages[workspaceId] ?? [];
-  const lastMsg = messages[messages.length - 1];
+  // Read state inside set() to avoid stale closure over messages
+  let msgToPersist: ChatMessage | null = null;
+  set((state) => {
+    const messages = state.messages[workspaceId] ?? [];
+    const lastMsg = messages[messages.length - 1];
 
-  // Append to last assistant message, or create new one
-  if (lastMsg && lastMsg.role === "assistant") {
-    const updated = {
-      ...lastMsg,
-      content: [...lastMsg.content, block],
-    };
-    set((state) => ({
-      messages: {
-        ...state.messages,
-        [workspaceId]: [...messages.slice(0, -1), updated],
-      },
-    }));
-    // Persist after every content block for crash durability
-    persistMessage(workspaceId, updated);
-  } else {
-    const msg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: [block],
-      timestamp: Date.now(),
-    };
-    set((state) => ({
-      messages: {
-        ...state.messages,
-        [workspaceId]: [...(state.messages[workspaceId] ?? []), msg],
-      },
-    }));
-    persistMessage(workspaceId, msg);
+    // Append to last assistant message, or create new one
+    if (lastMsg && lastMsg.role === "assistant") {
+      const updated = {
+        ...lastMsg,
+        content: [...lastMsg.content, block],
+      };
+      msgToPersist = updated;
+      return {
+        messages: {
+          ...state.messages,
+          [workspaceId]: [...messages.slice(0, -1), updated],
+        },
+      };
+    } else {
+      const msg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: [block],
+        timestamp: Date.now(),
+      };
+      msgToPersist = msg;
+      return {
+        messages: {
+          ...state.messages,
+          [workspaceId]: [...messages, msg],
+        },
+      };
+    }
+  });
+  // Persist after every content block for crash durability
+  if (msgToPersist) {
+    persistMessage(workspaceId, msgToPersist);
   }
 }
 

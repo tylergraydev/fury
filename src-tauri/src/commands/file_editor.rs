@@ -224,7 +224,48 @@ pub async fn write_repo_file(
 /// Read an arbitrary file and return its contents as a base64 data URL.
 /// Used for displaying dropped image previews in the chat UI.
 #[tauri::command]
-pub async fn read_file_base64(file_path: String) -> Result<String, AppError> {
+pub async fn read_file_base64(
+    state: State<'_, AppState>,
+    file_path: String,
+) -> Result<String, AppError> {
+    // Build set of allowed root paths from repositories and workspaces
+    use crate::services::path_validation::{reject_sensitive_paths, validate_path_within_root};
+
+    let path = PathBuf::from(&file_path);
+
+    // Reject sensitive directories unconditionally
+    reject_sensitive_paths(&path)?;
+
+    // Collect allowed roots: repo paths, workspace worktree paths, and temp dir
+    let mut allowed_roots: Vec<PathBuf> = Vec::new();
+
+    if let Ok(repos) = state.repositories.read() {
+        for repo in repos.values() {
+            allowed_roots.push(repo.path.clone());
+        }
+    }
+    if let Ok(workspaces) = state.workspaces.read() {
+        for ws in workspaces.values() {
+            allowed_roots.push(ws.worktree_path.clone());
+        }
+    }
+    allowed_roots.push(std::env::temp_dir());
+
+    // Validate the path is within at least one allowed root
+    let mut allowed = false;
+    for root in &allowed_roots {
+        if validate_path_within_root(&path, root).is_ok() {
+            allowed = true;
+            break;
+        }
+    }
+    if !allowed {
+        return Err(AppError::PathTraversal(format!(
+            "path '{}' is not within any known repository, workspace, or temp directory",
+            file_path
+        )));
+    }
+
     tokio::task::spawn_blocking(move || {
         let path = PathBuf::from(&file_path);
 
@@ -557,10 +598,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_cmd_read_file_base64_text() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
         let dir = tempfile::tempdir().unwrap();
         let file_path = dir.path().join("hello.txt");
         std::fs::write(&file_path, "hello").unwrap();
-        let result = read_file_base64(file_path.to_string_lossy().to_string()).await;
+        let result = read_file_base64(state, file_path.to_string_lossy().to_string()).await;
         assert!(result.is_ok());
         let data_url = result.unwrap();
         assert!(data_url.starts_with("data:application/octet-stream;base64,"));
@@ -568,10 +611,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_cmd_read_file_base64_png() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
         let dir = tempfile::tempdir().unwrap();
         let file_path = dir.path().join("image.png");
         std::fs::write(&file_path, &[0x89, 0x50, 0x4E, 0x47]).unwrap();
-        let result = read_file_base64(file_path.to_string_lossy().to_string()).await;
+        let result = read_file_base64(state, file_path.to_string_lossy().to_string()).await;
         assert!(result.is_ok());
         let data_url = result.unwrap();
         assert!(data_url.starts_with("data:image/png;base64,"));
@@ -579,22 +624,46 @@ mod tests {
 
     #[tokio::test]
     async fn test_cmd_read_file_base64_nonexistent() {
-        let result = read_file_base64("/tmp/nonexistent-file-9999.png".to_string()).await;
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = read_file_base64(state, "/tmp/nonexistent-file-9999.png".to_string()).await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn test_cmd_read_file_base64_roundtrip() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
         let dir = tempfile::tempdir().unwrap();
         let file_path = dir.path().join("test.jpg");
         let original = vec![0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4];
         std::fs::write(&file_path, &original).unwrap();
-        let result = read_file_base64(file_path.to_string_lossy().to_string()).await.unwrap();
+        let result = read_file_base64(state, file_path.to_string_lossy().to_string()).await.unwrap();
         assert!(result.starts_with("data:image/jpeg;base64,"));
         // Decode the base64 back and verify
         let b64_data = result.strip_prefix("data:image/jpeg;base64,").unwrap();
         let decoded = base64::engine::general_purpose::STANDARD.decode(b64_data).unwrap();
         assert_eq!(decoded, original);
+    }
+
+    #[tokio::test]
+    async fn test_cmd_read_file_base64_path_traversal_rejected() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = read_file_base64(state, "/etc/passwd".to_string()).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not within any known"));
+    }
+
+    #[tokio::test]
+    async fn test_cmd_read_file_base64_sensitive_dir_rejected() {
+        let app = test_helpers::mock_app_with_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        if let Some(home) = dirs::home_dir() {
+            let ssh_path = home.join(".ssh/id_rsa");
+            let result = read_file_base64(state, ssh_path.to_string_lossy().to_string()).await;
+            assert!(result.is_err());
+        }
     }
 
     // -----------------------------------------------------------------------

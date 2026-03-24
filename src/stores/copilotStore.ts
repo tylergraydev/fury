@@ -31,6 +31,15 @@ interface CopilotStore {
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  });
+}
+
 export const useCopilotStore = create<CopilotStore>((set, get) => ({
   connectionStatus: "disconnected",
   authStatus: null,

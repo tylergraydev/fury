@@ -6,8 +6,10 @@ import type { ClaudeContextSettings, IndexingStatus } from "../../../lib/tauri";
 import { indexRepository, listIndexingStatuses } from "../../../lib/tauri";
 
 export function CodeSearchTab() {
-  const { appSettings, loadSettings, saveSettings } = useSettingsStore();
-  const { repositories } = useRepositoryStore();
+  const appSettings = useSettingsStore((s) => s.appSettings);
+  const loadSettings = useSettingsStore((s) => s.loadSettings);
+  const saveSettings = useSettingsStore((s) => s.saveSettings);
+  const repositories = useRepositoryStore((s) => s.repositories);
   const [localSettings, setLocalSettings] = useState<ClaudeContextSettings | null>(null);
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);

@@ -13,6 +13,7 @@ use crate::models::agent::{AgentInfo, AgentStatus, AgentStatusEvent, FrontendStr
 use crate::services::perf_server::SharedPerfMetrics;
 use crate::state::app_state::PersistentAgentHandle;
 
+use crate::services::utils::safe_truncate;
 use super::setup::{build_command, build_common_args, find_claude_binary};
 use super::stream::{
     enrich_error_from_stderr, is_known_skippable_line, log_stream_event, parse_stream_line,
@@ -93,13 +94,21 @@ pub async fn spawn_and_stream(
 
     let stdin = child.stdin.take();
 
-    let stdout = child.stdout.take().ok_or_else(|| {
-        AppError::AgentError("Failed to capture Claude Code stdout".to_string())
-    })?;
+    let stdout = match child.stdout.take() {
+        Some(s) => s,
+        None => {
+            let _ = child.kill().await;
+            return Err(AppError::AgentError("Failed to capture Claude Code stdout".to_string()));
+        }
+    };
 
-    let stderr = child.stderr.take().ok_or_else(|| {
-        AppError::AgentError("Failed to capture Claude Code stderr".to_string())
-    })?;
+    let stderr = match child.stderr.take() {
+        Some(s) => s,
+        None => {
+            let _ = child.kill().await;
+            return Err(AppError::AgentError("Failed to capture Claude Code stderr".to_string()));
+        }
+    };
 
     log_stream_event(&perf_metrics, workspace_id, "stream_started", Some("one-shot mode".to_string()));
 
@@ -151,7 +160,7 @@ pub async fn spawn_and_stream(
                 let _ = app_handle_stdout.emit(&event_name, &frontend_event);
               }
             } else if !is_known_skippable_line(&line) {
-                let truncated = if line.len() > 200 { format!("{}...", &line[..200]) } else { line.clone() };
+                let truncated = safe_truncate(&line, 200);
                 log_stream_event(&perf_metrics_stdout, ws_id, "line_parse_failed", Some(truncated));
             }
         }
@@ -202,7 +211,7 @@ pub async fn spawn_and_stream(
                 }
                 buf.push_back(line.clone());
             }
-            let truncated = if line.len() > 300 { format!("{}...", &line[..300]) } else { line };
+            let truncated = safe_truncate(&line, 300);
             log_stream_event(&perf_metrics_stderr, ws_id_stderr, "stderr", Some(truncated));
         }
     });
@@ -281,17 +290,29 @@ pub async fn spawn_persistent(
         AppError::AgentError(format!("Failed to spawn persistent Claude Code: {}", e))
     })?;
 
-    let stdin = child.stdin.take().ok_or_else(|| {
-        AppError::AgentError("Failed to capture Claude Code stdin".to_string())
-    })?;
+    let stdin = match child.stdin.take() {
+        Some(s) => s,
+        None => {
+            let _ = child.kill().await;
+            return Err(AppError::AgentError("Failed to capture Claude Code stdin".to_string()));
+        }
+    };
 
-    let stdout = child.stdout.take().ok_or_else(|| {
-        AppError::AgentError("Failed to capture Claude Code stdout".to_string())
-    })?;
+    let stdout = match child.stdout.take() {
+        Some(s) => s,
+        None => {
+            let _ = child.kill().await;
+            return Err(AppError::AgentError("Failed to capture Claude Code stdout".to_string()));
+        }
+    };
 
-    let stderr = child.stderr.take().ok_or_else(|| {
-        AppError::AgentError("Failed to capture Claude Code stderr".to_string())
-    })?;
+    let stderr = match child.stderr.take() {
+        Some(s) => s,
+        None => {
+            let _ = child.kill().await;
+            return Err(AppError::AgentError("Failed to capture Claude Code stderr".to_string()));
+        }
+    };
 
     log_stream_event(&perf_metrics, workspace_id, "stream_started", Some("persistent mode".to_string()));
 
@@ -355,7 +376,7 @@ pub async fn spawn_persistent(
                 let _ = app_handle_stdout.emit(&event_name, &frontend_event);
               }
             } else if !is_known_skippable_line(&line) {
-                let truncated = if line.len() > 200 { format!("{}...", &line[..200]) } else { line.clone() };
+                let truncated = safe_truncate(&line, 200);
                 log_stream_event(&perf_metrics_stdout, ws_id, "line_parse_failed", Some(truncated));
             }
         }
@@ -409,7 +430,7 @@ pub async fn spawn_persistent(
                 }
                 buf.push_back(line.clone());
             }
-            let truncated = if line.len() > 300 { format!("{}...", &line[..300]) } else { line };
+            let truncated = safe_truncate(&line, 300);
             log_stream_event(&perf_metrics_stderr, ws_id_stderr, "stderr", Some(truncated));
         }
     });

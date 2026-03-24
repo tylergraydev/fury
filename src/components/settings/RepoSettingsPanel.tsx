@@ -60,7 +60,9 @@ export function RepoSettingsPanel({
   const [error, setError] = useState<string | null>(null);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [detectedDevcontainer, setDetectedDevcontainer] = useState<string | null>(null);
-  const { templates, loadTemplates, deleteTemplate } = useWorkspaceTemplateStore();
+  const templates = useWorkspaceTemplateStore((s) => s.templates);
+  const loadTemplates = useWorkspaceTemplateStore((s) => s.loadTemplates);
+  const deleteTemplate = useWorkspaceTemplateStore((s) => s.deleteTemplate);
 
   useEffect(() => {
     getRepoSettings(repoId)

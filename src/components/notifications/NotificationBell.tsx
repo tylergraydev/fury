@@ -10,6 +10,7 @@ export function NotificationBell() {
       onClick={togglePanel}
       className="relative rounded-md p-1.5 transition-colors hover:bg-[var(--bg-hover)]"
       title="Notifications"
+      aria-label="Notifications"
       data-testid="notification-bell"
     >
       <Bell className="h-4 w-4" style={{ color: "var(--text-muted)" }} />

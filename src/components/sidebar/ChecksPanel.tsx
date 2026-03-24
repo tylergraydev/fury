@@ -113,12 +113,16 @@ export function ChecksPanel({ workspaceId }: Props) {
   const error = usePrStore((s) => s.error[workspaceId] ?? null);
   const workflowRuns = usePrStore((s) => s.workflowRuns[workspaceId] ?? EMPTY_RUNS);
   const workflowLoading = usePrStore((s) => s.workflowLoading[workspaceId] ?? false);
-  const isAdo = useWorkspaceStore((s) => {
-    const ws = s.workspaces.find((w) => w.id === workspaceId);
-    if (!ws) return false;
-    const repo = useRepositoryStore.getState().repositories.find((r) => r.id === ws.repoId);
-    return repo?.provider === "azure_dev_ops";
-  });
+  const wsRepoId = useWorkspaceStore(
+    (s) => s.workspaces.find((w) => w.id === workspaceId)?.repoId ?? null,
+  );
+  const isAdo = useRepositoryStore(
+    (s) => {
+      if (!wsRepoId) return false;
+      const repo = s.repositories.find((r) => r.id === wsRepoId);
+      return repo?.provider === "azure_dev_ops";
+    },
+  );
 
   const [mergeMethod, setMergeMethod] = useState("squash");
   const [expandedRunId, setExpandedRunId] = useState<number | null>(null);

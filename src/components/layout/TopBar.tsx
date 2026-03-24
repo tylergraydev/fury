@@ -26,6 +26,9 @@ function AgentStatusDot({ contextId }: { contextId: string }) {
 
   return (
     <span
+      role="status"
+      aria-live="polite"
+      aria-label={label}
       className={`h-2 w-2 rounded-full ${isRunning ? "animate-pulse" : ""}`}
       style={{ backgroundColor: color }}
       title={label}

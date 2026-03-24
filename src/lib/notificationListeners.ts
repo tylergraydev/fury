@@ -11,11 +11,31 @@ function getWorkspaceName(workspaceId: string): string {
   return ws?.name ?? workspaceId.slice(0, 8);
 }
 
+// Module-level tracking maps for workspace state diffing
+const prevAgentStatuses: Record<string, AgentStatus> = {};
+const prevCheckStates: Record<string, string> = {};
+const prevPrStates: Record<string, string | null | undefined> = {};
+const prevExitCodes: Record<string, number | null> = {};
+const prevConflictCounts: Record<string, number> = {};
+
+export function cleanupWorkspaceTracking(workspaceId: string): void {
+  delete prevAgentStatuses[workspaceId];
+  delete prevCheckStates[workspaceId];
+  delete prevPrStates[workspaceId];
+  delete prevConflictCounts[workspaceId];
+
+  // Script/exit-code keys are prefixed with "workspaceId:"
+  for (const key of Object.keys(prevExitCodes)) {
+    if (key.startsWith(workspaceId + ":")) {
+      delete prevExitCodes[key];
+    }
+  }
+}
+
 export function initNotificationListeners(): () => void {
   const unsubs: (() => void)[] = [];
 
   // 1. Agent completes: Running -> Idle
-  const prevAgentStatuses: Record<string, AgentStatus> = {};
   unsubs.push(
     useAgentStore.subscribe((state) => {
       for (const [wsId, info] of Object.entries(state.agents)) {
@@ -36,8 +56,6 @@ export function initNotificationListeners(): () => void {
   );
 
   // 2. PR checks complete (all pass or any fail) + PR merged
-  const prevCheckStates: Record<string, string> = {};
-  const prevPrStates: Record<string, string | null | undefined> = {};
   unsubs.push(
     usePrStore.subscribe((state) => {
       for (const [wsId, info] of Object.entries(state.prInfo)) {
@@ -96,7 +114,6 @@ export function initNotificationListeners(): () => void {
   );
 
   // 3. Script/build exits with error
-  const prevExitCodes: Record<string, number | null> = {};
   unsubs.push(
     useScriptStore.subscribe((state) => {
       for (const [k, code] of Object.entries(state.exitCodes)) {
@@ -118,7 +135,6 @@ export function initNotificationListeners(): () => void {
   );
 
   // 4. Merge conflicts detected
-  const prevConflictCounts: Record<string, number> = {};
   unsubs.push(
     useMergeStore.subscribe((state) => {
       for (const [wsId, files] of Object.entries(state.conflictedFiles)) {

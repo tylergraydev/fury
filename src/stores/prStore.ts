@@ -27,7 +27,6 @@ interface PrStore {
   loading: Record<string, boolean>;
   error: Record<string, string | null>;
   subscriptions: Record<string, UnlistenFn[]>;
-  pollIntervals: Record<string, ReturnType<typeof setInterval>>;
 
   subscribe: (workspaceId: string) => Promise<void>;
   unsubscribe: (workspaceId: string) => void;
@@ -60,6 +59,10 @@ const _inflightWorkflowRuns = new Set<string>();
 // subscribe cleans up acquired listeners on resume instead of storing them.
 const _subscribeTokens = new Map<string, { cancelled: boolean }>();
 
+// Module-level poll intervals — kept outside Zustand state to avoid
+// unnecessary re-renders when timers are set/cleared.
+export const _pollIntervals = new Map<string, ReturnType<typeof setInterval>>();
+
 export const usePrStore = create<PrStore>((set, get) => ({
   prInfo: {},
   reviews: {},
@@ -70,7 +73,6 @@ export const usePrStore = create<PrStore>((set, get) => ({
   loading: {},
   error: {},
   subscriptions: {},
-  pollIntervals: {},
 
   subscribe: async (workspaceId: string) => {
     if (get().subscriptions[workspaceId]) return;
@@ -366,25 +368,20 @@ export const usePrStore = create<PrStore>((set, get) => ({
 
   startPolling: (workspaceId: string) => {
     // Don't start if already polling
-    if (get().pollIntervals[workspaceId]) return;
+    if (_pollIntervals.has(workspaceId)) return;
 
     const interval = setInterval(() => {
       get().refreshChecks(workspaceId);
     }, 30000);
 
-    set((state) => ({
-      pollIntervals: { ...state.pollIntervals, [workspaceId]: interval },
-    }));
+    _pollIntervals.set(workspaceId, interval);
   },
 
   stopPolling: (workspaceId: string) => {
-    const interval = get().pollIntervals[workspaceId];
+    const interval = _pollIntervals.get(workspaceId);
     if (interval) {
       clearInterval(interval);
-      set((state) => {
-        const { [workspaceId]: _, ...rest } = state.pollIntervals;
-        return { pollIntervals: rest };
-      });
+      _pollIntervals.delete(workspaceId);
     }
   },
 

@@ -302,31 +302,38 @@ pub async fn create_pr(
             let pat = get_ado_pat(&state)?;
             let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-            tokio::task::spawn_blocking(move || {
-                if gh_svc::has_uncommitted_changes(&ctx.worktree_path)? {
-                    gh_svc::stage_and_commit(&ctx.worktree_path, &title)?;
+            // Git operations must run in a blocking context
+            tokio::task::spawn_blocking({
+                let worktree_path = ctx.worktree_path.clone();
+                let branch = ctx.branch.clone();
+                let title_clone = title.clone();
+                move || {
+                    if gh_svc::has_uncommitted_changes(&worktree_path)? {
+                        gh_svc::stage_and_commit(&worktree_path, &title_clone)?;
+                    }
+                    gh_svc::push_branch(&worktree_path, &branch)?;
+                    Ok::<(), AppError>(())
                 }
-
-                gh_svc::push_branch(&ctx.worktree_path, &ctx.branch)?;
-
-                let pr_info = ado_svc::create_pr(
-                    &pat,
-                    &org,
-                    &project,
-                    &repo_name,
-                    &ctx.branch,
-                    &ctx.default_branch,
-                    &title,
-                    &body,
-                    draft,
-                    ws_id,
-                )?;
-
-                let _ = app.emit(&format!("pr-updated:{}", ws_id), &pr_info);
-                Ok(pr_info)
             })
             .await
-            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))??;
+
+            let pr_info = ado_svc::create_pr(
+                &pat,
+                &org,
+                &project,
+                &repo_name,
+                &ctx.branch,
+                &ctx.default_branch,
+                &title,
+                &body,
+                draft,
+                ws_id,
+            )
+            .await?;
+
+            let _ = app.emit(&format!("pr-updated:{}", ws_id), &pr_info);
+            Ok(pr_info)
         }
         GitProvider::Unknown => Err(AppError::PrError(
             "Repository provider not detected. Cannot create PR.".into(),
@@ -367,25 +374,23 @@ pub async fn get_pr_info(
             let pat = get_ado_pat(&state)?;
             let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-            tokio::task::spawn_blocking(move || {
-                let info = ado_svc::get_pr_by_branch(
-                    &pat, &org, &project, &repo_name, &ctx.branch, ws_id,
-                )?;
-                match info {
-                    Some(mut pr_info) => {
-                        if let Some(pr_id) = pr_info.pr_number {
-                            pr_info.checks = ado_svc::get_pr_checks(
-                                &pat, &org, &project, &repo_name, pr_id,
-                            )
-                            .unwrap_or_default();
-                        }
-                        Ok(pr_info)
+            let info = ado_svc::get_pr_by_branch(
+                &pat, &org, &project, &repo_name, &ctx.branch, ws_id,
+            )
+            .await?;
+            match info {
+                Some(mut pr_info) => {
+                    if let Some(pr_id) = pr_info.pr_number {
+                        pr_info.checks = ado_svc::get_pr_checks(
+                            &pat, &org, &project, &repo_name, pr_id,
+                        )
+                        .await
+                        .unwrap_or_default();
                     }
-                    None => Ok(PrInfo::empty(ws_id)),
+                    Ok(pr_info)
                 }
-            })
-            .await
-            .map_err(|e| AppError::PrError(format!("task failed: {}", e)))?
+                None => Ok(PrInfo::empty(ws_id)),
+            }
         }
         GitProvider::Unknown => Ok(PrInfo::empty(ws_id)),
     }
@@ -409,20 +414,17 @@ pub async fn get_pr_checks(
             let pat = get_ado_pat(&state)?;
             let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-            tokio::task::spawn_blocking(move || {
-                // Find the PR first to get its ID
-                let info = ado_svc::get_pr_by_branch(
-                    &pat, &org, &project, &repo_name, &ctx.branch, ws_id,
-                )?;
-                match info.and_then(|i| i.pr_number) {
-                    Some(pr_id) => {
-                        ado_svc::get_pr_checks(&pat, &org, &project, &repo_name, pr_id)
-                    }
-                    None => Ok(Vec::new()),
+            // Find the PR first to get its ID
+            let info = ado_svc::get_pr_by_branch(
+                &pat, &org, &project, &repo_name, &ctx.branch, ws_id,
+            )
+            .await?;
+            match info.and_then(|i| i.pr_number) {
+                Some(pr_id) => {
+                    ado_svc::get_pr_checks(&pat, &org, &project, &repo_name, pr_id).await
                 }
-            })
-            .await
-            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+                None => Ok(Vec::new()),
+            }
         }
         GitProvider::Unknown => Ok(Vec::new()),
     }
@@ -467,30 +469,38 @@ pub async fn push_changes(
             let pat = get_ado_pat(&state)?;
             let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-            tokio::task::spawn_blocking(move || {
-                if gh_svc::has_uncommitted_changes(&ctx.worktree_path)? {
-                    gh_svc::stage_and_commit(&ctx.worktree_path, "Update changes")?;
-                }
-
-                gh_svc::push_branch(&ctx.worktree_path, &ctx.branch)?;
-
-                // Fetch PR info after push
-                if let Ok(Some(mut info)) = ado_svc::get_pr_by_branch(
-                    &pat, &org, &project, &repo_name, &ctx.branch, ws_id,
-                ) {
-                    if let Some(pr_id) = info.pr_number {
-                        info.checks = ado_svc::get_pr_checks(
-                            &pat, &org, &project, &repo_name, pr_id,
-                        )
-                        .unwrap_or_default();
+            // Git operations must run in a blocking context
+            tokio::task::spawn_blocking({
+                let worktree_path = ctx.worktree_path.clone();
+                let branch = ctx.branch.clone();
+                move || {
+                    if gh_svc::has_uncommitted_changes(&worktree_path)? {
+                        gh_svc::stage_and_commit(&worktree_path, "Update changes")?;
                     }
-                    let _ = app.emit(&format!("pr-updated:{}", ws_id), &info);
+                    gh_svc::push_branch(&worktree_path, &branch)?;
+                    Ok::<(), AppError>(())
                 }
-
-                Ok(())
             })
             .await
-            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))??;
+
+            // Fetch PR info after push (async)
+            if let Ok(Some(mut info)) = ado_svc::get_pr_by_branch(
+                &pat, &org, &project, &repo_name, &ctx.branch, ws_id,
+            )
+            .await
+            {
+                if let Some(pr_id) = info.pr_number {
+                    info.checks = ado_svc::get_pr_checks(
+                        &pat, &org, &project, &repo_name, pr_id,
+                    )
+                    .await
+                    .unwrap_or_default();
+                }
+                let _ = app.emit(&format!("pr-updated:{}", ws_id), &info);
+            }
+
+            Ok(())
         }
         GitProvider::Unknown => {
             // Still allow push for unknown providers (pure git operation)
@@ -524,20 +534,16 @@ pub async fn fix_failing_checks(
         GitProvider::AzureDevOps => {
             let pat = get_ado_pat(&state)?;
             let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
-            let branch = ctx.branch.clone();
 
-            tokio::task::spawn_blocking(move || {
-                let info =
-                    ado_svc::get_pr_by_branch(&pat, &org, &project, &repo_name, &branch, ws_id)?;
-                match info.and_then(|i| i.pr_number) {
-                    Some(pr_id) => {
-                        ado_svc::get_pr_checks(&pat, &org, &project, &repo_name, pr_id)
-                    }
-                    None => Ok(Vec::new()),
+            let info =
+                ado_svc::get_pr_by_branch(&pat, &org, &project, &repo_name, &ctx.branch, ws_id)
+                    .await?;
+            match info.and_then(|i| i.pr_number) {
+                Some(pr_id) => {
+                    ado_svc::get_pr_checks(&pat, &org, &project, &repo_name, pr_id).await?
                 }
-            })
-            .await
-            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))??
+                None => Vec::new(),
+            }
         }
         GitProvider::Unknown => Vec::new(),
     };
@@ -573,22 +579,19 @@ pub async fn merge_pr(
             let pat = get_ado_pat(&state)?;
             let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-            tokio::task::spawn_blocking(move || {
-                // Find the PR first
-                let info = ado_svc::get_pr_by_branch(
-                    &pat, &org, &project, &repo_name, &ctx.branch, ws_id,
-                )?;
-                let pr_id = info
-                    .and_then(|i| i.pr_number)
-                    .ok_or_else(|| AppError::PrError("No open PR found to merge.".into()))?;
+            // Find the PR first
+            let info = ado_svc::get_pr_by_branch(
+                &pat, &org, &project, &repo_name, &ctx.branch, ws_id,
+            )
+            .await?;
+            let pr_id = info
+                .and_then(|i| i.pr_number)
+                .ok_or_else(|| AppError::PrError("No open PR found to merge.".into()))?;
 
-                let result =
-                    ado_svc::merge_pr(&pat, &org, &project, &repo_name, pr_id, &method)?;
-                let _ = app.emit(&format!("pr-merged:{}", ws_id), &result);
-                Ok(result)
-            })
-            .await
-            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+            let result =
+                ado_svc::merge_pr(&pat, &org, &project, &repo_name, pr_id, &method).await?;
+            let _ = app.emit(&format!("pr-merged:{}", ws_id), &result);
+            Ok(result)
         }
         GitProvider::Unknown => Err(AppError::PrError(
             "Repository provider not detected. Cannot merge PR.".into(),

@@ -1,4 +1,5 @@
 pub mod ado;
+pub mod utils;
 pub mod branch;
 pub mod checkpoint;
 pub mod containerize;
@@ -24,4 +25,5 @@ pub mod script_runner;
 pub mod test_runner;
 pub mod slash_commands;
 pub mod terminal;
+pub mod path_validation;
 pub mod worktree;

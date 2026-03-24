@@ -499,7 +499,6 @@ describe("LandingPage", () => {
 
     it("handles addRepo error in GettingStarted", async () => {
       const user = userEvent.setup();
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       (open as ReturnType<typeof vi.fn>).mockResolvedValue("/broken/repo");
       const addRepoSpy = vi.fn().mockRejectedValue(new Error("Not a git repo"));
       useRepositoryStore.setState({
@@ -509,9 +508,8 @@ describe("LandingPage", () => {
       render(<LandingPage />);
       await user.click(screen.getByText("Add Repository"));
       await vi.waitFor(() => {
-        expect(consoleSpy).toHaveBeenCalledWith("Failed to add repo:", expect.any(Error));
+        expect(screen.getByText(/Not a git repo/)).toBeInTheDocument();
       });
-      consoleSpy.mockRestore();
     });
   });
 

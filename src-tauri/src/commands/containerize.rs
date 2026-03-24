@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::error::AppError;
 use crate::models::devcontainer::{AgentExecMode, ContainerBackend, DevContainerConfig};
 use crate::services::containerize as ctz_svc;
+use crate::services::utils::safe_truncate;
 use crate::state::AppState;
 
 /// Build a default DevContainerConfig with containerization enabled.
@@ -173,7 +174,7 @@ pub async fn containerize_repo(
             None => {
                 return Err(AppError::AgentError(format!(
                     "Claude output missing 'result' string field. Raw: {}",
-                    &stdout[..stdout.len().min(500)]
+                    safe_truncate(&stdout, 500)
                 )));
             }
         },
@@ -181,7 +182,7 @@ pub async fn containerize_repo(
             return Err(AppError::AgentError(format!(
                 "Failed to parse Claude JSON output: {}. Raw: {}",
                 e,
-                &stdout[..stdout.len().min(500)]
+                safe_truncate(&stdout, 500)
             )));
         }
     };

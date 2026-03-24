@@ -22,8 +22,12 @@ export function PromptLibraryDialog({
   currentBranch,
   currentWorkspace,
 }: Props) {
-  const { prompts, loading, loadPrompts, createPrompt, updatePrompt, deletePrompt } =
-    usePromptLibraryStore();
+  const prompts = usePromptLibraryStore((s) => s.prompts);
+  const loading = usePromptLibraryStore((s) => s.loading);
+  const loadPrompts = usePromptLibraryStore((s) => s.loadPrompts);
+  const createPrompt = usePromptLibraryStore((s) => s.createPrompt);
+  const updatePrompt = usePromptLibraryStore((s) => s.updatePrompt);
+  const deletePrompt = usePromptLibraryStore((s) => s.deletePrompt);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [editingPrompt, setEditingPrompt] = useState<Prompt | null>(null);

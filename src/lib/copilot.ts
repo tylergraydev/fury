@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { instrumentedInvoke } from "./ipcInstrumentation";
 import * as monaco from "monaco-editor";
 
 // --- Tauri IPC types ---
@@ -39,31 +39,31 @@ export interface CopilotSignInResult {
 // --- Tauri IPC wrappers ---
 
 export async function startCopilot(rootUri: string): Promise<void> {
-  return invoke("start_copilot", { rootUri });
+  return instrumentedInvoke("start_copilot", { rootUri });
 }
 
 export async function stopCopilot(): Promise<void> {
-  return invoke("stop_copilot");
+  return instrumentedInvoke("stop_copilot");
 }
 
 export async function copilotSignIn(): Promise<CopilotSignInResult> {
-  return invoke<CopilotSignInResult>("copilot_sign_in");
+  return instrumentedInvoke<CopilotSignInResult>("copilot_sign_in");
 }
 
 export async function copilotCheckStatus(): Promise<unknown> {
-  return invoke("copilot_check_status");
+  return instrumentedInvoke("copilot_check_status");
 }
 
 async function copilotDidOpen(event: DocSyncEvent): Promise<void> {
-  return invoke("copilot_did_open", { event });
+  return instrumentedInvoke("copilot_did_open", { event });
 }
 
 async function copilotDidChange(event: DocChangeEvent): Promise<void> {
-  return invoke("copilot_did_change", { event });
+  return instrumentedInvoke("copilot_did_change", { event });
 }
 
 async function copilotDidClose(uri: string): Promise<void> {
-  return invoke("copilot_did_close", { uri });
+  return instrumentedInvoke("copilot_did_close", { uri });
 }
 
 async function copilotComplete(
@@ -71,7 +71,7 @@ async function copilotComplete(
   line: number,
   character: number,
 ): Promise<CompletionResult> {
-  return invoke<CompletionResult>("copilot_complete", { uri, line, character });
+  return instrumentedInvoke<CompletionResult>("copilot_complete", { uri, line, character });
 }
 
 // --- Document tracking ---

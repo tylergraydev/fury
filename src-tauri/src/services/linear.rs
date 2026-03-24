@@ -1,8 +1,8 @@
 use crate::error::AppError;
 use crate::models::linear::LinearIssue;
 
-pub fn search_issues(api_key: &str, query: &str) -> Result<Vec<LinearIssue>, AppError> {
-    let client = reqwest::blocking::Client::new();
+pub async fn search_issues(api_key: &str, query: &str) -> Result<Vec<LinearIssue>, AppError> {
+    let client = reqwest::Client::new();
 
     let graphql_query = r#"
         query SearchIssues($query: String!) {
@@ -32,11 +32,12 @@ pub fn search_issues(api_key: &str, query: &str) -> Result<Vec<LinearIssue>, App
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
+        .await
         .map_err(|e| AppError::LinearError(format!("Failed to call Linear API: {}", e)))?;
 
     if !response.status().is_success() {
         let status = response.status();
-        let text = response.text().unwrap_or_default();
+        let text = response.text().await.unwrap_or_default();
         return Err(AppError::LinearError(format!(
             "Linear API returned {}: {}",
             status, text
@@ -45,6 +46,7 @@ pub fn search_issues(api_key: &str, query: &str) -> Result<Vec<LinearIssue>, App
 
     let raw: serde_json::Value = response
         .json()
+        .await
         .map_err(|e| AppError::LinearError(format!("Failed to parse Linear response: {}", e)))?;
 
     if let Some(errors) = raw.get("errors").and_then(|e| e.as_array()) {
@@ -101,8 +103,8 @@ pub fn search_issues(api_key: &str, query: &str) -> Result<Vec<LinearIssue>, App
 }
 
 #[allow(dead_code)]
-pub fn get_issue(api_key: &str, issue_id: &str) -> Result<LinearIssue, AppError> {
-    let client = reqwest::blocking::Client::new();
+pub async fn get_issue(api_key: &str, issue_id: &str) -> Result<LinearIssue, AppError> {
+    let client = reqwest::Client::new();
 
     let graphql_query = r#"
         query GetIssue($id: String!) {
@@ -130,11 +132,12 @@ pub fn get_issue(api_key: &str, issue_id: &str) -> Result<LinearIssue, AppError>
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
+        .await
         .map_err(|e| AppError::LinearError(format!("Failed to call Linear API: {}", e)))?;
 
     if !response.status().is_success() {
         let status = response.status();
-        let text = response.text().unwrap_or_default();
+        let text = response.text().await.unwrap_or_default();
         return Err(AppError::LinearError(format!(
             "Linear API returned {}: {}",
             status, text
@@ -143,6 +146,7 @@ pub fn get_issue(api_key: &str, issue_id: &str) -> Result<LinearIssue, AppError>
 
     let raw: serde_json::Value = response
         .json()
+        .await
         .map_err(|e| AppError::LinearError(format!("Failed to parse Linear response: {}", e)))?;
 
     if let Some(errors) = raw.get("errors").and_then(|e| e.as_array()) {

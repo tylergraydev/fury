@@ -91,6 +91,7 @@ function Header({ onOpenSettings }: { onOpenSettings?: () => void }) {
           className="ml-auto rounded-lg p-2 transition-colors hover:bg-[var(--bg-hover)]"
           style={{ color: "var(--text-muted)" }}
           title="Settings"
+          aria-label="Settings"
         >
           <Settings className="h-5 w-5" />
         </button>
@@ -453,7 +454,10 @@ function KeyboardShortcuts() {
 }
 
 function GettingStarted() {
+  const [error, setError] = useState<string | null>(null);
+
   const handleAddRepo = async () => {
+    setError(null);
     const selected = await open({
       directory: true,
       multiple: false,
@@ -472,7 +476,7 @@ function GettingStarted() {
         const repo = await useRepositoryStore.getState().addRepo(path);
         useWorkspaceStore.getState().setActiveRepo(repo.id);
       } catch (e) {
-        console.error("Failed to add repo:", e);
+        setError(String(e));
       }
     }
   };
@@ -508,6 +512,18 @@ function GettingStarted() {
       >
         Getting Started
       </h2>
+      {error && (
+        <div
+          className="mb-3 rounded-lg px-3 py-2 text-xs"
+          style={{
+            backgroundColor: "var(--error-bg)",
+            color: "#ef4444",
+            border: "1px solid var(--error-border)",
+          }}
+        >
+          {error}
+        </div>
+      )}
       <div className="space-y-3">
         {steps.map((step) => (
           <div

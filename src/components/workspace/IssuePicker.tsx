@@ -12,16 +12,14 @@ export function IssuePicker({ workspaceId, onClose }: Props) {
   const [query, setQuery] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const {
-    searchResults,
-    searchLoading,
-    searchError,
-    searchIssues,
-    clearSearch,
-    loadLinkedIssues,
-    linkIssue,
-    unlinkIssue,
-  } = useLinearStore();
+  const searchResults = useLinearStore((s) => s.searchResults);
+  const searchLoading = useLinearStore((s) => s.searchLoading);
+  const searchError = useLinearStore((s) => s.searchError);
+  const searchIssues = useLinearStore((s) => s.searchIssues);
+  const clearSearch = useLinearStore((s) => s.clearSearch);
+  const loadLinkedIssues = useLinearStore((s) => s.loadLinkedIssues);
+  const linkIssue = useLinearStore((s) => s.linkIssue);
+  const unlinkIssue = useLinearStore((s) => s.unlinkIssue);
 
   const linkedIssues = useLinearStore(
     (s) => s.linkedIssues[workspaceId] ?? [],

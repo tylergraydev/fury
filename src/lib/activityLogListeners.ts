@@ -18,11 +18,49 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+// Module-level tracking maps for workspace state diffing
+const prevAgentStatuses: Record<string, AgentStatus> = {};
+const prevMessageCounts: Record<string, number> = {};
+const prevRunning: Record<string, boolean> = {};
+const prevExitCodes: Record<string, number | null> = {};
+const prevCheckStates: Record<string, string> = {};
+const prevPrStates: Record<string, string | null | undefined> = {};
+const prevConflictCounts: Record<string, number> = {};
+
+export function resetAllTracking(): void {
+  for (const key of Object.keys(prevAgentStatuses)) delete prevAgentStatuses[key];
+  for (const key of Object.keys(prevMessageCounts)) delete prevMessageCounts[key];
+  for (const key of Object.keys(prevRunning)) delete prevRunning[key];
+  for (const key of Object.keys(prevExitCodes)) delete prevExitCodes[key];
+  for (const key of Object.keys(prevCheckStates)) delete prevCheckStates[key];
+  for (const key of Object.keys(prevPrStates)) delete prevPrStates[key];
+  for (const key of Object.keys(prevConflictCounts)) delete prevConflictCounts[key];
+}
+
+export function cleanupWorkspaceTracking(workspaceId: string): void {
+  delete prevAgentStatuses[workspaceId];
+  delete prevMessageCounts[workspaceId];
+  delete prevCheckStates[workspaceId];
+  delete prevPrStates[workspaceId];
+  delete prevConflictCounts[workspaceId];
+
+  // Script/exit-code keys are prefixed with "workspaceId:"
+  for (const key of Object.keys(prevRunning)) {
+    if (key.startsWith(workspaceId + ":")) {
+      delete prevRunning[key];
+    }
+  }
+  for (const key of Object.keys(prevExitCodes)) {
+    if (key.startsWith(workspaceId + ":")) {
+      delete prevExitCodes[key];
+    }
+  }
+}
+
 export function initActivityLogListeners(): () => void {
   const unsubs: (() => void)[] = [];
 
   // 1. Agent status changes (Idle -> Running, Running -> Idle)
-  const prevAgentStatuses: Record<string, AgentStatus> = {};
   unsubs.push(
     useAgentStore.subscribe((state) => {
       for (const [wsId, info] of Object.entries(state.agents)) {
@@ -55,7 +93,6 @@ export function initActivityLogListeners(): () => void {
   );
 
   // 2. Chat messages (user sent, agent responded — skip system)
-  const prevMessageCounts: Record<string, number> = {};
   unsubs.push(
     useChatStore.subscribe((state) => {
       /* v8 ignore start -- for...of Object.entries is V8 branch artifact */
@@ -91,8 +128,6 @@ export function initActivityLogListeners(): () => void {
   );
 
   // 3. Script runs (started, succeeded, failed)
-  const prevRunning: Record<string, boolean> = {};
-  const prevExitCodes: Record<string, number | null> = {};
   unsubs.push(
     useScriptStore.subscribe((state) => {
       // Detect script started
@@ -146,8 +181,6 @@ export function initActivityLogListeners(): () => void {
   );
 
   // 4. PR events (checks pass/fail, merged)
-  const prevCheckStates: Record<string, string> = {};
-  const prevPrStates: Record<string, string | null | undefined> = {};
   unsubs.push(
     usePrStore.subscribe((state) => {
       for (const [wsId, info] of Object.entries(state.prInfo)) {
@@ -206,7 +239,6 @@ export function initActivityLogListeners(): () => void {
   );
 
   // 5. Merge conflicts detected/resolved
-  const prevConflictCounts: Record<string, number> = {};
   unsubs.push(
     useMergeStore.subscribe((state) => {
       for (const [wsId, files] of Object.entries(state.conflictedFiles)) {

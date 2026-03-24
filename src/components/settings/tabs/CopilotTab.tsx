@@ -5,18 +5,20 @@ import { useWorkspaceStore } from "../../../stores/workspaceStore";
 import { useRepositoryStore } from "../../../stores/repositoryStore";
 
 export function CopilotTab() {
-  const { appSettings, loadSettings, saveSettings } = useSettingsStore();
-  const {
-    connectionStatus,
-    authStatus,
-    signInResult,
-    error: copilotError,
-    initialize,
-    shutdown,
-    signIn,
-  } = useCopilotStore();
-  const { activeWorkspaceId, activeRepoId, workspaces } = useWorkspaceStore();
-  const { repositories } = useRepositoryStore();
+  const appSettings = useSettingsStore((s) => s.appSettings);
+  const loadSettings = useSettingsStore((s) => s.loadSettings);
+  const saveSettings = useSettingsStore((s) => s.saveSettings);
+  const connectionStatus = useCopilotStore((s) => s.connectionStatus);
+  const authStatus = useCopilotStore((s) => s.authStatus);
+  const signInResult = useCopilotStore((s) => s.signInResult);
+  const copilotError = useCopilotStore((s) => s.error);
+  const initialize = useCopilotStore((s) => s.initialize);
+  const shutdown = useCopilotStore((s) => s.shutdown);
+  const signIn = useCopilotStore((s) => s.signIn);
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const activeRepoId = useWorkspaceStore((s) => s.activeRepoId);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const repositories = useRepositoryStore((s) => s.repositories);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {

@@ -54,6 +54,12 @@ pub enum AppError {
     #[error("Container error: {0}")]
     ContainerError(String),
 
+    #[error("Path traversal denied: {0}")]
+    PathTraversal(String),
+
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
 }
@@ -137,6 +143,12 @@ mod tests {
         );
         let app_err: AppError = rusqlite_err.into();
         assert!(matches!(app_err, AppError::DbError(_)));
+    }
+
+    #[test]
+    fn test_display_path_traversal() {
+        let err = AppError::PathTraversal("escape attempt".to_string());
+        assert_eq!(err.to_string(), "Path traversal denied: escape attempt");
     }
 
     #[test]

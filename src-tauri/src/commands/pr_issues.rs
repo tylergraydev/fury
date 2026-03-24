@@ -25,11 +25,7 @@ pub async fn list_repo_prs(
             let pat = get_ado_pat(&state)?;
             let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
 
-            tokio::task::spawn_blocking(move || {
-                ado_svc::list_prs(&pat, &org, &project, &repo_name)
-            })
-            .await
-            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+            ado_svc::list_prs(&pat, &org, &project, &repo_name).await
         }
         GitProvider::Unknown => Ok(Vec::new()),
     }

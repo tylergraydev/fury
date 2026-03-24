@@ -39,6 +39,7 @@ interface StreamEventPayload {
   timestamp: number;
 }
 
+const MAX_BUFFER_SIZE = 1000;
 const ipcBuffer: IpcMetricPayload[] = [];
 const streamEventBuffer: StreamEventPayload[] = [];
 let flushInterval: ReturnType<typeof setInterval> | null = null;
@@ -116,6 +117,9 @@ async function runInvoke<T>(
     const durationMs = performance.now() - start;
     _inflight--;
     debugLog(success ? "END" : "FAIL", cmd, durationMs);
+    if (ipcBuffer.length >= MAX_BUFFER_SIZE) {
+      ipcBuffer.splice(0, ipcBuffer.length - MAX_BUFFER_SIZE + 1);
+    }
     ipcBuffer.push({ command: cmd, durationMs, success, error, timestamp });
   }
 }
@@ -140,6 +144,9 @@ export function pushStreamEvent(
   eventType: string,
   details?: string,
 ) {
+  if (streamEventBuffer.length >= MAX_BUFFER_SIZE) {
+    streamEventBuffer.splice(0, streamEventBuffer.length - MAX_BUFFER_SIZE + 1);
+  }
   streamEventBuffer.push({
     workspaceId,
     eventType,
