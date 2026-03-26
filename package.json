@@ -17,6 +17,7 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:ui": "playwright test --ui",
+    "build:sidecar": "cd src-tauri/sidecar && npm install && node build.mjs",
     "hooks:install": "git config core.hooksPath scripts",
     "prepare": "git config core.hooksPath scripts"
   },

@@ -4,7 +4,9 @@ use std::sync::Mutex;
 use uuid::Uuid;
 
 use crate::models::agent::{AgentInfo, FrontendStreamEvent};
+#[allow(unused_imports)]
 use crate::services::perf_server::{SharedPerfMetrics, StreamEventMetric};
+#[allow(unused_imports)]
 use crate::services::utils::{safe_truncate, safe_truncate_end};
 
 /// Try to capture session_id from a stream event and save it to agent info.
@@ -31,6 +33,7 @@ pub(crate) fn try_capture_session_id(
 }
 
 /// Log a stream event to the perf metrics ring buffer (if monitoring is enabled).
+#[allow(dead_code)]
 pub(crate) fn log_stream_event(
     perf_metrics: &SharedPerfMetrics,
     workspace_id: Uuid,
@@ -52,6 +55,7 @@ pub(crate) fn log_stream_event(
 
 /// Return a detail string for the frontend stream event type.
 /// For result events, includes error status and truncated result text.
+#[allow(dead_code)]
 pub(crate) fn stream_event_detail(event: &FrontendStreamEvent) -> String {
     match event {
         FrontendStreamEvent::System { .. } => "system".to_string(),
@@ -81,6 +85,7 @@ pub(crate) fn stream_event_detail(event: &FrontendStreamEvent) -> String {
 /// Check if a JSON line has a known event type that we intentionally don't convert
 /// to a frontend event (e.g. echoed user messages, rate limit info, metadata-only
 /// assistant messages). These should not be logged as parse failures.
+#[allow(dead_code)]
 pub(crate) fn is_known_skippable_line(line: &str) -> bool {
     serde_json::from_str::<serde_json::Value>(line)
         .ok()
@@ -91,6 +96,7 @@ pub(crate) fn is_known_skippable_line(line: &str) -> bool {
 
 /// If a result event has `is_error: true` but no `result` message,
 /// pull recent stderr lines into the result so the error reason reaches the frontend.
+#[allow(dead_code)]
 pub(crate) fn enrich_error_from_stderr(
     event: &mut FrontendStreamEvent,
     stderr_buffer: &std::sync::Arc<Mutex<VecDeque<String>>>,

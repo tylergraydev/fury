@@ -12,6 +12,7 @@ pub fn safe_truncate(s: &str, max_chars: usize) -> String {
 
 /// Safely truncate a string from the end, keeping the last `max_chars` characters
 /// and prepending "..." if truncated.
+#[allow(dead_code)]
 pub fn safe_truncate_end(s: &str, max_chars: usize) -> String {
     if s.len() <= max_chars {
         return s.to_string();
