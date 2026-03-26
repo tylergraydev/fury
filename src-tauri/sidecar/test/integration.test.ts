@@ -15,7 +15,7 @@ import { fileURLToPath } from "url";
 import * as readline from "readline";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SIDECAR_PATH = path.join(__dirname, "../dist/claude-agent-sidecar.js");
+const SIDECAR_PATH = path.join(__dirname, "../dist/claude-agent-sidecar.cjs");
 const WORKSPACE_ID = "00000000-0000-0000-0000-000000000001";
 const TIMEOUT_MS = 60_000;
 

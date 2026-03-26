@@ -58,8 +58,8 @@ pub enum SidecarCommand {
 /// Start the Node.js sidecar process.
 ///
 /// The sidecar script location:
-/// - Dev: `<CARGO_MANIFEST_DIR>/sidecar/dist/claude-agent-sidecar.js`
-/// - Production: `<resource_dir>/claude-agent-sidecar.js`
+/// - Dev: `<CARGO_MANIFEST_DIR>/sidecar/dist/claude-agent-sidecar.cjs`
+/// - Production: `<resource_dir>/claude-agent-sidecar.cjs`
 ///
 /// A background task reads stdout NDJSON, routes events by the `id` field
 /// (which maps to workspace UUID), and emits them to the frontend.
@@ -206,7 +206,7 @@ fn find_sidecar_path(app: &AppHandle) -> Result<std::path::PathBuf, AppError> {
     let dev_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("sidecar")
         .join("dist")
-        .join("claude-agent-sidecar.js");
+        .join("claude-agent-sidecar.cjs");
     if dev_path.exists() {
         return Ok(dev_path);
     }
@@ -216,7 +216,7 @@ fn find_sidecar_path(app: &AppHandle) -> Result<std::path::PathBuf, AppError> {
         .path()
         .resource_dir()
         .map_err(|e| AppError::AgentError(format!("Cannot resolve resource dir: {}", e)))?;
-    let prod_path = resource_dir.join("claude-agent-sidecar.js");
+    let prod_path = resource_dir.join("claude-agent-sidecar.cjs");
     if prod_path.exists() {
         return Ok(prod_path);
     }

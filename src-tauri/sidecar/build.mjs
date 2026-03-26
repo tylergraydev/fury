@@ -8,20 +8,19 @@ const buildOptions = {
   bundle: true,
   platform: "node",
   target: "node20",
-  format: "esm",
-  outfile: "dist/claude-agent-sidecar.js",
+  format: "cjs",
+  outfile: "dist/claude-agent-sidecar.cjs",
   sourcemap: true,
   banner: {
     js: [
       '// Fury Claude Agent Sidecar',
       '// Bundled with esbuild — do not edit directly',
-      'import { createRequire } from "module";',
-      'const require = createRequire(import.meta.url);',
     ].join("\n"),
   },
   // Mark native modules as external — they can't be bundled
   external: [
     "fsevents",
+    "@anthropic-ai/claude-agent-sdk",
   ],
   logLevel: "info",
 };

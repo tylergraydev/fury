@@ -90,7 +90,12 @@ pub(crate) fn is_known_skippable_line(line: &str) -> bool {
     serde_json::from_str::<serde_json::Value>(line)
         .ok()
         .and_then(|raw| raw.get("type").and_then(|v| v.as_str()).map(String::from))
-        .map(|t| matches!(t.as_str(), "user" | "rate_limit_event" | "assistant"))
+        .map(|t| {
+            matches!(
+                t.as_str(),
+                "user" | "rate_limit_event" | "assistant" | "stream_event"
+            )
+        })
         .unwrap_or(false)
 }
 
@@ -305,7 +310,37 @@ pub fn parse_stream_line(line: &str) -> Vec<FrontendStreamEvent> {
                 cache_creation_tokens,
             }]
         }
-        // Permission request: emitted when CLI needs user approval for a tool call
+        // SDK stream events: partial deltas for real-time text streaming
+        "stream_event" => {
+            let event = match raw.get("event") {
+                Some(e) => e,
+                None => return vec![],
+            };
+            let event_type = event.get("type").and_then(|v| v.as_str()).unwrap_or("");
+            match event_type {
+                "content_block_delta" => {
+                    let delta = match event.get("delta") {
+                        Some(d) => d,
+                        None => return vec![],
+                    };
+                    let delta_type = delta.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                    match delta_type {
+                        "text_delta" => {
+                            if let Some(text) = delta.get("text").and_then(|v| v.as_str()) {
+                                vec![FrontendStreamEvent::AssistantText {
+                                    text: text.to_string(),
+                                }]
+                            } else {
+                                vec![]
+                            }
+                        }
+                        _ => vec![],
+                    }
+                }
+                _ => vec![],
+            }
+        }
+        // Permission request: emitted when sidecar needs user approval for a tool call
         "input_request" => {
             // Extract tool info from the permission request
             let tool_name = raw
