@@ -20,6 +20,10 @@ interface SlashCommandStore {
 // without polluting store state or triggering re-renders.
 const _inflightCommands = new Set<string>();
 
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => _inflightCommands.clear());
+}
+
 export const useSlashCommandStore = create<SlashCommandStore>((set, get) => ({
   commands: {},
   discoveredSkills: {},

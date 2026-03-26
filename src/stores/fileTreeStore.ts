@@ -17,6 +17,13 @@ interface FileTreeStore {
 const _inflightFiles = new Set<string>();
 const _inflightRepoFiles = new Set<string>();
 
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    _inflightFiles.clear();
+    _inflightRepoFiles.clear();
+  });
+}
+
 export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
   files: {},
   expandedDirs: {},

@@ -86,6 +86,14 @@ const _inflightBranchStatus = new Set<string>();
 const _inflightComparisonDiff = new Set<string>();
 const _inflightConflictedFiles = new Set<string>();
 
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    _inflightBranchStatus.clear();
+    _inflightComparisonDiff.clear();
+    _inflightConflictedFiles.clear();
+  });
+}
+
 export const useMergeStore = create<MergeStore>((set, get) => ({
   branchStatus: {},
   comparisonTarget: {},

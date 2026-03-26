@@ -7,8 +7,6 @@ use crate::models::agent::{AgentInfo, AgentStatus, AgentStatusEvent, SendMessage
 use crate::models::settings::AgentType;
 use crate::services::claude_process;
 use crate::services::codex_process;
-use crate::services::perf_server::StreamEventMetric;
-use crate::state::app_state::PersistentAgentHandle;
 use crate::state::AppState;
 use tauri::{Emitter, State};
 use uuid::Uuid;
@@ -62,15 +60,21 @@ pub(crate) fn should_emit_status(
 }
 
 /// Check if an agent is alive and running. Returns true if agent
-/// status is Running and the PID is still alive.
+/// status is Running and the PID is still alive. For sidecar-based agents
+/// (no PID), Running status alone is sufficient since the sidecar manages
+/// process lifecycle.
 pub(crate) fn is_agent_alive(agent: &AgentInfo) -> bool {
-    agent.status == AgentStatus::Running
-        && agent.pid.is_some_and(|pid| {
-            crate::platform::is_process_alive(pid)
-        })
+    if agent.status != AgentStatus::Running {
+        return false;
+    }
+    match agent.pid {
+        Some(pid) => crate::platform::is_process_alive(pid),
+        None => true, // Sidecar-based agent: no PID, trust the status
+    }
 }
 
 /// Convert a boolean approval flag to the permission response string.
+#[cfg(test)]
 pub(crate) fn permission_response_str(approved: bool) -> &'static str {
     if approved { "yes" } else { "no" }
 }
@@ -78,6 +82,7 @@ pub(crate) fn permission_response_str(approved: bool) -> &'static str {
 /// Determine whether a cold error should clear the agent session_id.
 /// A "cold error" is when the process exits with an error before producing
 /// any content, suggesting the session may be stale/corrupt.
+#[cfg(test)]
 pub(crate) fn should_clear_session_on_cold_error(
     had_content: bool,
     exit_success: bool,
@@ -100,6 +105,7 @@ pub(crate) fn validate_working_dir(working_dir: &std::path::Path) -> Result<(), 
 }
 
 /// Check if persistent process toggle settings match, determining if we can reuse it.
+#[cfg(test)]
 pub(crate) fn can_reuse_persistent_process(
     handle_disable_thinking: bool,
     handle_disable_plan_mode: bool,
@@ -377,16 +383,15 @@ pub async fn send_message(
     };
 
     // Get system prompt additions, persistent mode, and safe mode settings in a single lock
-    let (system_prompt, persistent_mode, safe_mode) = {
+    let (system_prompt, safe_mode) = {
         let settings = state.settings.read().unwrap();
         (
             settings.system_prompt_additions.clone(),
-            settings.experimental.persistent_processes,
             settings.experimental.safe_mode,
         )
     };
 
-    let (disable_thinking, disable_plan_mode) = extract_toggle_flags(&request);
+    let (disable_thinking, _disable_plan_mode) = extract_toggle_flags(&request);
 
     // Validate working directory exists before spawning
     if let Err(e) = validate_working_dir(&working_dir) {
@@ -425,320 +430,53 @@ pub async fn send_message(
 
     match agent_type {
     AgentType::ClaudeCode => {
-    if persistent_mode {
-        // Performance Mode: reuse a long-running process or spawn one
-        // Single remove avoids TOCTOU race between contains_key + remove
-        let existing_handle = state
-            .persistent_agents
-            .lock()
-            .unwrap()
-            .remove(&context_id);
-
-        // Check if we can reuse the existing process (toggle settings must match)
-        let reuse_handle = existing_handle.filter(|h| {
-            can_reuse_persistent_process(
-                h.disable_thinking,
-                h.disable_plan_mode,
-                disable_thinking,
-                disable_plan_mode,
-            )
-        });
-
-        if let Some(mut handle) = reuse_handle {
-            // Reuse existing persistent process
-            if let Err(e) = claude_process::write_message(&mut handle.stdin, &request.message).await {
-                reset_agent_on_error(&state.agents, &app, context_id);
-                return Err(e);
-            }
-
-            // Put handle back for next turn
-            state
-                .persistent_agents
-                .lock()
-                .unwrap()
-                .insert(context_id, handle);
-        } else {
-            // Kill any stale persistent process whose toggle settings changed
-            {
-                let mut processes = state.agent_processes.lock().unwrap();
-                if let Some(child) = processes.remove(&context_id) {
-                    if let Some(pid) = child.id() {
-                        let _ = crate::platform::kill_process_group(pid);
-                    }
-                }
-            }
-
-            // Spawn new persistent process
-            let (child, mut stdin) = match claude_process::spawn_persistent(
-                context_id,
-                session_id.as_deref(),
-                &working_dir,
-                env_vars,
-                linked_dirs,
-                system_prompt.as_deref(),
-                request.model.as_deref(),
-                safe_mode,
-                disable_thinking,
-                disable_plan_mode,
-                app.clone(),
-                Arc::clone(&state.agents),
-                Arc::clone(&state.persistent_agents),
-                Arc::clone(&state.perf_metrics),
-                container_ctx.clone(),
-            )
-            .await
-            {
-                Ok(result) => result,
-                Err(e) => {
-                    reset_agent_on_error(&state.agents, &app, context_id);
-                    return Err(e);
-                }
-            };
-
-            // Store PID in agent info for stop_agent
-            if let Some(pid) = child.id() {
-                let mut agents = state.agents.lock().unwrap();
-                if let Some(agent) = agents.get_mut(&context_id) {
-                    agent.pid = Some(pid);
-                }
-            }
-
-            // Write the first message
-            if let Err(e) = claude_process::write_message(&mut stdin, &request.message).await {
-                reset_agent_on_error(&state.agents, &app, context_id);
-                return Err(e);
-            }
-
-            // Store handles
-            state
-                .persistent_agents
-                .lock()
-                .unwrap()
-                .insert(context_id, PersistentAgentHandle {
-                    stdin,
-                    disable_thinking,
-                    disable_plan_mode,
-                });
-            state
-                .agent_processes
-                .lock()
-                .unwrap()
-                .insert(context_id, child);
-
-            // Background task: watch for unexpected process exit
-            let agents_ref = Arc::clone(&state.agents);
-            let processes_ref = Arc::clone(&state.agent_processes);
-            let persistent_ref = Arc::clone(&state.persistent_agents);
-            let perf_ref = Arc::clone(&state.perf_metrics);
-            let app_clone = app.clone();
-            tokio::spawn(async move {
-                let mut child = {
-                    let mut processes =
-                        processes_ref.lock().unwrap_or_else(|e| e.into_inner());
-                    processes.remove(&context_id)
-                };
-
-                let exit_status = if let Some(ref mut c) = child {
-                    c.wait().await.ok()
-                } else {
-                    None
-                };
-
-                // Log process exit to perf metrics
-                {
-                    let mut lock = perf_ref.lock().unwrap_or_else(|e| e.into_inner());
-                    if lock.enabled {
-                        lock.push_stream_event(StreamEventMetric {
-                            workspace_id: context_id.to_string(),
-                            event_type: "process_exit".to_string(),
-                            details: Some(format!("{:?}", exit_status)),
-                            source: "backend".to_string(),
-                            timestamp: chrono::Utc::now().timestamp_millis() as f64,
-                        });
-                    }
-                }
-
-                // Process exited — clean up persistent state
-                persistent_ref
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .remove(&context_id);
-
-                let new_status = match exit_status {
-                    Some(ref status) => status_from_exit(status.code(), status.success()),
-                    None => AgentStatus::Idle,
-                };
-
-                let should_emit = {
-                    let mut agents =
-                        agents_ref.lock().unwrap_or_else(|e| e.into_inner());
-                    if let Some(agent) = agents.get_mut(&context_id) {
-                        let emit = should_emit_status(&agent.status, &new_status);
-                        if emit {
-                            agent.status = new_status.clone();
-                        }
-                        agent.pid = None;
-                        emit
-                    } else {
-                        false
-                    }
-                };
-
-                if should_emit {
-                    let _ = app_clone.emit(
-                        &format!("agent-status:{}", context_id),
-                        &AgentStatusEvent {
-                            workspace_id: context_id,
-                            status: new_status,
-                        },
-                    );
-                }
-            });
-        }
-    } else {
-        // Low RAM Mode: spawn a new process per turn
-        let (child, stdin, had_content) = match claude_process::spawn_and_stream(
-            context_id,
-            &request.message,
-            session_id.as_deref(),
-            &working_dir,
-            env_vars,
-            linked_dirs,
-            system_prompt.as_deref(),
-            request.model.as_deref(),
-            safe_mode,
-            disable_thinking,
-            disable_plan_mode,
-            app.clone(),
-            Arc::clone(&state.agents),
-            Arc::clone(&state.perf_metrics),
-            container_ctx.clone(),
-        )
-        .await
+        // Sidecar mode: ensure the singleton sidecar is running, then send a Query command.
+        // The sidecar's background reader handles streaming events back to the frontend.
         {
-            Ok(result) => result,
-            Err(e) => {
-                reset_agent_on_error(&state.agents, &app, context_id);
-                return Err(e);
-            }
-        };
-
-        // Store stdin for safe mode permission responses (only available when safe_mode=true)
-        if let Some(stdin) = stdin {
-            state
-                .agent_stdins
-                .lock()
-                .unwrap()
-                .insert(context_id, stdin);
-        }
-
-        // Store PID in agent info for stop_agent
-        if let Some(pid) = child.id() {
-            let mut agents = state.agents.lock().unwrap();
-            if let Some(agent) = agents.get_mut(&context_id) {
-                agent.pid = Some(pid);
-            }
-        }
-
-        // Store child process handle
-        {
-            let mut processes = state.agent_processes.lock().unwrap();
-            processes.insert(context_id, child);
-        }
-
-        // Background task: wait for process exit
-        let agents_ref = Arc::clone(&state.agents);
-        let processes_ref = Arc::clone(&state.agent_processes);
-        let stdins_ref = Arc::clone(&state.agent_stdins);
-        let perf_ref = Arc::clone(&state.perf_metrics);
-        let app_clone = app.clone();
-        tokio::spawn(async move {
-            let mut child = {
-                let mut processes =
-                    processes_ref.lock().unwrap_or_else(|e| e.into_inner());
-                processes.remove(&context_id)
-            };
-
-            let exit_status = if let Some(ref mut c) = child {
-                c.wait().await.ok()
-            } else {
-                None
-            };
-
-            // Log process exit to perf metrics
-            {
-                let mut lock = perf_ref.lock().unwrap_or_else(|e| e.into_inner());
-                if lock.enabled {
-                    lock.push_stream_event(StreamEventMetric {
-                        workspace_id: context_id.to_string(),
-                        event_type: "process_exit".to_string(),
-                        details: Some(format!("{:?}", exit_status)),
-                        source: "backend".to_string(),
-                        timestamp: chrono::Utc::now().timestamp_millis() as f64,
-                    });
-                }
-            }
-
-            // Clean up stdin handle
-            stdins_ref
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .remove(&context_id);
-
-            // Cold error recovery: if the process failed without producing any
-            // assistant content, clear the session_id so the next retry starts fresh.
-            // This handles the most common recoverable failure: stale session resumption.
-            let content_produced = had_content.load(std::sync::atomic::Ordering::Relaxed);
-            let (exit_success, exit_code_val) = match exit_status.as_ref() {
-                Some(s) => (s.success(), s.code()),
-                None => (true, None),
-            };
-            if should_clear_session_on_cold_error(content_produced, exit_success, exit_code_val) {
-                let mut agents = agents_ref.lock().unwrap_or_else(|e| e.into_inner());
-                if let Some(agent) = agents.get_mut(&context_id) {
-                    if agent.session_id.is_some() {
-                        eprintln!(
-                            "[cold-error-recovery:{}] Clearing stale session_id after cold error (exit {:?})",
-                            context_id,
-                            exit_status.as_ref().and_then(|s| s.code())
-                        );
-                        agent.session_id = None;
-                    }
-                }
-                drop(agents);
-            }
-
-            let new_status = match exit_status {
-                Some(ref status) => status_from_exit(status.code(), status.success()),
-                None => AgentStatus::Idle,
-            };
-
-            let should_emit = {
-                let mut agents =
-                    agents_ref.lock().unwrap_or_else(|e| e.into_inner());
-                if let Some(agent) = agents.get_mut(&context_id) {
-                    let emit = should_emit_status(&agent.status, &new_status);
-                    if emit {
-                        agent.status = new_status.clone();
-                    }
-                    agent.pid = None;
-                    emit
-                } else {
-                    false
-                }
-            };
-
-            if should_emit {
-                let _ = app_clone.emit(
-                    &format!("agent-status:{}", context_id),
-                    &AgentStatusEvent {
-                        workspace_id: context_id,
-                        status: new_status,
-                    },
+            let mut sidecar_guard = state.agent_sidecar.lock().unwrap();
+            if sidecar_guard.is_none() {
+                *sidecar_guard = Some(
+                    claude_process::start_sidecar(&app, Arc::clone(&state.agents))
+                        .inspect_err(|_| {
+                            reset_agent_on_error(&state.agents, &app, context_id);
+                        })?
                 );
             }
-        });
-    }
+        }
+
+        let permission_mode = if safe_mode { "default" } else { "bypassPermissions" };
+
+        let cmd = claude_process::SidecarCommand::Query {
+            id: context_id.to_string(),
+            prompt: request.message.clone(),
+            cwd: working_dir.to_string_lossy().to_string(),
+            session_id: session_id.clone(),
+            model: request.model.clone(),
+            system_prompt: system_prompt.clone(),
+            permission_mode: permission_mode.to_string(),
+            env_vars: Some(env_vars),
+            additional_dirs: Some(linked_dirs.iter().map(|d| d.to_string_lossy().to_string()).collect()),
+            disable_thinking: Some(disable_thinking),
+        };
+
+        // Take the handle out of the Mutex, send the command (async), then put it back.
+        // This avoids holding a std::sync::Mutex across an .await point.
+        let mut handle = {
+            let mut guard = state.agent_sidecar.lock().unwrap();
+            guard.take().ok_or_else(|| {
+                reset_agent_on_error(&state.agents, &app, context_id);
+                AppError::AgentError("Sidecar not running".to_string())
+            })?
+        };
+
+        let result = claude_process::send_command(&mut handle, &cmd).await;
+
+        // Always put handle back
+        state.agent_sidecar.lock().unwrap().replace(handle);
+
+        result.inspect_err(|_| {
+            reset_agent_on_error(&state.agents, &app, context_id);
+        })?;
     } // end AgentType::ClaudeCode
 
     AgentType::CodexCli => {
@@ -851,7 +589,6 @@ pub async fn respond_to_permission(
 ) -> Result<(), AppError> {
     let id = parse_agent_workspace_id(&workspace_id)?;
 
-    // Codex CLI does not support interactive permission responses
     let agent_type = {
         let settings = state.settings.read().unwrap();
         settings.agent_type.clone()
@@ -862,30 +599,22 @@ pub async fn respond_to_permission(
         ));
     }
 
-    let response = permission_response_str(approved);
+    // Send a PermissionResponse command to the sidecar
+    let cmd = claude_process::SidecarCommand::PermissionResponse {
+        id: id.to_string(),
+        approved,
+    };
 
-    // Try agent_stdins first (non-persistent mode)
-    let regular_stdin = state.agent_stdins.lock().unwrap().remove(&id);
-    if let Some(mut stdin) = regular_stdin {
-        let write_result = claude_process::write_message(&mut stdin, response).await;
-        // Always put stdin back, even on error — losing the handle is unrecoverable
-        state.agent_stdins.lock().unwrap().insert(id, stdin);
-        write_result?;
-        return Ok(());
-    }
+    let mut handle = {
+        let mut guard = state.agent_sidecar.lock().unwrap();
+        guard.take().ok_or_else(|| {
+            AppError::AgentError("Sidecar not running".to_string())
+        })?
+    };
 
-    // Try persistent_agents
-    let persistent_handle = state.persistent_agents.lock().unwrap().remove(&id);
-    if let Some(mut handle) = persistent_handle {
-        let write_result = claude_process::write_message(&mut handle.stdin, response).await;
-        state.persistent_agents.lock().unwrap().insert(id, handle);
-        write_result?;
-        return Ok(());
-    }
-
-    Err(AppError::AgentError(
-        "No stdin handle found for this agent".to_string(),
-    ))
+    let result = claude_process::send_command(&mut handle, &cmd).await;
+    state.agent_sidecar.lock().unwrap().replace(handle);
+    result
 }
 
 #[tauri::command]
@@ -896,27 +625,64 @@ pub async fn send_followup_message(
 ) -> Result<(), AppError> {
     let id = parse_agent_workspace_id(&workspace_id)?;
 
-    // Try agent_stdins first (non-persistent mode)
-    let regular_stdin = state.agent_stdins.lock().unwrap().remove(&id);
-    if let Some(mut stdin) = regular_stdin {
-        let write_result = claude_process::write_message(&mut stdin, &message).await;
-        state.agent_stdins.lock().unwrap().insert(id, stdin);
-        write_result?;
-        return Ok(());
+    let agent_type = {
+        let settings = state.settings.read().unwrap();
+        settings.agent_type.clone()
+    };
+
+    // For Codex CLI, keep the existing stdin-based approach
+    if agent_type == AgentType::CodexCli {
+        let stdin_handle = state.agent_stdins.lock().unwrap().remove(&id);
+        if let Some(mut stdin) = stdin_handle {
+            let write_result = claude_process::write_message(&mut stdin, &message).await;
+            state.agent_stdins.lock().unwrap().insert(id, stdin);
+            write_result?;
+            return Ok(());
+        }
+        return Err(AppError::AgentError(
+            "No stdin handle found for this agent".to_string(),
+        ));
     }
 
-    // Try persistent_agents
-    let persistent_handle = state.persistent_agents.lock().unwrap().remove(&id);
-    if let Some(mut handle) = persistent_handle {
-        let write_result = claude_process::write_message(&mut handle.stdin, &message).await;
-        state.persistent_agents.lock().unwrap().insert(id, handle);
-        write_result?;
-        return Ok(());
-    }
+    // For Claude Code (SDK), a followup message goes through the sidecar.
+    // Retrieve the session_id to resume the conversation.
+    let session_id = {
+        let agents = state.agents.lock().unwrap();
+        agents.get(&id).and_then(|a| a.session_id.clone())
+    };
 
-    Err(AppError::AgentError(
-        "No stdin handle found for this agent".to_string(),
-    ))
+    // Look up the workspace's working directory for the query
+    let cwd = {
+        let workspaces = state.workspaces.read().unwrap();
+        workspaces
+            .get(&id)
+            .map(|ws| ws.worktree_path.to_string_lossy().to_string())
+            .unwrap_or_default()
+    };
+
+    let cmd = claude_process::SidecarCommand::Query {
+        id: id.to_string(),
+        prompt: message,
+        cwd,
+        session_id,
+        model: None,
+        system_prompt: None,
+        permission_mode: "bypassPermissions".to_string(),
+        env_vars: None,
+        additional_dirs: None,
+        disable_thinking: None,
+    };
+
+    let mut handle = {
+        let mut guard = state.agent_sidecar.lock().unwrap();
+        guard.take().ok_or_else(|| {
+            AppError::AgentError("Sidecar not running".to_string())
+        })?
+    };
+
+    let result = claude_process::send_command(&mut handle, &cmd).await;
+    state.agent_sidecar.lock().unwrap().replace(handle);
+    result
 }
 
 #[cfg(test)]
@@ -1068,9 +834,10 @@ mod tests {
 
     #[test]
     fn test_is_agent_alive_running_no_pid() {
+        // Running with no PID = sidecar-based agent, considered alive
         let mut agent = AgentInfo::new(Uuid::new_v4());
         agent.status = AgentStatus::Running;
-        assert!(!is_agent_alive(&agent));
+        assert!(is_agent_alive(&agent));
     }
 
     #[test]

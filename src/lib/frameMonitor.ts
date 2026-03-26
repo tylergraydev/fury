@@ -13,6 +13,16 @@ const frameBuffer: FrameMetricPayload[] = [];
 let flushInterval: ReturnType<typeof setInterval> | null = null;
 let started = false;
 
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    if (rafHandle) { cancelAnimationFrame(rafHandle); rafHandle = null; }
+    if (flushInterval) { clearInterval(flushInterval); flushInterval = null; }
+    frameBuffer.length = 0;
+    lastFrameTime = null;
+    started = false;
+  });
+}
+
 function flushFrameBuffer() {
   if (frameBuffer.length === 0) return;
   const batch = frameBuffer.splice(0, frameBuffer.length);

@@ -3,6 +3,8 @@ use std::sync::Arc;
 use crate::commands::agent::parse_agent_workspace_id;
 use crate::error::AppError;
 use crate::models::agent::{AgentInfo, AgentStatus, AgentStatusEvent};
+use crate::models::settings::AgentType;
+use crate::services::claude_process;
 use crate::state::AppState;
 use tauri::{Emitter, State};
 
@@ -14,64 +16,113 @@ pub async fn stop_agent(
 ) -> Result<(), AppError> {
     let id = parse_agent_workspace_id(&workspace_id)?;
 
-    // Extract Arc references before spawn_blocking
-    let agents = Arc::clone(&state.agents);
-    let agent_processes = Arc::clone(&state.agent_processes);
-    let persistent_agents = Arc::clone(&state.persistent_agents);
-    let agent_stdins = Arc::clone(&state.agent_stdins);
+    let agent_type = {
+        let settings = state.settings.read().unwrap();
+        settings.agent_type.clone()
+    };
 
-    tokio::task::spawn_blocking(move || {
-        // Set status to Stopping and get PID for kill
-        let pid = {
-            let mut agents_lock = agents.lock().unwrap();
-            if let Some(agent) = agents_lock.get_mut(&id) {
-                agent.status = AgentStatus::Stopping;
-                agent.pid
-            } else {
-                None
-            }
-        };
-
-        // Kill via PID stored in agent info (works even if background task took the Child)
-        if let Some(pid) = pid {
-            let _ = crate::platform::kill_process_group(pid);
-        }
-
-        // Also try agent_processes as fallback
-        {
-            let mut processes = agent_processes.lock().unwrap();
-            if let Some(child) = processes.remove(&id) {
-                if let Some(pid) = child.id() {
-                    let _ = crate::platform::kill_process_group(pid);
+    match agent_type {
+        AgentType::ClaudeCode => {
+            // Send an Interrupt command to the sidecar for this workspace.
+            // The sidecar is shared — we don't kill it, just interrupt this query.
+            {
+                let mut agents_lock = state.agents.lock().unwrap();
+                if let Some(agent) = agents_lock.get_mut(&id) {
+                    agent.status = AgentStatus::Stopping;
                 }
             }
-        }
 
-        // Clean up persistent state and stdin handles
-        persistent_agents.lock().unwrap().remove(&id);
-        agent_stdins.lock().unwrap().remove(&id);
+            let cmd = claude_process::SidecarCommand::Interrupt {
+                id: id.to_string(),
+            };
 
-        // Set status to Idle and clear PID
-        {
-            let mut agents_lock = agents.lock().unwrap();
-            if let Some(agent) = agents_lock.get_mut(&id) {
-                agent.status = AgentStatus::Idle;
-                agent.pid = None;
+            // Take the handle, send the interrupt, put it back
+            let sidecar_result = {
+                let mut guard = state.agent_sidecar.lock().unwrap();
+                guard.take()
+            };
+
+            if let Some(mut handle) = sidecar_result {
+                let _ = claude_process::send_command(&mut handle, &cmd).await;
+                state.agent_sidecar.lock().unwrap().replace(handle);
             }
+
+            // Set status to Idle
+            {
+                let mut agents_lock = state.agents.lock().unwrap();
+                if let Some(agent) = agents_lock.get_mut(&id) {
+                    agent.status = AgentStatus::Idle;
+                    agent.pid = None;
+                }
+            }
+
+            let _ = app.emit(
+                &format!("agent-status:{}", id),
+                &AgentStatusEvent {
+                    workspace_id: id,
+                    status: AgentStatus::Idle,
+                },
+            );
+
+            Ok(())
         }
+        AgentType::CodexCli => {
+            // Codex: kill process group approach (existing behavior)
+            let agents = Arc::clone(&state.agents);
+            let agent_processes = Arc::clone(&state.agent_processes);
+            let persistent_agents = Arc::clone(&state.persistent_agents);
+            let agent_stdins = Arc::clone(&state.agent_stdins);
 
-        let _ = app.emit(
-            &format!("agent-status:{}", id),
-            &AgentStatusEvent {
-                workspace_id: id,
-                status: AgentStatus::Idle,
-            },
-        );
+            tokio::task::spawn_blocking(move || {
+                // Set status to Stopping and get PID for kill
+                let pid = {
+                    let mut agents_lock = agents.lock().unwrap();
+                    if let Some(agent) = agents_lock.get_mut(&id) {
+                        agent.status = AgentStatus::Stopping;
+                        agent.pid
+                    } else {
+                        None
+                    }
+                };
 
-        Ok(())
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+                if let Some(pid) = pid {
+                    let _ = crate::platform::kill_process_group(pid);
+                }
+
+                {
+                    let mut processes = agent_processes.lock().unwrap();
+                    if let Some(child) = processes.remove(&id) {
+                        if let Some(pid) = child.id() {
+                            let _ = crate::platform::kill_process_group(pid);
+                        }
+                    }
+                }
+
+                persistent_agents.lock().unwrap().remove(&id);
+                agent_stdins.lock().unwrap().remove(&id);
+
+                {
+                    let mut agents_lock = agents.lock().unwrap();
+                    if let Some(agent) = agents_lock.get_mut(&id) {
+                        agent.status = AgentStatus::Idle;
+                        agent.pid = None;
+                    }
+                }
+
+                let _ = app.emit(
+                    &format!("agent-status:{}", id),
+                    &AgentStatusEvent {
+                        workspace_id: id,
+                        status: AgentStatus::Idle,
+                    },
+                );
+
+                Ok(())
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+    }
 }
 
 #[tauri::command]
@@ -100,34 +151,52 @@ pub async fn clear_session(
 ) -> Result<(), AppError> {
     let id = parse_agent_workspace_id(&workspace_id)?;
 
-    let agents = Arc::clone(&state.agents);
-    let persistent_agents = Arc::clone(&state.persistent_agents);
-    let agent_stdins = Arc::clone(&state.agent_stdins);
-    let agent_processes = Arc::clone(&state.agent_processes);
+    let agent_type = {
+        let settings = state.settings.read().unwrap();
+        settings.agent_type.clone()
+    };
 
-    tokio::task::spawn_blocking(move || {
-        let mut agents_lock = agents.lock().unwrap();
-        if let Some(agent) = agents_lock.get_mut(&id) {
-            agent.session_id = None;
-        }
-        drop(agents_lock);
-
-        // Kill any persistent process for this workspace (new session = new process)
-        persistent_agents.lock().unwrap().remove(&id);
-        agent_stdins.lock().unwrap().remove(&id);
-        {
-            let mut processes = agent_processes.lock().unwrap();
-            if let Some(child) = processes.remove(&id) {
-                if let Some(pid) = child.id() {
-                    let _ = crate::platform::kill_process_group(pid);
-                }
+    match agent_type {
+        AgentType::ClaudeCode => {
+            // For Claude Code (sidecar), just clear the session_id.
+            // The sidecar stays alive — no process to kill.
+            let mut agents_lock = state.agents.lock().unwrap();
+            if let Some(agent) = agents_lock.get_mut(&id) {
+                agent.session_id = None;
             }
+            Ok(())
         }
+        AgentType::CodexCli => {
+            // Codex: kill any persistent process (existing behavior)
+            let agents = Arc::clone(&state.agents);
+            let persistent_agents = Arc::clone(&state.persistent_agents);
+            let agent_stdins = Arc::clone(&state.agent_stdins);
+            let agent_processes = Arc::clone(&state.agent_processes);
 
-        Ok(())
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+            tokio::task::spawn_blocking(move || {
+                let mut agents_lock = agents.lock().unwrap();
+                if let Some(agent) = agents_lock.get_mut(&id) {
+                    agent.session_id = None;
+                }
+                drop(agents_lock);
+
+                persistent_agents.lock().unwrap().remove(&id);
+                agent_stdins.lock().unwrap().remove(&id);
+                {
+                    let mut processes = agent_processes.lock().unwrap();
+                    if let Some(child) = processes.remove(&id) {
+                        if let Some(pid) = child.id() {
+                            let _ = crate::platform::kill_process_group(pid);
+                        }
+                    }
+                }
+
+                Ok(())
+            })
+            .await
+            .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+        }
+    }
 }
 
 #[cfg(test)]

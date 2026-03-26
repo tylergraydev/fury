@@ -1,8 +1,11 @@
 mod setup;
+mod sidecar;
+#[allow(dead_code)]
 mod spawn;
-mod stream;
+pub mod stream;
 
 pub use setup::{build_env_vars, build_repo_env_vars, find_claude_binary};
-pub use spawn::{spawn_and_stream, spawn_persistent, write_message};
+pub use sidecar::{send_command, start_sidecar, SidecarCommand, SidecarHandle};
+pub use spawn::write_message;
 #[allow(unused_imports)]
 pub use stream::parse_stream_line;

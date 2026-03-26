@@ -28,6 +28,10 @@ interface LinearStore {
 // without polluting store state or triggering re-renders.
 const _inflightLinkedIssues = new Set<string>();
 
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => _inflightLinkedIssues.clear());
+}
+
 export const useLinearStore = create<LinearStore>((set, get) => ({
   searchResults: [],
   searchLoading: false,

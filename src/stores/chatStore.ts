@@ -56,6 +56,12 @@ interface ChatStore {
 // when subscribe is called multiple times before the first await completes.
 const _chatSubscribeTokens = new Map<string, { cancelled: boolean }>();
 
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    _chatSubscribeTokens.clear();
+  });
+}
+
 export const useChatStore = create<ChatStore>((set, get) => ({
   messages: {},
   streamingText: {},

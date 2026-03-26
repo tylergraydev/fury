@@ -5,6 +5,7 @@ use crate::models::mcp::IndexingStatus;
 use crate::models::repository::Repository;
 use crate::models::settings::AppSettings;
 use crate::models::workspace::Workspace;
+use crate::services::claude_process::SidecarHandle;
 use crate::services::copilot_lsp::CopilotLspHandle;
 use crate::services::diff_watcher::DiffWatcherHandle;
 use crate::services::perf_server::PerfMetrics;
@@ -17,6 +18,7 @@ use tokio::process::{Child, ChildStdin};
 use uuid::Uuid;
 
 /// Handle for a persistent Claude Code process, storing spawn-time configuration.
+#[allow(dead_code)]
 pub struct PersistentAgentHandle {
     pub stdin: ChildStdin,
     pub disable_thinking: bool,
@@ -59,6 +61,8 @@ pub struct AppState {
     pub test_watchers: Arc<Mutex<HashMap<String, DiffWatcherHandle>>>,
     /// Dev container runtime state — keyed by workspace UUID
     pub container_states: Arc<Mutex<HashMap<Uuid, ContainerState>>>,
+    /// Claude Agent SDK sidecar process handle (singleton, shared across workspaces)
+    pub agent_sidecar: Arc<Mutex<Option<SidecarHandle>>>,
 }
 
 impl AppState {
@@ -83,6 +87,7 @@ impl AppState {
             test_processes: Arc::new(Mutex::new(HashMap::new())),
             test_watchers: Arc::new(Mutex::new(HashMap::new())),
             container_states: Arc::new(Mutex::new(HashMap::new())),
+            agent_sidecar: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -111,6 +116,7 @@ mod tests {
         assert!(state.test_processes.lock().unwrap().is_empty());
         assert!(state.test_watchers.lock().unwrap().is_empty());
         assert!(state.container_states.lock().unwrap().is_empty());
+        assert!(state.agent_sidecar.lock().unwrap().is_none());
     }
 
     #[test]

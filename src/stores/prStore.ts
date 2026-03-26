@@ -63,6 +63,17 @@ const _subscribeTokens = new Map<string, { cancelled: boolean }>();
 // unnecessary re-renders when timers are set/cleared.
 export const _pollIntervals = new Map<string, ReturnType<typeof setInterval>>();
 
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    _pollIntervals.forEach((id) => clearInterval(id));
+    _pollIntervals.clear();
+    _inflightPrInfo.clear();
+    _inflightReviews.clear();
+    _inflightWorkflowRuns.clear();
+    _subscribeTokens.clear();
+  });
+}
+
 export const usePrStore = create<PrStore>((set, get) => ({
   prInfo: {},
   reviews: {},

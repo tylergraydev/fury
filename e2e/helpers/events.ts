@@ -77,6 +77,26 @@ export async function emitToolResult(
 }
 
 /**
+ * Emit a permission request event in the agent stream.
+ */
+export async function emitPermissionRequest(
+  page: Page,
+  workspaceId: string,
+  toolName: string,
+  input: unknown = {},
+) {
+  await page.evaluate(
+    ([eventName, payload]) => {
+      (window as any).__E2E_EMIT_EVENT__(eventName, payload);
+    },
+    [
+      `agent-stream:${workspaceId}`,
+      { type: "permissionRequest", toolName, input },
+    ] as const,
+  );
+}
+
+/**
  * Emit a result event (agent finished) in the agent stream.
  */
 export async function emitResult(

@@ -33,6 +33,10 @@ interface StashStore {
 
 const _inflightStashes = new Set<string>();
 
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => _inflightStashes.clear());
+}
+
 export const useStashStore = create<StashStore>((set, get) => ({
   stashes: {},
   selectedStash: {},

@@ -43,6 +43,10 @@ interface BookmarkStore {
 
 const _inflightBookmarks = new Set<string>();
 
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => _inflightBookmarks.clear());
+}
+
 export const useBookmarkStore = create<BookmarkStore>((set, get) => ({
   bookmarks: {},
   loading: {},

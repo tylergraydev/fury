@@ -82,6 +82,7 @@ pub fn build_repo_env_vars(
 }
 
 /// Build common CLI arguments shared between spawn modes.
+#[allow(dead_code)]
 pub(crate) fn build_common_args(
     session_id: Option<&str>,
     linked_dirs: &[PathBuf],
@@ -145,6 +146,7 @@ pub(crate) fn build_common_args(
 /// When `container_ctx` is `Some`, the command becomes:
 ///   docker exec -i -w <dir> [-e K=V...] <container_id> <binary> <args...>
 /// When `None`, it's a direct invocation: <binary> <args...>
+#[allow(dead_code)]
 pub(crate) fn build_command(
     binary: &Path,
     args: &[String],

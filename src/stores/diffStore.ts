@@ -53,6 +53,14 @@ const _inflightDiff = new Set<string>();
 const _inflightRepoDiff = new Set<string>();
 const _inflightPatch = new Set<string>();
 
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    _inflightDiff.clear();
+    _inflightRepoDiff.clear();
+    _inflightPatch.clear();
+  });
+}
+
 export const useDiffStore = create<DiffStore>((set, get) => ({
   diffResults: {},
   fileDiffs: {},
