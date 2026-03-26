@@ -29,6 +29,7 @@ export type ShortcutAction =
   | "toggle-split-editor"
   | "open-snippets"
   | "view-activity"
+  | "view-browser"
   | "export-workspace"
   | "escape";
 
@@ -48,7 +49,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { key: ",", mod: true, action: "open-settings", label: "Settings" },
   { key: "n", mod: true, action: "new-workspace", label: "New Workspace" },
   { key: "1", mod: true, action: "right-sidebar-files", label: "Files" },
-  { key: "2", mod: true, action: "right-sidebar-changes", label: "Changes" },
+  { key: "2", mod: true, action: "right-sidebar-changes", label: "Changes Tab" },
   { key: "3", mod: true, action: "right-sidebar-checks", label: "Checks" },
   { key: "4", mod: true, action: "toggle-notifications", label: "Notifications" },
   { key: "5", mod: true, action: "view-team", label: "Team View" },
@@ -59,6 +60,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { key: "s", mod: true, shift: true, action: "open-snippets", label: "Snippets" },
   { key: "a", mod: true, shift: true, action: "view-activity", label: "Activity Log" },
   { key: "e", mod: true, shift: true, action: "export-workspace", label: "Export Workspace" },
+  { key: "w", mod: true, shift: true, action: "view-browser", label: "Web Browser" },
   { key: "\\", mod: true, action: "toggle-split-editor", label: "Split Editor" },
   { key: "f", mod: true, shift: true, action: "search-workspaces", label: "Search Workspaces" },
   { key: "Escape", mod: false, action: "escape", label: "Close" },

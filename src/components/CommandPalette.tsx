@@ -110,7 +110,6 @@ export function CommandPalette({
                 <PaletteItem
                   onSelect={() => run("right-sidebar-changes")}
                   shortcut={shortcutFor("right-sidebar-changes")}
-                  active={rightSidebarTab === "changes"}
                 >
                   Changes
                 </PaletteItem>
@@ -186,6 +185,12 @@ export function CommandPalette({
                   shortcut={shortcutFor("export-workspace")}
                 >
                   Export Workspace
+                </PaletteItem>
+                <PaletteItem
+                  onSelect={() => run("view-browser")}
+                  shortcut={shortcutFor("view-browser")}
+                >
+                  Open Web Browser
                 </PaletteItem>
               </CommandGroup>
 

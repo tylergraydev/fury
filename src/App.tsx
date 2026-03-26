@@ -21,6 +21,7 @@ const TeamView = lazy(() => import("./components/team/TeamView").then((m) => ({ 
 const TestRunnerPanel = lazy(() => import("./components/test-runner/TestRunnerPanel").then((m) => ({ default: m.TestRunnerPanel })));
 const UsageDashboard = lazy(() => import("./components/usage/UsageDashboard").then((m) => ({ default: m.UsageDashboard })));
 const ActivityLogView = lazy(() => import("./components/activity-log/ActivityLogView").then((m) => ({ default: m.ActivityLogView })));
+const BrowserPanel = lazy(() => import("./components/browser/BrowserPanel").then((m) => ({ default: m.BrowserPanel })));
 import { useWorkspaceStore } from "./stores/workspaceStore";
 import { useRepositoryStore } from "./stores/repositoryStore";
 import { useUIStore } from "./stores/uiStore";
@@ -145,6 +146,13 @@ function MainPanel() {
         <div className="flex-1 overflow-hidden">
           <Suspense fallback={<ViewLoadingFallback />}>
             <ActivityLogView />
+          </Suspense>
+        </div>
+      )}
+      {viewType === "browser" && (
+        <div className="flex-1 overflow-hidden">
+          <Suspense fallback={<ViewLoadingFallback />}>
+            <BrowserPanel />
           </Suspense>
         </div>
       )}
@@ -336,8 +344,7 @@ function App() {
         ui.ensureRightSidebarVisible();
         break;
       case "right-sidebar-changes":
-        ui.setRightSidebarTab("changes");
-        ui.ensureRightSidebarVisible();
+        ui.openViewTab("diff");
         break;
       case "right-sidebar-checks":
         ui.setRightSidebarTab("checks");
@@ -371,6 +378,9 @@ function App() {
         break;
       case "view-activity":
         ui.openViewTab("activity");
+        break;
+      case "view-browser":
+        ui.openViewTab("browser");
         break;
       case "toggle-split-editor": {
         const fvs = useFileViewerStore.getState();

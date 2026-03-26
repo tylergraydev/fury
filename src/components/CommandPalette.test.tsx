@@ -369,13 +369,13 @@ describe("CommandPalette", () => {
       expect(allFilesOption).toHaveAttribute("data-active", "true");
     });
 
-    it("shows active indicator for changes tab when rightSidebarTab is changes", () => {
+    it("changes tab does not have active indicator (opens as view tab)", () => {
       useUIStore.setState({ rightSidebarTab: "changes" });
       render(
         <CommandPalette open={true} onOpenChange={vi.fn()} onAction={vi.fn()} />,
       );
       const changesOption = screen.getByText("Changes").closest("[role='option']");
-      expect(changesOption).toHaveAttribute("data-active", "true");
+      expect(changesOption).not.toHaveAttribute("data-active", "true");
     });
 
     it("shows active indicator for checks tab when rightSidebarTab is checks", () => {
