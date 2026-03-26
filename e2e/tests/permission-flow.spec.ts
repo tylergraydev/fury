@@ -43,10 +43,22 @@ test.describe("Permission Flow", () => {
     await expect(appPage.getByRole("button", { name: "Deny" })).toBeVisible();
   });
 
-  test("allow button clears permission bar", async ({ appPage }) => {
+  test("allow button sends respond_to_permission IPC and clears bar", async ({ appPage }) => {
     const textarea = appPage.getByPlaceholder(
       "Ask to make changes, @mention files, run /commands",
     );
+
+    // Capture IPC calls to respond_to_permission
+    await appPage.evaluate(() => {
+      (window as any).__PERMISSION_CALLS__ = [];
+      const origInvoke = (window as any).__TAURI_INTERNALS__.invoke;
+      (window as any).__TAURI_INTERNALS__.invoke = function (cmd: string, args: any) {
+        if (cmd === "respond_to_permission") {
+          (window as any).__PERMISSION_CALLS__.push({ cmd, args });
+        }
+        return origInvoke.call(this, cmd, args);
+      };
+    });
 
     await textarea.fill("Fix the bug");
     await textarea.press("Enter");
@@ -61,6 +73,14 @@ test.describe("Permission Flow", () => {
     // Click Allow button
     await appPage.getByRole("button", { name: "Allow" }).click();
 
+    // Verify the IPC call was made with correct args
+    const calls = await appPage.evaluate(() => (window as any).__PERMISSION_CALLS__);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].args.workspaceId).toBe("ws-auth");
+    expect(calls[0].args.approved).toBe(true);
+    expect(calls[0].args.updatedPermissions).toBeNull();
+    expect(calls[0].args.decisionClassification).toBeNull();
+
     // After allowing, simulate the agent continuing and finishing
     await emitStreamText(appPage, "ws-auth", "Running tests now...");
     await emitResult(appPage, "ws-auth");
@@ -70,10 +90,22 @@ test.describe("Permission Flow", () => {
     await expect(appPage.getByText("shell_exec")).not.toBeVisible();
   });
 
-  test("deny button clears permission bar", async ({ appPage }) => {
+  test("deny button sends respond_to_permission with approved=false", async ({ appPage }) => {
     const textarea = appPage.getByPlaceholder(
       "Ask to make changes, @mention files, run /commands",
     );
+
+    // Capture IPC calls
+    await appPage.evaluate(() => {
+      (window as any).__PERMISSION_CALLS__ = [];
+      const origInvoke = (window as any).__TAURI_INTERNALS__.invoke;
+      (window as any).__TAURI_INTERNALS__.invoke = function (cmd: string, args: any) {
+        if (cmd === "respond_to_permission") {
+          (window as any).__PERMISSION_CALLS__.push({ cmd, args });
+        }
+        return origInvoke.call(this, cmd, args);
+      };
+    });
 
     await textarea.fill("Delete everything");
     await textarea.press("Enter");
@@ -82,17 +114,16 @@ test.describe("Permission Flow", () => {
       command: "rm -rf /",
     });
 
-    // Permission bar should be visible
     await expect(appPage.getByText("bash")).toBeVisible();
-
-    // Click Deny button
     await appPage.getByRole("button", { name: "Deny" }).click();
 
-    // Simulate agent finishing after denial
+    const calls = await appPage.evaluate(() => (window as any).__PERMISSION_CALLS__);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].args.workspaceId).toBe("ws-auth");
+    expect(calls[0].args.approved).toBe(false);
+
     await emitResult(appPage, "ws-auth");
     await emitAgentStatus(appPage, "ws-auth", "Idle");
-
-    // Permission bar should be gone
     await expect(appPage.getByText("bash")).not.toBeVisible();
   });
 
@@ -113,5 +144,81 @@ test.describe("Permission Flow", () => {
     await emitAgentStatus(appPage, "ws-auth", "Idle");
 
     await expect(appPage.getByText("write_file")).not.toBeVisible();
+  });
+
+  test("Allow Session sends suggestions and user_temporary classification", async ({
+    appPage,
+  }) => {
+    const textarea = appPage.getByPlaceholder(
+      "Ask to make changes, @mention files, run /commands",
+    );
+
+    const suggestions = [
+      { type: "addRules", rules: [{ toolName: "Read" }], behavior: "allow", destination: "session" },
+    ];
+
+    // Capture IPC calls
+    await appPage.evaluate(() => {
+      (window as any).__PERMISSION_CALLS__ = [];
+      const origInvoke = (window as any).__TAURI_INTERNALS__.invoke;
+      (window as any).__TAURI_INTERNALS__.invoke = function (cmd: string, args: any) {
+        if (cmd === "respond_to_permission") {
+          (window as any).__PERMISSION_CALLS__.push({ cmd, args });
+        }
+        return origInvoke.call(this, cmd, args);
+      };
+    });
+
+    await textarea.fill("Read a file");
+    await textarea.press("Enter");
+    await emitAgentStatus(appPage, "ws-auth", "Running");
+    await emitPermissionRequest(appPage, "ws-auth", "Read", { file_path: "/src/index.ts" }, suggestions);
+
+    await expect(appPage.getByRole("button", { name: "Allow Session" })).toBeVisible();
+    await appPage.getByRole("button", { name: "Allow Session" }).click();
+
+    const calls = await appPage.evaluate(() => (window as any).__PERMISSION_CALLS__);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].args.approved).toBe(true);
+    expect(calls[0].args.updatedPermissions).toEqual(suggestions);
+    expect(calls[0].args.decisionClassification).toBe("user_temporary");
+  });
+
+  test("Always Allow sends suggestions and user_permanent classification", async ({
+    appPage,
+  }) => {
+    const textarea = appPage.getByPlaceholder(
+      "Ask to make changes, @mention files, run /commands",
+    );
+
+    const suggestions = [
+      { type: "addRules", rules: [{ toolName: "Write" }], behavior: "allow", destination: "userSettings" },
+    ];
+
+    // Capture IPC calls
+    await appPage.evaluate(() => {
+      (window as any).__PERMISSION_CALLS__ = [];
+      const origInvoke = (window as any).__TAURI_INTERNALS__.invoke;
+      (window as any).__TAURI_INTERNALS__.invoke = function (cmd: string, args: any) {
+        if (cmd === "respond_to_permission") {
+          (window as any).__PERMISSION_CALLS__.push({ cmd, args });
+        }
+        return origInvoke.call(this, cmd, args);
+      };
+    });
+
+    await textarea.fill("Write a file");
+    await textarea.press("Enter");
+    await emitAgentStatus(appPage, "ws-auth", "Running");
+    await emitPermissionRequest(appPage, "ws-auth", "Write", { file_path: "/src/new.ts", content: "hello" }, suggestions);
+
+    await expect(appPage.getByRole("button", { name: "Always Allow" })).toBeVisible();
+    await appPage.getByRole("button", { name: "Always Allow" }).click();
+
+    const calls = await appPage.evaluate(() => (window as any).__PERMISSION_CALLS__);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].args.approved).toBe(true);
+    expect(calls[0].args.updatedPermissions).toEqual(suggestions);
+    expect(calls[0].args.decisionClassification).toBe("user_permanent");
   });
 });

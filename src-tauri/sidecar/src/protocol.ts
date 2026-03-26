@@ -15,7 +15,7 @@ export type SidecarCommand =
       additionalDirs?: string[];
       disableThinking?: boolean;
     }
-  | { type: "permission_response"; id: string; approved: boolean }
+  | { type: "permission_response"; id: string; approved: boolean; updatedPermissions?: unknown[]; decisionClassification?: string }
   | { type: "interrupt"; id: string }
   | { type: "shutdown" };
 

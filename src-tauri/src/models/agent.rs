@@ -159,6 +159,8 @@ pub enum FrontendStreamEvent {
     PermissionRequest {
         tool_name: String,
         input: serde_json::Value,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        suggestions: Option<serde_json::Value>,
     },
 }
 

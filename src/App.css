@@ -42,6 +42,11 @@ textarea:focus-visible {
   box-shadow: 0 0 0 1px var(--accent);
 }
 
+/* Composer textarea has its own container border — no inner focus ring */
+.composer-textarea:focus-visible {
+  box-shadow: none;
+}
+
 html,
 body,
 #root {

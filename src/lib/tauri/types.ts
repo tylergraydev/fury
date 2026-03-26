@@ -89,7 +89,7 @@ export type FrontendStreamEvent =
       cacheReadTokens?: number;
       cacheCreationTokens?: number;
     }
-  | { type: "permissionRequest"; toolName: string; input: unknown }
+  | { type: "permissionRequest"; toolName: string; input: unknown; suggestions?: unknown[] }
   | { type: "assistantImage"; mediaType: string; data: string };
 
 // Chat types

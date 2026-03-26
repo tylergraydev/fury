@@ -128,9 +128,9 @@ describe("Composer", () => {
     expect(screen.getByTitle("Stop")).toBeInTheDocument();
   });
 
-  it("disables textarea when agent is running", () => {
+  it("keeps textarea enabled when agent is running for follow-up messages", () => {
     render(<Composer {...defaultProps} agentStatus="Running" />);
-    expect(screen.getByRole("textbox")).toBeDisabled();
+    expect(screen.getByRole("textbox")).toBeEnabled();
   });
 
   it("calls onStop when stop button is clicked", async () => {
@@ -659,10 +659,10 @@ describe("Composer", () => {
       expect(screen.getByTitle("Enable plan mode (⇧⇥)")).toBeInTheDocument();
     });
 
-    it("toggles are disabled when agent is running", () => {
+    it("toggles remain enabled when agent is running", () => {
       render(<Composer {...defaultProps} agentStatus="Running" />);
-      expect(screen.getByTitle("Disable thinking (⌥T)")).toBeDisabled();
-      expect(screen.getByTitle("Disable plan mode (⇧⇥)")).toBeDisabled();
+      expect(screen.getByTitle("Disable thinking (⌥T)")).toBeEnabled();
+      expect(screen.getByTitle("Disable plan mode (⇧⇥)")).toBeEnabled();
     });
   });
 
@@ -780,9 +780,9 @@ describe("Composer", () => {
       expect(screen.getByText("Sonnet")).toBeInTheDocument();
     });
 
-    it("disables model selector when agent is running", () => {
+    it("keeps model selector enabled when agent is running", () => {
       render(<Composer {...defaultProps} agentStatus="Running" />);
-      expect(screen.getByTitle("Change model (⌥P)")).toBeDisabled();
+      expect(screen.getByTitle("Change model (⌥P)")).toBeEnabled();
     });
 
     it("shows codex model options when agentType is codex_cli", () => {
@@ -849,9 +849,9 @@ describe("Composer", () => {
       expect(linkIssueBtn).toBeDisabled();
     });
 
-    it("disables plus button when agent is running", () => {
+    it("keeps plus button enabled when agent is running", () => {
       render(<Composer {...defaultProps} agentStatus="Running" />);
-      expect(screen.getByTitle("Add file or context")).toBeDisabled();
+      expect(screen.getByTitle("Add file or context")).toBeEnabled();
     });
 
     it("opens file dialog and adds non-image attachment", async () => {
@@ -1554,10 +1554,10 @@ describe("Composer", () => {
       delete (window as any).SpeechRecognition;
     });
 
-    it("disables voice button when agent is running", () => {
+    it("keeps voice button enabled when agent is running", () => {
       (window as any).SpeechRecognition = MockSpeechRecognition;
       render(<Composer {...defaultProps} agentStatus="Running" />);
-      expect(screen.getByTitle(/voice input/)).toBeDisabled();
+      expect(screen.getByTitle(/voice input/)).toBeEnabled();
       delete (window as any).SpeechRecognition;
     });
 

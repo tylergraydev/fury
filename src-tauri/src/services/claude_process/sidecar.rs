@@ -48,6 +48,10 @@ pub enum SidecarCommand {
     PermissionResponse {
         id: String,
         approved: bool,
+        #[serde(rename = "updatedPermissions", skip_serializing_if = "Option::is_none")]
+        updated_permissions: Option<serde_json::Value>,
+        #[serde(rename = "decisionClassification", skip_serializing_if = "Option::is_none")]
+        decision_classification: Option<String>,
     },
     Interrupt {
         id: String,
@@ -313,6 +317,8 @@ mod tests {
         let cmd = SidecarCommand::PermissionResponse {
             id: "ws-123".to_string(),
             approved: true,
+            updated_permissions: None,
+            decision_classification: None,
         };
         let json = serde_json::to_string(&cmd).unwrap();
         assert!(json.contains("\"type\":\"permission_response\""));

@@ -59,6 +59,7 @@ pub fn run() {
             // Agent commands
             commands::agent::send_message,
             commands::agent::respond_to_permission,
+            commands::agent::get_pending_permission,
             commands::agent::send_followup_message,
             // Agent lifecycle commands
             commands::agent_lifecycle::stop_agent,
@@ -179,6 +180,10 @@ pub fn run() {
             commands::claude_context::index_repository,
             commands::claude_context::get_indexing_status,
             commands::claude_context::list_indexing_statuses,
+            // Claude permission commands
+            commands::claude_permissions::get_claude_permissions,
+            commands::claude_permissions::add_claude_permissions,
+            commands::claude_permissions::remove_claude_permissions,
             // MCP + Settings commands
             commands::mcp::list_mcp_servers,
             commands::mcp::add_mcp_server,

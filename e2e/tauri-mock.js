@@ -312,6 +312,18 @@
         return { workspaceId: args.workspaceId, sessionId: null, status: "Idle", startedAt: null };
       case "clear_session":
         return;
+      case "respond_to_permission":
+        return;
+      case "get_pending_permission":
+        return null;
+
+      // Claude permission management
+      case "get_claude_permissions":
+        return { permissions: { allow: [], deny: [] }, settingsPath: "/Users/demo/.claude/settings.json" };
+      case "add_claude_permissions":
+        return { allow: args.rules || [], deny: [] };
+      case "remove_claude_permissions":
+        return { allow: [], deny: [] };
 
       // Chat persistence
       case "save_chat_message":

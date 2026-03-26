@@ -27,8 +27,9 @@ import { useUIStore } from "./stores/uiStore";
 import { useFileViewerStore } from "./stores/fileViewerStore";
 import { useTestRunnerStore } from "./stores/testRunnerStore";
 import { useKeyboardShortcuts } from "./lib/keybindings";
-import { clearSession, getAppSettings } from "./lib/tauri";
+import { clearSession, stopAgent, getAppSettings } from "./lib/tauri";
 import { useChatStore } from "./stores/chatStore";
+import { useAgentStore } from "./stores/agentStore";
 import { useCopilotStore } from "./stores/copilotStore";
 import { ToastContainer } from "./components/Toast";
 import { applyTheme, registerCustomTheme, type ThemeVars } from "./lib/themes";
@@ -401,6 +402,11 @@ function App() {
       case "new-session": {
         const wsId = useWorkspaceStore.getState().activeWorkspaceId;
         if (wsId) {
+          // Stop agent first so stream events don't repopulate cleared messages
+          const status = useAgentStore.getState().agents[wsId]?.status;
+          if (status === "Running") {
+            stopAgent(wsId).catch(console.error);
+          }
           clearSession(wsId).catch(console.error);
           useChatStore.getState().clearMessages(wsId);
         }

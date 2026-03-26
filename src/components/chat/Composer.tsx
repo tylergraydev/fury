@@ -16,6 +16,7 @@ import { ContextUsageIndicator, CONTEXT_WINDOW_TOKENS } from "./ContextUsageIndi
 import { FileChipIcon } from "./FileChipIcon";
 import { useFileDropHandler } from "../../hooks/useFileDropHandler";
 import { useSlashCommandAutocomplete } from "../../hooks/useSlashCommandAutocomplete";
+import { BUILTIN_COMMANDS, type BuiltinCommand } from "../../lib/builtinCommands";
 
 const CLAUDE_MODEL_OPTIONS = [
   { value: "", label: "Default", displayName: "Opus 4.6" },
@@ -50,7 +51,7 @@ interface Props {
   onApprovePlan?: () => void;
   onCopyPlan?: () => void;
   permissionRequest?: PermissionRequestInfo | null;
-  onRespondToPermission?: (approved: boolean) => void;
+  onRespondToPermission?: (approved: boolean, updatedPermissions?: unknown[], decisionClassification?: string) => void;
   thinkingEnabled: boolean;
   onThinkingEnabledChange: (enabled: boolean) => void;
   planEnabled: boolean;
@@ -143,7 +144,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
 
   const isRunning = agentStatus === "Running";
   const isStopping = agentStatus === "Stopping";
-  const canSend = (text.trim().length > 0 || droppedFiles.length > 0) && !isRunning && !isStopping;
+  const canSend = (text.trim().length > 0 || droppedFiles.length > 0) && !isStopping;
 
   // Reset model selection when agent type changes
   useEffect(() => {
@@ -229,6 +230,25 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
   }, [atFilter, files, workspaceId]);
 
   const handleSend = useCallback(() => {
+    // Intercept builtin commands (e.g. "/clear") before the canSend guard
+    // so they work even while the agent is running.
+    if (!pendingCommandContent && text.trim()) {
+      const trimmed = text.trim();
+      const match = /^\/(\S+)$/.exec(trimmed);
+      if (match) {
+        const builtin = BUILTIN_COMMANDS.find(
+          (c): c is BuiltinCommand & { action: () => void } =>
+            c.name === match[1] && !!c.action,
+        );
+        if (builtin) {
+          builtin.action();
+          setText("");
+          setShowSlashMenu(false);
+          return;
+        }
+      }
+    }
+
     if (!canSend) return;
     stopVoice();
     let message = pendingCommandContent ?? text.trim();
@@ -481,7 +501,25 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
           description={<>Allow <strong style={{ color: "var(--text-primary)" }}>{permissionRequest.toolName}</strong>?</>}
           bgStyle={{ backgroundColor: "color-mix(in srgb, var(--warning) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--warning) 30%, transparent)" }}
           secondaryActions={onRespondToPermission && (
-            <ActionBarButton onClick={() => onRespondToPermission(false)} icon={ShieldX} label="Deny" color="var(--error)" />
+            <div className="flex gap-1.5">
+              <ActionBarButton onClick={() => onRespondToPermission(false)} icon={ShieldX} label="Deny" color="var(--error)" />
+              {permissionRequest.suggestions && (
+                <>
+                  <ActionBarButton
+                    onClick={() => onRespondToPermission(true, permissionRequest.suggestions, "user_temporary")}
+                    icon={ShieldCheck}
+                    label="Allow Session"
+                    color="var(--success)"
+                  />
+                  <ActionBarButton
+                    onClick={() => onRespondToPermission(true, permissionRequest.suggestions, "user_permanent")}
+                    icon={ShieldCheck}
+                    label="Always Allow"
+                    color="var(--success)"
+                  />
+                </>
+              )}
+            </div>
           )}
           primaryAction={onRespondToPermission && (
             <ActionBarButton onClick={() => onRespondToPermission(true)} icon={ShieldCheck} label="Allow" color="var(--bg-primary)" bgColor="var(--success)" showShortcut />
@@ -646,10 +684,10 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               placeholder={placeholderText}
-              disabled={isRunning || isStopping}
+              disabled={isStopping}
               aria-label="Chat message"
               rows={1}
-              className="w-full resize-none bg-transparent text-sm outline-none"
+              className="composer-textarea w-full resize-none bg-transparent text-sm outline-none"
               style={{
                 color: "var(--text-primary)",
                 minHeight: "80px",
@@ -676,7 +714,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
               <div className="relative">
                 <button
                   onClick={() => setShowModelMenu((prev) => !prev)}
-                  disabled={isRunning || isStopping}
+                  disabled={isStopping}
                   className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors hover:opacity-80 cursor-pointer"
                   style={{ color: "var(--text-primary)" }}
                   title="Change model (⌥P)"
@@ -740,7 +778,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
               {!isCodex && (
               <button
                 onClick={() => onThinkingEnabledChange(!thinkingEnabled)}
-                disabled={isRunning || isStopping}
+                disabled={isStopping}
                 className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] cursor-pointer transition-colors hover:opacity-80"
                 style={{ color: thinkingEnabled ? "var(--accent-orange)" : "var(--text-primary)" }}
                 title={thinkingEnabled ? "Disable thinking (⌥T)" : "Enable thinking (⌥T)"}
@@ -754,7 +792,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
               {!isCodex && (
               <button
                 onClick={() => onPlanEnabledChange(!planEnabled)}
-                disabled={isRunning || isStopping}
+                disabled={isStopping}
                 className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] cursor-pointer transition-colors hover:opacity-80"
                 style={{ color: planEnabled ? "var(--accent-orange)" : "var(--text-primary)" }}
                 title={planEnabled ? "Disable plan mode (⇧⇥)" : "Enable plan mode (⇧⇥)"}
@@ -774,7 +812,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
               <div className="relative" ref={plusMenuRef}>
                 <button
                   onClick={() => setShowPlusMenu((prev) => !prev)}
-                  disabled={isRunning || isStopping}
+                  disabled={isStopping}
                   className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:opacity-80 cursor-pointer"
                   style={{ color: "var(--text-muted)" }}
                   title="Add file or context"
@@ -837,7 +875,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
               {voiceSupported && (
                 <button
                   onClick={toggleVoice}
-                  disabled={isRunning || isStopping}
+                  disabled={isStopping}
                   className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:opacity-80 cursor-pointer ${
                     voiceListening ? "voice-recording" : ""
                   }`}
@@ -854,7 +892,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
                 </button>
               )}
 
-              {isRunning || isStopping ? (
+              {(isRunning || isStopping) && (
                 <button
                   onClick={onStop}
                   disabled={isStopping}
@@ -867,7 +905,8 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
                 >
                   <Square className="h-3.5 w-3.5" fill="currentColor" />
                 </button>
-              ) : (
+              )}
+              {!isStopping && (
                 <button
                   onClick={handleSend}
                   disabled={!canSend}

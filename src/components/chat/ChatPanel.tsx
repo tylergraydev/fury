@@ -5,7 +5,7 @@ import { useChatStore } from "../../stores/chatStore";
 import { useCheckpointStore } from "../../stores/checkpointStore";
 import { useTodoStore } from "../../stores/todoStore";
 import type { ChatMessage } from "../../lib/tauri";
-import { respondToPermission } from "../../lib/tauri";
+import { respondToPermission, addClaudePermissions } from "../../lib/tauri";
 import { MessageList, segmentTurns } from "./MessageList";
 import { Composer } from "./Composer";
 import { ChatTOC } from "./ChatTOC";
@@ -216,14 +216,21 @@ export function ChatPanel({ contextId, contextType }: Props) {
     }
   }, [contextId]);
 
-  const handleRespondToPermission = useCallback(async (approved: boolean) => {
+  const handleRespondToPermission = useCallback(async (approved: boolean, updatedPermissions?: unknown[], decisionClassification?: string) => {
     try {
-      await respondToPermission(contextId, approved);
+      await respondToPermission(contextId, approved, updatedPermissions, decisionClassification);
+      // When "Always Allow" is chosen, also persist the tool name to ~/.claude/settings.json
+      // so the SDK won't prompt again across sessions.
+      if (approved && decisionClassification === "user_permanent" && permissionRequest?.toolName) {
+        addClaudePermissions([permissionRequest.toolName]).catch((e) => {
+          console.error("Failed to persist permission rule:", e);
+        });
+      }
       useChatStore.getState().clearPermissionRequest(contextId);
     } catch (e) {
       console.error("Failed to respond to permission:", e);
     }
-  }, [contextId]);
+  }, [contextId, permissionRequest]);
 
   return (
     <div className="flex h-full flex-col">

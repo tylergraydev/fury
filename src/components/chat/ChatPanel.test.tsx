@@ -605,7 +605,7 @@ describe("ChatPanel", () => {
     const user = userEvent.setup();
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     await user.click(screen.getByTestId("permission-approve-btn"));
-    expect(respondToPermission).toHaveBeenCalledWith("ws-1", true);
+    expect(respondToPermission).toHaveBeenCalledWith("ws-1", true, undefined, undefined);
     expect(clearPermSpy).toHaveBeenCalledWith("ws-1");
   });
 
@@ -621,7 +621,7 @@ describe("ChatPanel", () => {
     const user = userEvent.setup();
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     await user.click(screen.getByTestId("permission-deny-btn"));
-    expect(respondToPermission).toHaveBeenCalledWith("ws-1", false);
+    expect(respondToPermission).toHaveBeenCalledWith("ws-1", false, undefined, undefined);
     expect(clearPermSpy).toHaveBeenCalledWith("ws-1");
   });
 
