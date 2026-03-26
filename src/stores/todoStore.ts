@@ -35,6 +35,10 @@ interface TodoStore {
 // without polluting store state or triggering re-renders.
 const _inflightTodos = new Set<string>();
 
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => _inflightTodos.clear());
+}
+
 export const useTodoStore = create<TodoStore>((set, get) => ({
   todos: {},
   loading: {},

@@ -116,6 +116,15 @@ export async function notifyDocumentOpened(
 
 const changeDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    changeDebounceTimers.forEach((id) => clearTimeout(id));
+    changeDebounceTimers.clear();
+    openDocuments.clear();
+    if (providerDisposable) { providerDisposable.dispose(); providerDisposable = null; }
+  });
+}
+
 export function notifyDocumentChanged(
   filePath: string,
   content: string,

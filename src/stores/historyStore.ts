@@ -14,6 +14,10 @@ interface HistoryStore {
 // without polluting store state or triggering re-renders.
 const _inflightGitLog = new Set<string>();
 
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => _inflightGitLog.clear());
+}
+
 export const useHistoryStore = create<HistoryStore>((set, get) => ({
   gitLog: {},
   loading: {},
