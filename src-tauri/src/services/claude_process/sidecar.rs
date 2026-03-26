@@ -8,7 +8,7 @@ use tokio::process::{Child, ChildStdin};
 use uuid::Uuid;
 
 use crate::error::AppError;
-use crate::models::agent::{AgentInfo, AgentStatus};
+use crate::models::agent::{AgentInfo, AgentStatus, FrontendStreamEvent};
 
 use super::stream::try_capture_session_id;
 
@@ -30,18 +30,19 @@ pub enum SidecarCommand {
         id: String,
         prompt: String,
         cwd: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "sessionId", skip_serializing_if = "Option::is_none")]
         session_id: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         model: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "systemPrompt", skip_serializing_if = "Option::is_none")]
         system_prompt: Option<String>,
+        #[serde(rename = "permissionMode")]
         permission_mode: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "envVars", skip_serializing_if = "Option::is_none")]
         env_vars: Option<HashMap<String, String>>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "additionalDirs", skip_serializing_if = "Option::is_none")]
         additional_dirs: Option<Vec<String>>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "disableThinking", skip_serializing_if = "Option::is_none")]
         disable_thinking: Option<bool>,
     },
     PermissionResponse {
@@ -101,12 +102,18 @@ pub fn start_sidecar(
     // Background task: read NDJSON from stdout, route events to workspaces
     let app_clone = app.clone();
     let agents_clone = Arc::clone(&agents);
+    let pending_perms = app
+        .state::<crate::state::app_state::AppState>()
+        .pending_permissions
+        .clone();
     tokio::spawn(async move {
         let reader = BufReader::new(stdout);
         let mut lines = reader.lines();
 
         while let Ok(Some(line)) = lines.next_line().await {
-            if let Err(e) = handle_sidecar_line(&line, &app_clone, &agents_clone) {
+            if let Err(e) =
+                handle_sidecar_line(&line, &app_clone, &agents_clone, &pending_perms)
+            {
                 eprintln!("[sidecar] Error handling line: {}", e);
             }
         }
@@ -156,6 +163,7 @@ fn handle_sidecar_line(
     line: &str,
     app: &AppHandle,
     agents: &Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
+    pending_permissions: &Arc<Mutex<HashMap<Uuid, FrontendStreamEvent>>>,
 ) -> Result<(), String> {
     let raw: serde_json::Value =
         serde_json::from_str(line).map_err(|e| format!("Invalid JSON: {}", e))?;
@@ -174,6 +182,23 @@ fn handle_sidecar_line(
     for event in &events {
         // Capture session_id from system/result events
         try_capture_session_id(event, agents, workspace_id);
+
+        // Track pending permission requests so they can be re-emitted after HMR
+        match event {
+            FrontendStreamEvent::PermissionRequest { .. } => {
+                pending_permissions
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .insert(workspace_id, event.clone());
+            }
+            FrontendStreamEvent::Result { .. } => {
+                pending_permissions
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .remove(&workspace_id);
+            }
+            _ => {}
+        }
 
         // Emit to frontend
         let event_name = format!("agent-stream:{}", workspace_id);
@@ -248,8 +273,39 @@ mod tests {
         assert!(json.contains("\"type\":\"query\""));
         assert!(json.contains("\"prompt\":\"hello\""));
         assert!(json.contains("\"model\":\"sonnet\""));
+        // Fields should be camelCase for the TypeScript sidecar
+        assert!(json.contains("\"permissionMode\":\"default\""));
         // session_id is None so should be skipped
+        assert!(!json.contains("sessionId"));
+    }
+
+    #[test]
+    fn test_sidecar_command_query_serializes_session_id_as_camel_case() {
+        let cmd = SidecarCommand::Query {
+            id: "test-id".to_string(),
+            prompt: "hello".to_string(),
+            cwd: "/tmp".to_string(),
+            session_id: Some("sess-abc".to_string()),
+            model: None,
+            system_prompt: Some("Be helpful".to_string()),
+            permission_mode: "bypassPermissions".to_string(),
+            env_vars: None,
+            additional_dirs: Some(vec!["/extra".to_string()]),
+            disable_thinking: Some(true),
+        };
+        let json = serde_json::to_string(&cmd).unwrap();
+        // All fields must use camelCase to match TypeScript protocol
+        assert!(json.contains("\"sessionId\":\"sess-abc\""));
+        assert!(json.contains("\"systemPrompt\":\"Be helpful\""));
+        assert!(json.contains("\"permissionMode\":\"bypassPermissions\""));
+        assert!(json.contains("\"additionalDirs\""));
+        assert!(json.contains("\"disableThinking\":true"));
+        // Should NOT contain snake_case versions
         assert!(!json.contains("session_id"));
+        assert!(!json.contains("system_prompt"));
+        assert!(!json.contains("permission_mode"));
+        assert!(!json.contains("additional_dirs"));
+        assert!(!json.contains("disable_thinking"));
     }
 
     #[test]
