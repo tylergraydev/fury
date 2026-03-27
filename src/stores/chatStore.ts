@@ -17,12 +17,21 @@ import {
 } from "../lib/tauri";
 import { useSlashCommandStore } from "./slashCommandStore";
 import { pushAgentTurnMetric, pushStreamEvent } from "../lib/ipcInstrumentation";
+import { normalizeToolName } from "../lib/toolUtils";
 
 export interface PermissionRequestInfo {
   toolName: string;
   input: unknown;
   suggestions?: unknown[];
 }
+
+export interface QuestionRequestInfo {
+  toolUseId: string;
+  question: string;
+  options?: string[];
+}
+
+export type ConductorPhase = "idle" | "researching" | "questioning" | "planning";
 
 export interface SessionStats {
   totalCostUsd: number;
@@ -38,6 +47,8 @@ interface ChatStore {
   streamingText: Record<string, string>;
   planApproval: Record<string, boolean>;
   permissionRequest: Record<string, PermissionRequestInfo | null>;
+  questionRequest: Record<string, QuestionRequestInfo | null>;
+  conductorPhase: Record<string, ConductorPhase>;
   subscriptions: Record<string, UnlistenFn>;
   sessionStats: Record<string, SessionStats>;
 
@@ -52,6 +63,7 @@ interface ChatStore {
   loadMessages: (workspaceId: string) => Promise<void>;
   removeTrailingSystemMessages: (workspaceId: string) => void;
   clearPermissionRequest: (workspaceId: string) => void;
+  clearQuestionRequest: (workspaceId: string) => void;
 }
 
 // Cancel tokens for in-flight subscribe calls — prevents double-subscription
@@ -69,6 +81,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   streamingText: {},
   planApproval: {},
   permissionRequest: {},
+  questionRequest: {},
+  conductorPhase: {},
   subscriptions: {},
   sessionStats: {},
 
@@ -183,6 +197,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       },
       planApproval: { ...state.planApproval, [workspaceId]: false },
       permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
+      questionRequest: { ...state.questionRequest, [workspaceId]: null },
+      conductorPhase: { ...state.conductorPhase, [workspaceId]: "idle" },
     }));
     persistMessage(workspaceId, msg);
   },
@@ -205,6 +221,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         streamingText: { ...state.streamingText, [workspaceId]: "" },
         planApproval: { ...state.planApproval, [workspaceId]: false },
         permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
+        questionRequest: { ...state.questionRequest, [workspaceId]: null },
+        conductorPhase: { ...state.conductorPhase, [workspaceId]: "idle" },
         sessionStats: restStats,
         subscriptions: restSubs,
       };
@@ -301,6 +319,12 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   clearPermissionRequest: (workspaceId: string) => {
     set((state) => ({
       permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
+    }));
+  },
+
+  clearQuestionRequest: (workspaceId: string) => {
+    set((state) => ({
+      questionRequest: { ...state.questionRequest, [workspaceId]: null },
     }));
   },
 }));
@@ -433,10 +457,36 @@ function handleStreamEvent(
       };
       appendContentBlock(workspaceId, block, set, get);
 
+      const normalized = normalizeToolName(event.name);
+
       // Detect plan approval requests
       if (event.name.toLowerCase().includes("exitplanmode")) {
         set((state) => ({
           planApproval: { ...state.planApproval, [workspaceId]: true },
+          conductorPhase: { ...state.conductorPhase, [workspaceId]: "planning" },
+        }));
+      }
+
+      // Detect AskQuestion tool calls — surface as question card in Composer
+      if (normalized === "AskQuestion") {
+        const inp = event.input as Record<string, unknown>;
+        set((state) => ({
+          questionRequest: {
+            ...state.questionRequest,
+            [workspaceId]: {
+              toolUseId: event.id,
+              question: (inp.question ?? inp.text ?? "") as string,
+              options: (inp.options ?? inp.choices) as string[] | undefined,
+            },
+          },
+          conductorPhase: { ...state.conductorPhase, [workspaceId]: "questioning" },
+        }));
+      }
+
+      // Track conductor phase: Think tool → researching
+      if (normalized === "Think" && get().conductorPhase[workspaceId] !== "questioning" && get().conductorPhase[workspaceId] !== "planning") {
+        set((state) => ({
+          conductorPhase: { ...state.conductorPhase, [workspaceId]: "researching" },
         }));
       }
       break;
@@ -466,13 +516,22 @@ function handleStreamEvent(
       // Finalize any remaining streaming text as the final assistant message
       finalizeStreamingText(workspaceId, set, get);
 
-      // Clear permission request state when agent finishes.
+      // Clear permission/question request state when agent finishes.
       // NOTE: planApproval is intentionally NOT cleared here — the result event
       // fires immediately after ExitPlanMode toolUse, so clearing it would race
       // and hide the approve button before the user can interact with it.
       // planApproval is cleared in addUserMessage() and clearMessages() instead.
+      // Similarly, questionRequest is NOT cleared here — it needs to stay visible
+      // for the user to answer. Cleared in addUserMessage() instead.
       set((state) => ({
         permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
+        conductorPhase: {
+          ...state.conductorPhase,
+          // Only reset to idle if not in planning/questioning (those persist until user acts)
+          [workspaceId]: (state.planApproval[workspaceId] || state.questionRequest[workspaceId])
+            ? state.conductorPhase[workspaceId]
+            : "idle",
+        },
       }));
 
       // Build metadata from the result event

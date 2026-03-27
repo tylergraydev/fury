@@ -15,6 +15,7 @@ import {
   ListPlus,
   ListChecks,
   GitCompare,
+  MessageCircleQuestion,
 } from "lucide-react";
 
 // --- Tool name normalization & summaries ---
@@ -22,6 +23,7 @@ import {
 export function normalizeToolName(name: string): string {
   const lower = name.toLowerCase();
   // Check compound names before their substrings
+  if (lower.includes("askfollowup") || lower.includes("ask_followup") || lower.includes("askuser") || lower.includes("ask_user")) return "AskQuestion";
   if (lower.includes("todowrite") || lower.includes("todo_write")) return "TodoWrite";
   if (lower.includes("todoread") || lower.includes("todo_read")) return "TodoRead";
   if (lower.includes("webfetch")) return "WebFetch";
@@ -62,8 +64,9 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
   Web:       { icon: <Globe className={ICON} />,          color: "#22d3ee", label: "Web" },
   TodoWrite: { icon: <ListPlus className={ICON} />,       color: "#facc15", label: "Update todos" },
   TodoRead:  { icon: <ListChecks className={ICON} />,     color: "#facc15", label: "Read todos" },
-  Think:     { icon: <Brain className={ICON} />,          color: "#6b7280", label: "Thinking" },
-  Diff:      { icon: <GitCompare className={ICON} />,     color: "#58a6ff", label: "Diff" },
+  Think:       { icon: <Brain className={ICON} />,                    color: "#6b7280", label: "Thinking" },
+  Diff:        { icon: <GitCompare className={ICON} />,              color: "#58a6ff", label: "Diff" },
+  AskQuestion: { icon: <MessageCircleQuestion className={ICON} />,   color: "#8b5cf6", label: "Question" },
 };
 
 const DEFAULT_CONFIG: ToolConfig = { icon: <Wrench className={ICON} />, color: "var(--text-muted)", label: "" };
@@ -196,6 +199,14 @@ export function getToolSummary(name: string, input: unknown, result: { content: 
         label: "Fetch",
         detail: "",
         badges: host ? [{ text: host }] : [],
+      };
+    }
+    case "AskQuestion": {
+      const question = (inp.question ?? inp.text ?? "") as string;
+      return {
+        label: "Question",
+        detail: question.length > 80 ? question.slice(0, 77) + "..." : question,
+        badges: [],
       };
     }
     default: {

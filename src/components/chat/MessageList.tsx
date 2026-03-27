@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import type { AgentStatus, ChatMessage } from "../../lib/tauri";
+import { useChatStore } from "../../stores/chatStore";
 import { MessageBubble } from "./MessageBubble";
 import { MarkdownContent } from "./MarkdownContent";
 import { ThinkingSpinner } from "./ThinkingSpinner";
+import { ResearchingIndicator } from "./ResearchingIndicator";
 import { ChatEmptyState } from "./ChatEmptyState";
 
 // --- Turn segmentation ---
@@ -121,6 +123,7 @@ interface Props {
   contextType?: "workspace" | "repo";
   workspaceName?: string;
   onAction?: (prompt: string) => void;
+  isPlanApproval?: boolean;
 }
 
 export function MessageList({
@@ -134,6 +137,7 @@ export function MessageList({
   contextType,
   workspaceName,
   onAction,
+  isPlanApproval,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -164,6 +168,7 @@ export function MessageList({
 
   const isRunning = agentStatus === "Running";
   const isAgentActive = agentStatus === "Running" || agentStatus === "Stopping";
+  const conductorPhase = useChatStore((s) => s.conductorPhase[contextId ?? ""] ?? "idle");
 
   const toggleTurn = useCallback((turnId: string) => {
     setExpandedTurns((prev) => {
@@ -233,27 +238,34 @@ export function MessageList({
         );
 
         if (isCollapsible) {
+          const showAsPlan = isPlanApproval && isLastTurn;
+
           // Subtract the final visible message from the summary count
           /* v8 ignore start -- ternary: finalTextMessage is always truthy when isCollapsible */
           const hiddenTextCount = stats.textMessageCount - (stats.finalTextMessage ? 1 : 0);
           /* v8 ignore stop */
-          elements.push(
-            <CollapsedTurnSummary
-              key={`summary-${turnId}`}
-              toolCallCount={stats.toolCallCount}
-              hiddenTextCount={hiddenTextCount}
-              isExpanded={isExpanded}
-              onToggle={() => toggleTurn(turnId)}
-            />,
-          );
 
-          if (isExpanded) {
-            // Show all responses when expanded
+          // Don't show collapse summary for plan turns — show the plan card directly
+          if (!showAsPlan) {
+            elements.push(
+              <CollapsedTurnSummary
+                key={`summary-${turnId}`}
+                toolCallCount={stats.toolCallCount}
+                hiddenTextCount={hiddenTextCount}
+                isExpanded={isExpanded}
+                onToggle={() => toggleTurn(turnId)}
+              />,
+            );
+          }
+
+          if (isExpanded || showAsPlan) {
+            // Show all responses (expanded or plan view)
             for (const msg of turn.responses) {
+              const isPlanMsg = showAsPlan && msg.role === "assistant" && msg.content.some((b) => b.type === "text" && b.text.trim().length > 0);
               elements.push(
                 /* v8 ignore start -- ternary branches for highlight and retry are V8 branch artifacts */
               <div key={msg.id} data-message-id={msg.id} className={highlightMessageId === msg.id ? "search-highlight" : ""}>
-                  <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} contextId={contextId} contextType={contextType} />
+                  <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} contextId={contextId} contextType={contextType} isPlanMessage={isPlanMsg} />
                 </div>,
                 /* v8 ignore stop */
               );
@@ -278,12 +290,42 @@ export function MessageList({
           }
         } else {
           // Active turn, no tool calls, or has system messages — render all responses normally
-          for (const msg of turn.responses) {
-            elements.push(
-              <div key={msg.id} data-message-id={msg.id} className={highlightMessageId === msg.id ? "search-highlight" : ""}>
-                <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} contextId={contextId} contextType={contextType} />
-              </div>,
-            );
+          const isResearching = isActiveTurn && conductorPhase === "researching";
+
+          if (isResearching) {
+            // During research phase, collapse tool-only messages into a compact indicator
+            // but still show text messages and the indicator
+            let toolCount = 0;
+            for (const msg of turn.responses) {
+              const hasText = msg.role === "assistant" && msg.content.some((b) => b.type === "text" && b.text.trim().length > 0);
+              const toolUses = msg.role === "assistant" ? msg.content.filter((b) => b.type === "toolUse").length : 0;
+              toolCount += toolUses;
+
+              if (hasText || msg.role === "system") {
+                elements.push(
+                  <div key={msg.id} data-message-id={msg.id} className={highlightMessageId === msg.id ? "search-highlight" : ""}>
+                    <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} contextId={contextId} contextType={contextType} />
+                  </div>,
+                );
+              }
+            }
+            if (toolCount > 0) {
+              elements.push(
+                <ResearchingIndicator key="researching" toolCallCount={toolCount} startedAt={runStartedAt} />,
+              );
+            }
+          } else {
+            // Determine if this is the plan turn — mark assistant text messages as plan messages
+            const showAsPlan = isPlanApproval && isLastTurn;
+
+            for (const msg of turn.responses) {
+              const isPlanMsg = showAsPlan && msg.role === "assistant" && msg.content.some((b) => b.type === "text" && b.text.trim().length > 0);
+              elements.push(
+                <div key={msg.id} data-message-id={msg.id} className={highlightMessageId === msg.id ? "search-highlight" : ""}>
+                  <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} contextId={contextId} contextType={contextType} isPlanMessage={isPlanMsg} />
+                </div>,
+              );
+            }
           }
         }
 

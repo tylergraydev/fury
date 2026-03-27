@@ -39,6 +39,9 @@ export function ChatPanel({ contextId, contextType }: Props) {
   const permissionRequest = useChatStore(
     (s) => s.permissionRequest[contextId] ?? null,
   );
+  const questionRequest = useChatStore(
+    (s) => s.questionRequest[contextId] ?? null,
+  );
 
   // Toggle state for thinking and plan mode — lifted here so handleRetry can use it
   const [thinkingEnabled, setThinkingEnabled] = useState(true);
@@ -233,6 +236,11 @@ export function ChatPanel({ contextId, contextType }: Props) {
     }
   }, [contextId, permissionRequest]);
 
+  const handleAnswerQuestion = useCallback(async (answer: string) => {
+    useChatStore.getState().clearQuestionRequest(contextId);
+    await handleSend(answer);
+  }, [contextId, handleSend]);
+
   return (
     <div className="flex h-full flex-col">
       <div className="relative flex flex-1 flex-col min-h-0">
@@ -247,6 +255,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
           contextType={contextType}
           workspaceName={workspace?.name}
           onAction={(prompt) => handleSend(prompt)}
+          isPlanApproval={isPlanApproval}
         />
         <div className="absolute right-3 top-3 z-20 flex gap-1">
           <button
@@ -310,6 +319,8 @@ export function ChatPanel({ contextId, contextType }: Props) {
         onCopyPlan={handleCopyPlan}
         permissionRequest={permissionRequest}
         onRespondToPermission={handleRespondToPermission}
+        questionRequest={questionRequest}
+        onAnswerQuestion={handleAnswerQuestion}
         thinkingEnabled={thinkingEnabled}
         onThinkingEnabledChange={setThinkingEnabled}
         planEnabled={planEnabled}

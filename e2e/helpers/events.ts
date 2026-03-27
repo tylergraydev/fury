@@ -102,6 +102,38 @@ export async function emitPermissionRequest(
 }
 
 /**
+ * Emit an AskFollowupQuestion tool use event.
+ * Triggers the QuestionCard in the Composer.
+ */
+export async function emitQuestionToolUse(
+  page: Page,
+  workspaceId: string,
+  question: string,
+  options?: string[],
+) {
+  await emitToolUse(page, workspaceId, {
+    id: `ask-${Date.now()}`,
+    name: "AskFollowupQuestion",
+    input: { question, ...(options ? { options } : {}) },
+  });
+}
+
+/**
+ * Emit an ExitPlanMode tool use event.
+ * Triggers plan approval UI in the Composer.
+ */
+export async function emitPlanApproval(
+  page: Page,
+  workspaceId: string,
+) {
+  await emitToolUse(page, workspaceId, {
+    id: `exitplan-${Date.now()}`,
+    name: "ExitPlanMode",
+    input: {},
+  });
+}
+
+/**
  * Emit a result event (agent finished) in the agent stream.
  */
 export async function emitResult(

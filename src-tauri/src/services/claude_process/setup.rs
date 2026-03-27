@@ -120,6 +120,8 @@ pub(crate) fn build_common_args(
 
     if disable_plan_mode {
         combined_prompt.push_str("\n\nIMPORTANT: Do not enter plan mode. Execute tasks directly without presenting a plan for approval first.");
+    } else {
+        combined_prompt.push_str("\n\n## Conductor Workflow\nWhen the user gives you a feature idea or task, follow this workflow:\n1. THINK: Use the Think tool to silently analyze the request. Consider what you need to understand.\n2. RESEARCH: Use Read, Grep, Glob to understand the relevant codebase. Do not narrate your research process — keep tool calls silent.\n3. CLARIFY: If the request is ambiguous or you need more information, use AskFollowupQuestion to ask ONE focused clarifying question with specific options when possible.\n4. PLAN: Once you understand the task, enter plan mode and present a well-structured markdown plan with clear sections, file changes, and implementation sequencing.\n5. EXECUTE: Only begin implementation after the user explicitly approves the plan.\n\nKey rules:\n- Do NOT narrate your research. Present only the final plan.\n- When asking questions, be specific and provide concrete options.\n- The plan should be a polished markdown document with headers, bullet points, and code snippets where relevant.");
     }
 
     // When Code Search (claude-context) is available, instruct the agent to

@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Square, Copy, ArrowRightFromLine, Check, ShieldCheck, ShieldX, X, Sparkles, Brain, BookOpen, ArrowUp, Plus, Paperclip, CircleDot, Link2, Mic, MicOff } from "lucide-react";
+import { Square, Copy, Check, ShieldCheck, ShieldX, X, Sparkles, Brain, BookOpen, ArrowUp, Plus, Paperclip, CircleDot, Link2, Mic, MicOff, ClipboardCheck, MessageSquare } from "lucide-react";
 import type { AgentStatus } from "../../lib/tauri";
-import type { PermissionRequestInfo } from "../../stores/chatStore";
+import type { PermissionRequestInfo, QuestionRequestInfo } from "../../stores/chatStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useTodoStore } from "../../stores/todoStore";
@@ -12,6 +12,7 @@ import { PromptLibraryDialog } from "../prompt-library/PromptLibraryDialog";
 import { useVoiceInput } from "../../hooks/useVoiceInput";
 import { useToastStore } from "../../stores/toastStore";
 import { ActionBar, ActionBarButton } from "./ActionBar";
+import { QuestionCard } from "./QuestionCard";
 import { ContextUsageIndicator, CONTEXT_WINDOW_TOKENS } from "./ContextUsageIndicator";
 import { FileChipIcon } from "./FileChipIcon";
 import { useFileDropHandler } from "../../hooks/useFileDropHandler";
@@ -52,6 +53,8 @@ interface Props {
   onCopyPlan?: () => void;
   permissionRequest?: PermissionRequestInfo | null;
   onRespondToPermission?: (approved: boolean, updatedPermissions?: unknown[], decisionClassification?: string) => void;
+  questionRequest?: QuestionRequestInfo | null;
+  onAnswerQuestion?: (answer: string) => void;
   thinkingEnabled: boolean;
   onThinkingEnabledChange: (enabled: boolean) => void;
   planEnabled: boolean;
@@ -60,7 +63,7 @@ interface Props {
   onLinkIssue?: () => void;
 }
 
-export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan, permissionRequest, onRespondToPermission, thinkingEnabled, onThinkingEnabledChange, planEnabled, onPlanEnabledChange, onLinkWorkspaces, onLinkIssue }: Props) {
+export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan, permissionRequest, onRespondToPermission, questionRequest, onAnswerQuestion, thinkingEnabled, onThinkingEnabledChange, planEnabled, onPlanEnabledChange, onLinkWorkspaces, onLinkIssue }: Props) {
   const workspaceId = contextType === "workspace" ? contextId : undefined;
   const sessionStats = useChatStore((s) => s.sessionStats[contextId]);
   const agentType = useSettingsStore((s) => s.appSettings?.agentType ?? "claude_code");
@@ -478,18 +481,24 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
       {/* Plan approval bar */}
       {isPlanApproval && (
         <ActionBar
-          description="Approve the plan (⌘⇧↵) or tell the AI what to do differently"
-          bgStyle={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border)" }}
+          icon={<ClipboardCheck className="h-4 w-4 flex-shrink-0" style={{ color: "var(--success)" }} />}
+          description="Review the plan above, then approve or request changes"
+          bgStyle={{ backgroundColor: "color-mix(in srgb, var(--success) 6%, var(--bg-surface))", border: "1px solid color-mix(in srgb, var(--success) 25%, transparent)" }}
           secondaryActions={
             <>
               {onCopyPlan && (
                 <ActionBarButton onClick={onCopyPlan} icon={Copy} label="Copy" color="var(--text-secondary)" />
               )}
-              <ActionBarButton disabled title="Hand off to a new workspace (coming soon)" icon={ArrowRightFromLine} label="Hand off" color="var(--text-secondary)" className="opacity-40" />
+              <ActionBarButton
+                onClick={() => textareaRef.current?.focus()}
+                icon={MessageSquare}
+                label="Request Changes"
+                color="var(--text-secondary)"
+              />
             </>
           }
           primaryAction={onApprovePlan && (
-            <ActionBarButton onClick={onApprovePlan} icon={Check} label="Approve" color="var(--bg-primary)" bgColor="var(--text-primary)" showShortcut />
+            <ActionBarButton onClick={onApprovePlan} icon={Check} label="Approve" color="var(--bg-primary)" bgColor="var(--success)" showShortcut />
           )}
         />
       )}
@@ -527,6 +536,15 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
         />
       )}
 
+      {/* Agent question card — replaces input area when active */}
+      {questionRequest && onAnswerQuestion && (
+        <QuestionCard
+          question={questionRequest.question}
+          options={questionRequest.options}
+          onAnswer={onAnswerQuestion}
+        />
+      )}
+
       {/* Context near-full warning with compact button */}
       {sessionStats && sessionStats.totalInputTokens > 0 && (sessionStats.totalInputTokens / CONTEXT_WINDOW_TOKENS) >= 0.9 && agentStatus === "Idle" && (
         <ActionBar
@@ -548,8 +566,8 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
         />
       )}
 
-      {/* Input area with autocomplete */}
-      <div className="relative">
+      {/* Input area with autocomplete — hidden when question card is active */}
+      <div className="relative" style={{ display: questionRequest ? "none" : undefined }}>
         {/* Slash command autocomplete dropdown */}
         {showSlashMenu && matchingCommands.length > 0 && (
           <div

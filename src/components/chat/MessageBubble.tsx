@@ -4,6 +4,7 @@ import {
   ChevronRight,
   ChevronDown,
   RotateCw,
+  ClipboardCheck,
 } from "lucide-react";
 import type { ChatMessage, ContentBlock } from "../../lib/tauri";
 import { normalizeToolName, getToolConfig, getToolSummary, formatToolDetail } from "../../lib/toolUtils";
@@ -117,9 +118,10 @@ interface Props {
   onRetry?: () => void;
   contextId?: string;
   contextType?: "workspace" | "repo";
+  isPlanMessage?: boolean;
 }
 
-export const MessageBubble = memo(function MessageBubble({ message, onRetry, contextId, contextType }: Props) {
+export const MessageBubble = memo(function MessageBubble({ message, onRetry, contextId, contextType, isPlanMessage }: Props) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
   const groups = groupContentBlocks(message.content);
@@ -211,6 +213,40 @@ export const MessageBubble = memo(function MessageBubble({ message, onRetry, con
   }
 
   // Assistant messages: plain output, no bubble, no avatar
+  // Plan messages get a distinct card wrapper
+  if (isPlanMessage) {
+    return (
+      <div
+        className="mb-3 rounded-xl p-5 text-[15px]"
+        style={{
+          color: "var(--text-primary)",
+          backgroundColor: "var(--bg-surface)",
+          border: "1px solid color-mix(in srgb, var(--success) 20%, var(--border))",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+        }}
+      >
+        <div className="mb-3 flex items-center gap-2 text-xs font-medium" style={{ color: "var(--success)" }}>
+          <ClipboardCheck className="h-4 w-4" />
+          <span>Implementation Plan</span>
+        </div>
+        {groups.map((group, i) => {
+          if (group.kind === "text") {
+            return group.blocks.map((block, j) => (
+              <div key={`${i}-${j}`} className="mb-1 break-words">
+                <MarkdownContent content={block.text} contextId={contextId} contextType={contextType} />
+              </div>
+            ));
+          }
+          if (group.kind === "images") {
+            return <InlineImageGroup key={i} blocks={group.blocks} />;
+          }
+          return <ToolCallList key={i} pairs={group.pairs} />;
+        })}
+        {message.metadata && <ResponseMetadataRow metadata={message.metadata} />}
+      </div>
+    );
+  }
+
   return (
     <div className="mb-3 text-[15px]" style={{ color: "var(--text-primary)" }}>
       {groups.map((group, i) => {
