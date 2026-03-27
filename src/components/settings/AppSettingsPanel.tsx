@@ -11,6 +11,7 @@ import {
   CircleDot,
   Search,
   Blocks,
+  ShieldCheck,
 } from "lucide-react";
 import { useUIStore } from "../../stores/uiStore";
 import { isMac } from "../../lib/keybindings";
@@ -19,6 +20,7 @@ import {
   AppearanceTab,
   ProviderTab,
   CopilotTab,
+  PermissionsTab,
   LinearTab,
   AzureDevOpsTab,
   CodeSearchTab,
@@ -32,6 +34,7 @@ import {
 const NAV_ITEMS: { tab: SettingsTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { tab: "appearance", label: "Appearance", icon: Palette },
   { tab: "provider", label: "Provider", icon: Key },
+  { tab: "permissions", label: "Permissions", icon: ShieldCheck },
   { tab: "copilot", label: "Copilot", icon: Sparkles },
   { tab: "linear", label: "Linear", icon: CircleDot },
   { tab: "azure-devops", label: "Azure DevOps", icon: Server },
@@ -116,6 +119,7 @@ export function AppSettingsPanel() {
       <div className="flex-1 overflow-y-auto">
         {activeTab === "appearance" && <AppearanceTab />}
         {activeTab === "provider" && <ProviderTab />}
+        {activeTab === "permissions" && <PermissionsTab />}
         {activeTab === "copilot" && <CopilotTab />}
         {activeTab === "linear" && <LinearTab />}
         {activeTab === "azure-devops" && <AzureDevOpsTab />}

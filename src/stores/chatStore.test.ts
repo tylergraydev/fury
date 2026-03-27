@@ -8,6 +8,7 @@ vi.mock("../lib/tauri", () => ({
   saveChatMessage: vi.fn().mockResolvedValue(undefined),
   listChatMessages: vi.fn().mockResolvedValue([]),
   clearChatMessages: vi.fn().mockResolvedValue(undefined),
+  getPendingPermission: vi.fn().mockResolvedValue(null),
   toPersisted: vi.fn((msg: any, wsId: string) => ({
     ...msg,
     workspaceId: wsId,

@@ -11,8 +11,12 @@ import type {
 const activeQueries = new Map<string, { abort: () => void }>();
 const pendingPermissions = new Map<
   string,
-  (approved: boolean) => void
+  (response: { approved: boolean; updatedPermissions?: unknown[]; decisionClassification?: string }) => void
 >();
+
+// Permission response timeout (seconds). If the frontend doesn't respond
+// (e.g. due to HMR reload losing UI state), auto-deny after this period.
+const PERMISSION_TIMEOUT_MS = 120_000;
 
 function emit(event: Record<string, unknown>): void {
   process.stdout.write(JSON.stringify(event) + "\n");
@@ -47,13 +51,21 @@ async function handleQuery(cmd: QueryCommand): Promise<void> {
       cwd,
       env,
       permissionMode: permissionMode || "default",
+      settingSources: ["user", "project", "local"],
       includePartialMessages: true,
       canUseTool: async (
         toolName: string,
         input: Record<string, unknown>,
-        callOptions: { signal: AbortSignal; title?: string; description?: string; toolUseID: string },
+        callOptions: {
+          signal: AbortSignal;
+          title?: string;
+          description?: string;
+          toolUseID: string;
+          suggestions?: unknown[];
+        },
       ) => {
-        // Emit permission request to Rust
+        // Emit permission request to Rust, including SDK suggestions for
+        // "allow for session" / "always allow" flows
         emit({
           id,
           type: "input_request",
@@ -62,13 +74,37 @@ async function handleQuery(cmd: QueryCommand): Promise<void> {
           title: callOptions.title,
           description: callOptions.description,
           input,
+          suggestions: callOptions.suggestions,
         });
-        // Block until Rust sends permission_response
-        const approved = await new Promise<boolean>((resolve) => {
+        // Block until Rust sends permission_response, with a timeout safety net.
+        // If the frontend reloads (HMR) and loses the permission UI, it will
+        // re-query the backend and re-emit the request. But if that also fails,
+        // auto-deny after the timeout so the agent doesn't hang forever.
+        const response = await new Promise<{ approved: boolean; updatedPermissions?: unknown[]; decisionClassification?: string }>((resolve) => {
           pendingPermissions.set(id, resolve);
+          setTimeout(() => {
+            if (pendingPermissions.has(id)) {
+              pendingPermissions.delete(id);
+              emit({
+                id,
+                type: "system",
+                message: `Permission request for "${toolName}" timed out after ${PERMISSION_TIMEOUT_MS / 1000}s — auto-denied.`,
+              });
+              resolve({ approved: false });
+            }
+          }, PERMISSION_TIMEOUT_MS);
         });
-        if (approved) {
-          return { behavior: "allow" as const };
+        if (response.approved) {
+          const result: { behavior: "allow"; updatedPermissions?: unknown[]; decisionClassification?: string } = {
+            behavior: "allow" as const,
+          };
+          if (response.updatedPermissions != null) {
+            result.updatedPermissions = response.updatedPermissions;
+          }
+          if (response.decisionClassification != null) {
+            result.decisionClassification = response.decisionClassification;
+          }
+          return result;
         }
         return { behavior: "deny" as const, message: "User denied permission" };
       },
@@ -113,7 +149,11 @@ async function handleQuery(cmd: QueryCommand): Promise<void> {
 function handlePermissionResponse(cmd: PermissionResponseCommand): void {
   const resolver = pendingPermissions.get(cmd.id);
   if (resolver) {
-    resolver(cmd.approved);
+    resolver({
+      approved: cmd.approved,
+      updatedPermissions: cmd.updatedPermissions,
+      decisionClassification: cmd.decisionClassification,
+    });
     pendingPermissions.delete(cmd.id);
   }
 }

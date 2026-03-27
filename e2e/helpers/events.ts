@@ -84,15 +84,20 @@ export async function emitPermissionRequest(
   workspaceId: string,
   toolName: string,
   input: unknown = {},
+  suggestions?: unknown[],
 ) {
+  // Use stringified args to avoid Playwright serialization issues with nested objects
+  const eventName = `agent-stream:${workspaceId}`;
+  const payload = JSON.stringify(
+    suggestions
+      ? { type: "permissionRequest", toolName, input, suggestions }
+      : { type: "permissionRequest", toolName, input },
+  );
   await page.evaluate(
-    ([eventName, payload]) => {
-      (window as any).__E2E_EMIT_EVENT__(eventName, payload);
+    ([eventName, payloadStr]) => {
+      (window as any).__E2E_EMIT_EVENT__(eventName, JSON.parse(payloadStr));
     },
-    [
-      `agent-stream:${workspaceId}`,
-      { type: "permissionRequest", toolName, input },
-    ] as const,
+    [eventName, payload] as const,
   );
 }
 

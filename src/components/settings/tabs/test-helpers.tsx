@@ -133,6 +133,8 @@ vi.mock("lucide-react", () => ({
   AlertTriangle: () => <span data-testid="alert-triangle-icon" />,
   CheckCircle: () => <span data-testid="check-circle-icon" />,
   RotateCcw: () => <span data-testid="rotate-icon" />,
+  ShieldCheck: () => <span data-testid="shield-check-icon" />,
+  ShieldX: () => <span data-testid="shield-x-icon" />,
 }));
 
 export const fullSettings = {

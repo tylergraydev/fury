@@ -13,6 +13,7 @@ import {
   clearChatMessages as clearChatMessagesCmd,
   toPersisted,
   fromPersisted,
+  getPendingPermission,
 } from "../lib/tauri";
 import { useSlashCommandStore } from "./slashCommandStore";
 import { pushAgentTurnMetric, pushStreamEvent } from "../lib/ipcInstrumentation";
@@ -20,6 +21,7 @@ import { pushAgentTurnMetric, pushStreamEvent } from "../lib/ipcInstrumentation"
 export interface PermissionRequestInfo {
   toolName: string;
   input: unknown;
+  suggestions?: unknown[];
 }
 
 export interface SessionStats {
@@ -80,41 +82,72 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     const token = { cancelled: false };
     _chatSubscribeTokens.set(workspaceId, token);
 
-    // Load persisted messages if we don't have any in memory
-    if (!(get().messages[workspaceId]?.length)) {
-      await get().loadMessages(workspaceId);
-    }
+    try {
+      // Load persisted messages if we don't have any in memory
+      if (!(get().messages[workspaceId]?.length)) {
+        await get().loadMessages(workspaceId);
+      }
 
-    if (token.cancelled) {
+      if (token.cancelled) {
+        _chatSubscribeTokens.delete(workspaceId);
+        return;
+      }
+
+      // Re-check after await — another subscribe may have completed
+      if (get().subscriptions[workspaceId]) {
+        _chatSubscribeTokens.delete(workspaceId);
+        return;
+      }
+
+      const unlisten = await listen<FrontendStreamEvent>(
+        `agent-stream:${workspaceId}`,
+        (event) => {
+          if (token.cancelled) return;
+          const payload = event.payload;
+          pushStreamEvent(workspaceId, "event_received", payload.type);
+          handleStreamEvent(workspaceId, payload, set, get);
+        },
+      );
+
+      if (token.cancelled) {
+        unlisten();
+        _chatSubscribeTokens.delete(workspaceId);
+        return;
+      }
+
+      set((state) => ({
+        subscriptions: { ...state.subscriptions, [workspaceId]: unlisten },
+      }));
+
+      // Recover any pending permission request that was lost during HMR.
+      // The backend tracks these so we can restore the UI after a frontend reload.
+      getPendingPermission(workspaceId)
+        .then((event) => {
+          if (event && event.type === "permissionRequest" && !token.cancelled) {
+            set((state) => ({
+              permissionRequest: {
+                ...state.permissionRequest,
+                [workspaceId]: {
+                  toolName: event.toolName,
+                  input: event.input,
+                  suggestions: event.suggestions,
+                },
+              },
+            }));
+          }
+        })
+        .catch(() => {
+          // Non-critical — permission will time out on the sidecar side
+        });
+    } catch (e) {
+      console.error(`[chatStore] subscribe failed for ${workspaceId}:`, e);
       _chatSubscribeTokens.delete(workspaceId);
-      return;
+      // Remove any partial subscription state so a retry can succeed
+      set((state) => {
+        const { [workspaceId]: _, ...rest } = state.subscriptions;
+        return { subscriptions: rest };
+      });
     }
-
-    // Re-check after await — another subscribe may have completed
-    if (get().subscriptions[workspaceId]) {
-      _chatSubscribeTokens.delete(workspaceId);
-      return;
-    }
-
-    const unlisten = await listen<FrontendStreamEvent>(
-      `agent-stream:${workspaceId}`,
-      (event) => {
-        if (token.cancelled) return;
-        const payload = event.payload;
-        pushStreamEvent(workspaceId, "event_received", payload.type);
-        handleStreamEvent(workspaceId, payload, set, get);
-      },
-    );
-
-    if (token.cancelled) {
-      unlisten();
-      _chatSubscribeTokens.delete(workspaceId);
-      return;
-    }
-
-    set((state) => ({
-      subscriptions: { ...state.subscriptions, [workspaceId]: unlisten },
-    }));
   },
 
   unsubscribe: (workspaceId: string) => {
@@ -155,17 +188,36 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   clearMessages: (workspaceId: string) => {
+    // Cancel the active stream subscription token so in-flight events
+    // are ignored and don't repopulate the cleared messages.
+    const token = _chatSubscribeTokens.get(workspaceId);
+    if (token) token.cancelled = true;
+
+    // Tear down the stream listener.
+    const unsub = get().subscriptions[workspaceId];
+    if (unsub) unsub();
+
     set((state) => {
       const { [workspaceId]: _, ...restStats } = state.sessionStats;
+      const { [workspaceId]: _sub, ...restSubs } = state.subscriptions;
       return {
         messages: { ...state.messages, [workspaceId]: [] },
         streamingText: { ...state.streamingText, [workspaceId]: "" },
         planApproval: { ...state.planApproval, [workspaceId]: false },
         permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
         sessionStats: restStats,
+        subscriptions: restSubs,
       };
     });
-    clearChatMessagesCmd(workspaceId).catch(console.error);
+    // Wait for the backend DB clear to finish BEFORE re-subscribing.
+    // subscribe() calls loadMessages() when the in-memory array is empty,
+    // so if the DB clear hasn't completed yet, it reloads stale messages
+    // and the clear appears to have no effect.
+    clearChatMessagesCmd(workspaceId).catch(console.error).then(() => {
+      get().subscribe(workspaceId).catch((e) => {
+        console.error(`[chatStore] re-subscribe after clear failed for ${workspaceId}:`, e);
+      });
+    });
   },
 
   getMessages: (workspaceId: string) => {
@@ -404,7 +456,7 @@ function handleStreamEvent(
       set((state) => ({
         permissionRequest: {
           ...state.permissionRequest,
-          [workspaceId]: { toolName: event.toolName, input: event.input },
+          [workspaceId]: { toolName: event.toolName, input: event.input, suggestions: event.suggestions },
         },
       }));
       break;

@@ -1,6 +1,6 @@
 import type { ProviderType } from "../../../lib/tauri";
 
-export type SettingsTab = "appearance" | "provider" | "copilot" | "linear" | "azure-devops" | "code-search" | "mcp" | "code-intel" | "migration" | "experimental" | "updates";
+export type SettingsTab = "appearance" | "provider" | "permissions" | "copilot" | "linear" | "azure-devops" | "code-search" | "mcp" | "code-intel" | "migration" | "experimental" | "updates";
 
 export const PROVIDER_ENV_HINTS: Record<ProviderType, string[]> = {
   Anthropic: ["ANTHROPIC_API_KEY"],

@@ -1,5 +1,5 @@
 use crate::db::Database;
-use crate::models::agent::AgentInfo;
+use crate::models::agent::{AgentInfo, FrontendStreamEvent};
 use crate::models::devcontainer::ContainerState;
 use crate::models::mcp::IndexingStatus;
 use crate::models::repository::Repository;
@@ -63,6 +63,9 @@ pub struct AppState {
     pub container_states: Arc<Mutex<HashMap<Uuid, ContainerState>>>,
     /// Claude Agent SDK sidecar process handle (singleton, shared across workspaces)
     pub agent_sidecar: Arc<Mutex<Option<SidecarHandle>>>,
+    /// Pending permission requests per workspace — stored so they can be
+    /// re-emitted when the frontend resubscribes (e.g. after HMR).
+    pub pending_permissions: Arc<Mutex<HashMap<Uuid, FrontendStreamEvent>>>,
 }
 
 impl AppState {
@@ -88,6 +91,7 @@ impl AppState {
             test_watchers: Arc::new(Mutex::new(HashMap::new())),
             container_states: Arc::new(Mutex::new(HashMap::new())),
             agent_sidecar: Arc::new(Mutex::new(None)),
+            pending_permissions: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -117,6 +121,7 @@ mod tests {
         assert!(state.test_watchers.lock().unwrap().is_empty());
         assert!(state.container_states.lock().unwrap().is_empty());
         assert!(state.agent_sidecar.lock().unwrap().is_none());
+        assert!(state.pending_permissions.lock().unwrap().is_empty());
     }
 
     #[test]

@@ -356,7 +356,12 @@ pub fn parse_stream_line(line: &str) -> Vec<FrontendStreamEvent> {
                 .or_else(|| raw.get("input"))
                 .cloned()
                 .unwrap_or(serde_json::Value::Null);
-            vec![FrontendStreamEvent::PermissionRequest { tool_name, input }]
+            let suggestions = raw.get("suggestions").cloned();
+            vec![FrontendStreamEvent::PermissionRequest {
+                tool_name,
+                input,
+                suggestions,
+            }]
         }
         _ => vec![],
     }
@@ -508,7 +513,9 @@ mod tests {
         let events = parse_stream_line(line);
         assert_eq!(events.len(), 1);
         match &events[0] {
-            FrontendStreamEvent::PermissionRequest { tool_name, input } => {
+            FrontendStreamEvent::PermissionRequest {
+                tool_name, input, ..
+            } => {
                 assert_eq!(tool_name, "bash");
                 assert_eq!(input["command"], "ls");
             }
@@ -681,6 +688,7 @@ mod tests {
         let event = FrontendStreamEvent::PermissionRequest {
             tool_name: "write_file".to_string(),
             input: serde_json::Value::Null,
+            suggestions: None,
         };
         assert_eq!(stream_event_detail(&event), "permissionRequest:write_file");
     }
@@ -1059,7 +1067,9 @@ mod tests {
         let events = parse_stream_line(line);
         assert_eq!(events.len(), 1);
         match &events[0] {
-            FrontendStreamEvent::PermissionRequest { tool_name, input } => {
+            FrontendStreamEvent::PermissionRequest {
+                tool_name, input, ..
+            } => {
                 assert_eq!(tool_name, "bash");
                 assert_eq!(input["command"], "ls");
             }

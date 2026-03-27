@@ -9,4 +9,5 @@ export { ExperimentalTab } from "./ExperimentalTab";
 export { UpdatesTab } from "./UpdatesTab";
 export { LinearTab } from "./LinearTab";
 export { AzureDevOpsTab } from "./AzureDevOpsTab";
+export { PermissionsTab } from "./PermissionsTab";
 export type { SettingsTab } from "./types";

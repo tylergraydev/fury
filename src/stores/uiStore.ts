@@ -75,8 +75,16 @@ export const useUIStore = create<UIStore>((set, get) => ({
   bottomTab: "setup",
   setBottomTab: (tab) => set({ bottomTab: tab }),
 
-  viewTabs: [{ id: "chat", type: "chat" as ViewType, pinned: true, label: "Chat" }],
-  activeViewTabId: "chat",
+  viewTabs: (() => {
+    if (import.meta.env.DEV) {
+      try {
+        const saved = sessionStorage.getItem("fury:viewTabs");
+        if (saved) return JSON.parse(saved) as ViewTab[];
+      } catch { /* ignore */ }
+    }
+    return [{ id: "chat", type: "chat" as ViewType, pinned: true, label: "Chat" }];
+  })(),
+  activeViewTabId: (import.meta.env.DEV ? sessionStorage.getItem("fury:activeViewTabId") : null) ?? "chat",
 
   openViewTab: (type, pin = true) => {
     if (type === "chat") {
@@ -197,3 +205,14 @@ export const useUIStore = create<UIStore>((set, get) => ({
   settingsInitialTab: null,
   setSettingsInitialTab: (tab) => set({ settingsInitialTab: tab }),
 }));
+
+if (import.meta.env.DEV) {
+  useUIStore.subscribe((state, prev) => {
+    if (state.viewTabs !== prev.viewTabs) {
+      sessionStorage.setItem("fury:viewTabs", JSON.stringify(state.viewTabs));
+    }
+    if (state.activeViewTabId !== prev.activeViewTabId) {
+      sessionStorage.setItem("fury:activeViewTabId", state.activeViewTabId);
+    }
+  });
+}

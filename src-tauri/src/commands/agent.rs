@@ -382,13 +382,10 @@ pub async fn send_message(
         vec![]
     };
 
-    // Get system prompt additions, persistent mode, and safe mode settings in a single lock
-    let (system_prompt, safe_mode) = {
+    // Get system prompt additions
+    let system_prompt = {
         let settings = state.settings.read().unwrap();
-        (
-            settings.system_prompt_additions.clone(),
-            settings.experimental.safe_mode,
-        )
+        settings.system_prompt_additions.clone()
     };
 
     let (disable_thinking, _disable_plan_mode) = extract_toggle_flags(&request);
@@ -444,7 +441,7 @@ pub async fn send_message(
             }
         }
 
-        let permission_mode = if safe_mode { "default" } else { "bypassPermissions" };
+        let permission_mode = "default";
 
         let cmd = claude_process::SidecarCommand::Query {
             id: context_id.to_string(),
@@ -586,6 +583,8 @@ pub async fn respond_to_permission(
     state: State<'_, AppState>,
     workspace_id: String,
     approved: bool,
+    updated_permissions: Option<serde_json::Value>,
+    decision_classification: Option<String>,
 ) -> Result<(), AppError> {
     let id = parse_agent_workspace_id(&workspace_id)?;
 
@@ -599,10 +598,17 @@ pub async fn respond_to_permission(
         ));
     }
 
+    // Normalize null values to None so they are omitted from the sidecar JSON.
+    // Tauri deserializes JS `null` as Some(Value::Null) rather than None.
+    let updated_permissions = updated_permissions.filter(|v| !v.is_null());
+    let decision_classification = decision_classification.filter(|v| !v.is_empty());
+
     // Send a PermissionResponse command to the sidecar
     let cmd = claude_process::SidecarCommand::PermissionResponse {
         id: id.to_string(),
         approved,
+        updated_permissions,
+        decision_classification,
     };
 
     let mut handle = {
@@ -612,9 +618,31 @@ pub async fn respond_to_permission(
         })?
     };
 
+    // Clear the tracked pending permission now that the user has responded
+    state
+        .pending_permissions
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .remove(&id);
+
     let result = claude_process::send_command(&mut handle, &cmd).await;
     state.agent_sidecar.lock().unwrap().replace(handle);
     result
+}
+
+/// Return any pending permission request for a workspace.
+/// Called by the frontend on resubscribe (e.g. after HMR) to recover lost UI state.
+#[tauri::command]
+pub fn get_pending_permission(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<Option<crate::models::agent::FrontendStreamEvent>, AppError> {
+    let id = parse_agent_workspace_id(&workspace_id)?;
+    let lock = state
+        .pending_permissions
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    Ok(lock.get(&id).cloned())
 }
 
 #[tauri::command]
@@ -667,7 +695,7 @@ pub async fn send_followup_message(
         session_id,
         model: None,
         system_prompt: None,
-        permission_mode: "bypassPermissions".to_string(),
+        permission_mode: "default".to_string(),
         env_vars: None,
         additional_dirs: None,
         disable_thinking: None,
