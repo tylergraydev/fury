@@ -14,6 +14,7 @@ vi.mock("lucide-react", () => ({
   ChevronDown: () => <span data-testid="chevron-down" />,
   X: () => <span data-testid="x-icon" />,
   RotateCw: () => <span data-testid="rotate-icon" />,
+  Plus: () => <span data-testid="plus-icon" />,
 }));
 
 const mockGetPrInfo = vi.fn().mockResolvedValue({

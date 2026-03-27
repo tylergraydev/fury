@@ -18,5 +18,6 @@ pub mod snippet;
 pub mod stash;
 pub mod test_runner;
 pub mod todo;
+pub mod work_item;
 pub mod workspace;
 pub mod workspace_template;

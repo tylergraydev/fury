@@ -14,6 +14,7 @@ import type {
 import { CheckRow, isCheckSuccess, isCheckFailure } from "./CheckRow";
 import { ReviewRow, ReviewCommentRow } from "./ReviewRow";
 import { WorkflowRunRow, runIsInProgress } from "./WorkflowRunRow";
+import { WorkItemsPanel } from "../work-items/WorkItemsPanel";
 
 const EMPTY_REVIEWS: PrReview[] = [];
 const EMPTY_COMMENTS: PrComment[] = [];
@@ -405,11 +406,19 @@ export function ChecksPanel({ workspaceId }: Props) {
                 onToggle={() =>
                   setExpandedRunId(expandedRunId === run.id ? null : run.id)
                 }
+                isAdo={isAdo}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* Work Items (ADO only) */}
+      {isAdo && (
+        <div style={{ borderTop: "1px solid var(--border)" }}>
+          <WorkItemsPanel workspaceId={workspaceId} />
+        </div>
+      )}
 
       {/* Reviews */}
       {hasReviewFeedback && (

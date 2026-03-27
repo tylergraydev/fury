@@ -169,6 +169,17 @@ pub struct WorkflowStep {
 pub struct RunLogsResult {
     pub logs: String,
     pub truncated: bool,
+    pub task_logs: Option<Vec<TaskLog>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskLog {
+    pub task_name: String,
+    pub job_name: String,
+    pub log_content: String,
+    pub status: String,
+    pub conclusion: Option<String>,
 }
 
 #[cfg(test)]
