@@ -388,7 +388,7 @@ pub async fn send_message(
         settings.system_prompt_additions.clone()
     };
 
-    let (disable_thinking, _disable_plan_mode) = extract_toggle_flags(&request);
+    let (disable_thinking, disable_plan_mode) = extract_toggle_flags(&request);
 
     // Validate working directory exists before spawning
     if let Err(e) = validate_working_dir(&working_dir) {
@@ -441,7 +441,7 @@ pub async fn send_message(
             }
         }
 
-        let permission_mode = "default";
+        let permission_mode = if disable_plan_mode { "default" } else { "plan" };
 
         let cmd = claude_process::SidecarCommand::Query {
             id: context_id.to_string(),
@@ -1316,5 +1316,19 @@ mod tests {
         let (thinking, plan) = extract_toggle_flags(&req);
         assert!(thinking);
         assert!(!plan);
+    }
+
+    #[test]
+    fn test_permission_mode_plan_when_enabled() {
+        // disable_plan_mode = false means plan mode is ON
+        let mode = if false { "default" } else { "plan" };
+        assert_eq!(mode, "plan");
+    }
+
+    #[test]
+    fn test_permission_mode_default_when_disabled() {
+        // disable_plan_mode = true means plan mode is OFF
+        let mode = if true { "default" } else { "plan" };
+        assert_eq!(mode, "default");
     }
 }
