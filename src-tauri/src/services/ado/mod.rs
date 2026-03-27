@@ -8,10 +8,14 @@ pub mod pulls;
 pub mod work_items;
 
 pub use pipelines::{get_build_timeline, get_pipeline_runs};
+#[allow(unused_imports)]
+pub use pipelines::{get_build_logs, rerun_build};
 pub use pulls::{
     create_pr, get_pr_by_branch, get_pr_checks, get_pr_reviewers, get_pr_threads, list_prs,
     merge_pr,
 };
+#[allow(unused_imports)]
+pub use pulls::get_pr_detail;
 #[allow(unused_imports)]
 pub use work_items::*;
 
