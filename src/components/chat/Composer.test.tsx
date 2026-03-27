@@ -1035,7 +1035,7 @@ describe("Composer", () => {
       );
       expect(screen.getByText("Approve")).toBeInTheDocument();
       expect(screen.getByText("Copy")).toBeInTheDocument();
-      expect(screen.getByText("Hand off")).toBeInTheDocument();
+      expect(screen.getByText("Request Changes")).toBeInTheDocument();
     });
 
     it("calls onApprovePlan when approve button is clicked", async () => {

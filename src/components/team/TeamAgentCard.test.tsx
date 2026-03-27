@@ -4,6 +4,25 @@ import { render, screen, fireEvent } from "@testing-library/react";
 vi.mock("lucide-react", () => ({
   GitBranch: ({ className }: { className?: string }) => <span className={className} data-testid="branch-icon" />,
   Square: ({ className }: { className?: string }) => <span className={className} data-testid="square-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
+  Bot: () => <span data-testid="icon-bot" />,
+  Brain: () => <span data-testid="icon-brain" />,
+  FilePlus2: () => <span data-testid="icon-fileplus2" />,
+  FileSearch: () => <span data-testid="icon-filesearch" />,
+  FileText: () => <span data-testid="icon-filetext" />,
+  FolderSearch: () => <span data-testid="icon-foldersearch" />,
+  GitCompare: () => <span data-testid="icon-gitcompare" />,
+  Globe: () => <span data-testid="icon-globe" />,
+  ListChecks: () => <span data-testid="icon-listchecks" />,
+  ListPlus: () => <span data-testid="icon-listplus" />,
+  NotebookPen: () => <span data-testid="icon-notebookpen" />,
+  Pencil: () => <span data-testid="icon-pencil" />,
+  Radar: () => <span data-testid="icon-radar" />,
+  SquareTerminal: () => <span data-testid="icon-squareterminal" />,
+  Wrench: () => <span data-testid="icon-wrench" />,
+
 }));
 
 import { TeamAgentCard } from "./TeamAgentCard";

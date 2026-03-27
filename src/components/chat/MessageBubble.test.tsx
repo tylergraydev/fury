@@ -25,6 +25,8 @@ vi.mock("lucide-react", () => ({
   ListChecks: (props: Record<string, unknown>) => <span data-testid="icon-listchecks" {...props} />,
   GitCompare: (props: Record<string, unknown>) => <span data-testid="icon-gitcompare" {...props} />,
   ImageIcon: (props: Record<string, unknown>) => <span data-testid="icon-image" {...props} />,
+  ClipboardCheck: (props: Record<string, unknown>) => <span data-testid="icon-clipboardcheck" {...props} />,
+  MessageCircleQuestion: (props: Record<string, unknown>) => <span data-testid="icon-question" {...props} />,
 }));
 
 // Mock ImageLightbox

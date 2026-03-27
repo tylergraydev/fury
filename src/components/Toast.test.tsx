@@ -8,6 +8,25 @@ vi.mock("lucide-react", () => ({
   XCircle: (props: any) => <span data-testid="x-circle-icon" {...props} />,
   Info: (props: any) => <span data-testid="info-icon" {...props} />,
   X: (props: any) => <span data-testid="x-icon" {...props} />,
+  MessageCircleQuestion: (props: any) => <span data-testid="icon-question" {...props} />,
+  ClipboardCheck: (props: any) => <span data-testid="icon-clipboardcheck" {...props} />,
+  Search: (props: any) => <span data-testid="icon-search" {...props} />,
+  Bot: () => <span data-testid="icon-bot" />,
+  Brain: () => <span data-testid="icon-brain" />,
+  FilePlus2: () => <span data-testid="icon-fileplus2" />,
+  FileSearch: () => <span data-testid="icon-filesearch" />,
+  FileText: () => <span data-testid="icon-filetext" />,
+  FolderSearch: () => <span data-testid="icon-foldersearch" />,
+  GitCompare: () => <span data-testid="icon-gitcompare" />,
+  Globe: () => <span data-testid="icon-globe" />,
+  ListChecks: () => <span data-testid="icon-listchecks" />,
+  ListPlus: () => <span data-testid="icon-listplus" />,
+  NotebookPen: () => <span data-testid="icon-notebookpen" />,
+  Pencil: () => <span data-testid="icon-pencil" />,
+  Radar: () => <span data-testid="icon-radar" />,
+  SquareTerminal: () => <span data-testid="icon-squareterminal" />,
+  Wrench: () => <span data-testid="icon-wrench" />,
+
 }));
 
 beforeEach(() => {
