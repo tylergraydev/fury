@@ -11,6 +11,8 @@ interface Props {
   workspaceId: string;
 }
 
+const EMPTY_WORK_ITEMS: import("../../lib/tauri").WorkItemListItem[] = [];
+
 const QUERY_TABS: { label: string; value: WorkItemQueryType }[] = [
   { label: "Assigned to Me", value: "assigned_to_me" },
   { label: "Linked to PR", value: "linked_to_pr" },
@@ -27,7 +29,7 @@ const WORK_ITEM_STATES = [
 ];
 
 export function WorkItemsPanel({ workspaceId }: Props) {
-  const workItems = useWorkItemStore((s) => s.workItems[workspaceId] ?? []);
+  const workItems = useWorkItemStore((s) => s.workItems[workspaceId] ?? EMPTY_WORK_ITEMS);
   const loading = useWorkItemStore((s) => s.loading[workspaceId] ?? false);
   const error = useWorkItemStore((s) => s.error[workspaceId] ?? null);
   const activeQuery = useWorkItemStore(
