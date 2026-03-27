@@ -80,6 +80,18 @@ export async function updateAppSettings(
   return invoke("update_app_settings", { settings });
 }
 
+// Last active context persistence
+export async function getLastActiveContext(): Promise<[string | null, string | null]> {
+  return invoke<[string | null, string | null]>("get_last_active_context");
+}
+
+export async function saveLastActiveContext(
+  workspaceId: string | null,
+  repoId: string | null,
+): Promise<void> {
+  return invoke("save_last_active_context", { workspaceId, repoId });
+}
+
 // Claude Context indexing commands
 export async function indexRepository(repoId: string): Promise<void> {
   return invoke("index_repository", { repoId });

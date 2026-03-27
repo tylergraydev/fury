@@ -10,6 +10,8 @@ import {
   restoreWorkspace,
   renameWorkspace,
   setWorkspacePinned,
+  getLastActiveContext,
+  saveLastActiveContext,
 } from "../lib/tauri";
 import { useUIStore } from "./uiStore";
 import { useChatStore } from "./chatStore";
@@ -28,6 +30,13 @@ function _cleanupWorkspace(workspaceId: string) {
   try { usePrStore.getState().unsubscribe(workspaceId); } catch (e) { console.warn(`[workspaceStore] pr cleanup failed for ${workspaceId}:`, e); }
   cleanupActivityTracking(workspaceId);
   cleanupNotificationTracking(workspaceId);
+}
+
+/** Fire-and-forget persist of the active context to the backend DB. */
+function _persistActiveContext(workspaceId: string | null, repoId: string | null) {
+  saveLastActiveContext(workspaceId, repoId).catch((e) => {
+    console.warn("[workspaceStore] failed to persist active context:", e);
+  });
 }
 
 interface WorkspaceStore {
@@ -63,8 +72,23 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   loadWorkspaces: async () => {
     set({ loading: true, error: null });
     try {
-      const workspaces = await listWorkspaces();
-      set({ workspaces, loading: false });
+      // Fetch workspaces and last active context in parallel
+      const [workspaces, [savedWsId, savedRepoId]] = await Promise.all([
+        listWorkspaces(),
+        // Only restore if nothing is active yet (first load on app start)
+        get().activeWorkspaceId || get().activeRepoId
+          ? Promise.resolve([null, null] as [string | null, string | null])
+          : getLastActiveContext(),
+      ]);
+
+      // Restore saved active context if valid
+      if (savedWsId && workspaces.some((w) => w.id === savedWsId)) {
+        set({ workspaces, loading: false, activeWorkspaceId: savedWsId });
+      } else if (savedRepoId) {
+        set({ workspaces, loading: false, activeRepoId: savedRepoId });
+      } else {
+        set({ workspaces, loading: false });
+      }
     } catch (e) {
       set({ error: String(e), loading: false });
     }
@@ -77,7 +101,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       set({
         workspaces: [...get().workspaces, ws],
         activeWorkspaceId: ws.id,
+        activeRepoId: null,
       });
+      _persistActiveContext(ws.id, null);
       return ws;
     } catch (e) {
       set({ error: String(e) });
@@ -103,6 +129,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
         activeWorkspaceId: nextActive,
         activeRepoId: wasActive ? null : get().activeRepoId,
       });
+      if (wasActive) _persistActiveContext(nextActive, null);
 
       // Cross-store cleanup for the archived workspace
       _cleanupWorkspace(id);
@@ -126,6 +153,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
         activeWorkspaceId: nextActive,
         activeRepoId: wasActive ? null : get().activeRepoId,
       });
+      if (wasActive) _persistActiveContext(nextActive, null);
 
       // Cross-store cleanup for the deleted workspace
       _cleanupWorkspace(id);
@@ -135,21 +163,13 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   },
 
   setActive: (id: string | null) => {
-    if (import.meta.env.DEV) {
-      if (id) sessionStorage.setItem("fury:activeWorkspaceId", id);
-      else sessionStorage.removeItem("fury:activeWorkspaceId");
-      sessionStorage.removeItem("fury:activeRepoId");
-    }
     set({ activeWorkspaceId: id, activeRepoId: null });
+    _persistActiveContext(id, null);
   },
 
   setActiveRepo: (id: string | null) => {
-    if (import.meta.env.DEV) {
-      if (id) sessionStorage.setItem("fury:activeRepoId", id);
-      else sessionStorage.removeItem("fury:activeRepoId");
-      sessionStorage.removeItem("fury:activeWorkspaceId");
-    }
     set({ activeRepoId: id, activeWorkspaceId: null });
+    _persistActiveContext(null, id);
   },
 
   loadArchivedWorkspaces: async () => {
@@ -163,12 +183,11 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
   restoreWs: async (id: string) => {
     try {
-      const ws = await restoreWorkspace(id);
+      await restoreWorkspace(id);
+      const ws = get().archivedWorkspaces.find((w) => w.id === id);
       set({
-        workspaces: [...get().workspaces, ws],
-        archivedWorkspaces: get().archivedWorkspaces.filter(
-          (w) => w.id !== id,
-        ),
+        archivedWorkspaces: get().archivedWorkspaces.filter((w) => w.id !== id),
+        workspaces: ws ? [...get().workspaces, ws] : get().workspaces,
       });
     } catch (e) {
       set({ error: String(e) });
@@ -204,4 +223,3 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     }
   },
 }));
-

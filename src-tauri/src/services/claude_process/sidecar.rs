@@ -10,7 +10,8 @@ use uuid::Uuid;
 use crate::error::AppError;
 use crate::models::agent::{AgentInfo, AgentStatus, FrontendStreamEvent};
 
-use super::stream::try_capture_session_id;
+use super::stream::try_capture_session_id_with_db;
+use crate::db::Database;
 
 /// Handle to the long-lived Node.js sidecar process.
 /// The sidecar wraps the Claude Agent SDK and communicates via NDJSON on stdin/stdout.
@@ -44,6 +45,8 @@ pub enum SidecarCommand {
         additional_dirs: Option<Vec<String>>,
         #[serde(rename = "disableThinking", skip_serializing_if = "Option::is_none")]
         disable_thinking: Option<bool>,
+        #[serde(rename = "disablePlanMode", skip_serializing_if = "Option::is_none")]
+        disable_plan_mode: Option<bool>,
     },
     PermissionResponse {
         id: String,
@@ -71,6 +74,7 @@ pub enum SidecarCommand {
 pub fn start_sidecar(
     app: &AppHandle,
     agents: Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
+    db: Arc<Mutex<Option<Database>>>,
 ) -> Result<SidecarHandle, AppError> {
     let sidecar_path = find_sidecar_path(app)?;
 
@@ -110,13 +114,14 @@ pub fn start_sidecar(
         .state::<crate::state::app_state::AppState>()
         .pending_permissions
         .clone();
+    let db_clone = Arc::clone(&db);
     tokio::spawn(async move {
         let reader = BufReader::new(stdout);
         let mut lines = reader.lines();
 
         while let Ok(Some(line)) = lines.next_line().await {
             if let Err(e) =
-                handle_sidecar_line(&line, &app_clone, &agents_clone, &pending_perms)
+                handle_sidecar_line(&line, &app_clone, &agents_clone, &pending_perms, &db_clone)
             {
                 eprintln!("[sidecar] Error handling line: {}", e);
             }
@@ -187,6 +192,7 @@ fn handle_sidecar_line(
     app: &AppHandle,
     agents: &Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
     pending_permissions: &Arc<Mutex<HashMap<Uuid, FrontendStreamEvent>>>,
+    db: &Arc<Mutex<Option<Database>>>,
 ) -> Result<(), String> {
     let (workspace_id, raw) = parse_sidecar_line_id(line)?;
 
@@ -194,8 +200,8 @@ fn handle_sidecar_line(
     let events = super::parse_stream_line(line);
 
     for event in &events {
-        // Capture session_id from system/result events
-        try_capture_session_id(event, agents, workspace_id);
+        // Capture session_id from system/result events and persist to DB
+        try_capture_session_id_with_db(event, agents, workspace_id, Some(db));
 
         // Track pending permission requests so they can be re-emitted after HMR
         match event {
@@ -280,6 +286,7 @@ mod tests {
             env_vars: None,
             additional_dirs: None,
             disable_thinking: None,
+            disable_plan_mode: None,
         };
         let json = serde_json::to_string(&cmd).unwrap();
         assert!(json.contains("\"type\":\"query\""));
@@ -304,6 +311,7 @@ mod tests {
             env_vars: None,
             additional_dirs: Some(vec!["/extra".to_string()]),
             disable_thinking: Some(true),
+            disable_plan_mode: None,
         };
         let json = serde_json::to_string(&cmd).unwrap();
         // All fields must use camelCase to match TypeScript protocol

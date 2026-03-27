@@ -16,6 +16,16 @@ pub(crate) fn try_capture_session_id(
     agents: &Mutex<HashMap<Uuid, AgentInfo>>,
     workspace_id: Uuid,
 ) -> bool {
+    try_capture_session_id_with_db(event, agents, workspace_id, None)
+}
+
+/// Like `try_capture_session_id` but also persists to DB for cross-restart resume.
+pub(crate) fn try_capture_session_id_with_db(
+    event: &FrontendStreamEvent,
+    agents: &Mutex<HashMap<Uuid, AgentInfo>>,
+    workspace_id: Uuid,
+    db: Option<&Mutex<Option<crate::db::Database>>>,
+) -> bool {
     let sid = match event {
         FrontendStreamEvent::System { session_id, .. } => session_id.clone(),
         FrontendStreamEvent::Result { session_id, .. } => session_id.clone(),
@@ -24,7 +34,16 @@ pub(crate) fn try_capture_session_id(
     if let Some(sid) = sid {
         let mut lock = agents.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(agent) = lock.get_mut(&workspace_id) {
-            agent.session_id = Some(sid);
+            agent.session_id = Some(sid.clone());
+        }
+        drop(lock);
+        // Persist to DB so session survives app restart
+        if let Some(db_mutex) = db {
+            if let Ok(guard) = db_mutex.lock() {
+                if let Some(db) = guard.as_ref() {
+                    let _ = db.save_session_id(&workspace_id.to_string(), &sid);
+                }
+            }
         }
         true
     } else {

@@ -206,6 +206,67 @@ impl Database {
         )?;
         Ok(())
     }
+
+    pub fn get_last_active_context(&self) -> Result<(Option<String>, Option<String>), AppError> {
+        let result = self.conn.query_row(
+            "SELECT value FROM app_settings WHERE key = 'last_active_context'",
+            [],
+            |row| row.get::<_, String>(0),
+        );
+        match result {
+            Ok(json) => {
+                let v: serde_json::Value =
+                    serde_json::from_str(&json).map_err(|e| AppError::DbError(e.to_string()))?;
+                let ws_id = v
+                    .get("workspaceId")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                let repo_id = v.get("repoId").and_then(|v| v.as_str()).map(String::from);
+                Ok((ws_id, repo_id))
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok((None, None)),
+            Err(e) => Err(AppError::DbError(e.to_string())),
+        }
+    }
+
+    pub fn save_last_active_context(
+        &self,
+        workspace_id: Option<&str>,
+        repo_id: Option<&str>,
+    ) -> Result<(), AppError> {
+        let json = serde_json::json!({
+            "workspaceId": workspace_id,
+            "repoId": repo_id,
+        });
+        self.conn.execute(
+            "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('last_active_context', ?1)",
+            rusqlite::params![json.to_string()],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_session_id(&self, context_id: &str) -> Result<Option<String>, AppError> {
+        let key = format!("session:{}", context_id);
+        let result = self.conn.query_row(
+            "SELECT value FROM app_settings WHERE key = ?1",
+            rusqlite::params![key],
+            |row| row.get::<_, String>(0),
+        );
+        match result {
+            Ok(sid) => Ok(Some(sid)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(AppError::DbError(e.to_string())),
+        }
+    }
+
+    pub fn save_session_id(&self, context_id: &str, session_id: &str) -> Result<(), AppError> {
+        let key = format!("session:{}", context_id);
+        self.conn.execute(
+            "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?1, ?2)",
+            rusqlite::params![key, session_id],
+        )?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

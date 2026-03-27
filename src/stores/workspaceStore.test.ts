@@ -15,6 +15,8 @@ vi.mock("../lib/tauri", () => ({
   restoreWorkspace: vi.fn(),
   renameWorkspace: vi.fn(),
   setWorkspacePinned: vi.fn(),
+  getLastActiveContext: vi.fn().mockResolvedValue([null, null]),
+  saveLastActiveContext: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { useWorkspaceStore } from "./workspaceStore";
