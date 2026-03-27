@@ -25,7 +25,6 @@ const VIEW_LABELS: Record<ViewType, string> = {
   tests: "Tests",
   usage: "Usage",
   activity: "Activity",
-  browser: "Browser",
 };
 
 interface UIStore {
