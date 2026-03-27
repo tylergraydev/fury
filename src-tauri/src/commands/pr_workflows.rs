@@ -82,6 +82,7 @@ pub async fn get_run_logs(
         _ => Ok(RunLogsResult {
             logs: String::new(),
             truncated: false,
+            task_logs: None,
         }),
     }
 }

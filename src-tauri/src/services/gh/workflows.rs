@@ -198,7 +198,11 @@ pub fn get_run_logs(
     let full = String::from_utf8_lossy(&output.stdout);
     let (logs, truncated) = truncate_logs(&full, 100_000);
 
-    Ok(RunLogsResult { logs, truncated })
+    Ok(RunLogsResult {
+        logs,
+        truncated,
+        task_logs: None,
+    })
 }
 
 /// Build the argument list for `gh run rerun`.
