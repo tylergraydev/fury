@@ -3,7 +3,7 @@ import { applyTheme } from "../lib/themes";
 
 export type RightSidebarTab = "files" | "changes" | "checks" | "bookmarks";
 export type BottomTab = "setup" | "terminal" | "run";
-export type ViewType = "chat" | "settings" | "merge" | "history" | "diff" | "team" | "tests" | "usage" | "activity" | "browser";
+export type ViewType = "chat" | "settings" | "merge" | "history" | "diff" | "team" | "tests" | "usage" | "activity";
 export type ChatPaneId = "left" | "right";
 
 export interface ViewTab {

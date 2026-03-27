@@ -186,12 +186,6 @@ export function CommandPalette({
                 >
                   Export Workspace
                 </PaletteItem>
-                <PaletteItem
-                  onSelect={() => run("view-browser")}
-                  shortcut={shortcutFor("view-browser")}
-                >
-                  Open Web Browser
-                </PaletteItem>
               </CommandGroup>
 
               <CommandSeparator style={{ height: 1, backgroundColor: "var(--border)", margin: "4px 0" }} />

@@ -85,8 +85,11 @@ export function FileTabBar() {
     setDropSide(e.clientX < midX ? "left" : "right");
   }, []);
 
-  const handleDragLeave = useCallback(() => {
-    setDropSide(null);
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    const container = e.currentTarget as HTMLElement;
+    if (!container.contains(e.relatedTarget as Node)) {
+      setDropSide(null);
+    }
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
