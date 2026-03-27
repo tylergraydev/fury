@@ -202,6 +202,9 @@ export function ChatPanel({ contextId, contextType }: Props) {
     }
   }, [contextId, contextType, agentStatus, thinkingEnabled, planEnabled]);
 
+  // After ExitPlanMode, the SDK query completes and the agent transitions to Idle.
+  // This means sendMessage creates a new query (not a followup), so the
+  // disablePlanMode: true flag correctly sets permissionMode to "default" for execution.
   const handleApprovePlan = useCallback(async () => {
     const disableThinking = thinkingEnabled ? undefined : true;
     useChatStore.getState().addUserMessage(contextId, "yes");

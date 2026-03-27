@@ -153,6 +153,13 @@ pub(crate) fn resolve_container_exec_context(
     })
 }
 
+/// Resolve the sidecar permission mode string from the disable_plan_mode flag.
+/// When plan mode is active (disable_plan_mode = false), we send "plan" so the
+/// SDK enters plan-then-execute flow. When disabled, "default" skips planning.
+pub(crate) fn resolve_permission_mode(disable_plan_mode: bool) -> &'static str {
+    if disable_plan_mode { "default" } else { "plan" }
+}
+
 /// Extract thinking and plan_mode flags from a request, defaulting to false.
 pub(crate) fn extract_toggle_flags(request: &SendMessageRequest) -> (bool, bool) {
     (
@@ -441,7 +448,7 @@ pub async fn send_message(
             }
         }
 
-        let permission_mode = if disable_plan_mode { "default" } else { "plan" };
+        let permission_mode = resolve_permission_mode(disable_plan_mode);
 
         let cmd = claude_process::SidecarCommand::Query {
             id: context_id.to_string(),
@@ -1321,14 +1328,12 @@ mod tests {
     #[test]
     fn test_permission_mode_plan_when_enabled() {
         // disable_plan_mode = false means plan mode is ON
-        let mode = if false { "default" } else { "plan" };
-        assert_eq!(mode, "plan");
+        assert_eq!(resolve_permission_mode(false), "plan");
     }
 
     #[test]
     fn test_permission_mode_default_when_disabled() {
         // disable_plan_mode = true means plan mode is OFF
-        let mode = if true { "default" } else { "plan" };
-        assert_eq!(mode, "default");
+        assert_eq!(resolve_permission_mode(true), "default");
     }
 }
