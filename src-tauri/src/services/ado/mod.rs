@@ -5,12 +5,15 @@ use crate::error::AppError;
 pub mod mapping;
 pub mod pipelines;
 pub mod pulls;
+pub mod work_items;
 
 pub use pipelines::{get_build_timeline, get_pipeline_runs};
 pub use pulls::{
     create_pr, get_pr_by_branch, get_pr_checks, get_pr_reviewers, get_pr_threads, list_prs,
     merge_pr,
 };
+#[allow(unused_imports)]
+pub use work_items::*;
 
 /// Build a `reqwest::Client` with the ADO PAT as Basic auth.
 pub(super) fn client(pat: &str) -> Result<reqwest::Client, AppError> {
