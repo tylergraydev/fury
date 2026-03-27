@@ -183,13 +183,14 @@ pub fn build_wiql_assigned_to_me() -> String {
 }
 
 pub fn build_wiql_recent_in_iteration(iteration_path: &str) -> String {
+    let safe_iteration_path = iteration_path.replace("'", "''");
     format!(
         "SELECT [System.Id] FROM WorkItems \
          WHERE [System.IterationPath] = '{}' \
          AND [System.State] <> 'Closed' \
          AND [System.State] <> 'Removed' \
          ORDER BY [System.ChangedDate] DESC",
-        iteration_path
+        safe_iteration_path
     )
 }
 

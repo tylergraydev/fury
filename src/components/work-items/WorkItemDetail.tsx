@@ -1,3 +1,4 @@
+import DOMPurify from "dompurify";
 import { useEffect } from "react";
 import { useWorkItemStore } from "../../stores/workItemStore";
 import { WorkItemBadge } from "./WorkItemBadge";
@@ -89,7 +90,7 @@ export function WorkItemDetail({ workspaceId, workItemId }: Props) {
               backgroundColor: "var(--bg-primary)",
               color: "var(--text-secondary)",
             }}
-            dangerouslySetInnerHTML={{ __html: detail.description }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(detail.description) }}
           />
         </div>
       )}
@@ -106,7 +107,7 @@ export function WorkItemDetail({ workspaceId, workItemId }: Props) {
               backgroundColor: "var(--bg-primary)",
               color: "var(--text-secondary)",
             }}
-            dangerouslySetInnerHTML={{ __html: detail.acceptanceCriteria }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(detail.acceptanceCriteria) }}
           />
         </div>
       )}
