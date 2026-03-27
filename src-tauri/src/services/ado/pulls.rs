@@ -1,11 +1,11 @@
 use uuid::Uuid;
 
 use crate::error::AppError;
-use crate::models::pr::{MergeResult, PrCheck, PrComment, PrInfo, PrListItem, PrReview};
+use crate::models::pr::{MergeResult, PrCheck, PrComment, PrDetail, PrInfo, PrListItem, PrReview};
 
 use super::{ado_err, api_base, client};
 use super::mapping::{
-    map_vote_to_state, parse_pr_check, parse_pr_info, parse_pr_list_item,
+    map_pr_status, map_vote_to_state, parse_pr_check, parse_pr_info, parse_pr_list_item,
 };
 
 /// Create a pull request via the Azure DevOps REST API.
@@ -338,4 +338,94 @@ pub async fn list_prs(
     let prs = raw["value"].as_array().cloned().unwrap_or_default();
 
     Ok(prs.iter().map(parse_pr_list_item).collect())
+}
+
+#[allow(dead_code)]
+fn parse_pr_detail(pr: &serde_json::Value) -> PrDetail {
+    let pr_id = pr["pullRequestId"].as_u64().unwrap_or(0) as u32;
+    let source = pr["sourceRefName"]
+        .as_str()
+        .unwrap_or("")
+        .strip_prefix("refs/heads/")
+        .unwrap_or("")
+        .to_string();
+    let target = pr["targetRefName"]
+        .as_str()
+        .unwrap_or("")
+        .strip_prefix("refs/heads/")
+        .unwrap_or("")
+        .to_string();
+    let web_url = pr["repository"]["webUrl"]
+        .as_str()
+        .map(|base| format!("{}/pullrequest/{}", base, pr_id))
+        .unwrap_or_default();
+
+    PrDetail {
+        number: pr_id,
+        title: pr["title"].as_str().unwrap_or("").to_string(),
+        head_branch: source,
+        base_branch: target,
+        body: pr["description"].as_str().unwrap_or("").to_string(),
+        state: map_pr_status(pr["status"].as_str().unwrap_or("unknown")),
+        url: web_url,
+    }
+}
+
+/// Get detailed information for a single pull request.
+#[allow(dead_code)]
+pub async fn get_pr_detail(
+    pat: &str,
+    org: &str,
+    project: &str,
+    repo_name: &str,
+    pr_number: u32,
+) -> Result<PrDetail, AppError> {
+    let c = client(pat)?;
+    let url = format!(
+        "{}/git/repositories/{}/pullrequests/{}?api-version=7.1",
+        api_base(org, project),
+        repo_name,
+        pr_number
+    );
+
+    let resp = c.get(&url).send().await.map_err(ado_err)?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(ado_err(format!(
+            "Get PR detail failed (HTTP {}): {}",
+            status, text
+        )));
+    }
+
+    let raw: serde_json::Value = resp.json().await.map_err(ado_err)?;
+    Ok(parse_pr_detail(&raw))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_pr_detail() {
+        let json = serde_json::json!({
+            "pullRequestId": 42,
+            "title": "Feature branch",
+            "sourceRefName": "refs/heads/feature/test",
+            "targetRefName": "refs/heads/main",
+            "description": "This adds a new feature",
+            "status": "active",
+            "repository": {
+                "webUrl": "https://dev.azure.com/org/project/_git/repo"
+            }
+        });
+        let detail = parse_pr_detail(&json);
+        assert_eq!(detail.number, 42);
+        assert_eq!(detail.title, "Feature branch");
+        assert_eq!(detail.head_branch, "feature/test");
+        assert_eq!(detail.base_branch, "main");
+        assert_eq!(detail.body, "This adds a new feature");
+        assert_eq!(detail.state, "OPEN");
+    }
 }
