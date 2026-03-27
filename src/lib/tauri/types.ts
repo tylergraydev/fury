@@ -326,15 +326,6 @@ export interface WorkflowStep {
 export interface RunLogsResult {
   logs: string;
   truncated: boolean;
-  taskLogs?: TaskLog[];
-}
-
-export interface TaskLog {
-  taskName: string;
-  jobName: string;
-  logContent: string;
-  status: string;
-  conclusion: string | null;
 }
 
 // PR/Issue list types
@@ -372,59 +363,6 @@ export interface IssueDetail {
   body: string;
   state: string;
   labels: string[];
-}
-
-// Work Item types (Azure DevOps)
-export type WorkItemQueryType = "assigned_to_me" | "linked_to_pr" | "recent_in_iteration";
-
-export interface WorkItemListItem {
-  id: number;
-  title: string;
-  workItemType: string;
-  state: string;
-  assignedTo: string | null;
-  areaPath: string | null;
-  iterationPath: string | null;
-  parentId: number | null;
-  tags: string[];
-}
-
-export interface WorkItemDetail {
-  id: number;
-  title: string;
-  workItemType: string;
-  state: string;
-  assignedTo: string | null;
-  areaPath: string | null;
-  iterationPath: string | null;
-  parentId: number | null;
-  tags: string[];
-  description: string | null;
-  acceptanceCriteria: string | null;
-  priority: number | null;
-  createdBy: string | null;
-  createdDate: string | null;
-  changedDate: string | null;
-  linkedPrIds: number[];
-  relations: WorkItemRelation[];
-}
-
-export interface WorkItemRelation {
-  relType: string;
-  targetId: number;
-  targetTitle: string | null;
-}
-
-export interface CreateWorkItemRequest {
-  workspaceId: string;
-  workItemType: string;
-  title: string;
-  description?: string | null;
-  assignedTo?: string | null;
-  areaPath?: string | null;
-  iterationPath?: string | null;
-  parentId?: number | null;
-  tags: string[];
 }
 
 // Linear types

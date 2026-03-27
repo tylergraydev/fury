@@ -13,4 +13,3 @@ export * from "./merge";
 export * from "./templates";
 export * from "./tests";
 export * from "./devcontainer";
-export * from "./workItems";

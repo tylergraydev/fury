@@ -110,6 +110,7 @@ export function CommandPalette({
                 <PaletteItem
                   onSelect={() => run("right-sidebar-changes")}
                   shortcut={shortcutFor("right-sidebar-changes")}
+                  active={rightSidebarTab === "changes"}
                 >
                   Changes
                 </PaletteItem>

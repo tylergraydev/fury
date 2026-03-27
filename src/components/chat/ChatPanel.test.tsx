@@ -643,7 +643,7 @@ describe("ChatPanel", () => {
 
   // --- handleApprovePlan ---
 
-  it("handleApprovePlan sends 'yes' with disablePlanMode=true to prevent infinite loop", async () => {
+  it("handleApprovePlan sends 'yes' via handleSend", async () => {
     const sendMessageSpy = vi.fn().mockResolvedValue(undefined);
     const addUserMessageSpy = vi.fn();
     useAgentStore.setState({
@@ -662,29 +662,8 @@ describe("ChatPanel", () => {
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     expect(screen.getByTestId("composer-plan-approval")).toHaveTextContent("true");
     await user.click(screen.getByTestId("approve-plan-btn"));
-    expect(addUserMessageSpy).toHaveBeenCalledWith("ws-1", "yes");
-    expect(sendMessageSpy).toHaveBeenCalledWith("ws-1", "yes", "workspace", undefined, undefined, true);
-  });
-
-  it("sends plan approval with disablePlanMode", async () => {
-    const sendMessageSpy = vi.fn().mockResolvedValue(undefined);
-    const addUserMessageSpy = vi.fn();
-    useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null } },
-      subscriptions: {},
-      sendMessage: sendMessageSpy,
-    });
-    useChatStore.setState({
-      messages: {},
-      streamingText: {},
-      subscriptions: {},
-      planApproval: { "ws-1": true },
-      addUserMessage: addUserMessageSpy,
-    });
-    const user = userEvent.setup();
-    render(<ChatPanel contextId="ws-1" contextType="workspace" />);
-    await user.click(screen.getByTestId("approve-plan-btn"));
-    expect(sendMessageSpy).toHaveBeenCalledWith("ws-1", "yes", "workspace", undefined, undefined, true);
+    expect(addUserMessageSpy).toHaveBeenCalledWith("ws-1", "yes", undefined);
+    expect(sendMessageSpy).toHaveBeenCalledWith("ws-1", "yes", "workspace", undefined, undefined, undefined);
   });
 
   // --- handleCopyPlan ---

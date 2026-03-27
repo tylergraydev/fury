@@ -114,6 +114,7 @@ interface Props {
   messages: ChatMessage[];
   streamingText: string;
   agentStatus: AgentStatus;
+  runStartedAt?: number;
   onRetry?: () => void;
   highlightMessageId?: string | null;
   contextId?: string;
@@ -126,6 +127,7 @@ export function MessageList({
   messages,
   streamingText,
   agentStatus,
+  runStartedAt,
   onRetry,
   highlightMessageId,
   contextId,
@@ -303,7 +305,7 @@ export function MessageList({
       )}
 
       {/* Show thinking indicator when running with no streaming text */}
-      {isRunning && !streamingText && <ThinkingSpinner />}
+      {isRunning && !streamingText && <ThinkingSpinner startedAt={runStartedAt} />}
 
       <div ref={bottomRef} />
       {!isNearBottom && (

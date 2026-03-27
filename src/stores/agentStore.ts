@@ -15,6 +15,7 @@ interface AgentStore {
   agents: Record<string, AgentInfo>;
   subscriptions: Record<string, UnlistenFn>;
   needsAttention: Record<string, boolean>;
+  runStartedAt: Record<string, number>;
 
   getStatus: (workspaceId: string) => AgentStatus;
   subscribe: (workspaceId: string) => Promise<void>;
@@ -42,6 +43,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   agents: {},
   subscriptions: {},
   needsAttention: {},
+  runStartedAt: {},
 
   getStatus: (workspaceId: string): AgentStatus => {
     return get().agents[workspaceId]?.status ?? "Idle";
@@ -58,19 +60,29 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         const prevStatus = get().agents[workspaceId]?.status ?? "Idle";
         pushStreamEvent(workspaceId, "status_changed", `${JSON.stringify(prevStatus)} -> ${JSON.stringify(newStatus)}`);
         const becameIdle = prevStatus === "Running" && newStatus === "Idle";
-        set((state) => ({
-          agents: {
-            ...state.agents,
-            [workspaceId]: {
-              ...state.agents[workspaceId],
-              workspaceId,
-              status: newStatus,
-            } as AgentInfo,
-          },
-          ...(becameIdle
-            ? { needsAttention: { ...state.needsAttention, [workspaceId]: true } }
-            : {}),
-        }));
+        const becameRunning = prevStatus !== "Running" && newStatus === "Running";
+        set((state) => {
+          const runStartedAt = { ...state.runStartedAt };
+          if (becameRunning) {
+            runStartedAt[workspaceId] = Date.now();
+          } else if (becameIdle) {
+            delete runStartedAt[workspaceId];
+          }
+          return {
+            agents: {
+              ...state.agents,
+              [workspaceId]: {
+                ...state.agents[workspaceId],
+                workspaceId,
+                status: newStatus,
+              } as AgentInfo,
+            },
+            runStartedAt,
+            ...(becameIdle
+              ? { needsAttention: { ...state.needsAttention, [workspaceId]: true } }
+              : {}),
+          };
+        });
       },
     );
 

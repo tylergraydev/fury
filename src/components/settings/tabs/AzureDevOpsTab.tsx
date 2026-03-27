@@ -73,7 +73,7 @@ export function AzureDevOpsTab() {
           style={{ color: "var(--text-muted)" }}
         >
           Create a PAT at dev.azure.com &rarr; User Settings &rarr; Personal
-          access tokens. Required scopes: Code (Read &amp; Write), Build (Read &amp; Execute), Work Items (Read &amp; Write).
+          access tokens. Required scopes: Code (Read &amp; Write), Build (Read).
         </div>
         <div className="flex gap-1">
           <input

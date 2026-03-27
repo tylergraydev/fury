@@ -65,11 +65,7 @@ pub async fn get_pr_details(
                 .await
                 .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
         }
-        GitProvider::AzureDevOps => {
-            let pat = get_ado_pat(&state)?;
-            let (org, project, repo_name) = parse_ado_url(&ctx.remote_url)?;
-            ado_svc::get_pr_detail(&pat, &org, &project, &repo_name, pr_number).await
-        }
+        // ADO PR details not implemented yet — would need a dedicated ADO function
         _ => Err(AppError::PrError(
             "PR details not available for this provider.".into(),
         )),

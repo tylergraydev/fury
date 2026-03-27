@@ -26,6 +26,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
   const agentStatus = useAgentStore(
     (s) => s.agents[contextId]?.status ?? "Idle",
   );
+  const runStartedAt = useAgentStore((s) => s.runStartedAt[contextId]);
   const messages = useChatStore(
     (s) => s.messages[contextId] ?? EMPTY_MESSAGES,
   );
@@ -202,20 +203,9 @@ export function ChatPanel({ contextId, contextType }: Props) {
     }
   }, [contextId, contextType, agentStatus, thinkingEnabled, planEnabled]);
 
-  // After ExitPlanMode, the SDK query completes and the agent transitions to Idle.
-  // This means sendMessage creates a new query (not a followup), so the
-  // disablePlanMode: true flag correctly sets permissionMode to "default" for execution.
   const handleApprovePlan = useCallback(async () => {
-    const disableThinking = thinkingEnabled ? undefined : true;
-    useChatStore.getState().addUserMessage(contextId, "yes");
-    try {
-      await useAgentStore
-        .getState()
-        .sendMessage(contextId, "yes", contextType, undefined, disableThinking, true);
-    } catch (e) {
-      console.error("Failed to approve plan:", e);
-    }
-  }, [contextId, contextType, thinkingEnabled]);
+    await handleSend("yes");
+  }, [handleSend]);
 
   const handleCopyPlan = useCallback(async () => {
     const plan = useChatStore.getState().getPlanContent(contextId);
@@ -250,6 +240,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
           messages={messages}
           streamingText={streamingText}
           agentStatus={agentStatus}
+          runStartedAt={runStartedAt}
           onRetry={handleRetry}
           highlightMessageId={highlightMessageId}
           contextId={contextId}

@@ -6,16 +6,18 @@ function formatElapsed(ms: number): string {
   return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`;
 }
 
-export function ThinkingSpinner() {
+export function ThinkingSpinner({ startedAt }: { startedAt?: number }) {
   const [elapsed, setElapsed] = useState(0);
-  const startRef = useRef(performance.now());
+  const fallbackRef = useRef(Date.now());
+  const origin = startedAt ?? fallbackRef.current;
 
   useEffect(() => {
+    setElapsed(Date.now() - origin);
     const id = setInterval(() => {
-      setElapsed(performance.now() - startRef.current);
+      setElapsed(Date.now() - origin);
     }, 100);
     return () => clearInterval(id);
-  }, []);
+  }, [origin]);
 
   return (
     <div data-testid="thinking-spinner" className="mb-3 flex items-center gap-3" style={{ color: "var(--text-muted)" }}>

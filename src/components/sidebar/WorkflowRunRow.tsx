@@ -36,13 +36,11 @@ export function WorkflowRunRow({
   workspaceId,
   expanded,
   onToggle,
-  isAdo,
 }: {
   run: WorkflowRun;
   workspaceId: string;
   expanded: boolean;
   onToggle: () => void;
-  isAdo?: boolean;
 }) {
   const [jobs, setJobs] = useState<WorkflowJob[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
@@ -189,7 +187,6 @@ export function WorkflowRunRow({
             <button
               onClick={() => handleRerun(false)}
               disabled={rerunning}
-              title={isAdo ? "Queues a new full build" : undefined}
               className="rounded px-1.5 py-0.5 text-[10px] disabled:opacity-50"
               style={{
                 backgroundColor: "var(--bg-surface)",
@@ -198,7 +195,7 @@ export function WorkflowRunRow({
             >
               {rerunning ? "Re-running..." : "Re-run"}
             </button>
-            {run.conclusion === "failure" && !isAdo && (
+            {run.conclusion === "failure" && (
               <button
                 onClick={() => handleRerun(true)}
                 disabled={rerunning}
@@ -230,44 +227,17 @@ export function WorkflowRunRow({
                 </div>
               ) : (
                 <>
-                  {logsResult?.taskLogs && logsResult.taskLogs.length > 0 ? (
-                    <div className="space-y-1 px-2 py-1">
-                      {logsResult.taskLogs.map((task, i) => (
-                        <details key={i} open={task.conclusion === "failure"}>
-                          <summary className="flex cursor-pointer items-center gap-1 text-[10px]" style={{ color: "var(--text-secondary)" }}>
-                            <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{
-                              /* v8 ignore next 4 -- ternary branches for task conclusion styling */
-                              backgroundColor: task.conclusion === "failure" ? "var(--error)" : task.conclusion === "success" ? "var(--success)" : "var(--text-muted)",
-                            }} />
-                            <span className="font-medium">{task.jobName}</span>
-                            <span style={{ color: "var(--text-muted)" }}>/</span>
-                            <span>{task.taskName}</span>
-                          </summary>
-                          <pre className="mt-0.5 max-h-48 overflow-auto rounded px-2 py-1 text-[9px] leading-relaxed" style={{
-                            color: "var(--text-primary)",
-                            backgroundColor: "var(--bg-primary)",
-                            fontFamily: "monospace",
-                            whiteSpace: "pre-wrap",
-                            wordBreak: "break-all",
-                          }}>
-                            {stripAnsi(task.logContent)}
-                          </pre>
-                        </details>
-                      ))}
-                    </div>
-                  ) : (
-                    <pre
-                      className="max-h-64 overflow-auto px-2 py-1 text-[10px] leading-relaxed"
-                      style={{
-                        color: "var(--text-primary)",
-                        fontFamily: "monospace",
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-all",
-                      }}
-                    >
-                      {/* v8 ignore next */ logsResult ? stripAnsi(logsResult.logs) : ""}
-                    </pre>
-                  )}
+                  <pre
+                    className="max-h-64 overflow-auto px-2 py-1 text-[10px] leading-relaxed"
+                    style={{
+                      color: "var(--text-primary)",
+                      fontFamily: "monospace",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-all",
+                    }}
+                  >
+                    {/* v8 ignore next */ logsResult ? stripAnsi(logsResult.logs) : ""}
+                  </pre>
                   {logsResult?.truncated && (
                     <div className="px-2 py-1 text-[10px]" style={{ color: "var(--warning)" }}>
                       Truncated — view full logs on GitHub

@@ -78,12 +78,8 @@ pub async fn get_run_logs(
             .await
             .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
         }
-        GitProvider::AzureDevOps => {
-            let pat = get_ado_pat(&state)?;
-            let (org, project, _repo_name) = parse_ado_url(&ctx.remote_url)?;
-            ado_svc::get_build_logs(&pat, &org, &project, run_id, failed_only).await
-        }
-        GitProvider::Unknown => Ok(RunLogsResult {
+        // ADO log fetching not implemented in MVP
+        _ => Ok(RunLogsResult {
             logs: String::new(),
             truncated: false,
             task_logs: None,
@@ -109,12 +105,8 @@ pub async fn rerun_workflow(
             .await
             .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
         }
-        GitProvider::AzureDevOps => {
-            let pat = get_ado_pat(&state)?;
-            let (org, project, _repo_name) = parse_ado_url(&ctx.remote_url)?;
-            ado_svc::rerun_build(&pat, &org, &project, run_id).await
-        }
-        GitProvider::Unknown => Err(AppError::PrError(
+        // ADO rerun not implemented in MVP
+        _ => Err(AppError::PrError(
             "Workflow rerun not available for this provider.".into(),
         )),
     }

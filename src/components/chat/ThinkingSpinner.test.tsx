@@ -19,25 +19,23 @@ describe("ThinkingSpinner", () => {
   });
 
   it("shows elapsed time in seconds", () => {
-    vi.spyOn(performance, "now")
-      .mockReturnValueOnce(0) // startRef
-      .mockReturnValue(5000); // subsequent calls
+    const now = Date.now();
+    vi.setSystemTime(now);
 
-    render(<ThinkingSpinner />);
+    render(<ThinkingSpinner startedAt={now - 5000} />);
 
     act(() => {
       vi.advanceTimersByTime(100);
     });
 
-    expect(screen.getByText("5.0s")).toBeInTheDocument();
+    expect(screen.getByText("5.1s")).toBeInTheDocument();
   });
 
   it("formats elapsed time with minutes when >= 60s", () => {
-    vi.spyOn(performance, "now")
-      .mockReturnValueOnce(0)
-      .mockReturnValue(125000); // 2m 5s
+    const now = Date.now();
+    vi.setSystemTime(now);
 
-    render(<ThinkingSpinner />);
+    render(<ThinkingSpinner startedAt={now - 125000} />);
 
     act(() => {
       vi.advanceTimersByTime(100);
@@ -51,5 +49,18 @@ describe("ThinkingSpinner", () => {
     const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
     unmount();
     expect(clearIntervalSpy).toHaveBeenCalled();
+  });
+
+  it("uses fallback when no startedAt provided", () => {
+    const now = Date.now();
+    vi.setSystemTime(now);
+
+    render(<ThinkingSpinner />);
+
+    act(() => {
+      vi.advanceTimersByTime(3100);
+    });
+
+    expect(screen.getByText("3.1s")).toBeInTheDocument();
   });
 });

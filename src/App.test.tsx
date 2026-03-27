@@ -603,14 +603,16 @@ describe("App", () => {
       expect(ensureSpy).toHaveBeenCalled();
     });
 
-    it("right-sidebar-changes opens diff view tab", () => {
+    it("right-sidebar-changes sets tab and ensures visible", () => {
       setWorkspaceContext();
-      const openViewTabSpy = vi.spyOn(useUIStore.getState(), "openViewTab");
+      const setTabSpy = vi.spyOn(useUIStore.getState(), "setRightSidebarTab");
+      const ensureSpy = vi.spyOn(useUIStore.getState(), "ensureRightSidebarVisible");
       render(<App />);
       act(() => {
         capturedHandler?.("right-sidebar-changes");
       });
-      expect(openViewTabSpy).toHaveBeenCalledWith("diff");
+      expect(setTabSpy).toHaveBeenCalledWith("changes");
+      expect(ensureSpy).toHaveBeenCalled();
     });
 
     it("right-sidebar-checks sets tab and ensures visible", () => {

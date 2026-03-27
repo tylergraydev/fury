@@ -246,7 +246,7 @@ pub(crate) fn resolve_worktree_base(
             }
             Ok(p.join(repo_name))
         }
-        _ => Ok(repo_path.join(".worktrees")),
+        _ => Ok(repo_path.join(".claude").join("worktrees")),
     }
 }
 
@@ -830,14 +830,14 @@ mod tests {
     fn test_resolve_worktree_base_default() {
         let repo_path = PathBuf::from("/home/user/repos/myrepo");
         let result = resolve_worktree_base(None, "myrepo", &repo_path).unwrap();
-        assert_eq!(result, PathBuf::from("/home/user/repos/myrepo/.worktrees"));
+        assert_eq!(result, PathBuf::from("/home/user/repos/myrepo/.claude/worktrees"));
     }
 
     #[test]
     fn test_resolve_worktree_base_empty_string() {
         let repo_path = PathBuf::from("/home/user/repos/myrepo");
         let result = resolve_worktree_base(Some("  "), "myrepo", &repo_path).unwrap();
-        assert_eq!(result, PathBuf::from("/home/user/repos/myrepo/.worktrees"));
+        assert_eq!(result, PathBuf::from("/home/user/repos/myrepo/.claude/worktrees"));
     }
 
     #[test]

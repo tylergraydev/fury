@@ -336,7 +336,8 @@ function App() {
         ui.ensureRightSidebarVisible();
         break;
       case "right-sidebar-changes":
-        ui.openViewTab("diff");
+        ui.setRightSidebarTab("changes");
+        ui.ensureRightSidebarVisible();
         break;
       case "right-sidebar-checks":
         ui.setRightSidebarTab("checks");

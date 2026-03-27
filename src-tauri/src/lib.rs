@@ -151,12 +151,6 @@ pub fn run() {
             commands::pr_workflows::get_run_jobs,
             commands::pr_workflows::get_run_logs,
             commands::pr_workflows::rerun_workflow,
-            // Work item commands
-            commands::work_items::list_work_items,
-            commands::work_items::get_work_item_detail,
-            commands::work_items::create_work_item,
-            commands::work_items::update_work_item_state,
-            commands::work_items::link_work_item_to_pr,
             // Linear commands
             commands::linear::search_linear_issues,
             commands::linear::link_issue_to_workspace,
