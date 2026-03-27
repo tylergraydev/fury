@@ -19,6 +19,9 @@ vi.mock("lucide-react", () => ({
   FileText: () => <span data-testid="icon-filetext" />,
   GitMerge: () => <span data-testid="icon-git-merge" />,
   Terminal: () => <span data-testid="icon-terminal" />,
+  Search: () => <span data-testid="icon-search" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
 }));
 
 vi.mock("./ThinkingSpinner", () => ({

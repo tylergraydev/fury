@@ -11,6 +11,9 @@ vi.mock("lucide-react", () => ({
   Copy: () => <span data-testid="copy-icon" />,
   Upload: () => <span data-testid="upload-icon" />,
   Trash2: () => <span data-testid="trash-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 vi.mock("../../lib/themes", () => ({

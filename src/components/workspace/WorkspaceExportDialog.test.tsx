@@ -9,6 +9,9 @@ vi.mock("lucide-react", () => ({
   Download: () => <span data-testid="download-icon" />,
   X: () => <span data-testid="x-icon" />,
   AlertTriangle: () => <span data-testid="alert-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 const mockExportWorkspace = vi.fn();

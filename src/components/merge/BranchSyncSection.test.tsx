@@ -8,6 +8,9 @@ vi.mock("lucide-react", () => ({
   ArrowDown: () => <span data-testid="arrow-icon" />,
   RefreshCw: () => <span data-testid="refresh-icon" />,
   AlertTriangle: () => <span data-testid="alert-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 const mockGetBranchStatus = vi.fn().mockResolvedValue(null);

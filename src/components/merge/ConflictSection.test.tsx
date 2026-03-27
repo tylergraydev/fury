@@ -8,6 +8,9 @@ vi.mock("lucide-react", () => ({
   AlertCircle: () => <span data-testid="alert-icon" />,
   CheckCircle: () => <span data-testid="check-icon" />,
   XCircle: () => <span data-testid="x-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 vi.mock("./ConflictResolver", () => ({

@@ -8,6 +8,9 @@ vi.mock("lucide-react", () => ({
   XCircle: (props: any) => <span data-testid="x-circle-icon" {...props} />,
   Info: (props: any) => <span data-testid="info-icon" {...props} />,
   X: (props: any) => <span data-testid="x-icon" {...props} />,
+  MessageCircleQuestion: (props: any) => <span data-testid="icon-question" {...props} />,
+  ClipboardCheck: (props: any) => <span data-testid="icon-clipboardcheck" {...props} />,
+  Search: (props: any) => <span data-testid="icon-search" {...props} />,
 }));
 
 beforeEach(() => {

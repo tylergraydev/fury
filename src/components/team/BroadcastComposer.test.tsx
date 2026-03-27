@@ -3,6 +3,9 @@ import { render, screen, fireEvent } from "@testing-library/react";
 
 vi.mock("lucide-react", () => ({
   Send: ({ className }: { className?: string }) => <span className={className} data-testid="send-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 import { BroadcastComposer } from "./BroadcastComposer";

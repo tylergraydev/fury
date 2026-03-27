@@ -6,6 +6,9 @@ vi.mock("lucide-react", () => ({
   Square: ({ className }: { className?: string }) => <span className={className} data-testid="square-icon" />,
   GitBranch: ({ className }: { className?: string }) => <span className={className} data-testid="branch-icon" />,
   Send: ({ className }: { className?: string }) => <span className={className} data-testid="send-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 import { TeamView } from "./TeamView";

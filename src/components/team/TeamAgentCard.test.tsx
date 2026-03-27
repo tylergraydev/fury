@@ -4,6 +4,9 @@ import { render, screen, fireEvent } from "@testing-library/react";
 vi.mock("lucide-react", () => ({
   GitBranch: ({ className }: { className?: string }) => <span className={className} data-testid="branch-icon" />,
   Square: ({ className }: { className?: string }) => <span className={className} data-testid="square-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 import { TeamAgentCard } from "./TeamAgentCard";

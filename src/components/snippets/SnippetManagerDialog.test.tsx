@@ -13,6 +13,8 @@ vi.mock("lucide-react", () => ({
   Tag: () => <span data-testid="tag-icon" />,
   Copy: () => <span data-testid="copy-icon" />,
   Check: () => <span data-testid="check-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
 }));
 
 const mockListSnippets = vi.fn();

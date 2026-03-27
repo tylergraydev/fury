@@ -55,6 +55,9 @@ vi.mock("lucide-react", () => ({
   ArrowDown: () => <span data-testid="arrow-down" />,
   ArrowUp: () => <span data-testid="arrow-up" />,
   RefreshCw: ({ className }: any) => <span data-testid="refresh-cw" className={className} />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 // Capture FileTreePanel props so we can invoke the callbacks

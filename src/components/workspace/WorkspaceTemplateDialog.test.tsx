@@ -5,6 +5,9 @@ import { useWorkspaceTemplateStore } from "../../stores/workspaceTemplateStore";
 
 vi.mock("lucide-react", () => ({
   X: () => <span data-testid="x-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 const mockGetRepoSettings = vi.fn();

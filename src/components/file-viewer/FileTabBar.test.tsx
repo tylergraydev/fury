@@ -18,6 +18,9 @@ vi.mock("lucide-react", () => ({
   Columns2: ({ className }: { className?: string }) => <span className={className} data-testid="columns-icon" />,
   BarChart3: ({ className }: { className?: string }) => <span className={className} data-testid="barchart-icon" />,
   MessageSquare: ({ className }: { className?: string }) => <span className={className} data-testid="message-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 import { FileTabBar } from "./FileTabBar";

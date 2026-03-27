@@ -9,6 +9,9 @@ vi.mock("lucide-react", () => ({
   GitPullRequestArrow: () => <span data-testid="git-icon" />,
   X: () => <span data-testid="x-icon" />,
   FolderOpen: () => <span data-testid="folder-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 vi.mock("../../lib/tauri", () => ({

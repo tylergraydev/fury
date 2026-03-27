@@ -12,6 +12,8 @@ vi.mock("lucide-react", () => ({
   Search: () => <span data-testid="search-icon" />,
   Tag: () => <span data-testid="tag-icon" />,
   Zap: () => <span data-testid="zap-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
 }));
 
 vi.mock("./VariableSubstitutionDialog", () => ({

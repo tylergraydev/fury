@@ -39,6 +39,9 @@ vi.mock("lucide-react", () => ({
   RefreshCw: ({ className }: { className?: string }) => (
     <span data-testid="refresh-icon" className={className} />
   ),
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 vi.mock("../../lib/tauri", () => ({

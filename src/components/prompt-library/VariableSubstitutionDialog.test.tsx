@@ -6,6 +6,9 @@ import type { Prompt } from "../../lib/tauri";
 vi.mock("lucide-react", () => ({
   X: () => <span data-testid="x-icon" />,
   Zap: () => <span data-testid="zap-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 vi.mock("../../lib/tauri", () => ({}));

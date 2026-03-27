@@ -15,6 +15,9 @@ vi.mock("../../lib/monacoTheme", () => ({
 vi.mock("lucide-react", () => ({
   Link2: () => <span data-testid="link-icon" />,
   GitCompare: () => <span data-testid="git-compare-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 vi.mock("../../lib/tauri", () => ({

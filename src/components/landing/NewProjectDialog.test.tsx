@@ -10,6 +10,9 @@ vi.mock("lucide-react", () => ({
   Sparkles: () => <span data-testid="sparkle-icon" />,
   X: () => <span data-testid="x-icon" />,
   FolderOpen: () => <span data-testid="folder-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 vi.mock("../../lib/tauri", () => ({

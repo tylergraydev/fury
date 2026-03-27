@@ -12,6 +12,8 @@ vi.mock("lucide-react", () => ({
   CircleDot: () => <span data-testid="circle-dot" />,
   ExternalLink: () => <span data-testid="external-link" />,
   Unlink: () => <span data-testid="unlink-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
 }));
 
 const mockSearchIssues = vi.fn();

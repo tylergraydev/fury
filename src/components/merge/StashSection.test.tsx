@@ -13,6 +13,9 @@ vi.mock("lucide-react", () => ({
   ChevronDown: () => <span data-testid="chevron-down" />,
   FileText: () => <span data-testid="file-icon" />,
   AlertTriangle: () => <span data-testid="alert-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 const mockListStashes = vi.fn().mockResolvedValue([]);

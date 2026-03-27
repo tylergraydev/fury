@@ -15,6 +15,9 @@ vi.mock("lucide-react", () => ({
   RotateCcw: () => <span data-testid="revert-icon" />,
   RefreshCw: () => <span data-testid="refresh-icon" />,
   History: () => <span data-testid="history-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 vi.mock("../../lib/tauri", () => ({

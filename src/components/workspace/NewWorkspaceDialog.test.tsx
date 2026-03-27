@@ -15,6 +15,8 @@ vi.mock("lucide-react", () => ({
   GitPullRequest: () => <span data-testid="pr-icon" />,
   CircleDot: () => <span data-testid="circle-dot" />,
   Search: () => <span data-testid="search-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
 }));
 
 const mockListBranches = vi.fn();

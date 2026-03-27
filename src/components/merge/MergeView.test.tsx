@@ -10,6 +10,9 @@ vi.mock("lucide-react", () => ({
   GitCompare: () => <span data-testid="compare-icon" />,
   AlertCircle: () => <span data-testid="alert-icon" />,
   Archive: () => <span data-testid="archive-icon" />,
+  MessageCircleQuestion: () => <span data-testid="icon-question" />,
+  ClipboardCheck: () => <span data-testid="icon-clipboardcheck" />,
+  Search: () => <span data-testid="icon-search" />,
 }));
 
 vi.mock("./BranchSyncSection", () => ({
