@@ -1,4 +1,5 @@
-import { X, Settings, GitMerge, History, FileDiff, Users, Columns2, BarChart3, MessageSquare } from "lucide-react";
+import { useState, useCallback } from "react";
+import { X, Settings, GitMerge, History, FileDiff, Users, Columns2, BarChart3, MessageSquare, Globe } from "lucide-react";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
 import { useUIStore } from "../../stores/uiStore";
 import type { PaneId } from "../../stores/fileViewerStore";
@@ -10,7 +11,11 @@ const VIEW_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   diff: FileDiff,
   team: Users,
   usage: BarChart3,
+  browser: Globe,
 };
+
+/** MIME type used for tab drag-and-drop */
+const TAB_DRAG_TYPE = "application/x-fury-tab-id";
 
 export function FileTabBar() {
   const fileTabs = useFileViewerStore((s) => s.tabs);
@@ -63,16 +68,87 @@ export function FileTabBar() {
     setActiveViewTab("chat");
   };
 
+  // --- Drag-and-drop for split view ---
+  const [dropSide, setDropSide] = useState<"left" | "right" | null>(null);
+
+  const handleDragStart = useCallback((e: React.DragEvent, tabId: string) => {
+    e.dataTransfer.setData(TAB_DRAG_TYPE, tabId);
+    e.dataTransfer.effectAllowed = "move";
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes(TAB_DRAG_TYPE)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midX = rect.left + rect.width / 2;
+    setDropSide(e.clientX < midX ? "left" : "right");
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    const container = e.currentTarget as HTMLElement;
+    if (!container.contains(e.relatedTarget as Node)) {
+      setDropSide(null);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const draggedTabId = e.dataTransfer.getData(TAB_DRAG_TYPE);
+    setDropSide(null);
+    if (!draggedTabId) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midX = rect.left + rect.width / 2;
+    const side: PaneId = e.clientX < midX ? "left" : "right";
+    const fvs = useFileViewerStore.getState();
+
+    if (!fvs.splitActive) {
+      // Activate split: put the current active tab on the opposite side
+      const currentActiveId = fvs.activeTabId;
+      if (currentActiveId && currentActiveId !== draggedTabId) {
+        if (side === "right") {
+          fvs.splitEditor(draggedTabId);
+        } else {
+          // Dragged to left — put dragged tab on left, current on right
+          fvs.splitEditor(currentActiveId);
+          fvs.setActiveTabInPane("left", draggedTabId);
+        }
+      } else {
+        fvs.splitEditor(draggedTabId);
+      }
+    } else {
+      fvs.setActiveTabInPane(side, draggedTabId);
+    }
+    setActiveViewTab("chat");
+  }, [setActiveViewTab]);
+
   return (
     <div
       role="tablist"
       aria-label="Open files"
-      className="flex items-center gap-0.5 overflow-x-auto px-1 text-xs"
+      className="relative flex items-center gap-0.5 overflow-x-auto px-1 text-xs"
       style={{
         backgroundColor: "var(--bg-secondary)",
         borderBottom: "1px solid var(--border)",
       }}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
+      {/* Drop zone indicator */}
+      {dropSide && (
+        <div
+          data-testid="drop-indicator"
+          className="pointer-events-none absolute top-0 bottom-0 z-10"
+          style={{
+            left: dropSide === "left" ? 0 : "50%",
+            width: "50%",
+            backgroundColor: "var(--accent)",
+            opacity: 0.1,
+          }}
+        />
+      )}
       {/* Chat tab — always first */}
       <button
         role="tab"
@@ -158,6 +234,8 @@ export function FileTabBar() {
             role="tab"
             aria-selected={isActive}
             tabIndex={isActive ? 0 : -1}
+            draggable
+            onDragStart={(e) => handleDragStart(e, tab.id)}
             className="group flex flex-shrink-0 cursor-pointer items-center gap-1 py-1.5 pl-3 pr-1 transition-colors"
             style={{
               color: isActive ? "var(--accent)" : "var(--text-muted)",

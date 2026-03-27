@@ -48,7 +48,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { key: ",", mod: true, action: "open-settings", label: "Settings" },
   { key: "n", mod: true, action: "new-workspace", label: "New Workspace" },
   { key: "1", mod: true, action: "right-sidebar-files", label: "Files" },
-  { key: "2", mod: true, action: "right-sidebar-changes", label: "Changes" },
+  { key: "2", mod: true, action: "right-sidebar-changes", label: "Changes Tab" },
   { key: "3", mod: true, action: "right-sidebar-checks", label: "Checks" },
   { key: "4", mod: true, action: "toggle-notifications", label: "Notifications" },
   { key: "5", mod: true, action: "view-team", label: "Team View" },
