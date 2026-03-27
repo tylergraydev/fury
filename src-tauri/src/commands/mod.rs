@@ -30,6 +30,7 @@ pub mod test_runner;
 pub mod todo;
 pub mod workspace;
 pub mod workspace_config;
+pub mod work_items;
 pub mod workspace_links;
 pub mod workspace_template;
 pub mod prompt;
