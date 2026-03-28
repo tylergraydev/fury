@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { listen } from "@tauri-apps/api/event";
 
+vi.mock("../lib/ipcInstrumentation", () => ({
+  pushStreamEvent: vi.fn(),
+  pushAgentTurnMetric: vi.fn(),
+}));
+
 vi.mock("../lib/tauri", () => ({
   sendMessage: vi.fn(),
   sendFollowupMessage: vi.fn(),
@@ -349,6 +354,29 @@ describe("agentStore - status change tracking via listener", () => {
     expect(useAgentStore.getState().agents["ws-1"]?.status).toBe("Stopping");
   });
 
+  it("defaults prevStatus to Idle when no agent exists", () => {
+    // No agent set for ws-1 — prevStatus should default to "Idle"
+    // Transitioning from Idle to Running should set runStartedAt
+    callback({ payload: { status: "Running", workspaceId: "ws-1" } });
+    expect(useAgentStore.getState().runStartedAt["ws-1"]).toBeDefined();
+  });
+
+  it("calls pushStreamEvent with status transition detail", async () => {
+    const { pushStreamEvent: pse } = await import("../lib/ipcInstrumentation");
+    callback({ payload: { status: "Running", workspaceId: "ws-1" } });
+    expect(pse).toHaveBeenCalledWith("ws-1", "status_changed", expect.stringContaining("Running"));
+  });
+
+  it("does not delete runStartedAt on non-idle transition from Running", () => {
+    // Running → Error should NOT delete runStartedAt (only Running → Idle does)
+    callback({ payload: { status: "Running", workspaceId: "ws-1" } });
+    expect(useAgentStore.getState().runStartedAt["ws-1"]).toBeDefined();
+
+    callback({ payload: { status: { Error: "crash" }, workspaceId: "ws-1" } });
+    // becameIdle is false (Error !== "Idle"), so runStartedAt should remain
+    expect(useAgentStore.getState().runStartedAt["ws-1"]).toBeDefined();
+  });
+
   it("preserves other workspace state on status change", () => {
     useAgentStore.setState({
       agents: { "ws-2": { workspaceId: "ws-2", status: "Running" } as any },
@@ -357,5 +385,76 @@ describe("agentStore - status change tracking via listener", () => {
 
     expect(useAgentStore.getState().agents["ws-2"]?.status).toBe("Running");
     expect(useAgentStore.getState().agents["ws-1"]?.status).toBe("Running");
+  });
+});
+
+describe("agentStore - sendMessage error handling", () => {
+  it("logs error and rethrows on sendMessage failure", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(sendMessageCmd).mockRejectedValue(new Error("send failed"));
+
+    await expect(
+      useAgentStore.getState().sendMessage("ws-1", "hello", "workspace"),
+    ).rejects.toThrow("send failed");
+
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("passes model to sendMessage when provided", async () => {
+    vi.mocked(sendMessageCmd).mockResolvedValue(undefined);
+    await useAgentStore.getState().sendMessage("ws-1", "hello", "workspace", "haiku");
+    expect(sendMessageCmd).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "haiku" }),
+    );
+  });
+
+  it("passes undefined model when not provided", async () => {
+    vi.mocked(sendMessageCmd).mockResolvedValue(undefined);
+    await useAgentStore.getState().sendMessage("ws-1", "hello", "workspace");
+    expect(sendMessageCmd).toHaveBeenCalledWith(
+      expect.objectContaining({ model: undefined }),
+    );
+  });
+});
+
+describe("agentStore - stopAgent error handling", () => {
+  it("logs error and rethrows on stopAgent failure", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(stopAgentCmd).mockRejectedValue(new Error("stop failed"));
+
+    await expect(
+      useAgentStore.getState().stopAgent("ws-1"),
+    ).rejects.toThrow("stop failed");
+
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});
+
+describe("agentStore - fetchStatus", () => {
+  it("updates agent state on successful fetch", async () => {
+    vi.mocked(getAgentStatus).mockResolvedValue({
+      workspaceId: "ws-1",
+      status: "Running",
+      sessionId: "sess-1",
+      startedAt: null,
+      pid: null,
+    } as any);
+
+    await useAgentStore.getState().fetchStatus("ws-1");
+
+    expect(useAgentStore.getState().agents["ws-1"]?.status).toBe("Running");
+  });
+
+  it("logs error on fetchStatus failure without throwing", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getAgentStatus).mockRejectedValue(new Error("fetch failed"));
+
+    // Should NOT throw
+    await useAgentStore.getState().fetchStatus("ws-1");
+
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
