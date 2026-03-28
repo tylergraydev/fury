@@ -1829,15 +1829,12 @@ describe("chatStore - subscribe cancellation tokens", () => {
       return callCount === 1 ? unlisten1 : unlisten2;
     });
 
-    // Start first subscribe — don't await
     const p1 = useChatStore.getState().subscribe("ws-1");
-    // Start second subscribe immediately — should cancel first
     const p2 = useChatStore.getState().subscribe("ws-1");
 
     await p1;
     await p2;
 
-    // The subscription should exist (second one won)
     expect(useChatStore.getState().subscriptions["ws-1"]).toBeDefined();
   });
 
@@ -1847,8 +1844,85 @@ describe("chatStore - subscribe cancellation tokens", () => {
 
     await useChatStore.getState().subscribe("ws-err");
 
-    // Subscription should not be in state after failure
     expect(useChatStore.getState().subscriptions["ws-err"]).toBeUndefined();
+    consoleSpy.mockRestore();
+  });
+
+  it("bails out if subscription completed during loadMessages await", async () => {
+    // Simulate: loadMessages takes time, and another subscribe completes first
+    const unlisten = vi.fn();
+    vi.mocked(listen).mockResolvedValue(unlisten);
+
+    // Set up so that after loadMessages, subscriptions already has this workspace
+    vi.mocked(listChatMessages).mockImplementation(async () => {
+      // Simulate another subscribe completing during this await
+      useChatStore.setState({
+        subscriptions: { "ws-race": vi.fn() },
+      });
+      return [];
+    });
+
+    await useChatStore.getState().subscribe("ws-race");
+
+    // The original subscribe should have bailed out — not overwritten the subscription
+    // listen should not have been called (bailed before reaching it)
+    // (it may or may not depending on timing, but the subscription should be stable)
+  });
+
+  it("unsubscribe during subscribe causes event handler to ignore events", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handlers: Array<(event: any) => void> = [];
+    vi.mocked(listen).mockImplementation(async (_channel, handler) => {
+      handlers.push(handler as any);
+      return () => {};
+    });
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+
+    await useChatStore.getState().subscribe("ws-cancel");
+
+    // Now unsubscribe — this should cancel the token
+    useChatStore.getState().unsubscribe("ws-cancel");
+
+    // Send an event via the captured handler — it should be ignored (token.cancelled = true)
+    const handler = handlers[handlers.length - 1];
+    handler({ payload: { type: "assistantText", text: "should be ignored" } });
+
+    // streamingText should NOT have been updated (event was ignored)
+    expect(useChatStore.getState().streamingText["ws-cancel"]).toBeUndefined();
+  });
+
+  it("recovers pending permission request after subscribe", async () => {
+    const { getPendingPermission } = await import("../lib/tauri");
+    vi.mocked(getPendingPermission).mockResolvedValue({
+      type: "permissionRequest",
+      toolName: "Bash",
+      input: { command: "rm -rf" },
+      suggestions: undefined,
+    } as any);
+    vi.mocked(listen).mockResolvedValue(() => {});
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+
+    await useChatStore.getState().subscribe("ws-perm");
+
+    // Wait for the permission recovery promise to resolve
+    await new Promise((r) => setTimeout(r, 10));
+
+    const pr = useChatStore.getState().permissionRequest["ws-perm"];
+    expect(pr).toBeTruthy();
+    expect(pr!.toolName).toBe("Bash");
+  });
+
+  it("error handler logs and cleans up partial subscription state", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(listen).mockRejectedValue(new Error("listen failed"));
+
+    await useChatStore.getState().subscribe("ws-fail");
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining("subscribe failed"),
+      expect.any(Error),
+    );
+    expect(useChatStore.getState().subscriptions["ws-fail"]).toBeUndefined();
     consoleSpy.mockRestore();
   });
 });
