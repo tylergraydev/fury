@@ -292,3 +292,70 @@ describe("agentStore - needsAttention", () => {
     expect(useAgentStore.getState().needsAttention["ws-1"]).toBe(false);
   });
 });
+
+// ─── Mutation-killing tests ──────────────────────────────────────────────
+
+describe("agentStore - status change tracking via listener", () => {
+  let callback: (event: any) => void;
+
+  beforeEach(async () => {
+    mockListen.mockImplementation(async (_ch, handler) => {
+      callback = handler as any;
+      return () => {};
+    });
+    await useAgentStore.getState().subscribe("ws-1");
+  });
+
+  it("sets runStartedAt when agent becomes Running", () => {
+    // Initially Idle (default), transition to Running
+    callback({ payload: { status: "Running", workspaceId: "ws-1" } });
+    expect(useAgentStore.getState().runStartedAt["ws-1"]).toBeDefined();
+    expect(typeof useAgentStore.getState().runStartedAt["ws-1"]).toBe("number");
+  });
+
+  it("clears runStartedAt when agent becomes Idle from Running", () => {
+    // Set Running first
+    callback({ payload: { status: "Running", workspaceId: "ws-1" } });
+    expect(useAgentStore.getState().runStartedAt["ws-1"]).toBeDefined();
+
+    // Then Idle
+    callback({ payload: { status: "Idle", workspaceId: "ws-1" } });
+    expect(useAgentStore.getState().runStartedAt["ws-1"]).toBeUndefined();
+  });
+
+  it("does NOT set runStartedAt on Running→Running (already running)", () => {
+    // Set to Running
+    useAgentStore.setState({
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Running" } as any },
+    });
+
+    callback({ payload: { status: "Running", workspaceId: "ws-1" } });
+    // becameRunning should be false (prev was already Running)
+    // runStartedAt should NOT be set
+    expect(useAgentStore.getState().runStartedAt["ws-1"]).toBeUndefined();
+  });
+
+  it("does NOT set needsAttention on Idle→Idle", () => {
+    // Already Idle, stays Idle — no status change notification
+    callback({ payload: { status: "Idle", workspaceId: "ws-1" } });
+    expect(useAgentStore.getState().needsAttention["ws-1"]).toBeUndefined();
+  });
+
+  it("updates agent status in state", () => {
+    callback({ payload: { status: "Running", workspaceId: "ws-1" } });
+    expect(useAgentStore.getState().agents["ws-1"]?.status).toBe("Running");
+
+    callback({ payload: { status: "Stopping", workspaceId: "ws-1" } });
+    expect(useAgentStore.getState().agents["ws-1"]?.status).toBe("Stopping");
+  });
+
+  it("preserves other workspace state on status change", () => {
+    useAgentStore.setState({
+      agents: { "ws-2": { workspaceId: "ws-2", status: "Running" } as any },
+    });
+    callback({ payload: { status: "Running", workspaceId: "ws-1" } });
+
+    expect(useAgentStore.getState().agents["ws-2"]?.status).toBe("Running");
+    expect(useAgentStore.getState().agents["ws-1"]?.status).toBe("Running");
+  });
+});

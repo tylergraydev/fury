@@ -1302,3 +1302,50 @@ describe("fileViewerStore - split editor", () => {
     expect(state.activeTabId).toBe("ctx1:b.ts");
   });
 });
+
+// ─── Mutation-killing tests: detectLanguage ─────────────────────────────
+
+describe("fileViewerStore - detectLanguage via openFile", () => {
+  const cases: [string, string][] = [
+    ["src/app.ts", "typescript"],
+    ["src/app.tsx", "typescript"],
+    ["src/app.js", "javascript"],
+    ["src/app.jsx", "javascript"],
+    ["src/main.rs", "rust"],
+    ["src/main.py", "python"],
+    ["package.json", "json"],
+    ["README.md", "markdown"],
+    ["styles.css", "css"],
+    ["index.html", "html"],
+    ["config.toml", "toml"],
+    ["config.yaml", "yaml"],
+    ["config.yml", "yaml"],
+    ["script.sh", "shell"],
+    ["main.go", "go"],
+    ["App.java", "java"],
+    ["App.swift", "swift"],
+    ["main.c", "c"],
+    ["main.cpp", "cpp"],
+    ["Program.cs", "csharp"],
+    ["app.rb", "ruby"],
+    ["index.php", "php"],
+    ["query.sql", "sql"],
+    ["layout.xml", "xml"],
+    ["styles.scss", "scss"],
+    ["unknown.xyz", "plaintext"],
+  ];
+
+  for (const [filePath, expectedLang] of cases) {
+    it(`detects ${expectedLang} for ${filePath}`, async () => {
+      // Mock returns matching language so loadTabContent doesn't override
+      vi.mocked(readWorkspaceFile).mockResolvedValue({
+        content: "content",
+        language: expectedLang,
+      } as any);
+      await useFileViewerStore.getState().openFile("ctx1", "workspace", filePath, true);
+      const tab = useFileViewerStore.getState().tabs.find(t => t.filePath === filePath);
+      expect(tab).toBeTruthy();
+      expect(tab!.language).toBe(expectedLang);
+    });
+  }
+});
