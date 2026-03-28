@@ -1293,7 +1293,229 @@ describe("chatStore - clearMessages clears sessionStats", () => {
   });
 });
 
-// ─── Mutation-killing tests ──────────────────────────────────────────────
+// ─── Mutation-killing tests: handleStreamEvent ──────────────────────────
+
+describe("chatStore - handleStreamEvent toolUse conductor phases", () => {
+  let handleEvent: (event: { payload: any }) => void;
+
+  beforeEach(async () => {
+    vi.mocked(listen).mockImplementation(async (_channel, handler) => {
+      handleEvent = handler as any;
+      return () => {};
+    });
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+    vi.mocked(saveChatMessage).mockResolvedValue(undefined);
+    await useChatStore.getState().subscribe("ws-1");
+  });
+
+  it("sets conductorPhase to 'planning' on ExitPlanMode", () => {
+    handleEvent({ payload: { type: "toolUse", id: "t1", name: "ExitPlanMode", input: {} } });
+    expect(useChatStore.getState().conductorPhase["ws-1"]).toBe("planning");
+  });
+
+  it("sets conductorPhase to 'questioning' on AskFollowupQuestion", () => {
+    handleEvent({ payload: { type: "toolUse", id: "t1", name: "AskFollowupQuestion", input: { question: "which?" } } });
+    expect(useChatStore.getState().conductorPhase["ws-1"]).toBe("questioning");
+  });
+
+  it("sets questionRequest with question text and options", () => {
+    handleEvent({ payload: { type: "toolUse", id: "t1", name: "AskFollowupQuestion", input: { question: "pick one", options: ["A", "B"] } } });
+    const qr = useChatStore.getState().questionRequest["ws-1"];
+    expect(qr).toBeTruthy();
+    expect(qr!.question).toBe("pick one");
+    expect(qr!.options).toEqual(["A", "B"]);
+  });
+
+  it("sets conductorPhase to 'researching' on Think tool", () => {
+    // Reset phase to idle first (previous tests may have set it)
+    useChatStore.setState({ conductorPhase: { "ws-1": "idle" } });
+    handleEvent({ payload: { type: "toolUse", id: "t1", name: "Think", input: {} } });
+    expect(useChatStore.getState().conductorPhase["ws-1"]).toBe("researching");
+  });
+
+  it("does NOT override 'questioning' phase with Think tool", () => {
+    useChatStore.setState({ conductorPhase: { "ws-1": "questioning" } });
+    handleEvent({ payload: { type: "toolUse", id: "t1", name: "Think", input: {} } });
+    expect(useChatStore.getState().conductorPhase["ws-1"]).toBe("questioning");
+  });
+
+  it("does NOT override 'planning' phase with Think tool", () => {
+    useChatStore.setState({ conductorPhase: { "ws-1": "planning" } });
+    handleEvent({ payload: { type: "toolUse", id: "t1", name: "Think", input: {} } });
+    expect(useChatStore.getState().conductorPhase["ws-1"]).toBe("planning");
+  });
+
+  it("sets permissionRequest on permissionRequest event", () => {
+    handleEvent({ payload: { type: "permissionRequest", toolName: "Bash", input: { command: "ls" } } });
+    const pr = useChatStore.getState().permissionRequest["ws-1"];
+    expect(pr).toBeTruthy();
+    expect(pr!.toolName).toBe("Bash");
+    expect(pr!.input).toEqual({ command: "ls" });
+  });
+});
+
+describe("chatStore - handleStreamEvent result clears state correctly", () => {
+  let handleEvent: (event: { payload: any }) => void;
+
+  beforeEach(async () => {
+    vi.mocked(listen).mockImplementation(async (_channel, handler) => {
+      handleEvent = handler as any;
+      return () => {};
+    });
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+    vi.mocked(saveChatMessage).mockResolvedValue(undefined);
+    await useChatStore.getState().subscribe("ws-1");
+  });
+
+  it("clears permissionRequest on result event", () => {
+    useChatStore.setState({ permissionRequest: { "ws-1": { toolName: "Read", input: {} } as any } });
+    handleEvent({ payload: { type: "result", isError: false, result: null, sessionId: null } });
+    expect(useChatStore.getState().permissionRequest["ws-1"]).toBeNull();
+  });
+
+  it("resets conductorPhase to idle on result when no plan/question pending", () => {
+    useChatStore.setState({
+      conductorPhase: { "ws-1": "researching" },
+      planApproval: { "ws-1": false },
+      questionRequest: { "ws-1": null },
+    });
+    handleEvent({ payload: { type: "result", isError: false, result: null, sessionId: null } });
+    expect(useChatStore.getState().conductorPhase["ws-1"]).toBe("idle");
+  });
+
+  it("preserves conductorPhase when planApproval is active", () => {
+    useChatStore.setState({ planApproval: { "ws-1": true }, conductorPhase: { "ws-1": "planning" } });
+    handleEvent({ payload: { type: "result", isError: false, result: null, sessionId: null } });
+    expect(useChatStore.getState().conductorPhase["ws-1"]).toBe("planning");
+  });
+
+  it("preserves conductorPhase when questionRequest is active", () => {
+    useChatStore.setState({
+      questionRequest: { "ws-1": { toolUseId: "t1", question: "which?" } as any },
+      conductorPhase: { "ws-1": "questioning" },
+    });
+    handleEvent({ payload: { type: "result", isError: false, result: null, sessionId: null } });
+    expect(useChatStore.getState().conductorPhase["ws-1"]).toBe("questioning");
+  });
+
+  it("attaches metadata to last assistant message on result", () => {
+    // Add an assistant message first
+    useChatStore.setState({
+      messages: { "ws-1": [{ id: "m1", role: "assistant", content: [{ type: "text", text: "hello" }], timestamp: 1000 }] },
+    });
+    handleEvent({ payload: {
+      type: "result", isError: false, result: null, sessionId: "s1",
+      durationMs: 5000, totalCostUsd: 0.05, inputTokens: 100, outputTokens: 200,
+      numTurns: 1, cacheReadTokens: 0, cacheCreationTokens: 0,
+    } });
+
+    const msgs = useChatStore.getState().messages["ws-1"]!;
+    const lastMsg = msgs[msgs.length - 1];
+    expect(lastMsg.metadata).toBeTruthy();
+    expect(lastMsg.metadata!.totalCostUsd).toBe(0.05);
+    expect(lastMsg.metadata!.inputTokens).toBe(100);
+  });
+
+  it("updates sessionStats on result with metadata", () => {
+    handleEvent({ payload: {
+      type: "result", isError: false, result: null, sessionId: "s1",
+      durationMs: 5000, totalCostUsd: 0.10, inputTokens: 500, outputTokens: 1000,
+      numTurns: 3, cacheReadTokens: 50, cacheCreationTokens: 10,
+    } });
+
+    const stats = useChatStore.getState().sessionStats["ws-1"];
+    expect(stats).toBeTruthy();
+    expect(stats!.totalCostUsd).toBe(0.10);
+    expect(stats!.totalInputTokens).toBe(500);
+    expect(stats!.totalOutputTokens).toBe(1000);
+    expect(stats!.numTurns).toBe(3);
+  });
+
+  it("creates system message for system event with message", () => {
+    handleEvent({ payload: { type: "system", message: "System initialized", sessionId: "s1" } });
+    const msgs = useChatStore.getState().messages["ws-1"]!;
+    expect(msgs.length).toBe(1);
+    expect(msgs[0].role).toBe("system");
+    expect(msgs[0].content[0]).toEqual({ type: "text", text: "System initialized" });
+  });
+
+  it("accumulates streaming text on assistantText events", () => {
+    handleEvent({ payload: { type: "assistantText", text: "Hello " } });
+    handleEvent({ payload: { type: "assistantText", text: "world" } });
+    expect(useChatStore.getState().streamingText["ws-1"]).toBe("Hello world");
+  });
+
+  it("adds toolResult content block", () => {
+    // First add a tool use
+    handleEvent({ payload: { type: "toolUse", id: "t1", name: "Read", input: { file: "test.ts" } } });
+    // Then add result
+    handleEvent({ payload: { type: "toolResult", toolUseId: "t1", content: "file content here" } });
+
+    const msgs = useChatStore.getState().messages["ws-1"]!;
+    const lastMsg = msgs[msgs.length - 1];
+    const toolResult = lastMsg.content.find((b: any) => b.type === "toolResult");
+    expect(toolResult).toBeTruthy();
+    expect((toolResult as any).content).toBe("file content here");
+  });
+});
+
+describe("chatStore - friendlyErrorMessage", () => {
+  let handleEvent: (event: { payload: any }) => void;
+
+  beforeEach(async () => {
+    vi.mocked(listen).mockImplementation(async (_channel, handler) => {
+      handleEvent = handler as any;
+      return () => {};
+    });
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+    vi.mocked(saveChatMessage).mockResolvedValue(undefined);
+    await useChatStore.getState().subscribe("ws-1");
+  });
+
+  it("formats 500 errors as system message", () => {
+    handleEvent({ payload: { type: "result", isError: true, result: "HTTP status: 500 Internal Server Error", sessionId: null } });
+    const msgs = useChatStore.getState().messages["ws-1"] ?? [];
+    const errorMsg = msgs.find((m: any) => m.role === "system" && m.content.some((c: any) => c.text?.includes("500")));
+    expect(errorMsg).toBeTruthy();
+  });
+
+  it("formats 429 rate limit errors as system message", () => {
+    handleEvent({ payload: { type: "result", isError: true, result: "API Error: status 429 rate limit exceeded", sessionId: null } });
+    const msgs = useChatStore.getState().messages["ws-1"] ?? [];
+    const errorMsg = msgs.find((m: any) => m.role === "system" && m.content.some((c: any) => c.text?.includes("429")));
+    expect(errorMsg).toBeTruthy();
+  });
+
+  it("formats timeout errors as system message", () => {
+    handleEvent({ payload: { type: "result", isError: true, result: "Request timed out after 30s", sessionId: null } });
+    const msgs = useChatStore.getState().messages["ws-1"] ?? [];
+    const errorMsg = msgs.find((m: any) => m.role === "system" && m.content.some((c: any) => c.text?.includes("timed out")));
+    expect(errorMsg).toBeTruthy();
+  });
+
+  it("formats network errors as system message", () => {
+    handleEvent({ payload: { type: "result", isError: true, result: "ECONNREFUSED connection refused", sessionId: null } });
+    const msgs = useChatStore.getState().messages["ws-1"] ?? [];
+    const errorMsg = msgs.find((m: any) => m.role === "system" && m.content.some((c: any) => c.text?.includes("Network error")));
+    expect(errorMsg).toBeTruthy();
+  });
+
+  it("formats overloaded errors as system message", () => {
+    handleEvent({ payload: { type: "result", isError: true, result: "API is overloaded try later", sessionId: null } });
+    const msgs = useChatStore.getState().messages["ws-1"] ?? [];
+    const errorMsg = msgs.find((m: any) => m.role === "system" && m.content.some((c: any) => c.text?.includes("overloaded")));
+    expect(errorMsg).toBeTruthy();
+  });
+
+  it("adds unknown error message when result is null", () => {
+    handleEvent({ payload: { type: "result", isError: true, result: null, sessionId: null } });
+    const msgs = useChatStore.getState().messages["ws-1"] ?? [];
+    const errorMsg = msgs.find((m: any) => m.role === "system" && m.content.some((c: any) => c.text?.includes("unknown error")));
+    expect(errorMsg).toBeTruthy();
+  });
+});
+
+// ─── Mutation-killing tests: state management ───────────────────────────
 
 describe("chatStore - addUserMessage resets conductor state", () => {
   it("resets planApproval to false", () => {
