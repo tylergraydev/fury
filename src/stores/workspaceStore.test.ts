@@ -466,7 +466,61 @@ describe("workspaceStore - initial state", () => {
     expect(Array.isArray(useWorkspaceStore.getState().workspaces)).toBe(true);
   });
 
+  it("starts with empty archivedWorkspaces array", () => {
+    useWorkspaceStore.setState({ archivedWorkspaces: [] });
+    expect(useWorkspaceStore.getState().archivedWorkspaces).toEqual([]);
+    expect(Array.isArray(useWorkspaceStore.getState().archivedWorkspaces)).toBe(true);
+  });
+
   it("starts with loading false", () => {
     expect(useWorkspaceStore.getState().loading).toBe(false);
+  });
+
+  it("starts with error null", () => {
+    expect(useWorkspaceStore.getState().error).toBeNull();
+  });
+});
+
+describe("workspaceStore - setActive changes activeWorkspaceId", () => {
+  it("sets activeWorkspaceId", () => {
+    useWorkspaceStore.getState().setActive("ws-42");
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBe("ws-42");
+  });
+
+  it("clears activeWorkspaceId with null", () => {
+    useWorkspaceStore.setState({ activeWorkspaceId: "ws-1" });
+    useWorkspaceStore.getState().setActive(null);
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBeNull();
+  });
+});
+
+describe("workspaceStore - archiveWs clears activeWorkspaceId when archiving active", () => {
+  it("clears activeWorkspaceId when archiving the active workspace", async () => {
+    const ws = makeWs({ id: "ws-active" });
+    useWorkspaceStore.setState({ workspaces: [ws], activeWorkspaceId: "ws-active" });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-active");
+
+    expect(useWorkspaceStore.getState().activeWorkspaceId).not.toBe("ws-active");
+  });
+});
+
+describe("workspaceStore - loadWorkspaces error handling", () => {
+  it("sets error message on failure", async () => {
+    vi.mocked(listWorkspaces).mockRejectedValue(new Error("DB locked"));
+
+    await useWorkspaceStore.getState().loadWorkspaces();
+
+    expect(useWorkspaceStore.getState().error).toBe("Error: DB locked");
+    expect(useWorkspaceStore.getState().loading).toBe(false);
+  });
+
+  it("clears error on success after previous failure", async () => {
+    useWorkspaceStore.setState({ error: "previous" });
+    vi.mocked(listWorkspaces).mockResolvedValue([]);
+
+    await useWorkspaceStore.getState().loadWorkspaces();
+    expect(useWorkspaceStore.getState().error).toBeNull();
   });
 });

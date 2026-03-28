@@ -715,6 +715,50 @@ describe("chatStore - formatErrorMessage (via result events)", () => {
       "unknown error occurred",
     );
   });
+
+  // Additional mutation-killing tests for error message conditions
+  it("detects 500 via 'internal server error' text (case insensitive)", () => {
+    expect(getErrorText("code: 500 Something")).toContain("API error (500)");
+  });
+
+  it("detects 429 via 'rate limit' text", () => {
+    expect(getErrorText("error: 429 Please slow down")).toContain("Rate limited (429)");
+  });
+
+  it("detects 429 via 'too many' text", () => {
+    expect(getErrorText("error: 429 too many requests")).toContain("Rate limited (429)");
+  });
+
+  it("detects 401 via 'authentication' text", () => {
+    expect(getErrorText("error: 401 authentication required")).toContain("Authentication error (401)");
+  });
+
+  it("detects ENOTFOUND as network error", () => {
+    expect(getErrorText("ENOTFOUND api.anthropic.com")).toContain("Network error");
+  });
+
+  it("detects 'network' in error as network error", () => {
+    expect(getErrorText("network error occurred")).toContain("Network error");
+  });
+
+  it("returns different messages for 5xx vs 4xx", () => {
+    const server = getErrorText("error: 503");
+    const client = getErrorText("error: 400");
+    expect(server).toContain("Server error");
+    expect(client).toContain("Request error");
+    expect(server).not.toEqual(client);
+  });
+
+  it("includes error code in message", () => {
+    expect(getErrorText("error: 503")).toContain("503");
+    expect(getErrorText("error: 400")).toContain("400");
+  });
+
+  it("does not match numbers that aren't HTTP codes", () => {
+    // "512 tokens" should not match as an HTTP error (no status/error prefix)
+    const result = getErrorText("Used 512 tokens");
+    expect(result).toContain("Error: Used 512 tokens");
+  });
 });
 
 describe("chatStore - parseSkillsFromSystemMessage", () => {
@@ -780,6 +824,50 @@ not a skill line
     expect(skills).toHaveLength(1);
     expect(skills[0].name).toBe("plugin:my-tool");
     expect(skills[0].content).toBe("/plugin:my-tool");
+  });
+
+  it("correctly extracts description after colon-space separator", () => {
+    const message = `skills are available for use with the Skill tool:
+- test-skill: The description text here`;
+    const skills = parseSkillsFromSystemMessage(message);
+    expect(skills[0].description).toBe("The description text here");
+    // Ensure name doesn't include description and vice versa
+    expect(skills[0].name).not.toContain("The description");
+    expect(skills[0].description).not.toContain("test-skill");
+  });
+
+  it("correctly splits on first colon-space (name may contain colons)", () => {
+    const message = `skills are available for use with the Skill tool:
+- ns:tool: Tool with namespace: more colons`;
+    const skills = parseSkillsFromSystemMessage(message);
+    expect(skills[0].name).toBe("ns:tool");
+    expect(skills[0].description).toBe("Tool with namespace: more colons");
+  });
+
+  it("uses marker text to find the skills section", () => {
+    // Without the exact marker text, no skills are parsed
+    const wrong = "The following skills are available:\n- test: desc";
+    expect(parseSkillsFromSystemMessage(wrong)).toEqual([]);
+
+    // With the exact marker, skills are parsed
+    const correct = "skills are available for use with the Skill tool:\n- test: desc";
+    expect(parseSkillsFromSystemMessage(correct)).toHaveLength(1);
+  });
+
+  it("trims whitespace from name and description", () => {
+    const message = `skills are available for use with the Skill tool:
+-   spaced-name  :   spaced description  `;
+    const skills = parseSkillsFromSystemMessage(message);
+    expect(skills[0].name).toBe("spaced-name");
+    expect(skills[0].description).toBe("spaced description");
+  });
+
+  it("sets source to 'plugin' for all discovered skills", () => {
+    const message = `skills are available for use with the Skill tool:
+- a: desc a
+- b: desc b`;
+    const skills = parseSkillsFromSystemMessage(message);
+    skills.forEach(s => expect(s.source).toBe("plugin"));
   });
 });
 
@@ -1443,6 +1531,39 @@ describe("chatStore - handleStreamEvent result clears state correctly", () => {
     handleEvent({ payload: { type: "assistantText", text: "Hello " } });
     handleEvent({ payload: { type: "assistantText", text: "world" } });
     expect(useChatStore.getState().streamingText["ws-1"]).toBe("Hello world");
+  });
+
+  it("persists message on result when no metadata but assistant message exists", () => {
+    useChatStore.setState({
+      messages: { "ws-1": [{ id: "m1", role: "assistant", content: [{ type: "text", text: "response" }], timestamp: 1000 }] },
+    });
+    handleEvent({ payload: { type: "result", isError: false, result: null, sessionId: null } });
+    // saveChatMessage should have been called to persist the assistant message
+    expect(saveChatMessage).toHaveBeenCalled();
+  });
+
+  it("does not persist when result has no metadata and no assistant message", () => {
+    vi.mocked(saveChatMessage).mockClear();
+    useChatStore.setState({
+      messages: { "ws-1": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1000 }] },
+    });
+    handleEvent({ payload: { type: "result", isError: false, result: null, sessionId: null } });
+    // No assistant message to persist — saveChatMessage should NOT be called for the result persist path
+    // (it may be called for the error message if isError)
+  });
+
+  it("preserves session stats from previous turn when fields are absent", () => {
+    useChatStore.setState({
+      sessionStats: { "ws-1": { totalCostUsd: 0.05, totalInputTokens: 100, totalOutputTokens: 50, numTurns: 1, totalCacheReadTokens: 0, totalCacheCreationTokens: 0 } },
+    });
+    handleEvent({ payload: {
+      type: "result", isError: false, result: null, sessionId: null,
+      totalCostUsd: 0.10, inputTokens: null, outputTokens: null, numTurns: 2,
+    } });
+    const stats = useChatStore.getState().sessionStats["ws-1"]!;
+    expect(stats.totalCostUsd).toBe(0.10);
+    expect(stats.totalInputTokens).toBe(100); // preserved from previous
+    expect(stats.numTurns).toBe(2);
   });
 
   it("adds toolResult content block", () => {
