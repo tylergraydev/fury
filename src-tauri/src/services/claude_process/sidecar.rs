@@ -160,6 +160,25 @@ pub async fn send_command(
     Ok(())
 }
 
+/// Parse a sidecar NDJSON line and extract the workspace UUID and raw JSON.
+/// This is the pure parsing step, separated from side-effectful event emission.
+#[cfg_attr(test, allow(dead_code))]
+pub(crate) fn parse_sidecar_line_id(line: &str) -> Result<(Uuid, serde_json::Value), String> {
+    let raw: serde_json::Value =
+        serde_json::from_str(line).map_err(|e| format!("Invalid JSON: {e}"))?;
+    let id_str = raw
+        .get("id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "Missing 'id' field".to_string())?;
+    let uuid = Uuid::parse_str(id_str).map_err(|e| format!("Invalid workspace UUID: {e}"))?;
+    Ok((uuid, raw))
+}
+
+/// Determine if a sidecar event's raw JSON indicates the agent run completed.
+pub(crate) fn is_result_event(raw: &serde_json::Value) -> bool {
+    raw.get("type").and_then(|v| v.as_str()) == Some("result")
+}
+
 /// Process a single NDJSON line from the sidecar stdout.
 /// Extracts the `id` field to determine the workspace, then parses
 /// the event and emits it to the frontend.
@@ -169,16 +188,7 @@ fn handle_sidecar_line(
     agents: &Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
     pending_permissions: &Arc<Mutex<HashMap<Uuid, FrontendStreamEvent>>>,
 ) -> Result<(), String> {
-    let raw: serde_json::Value =
-        serde_json::from_str(line).map_err(|e| format!("Invalid JSON: {}", e))?;
-
-    let id_str = raw
-        .get("id")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "Missing 'id' field".to_string())?;
-
-    let workspace_id =
-        Uuid::parse_str(id_str).map_err(|e| format!("Invalid workspace UUID: {}", e))?;
+    let (workspace_id, raw) = parse_sidecar_line_id(line)?;
 
     // Parse stream events using the existing parser
     let events = super::parse_stream_line(line);
@@ -210,20 +220,18 @@ fn handle_sidecar_line(
     }
 
     // Check for result event — transition agent back to Idle
-    if let Some(event_type) = raw.get("type").and_then(|v| v.as_str()) {
-        if event_type == "result" {
-            let mut lock = agents.lock().unwrap_or_else(|e| e.into_inner());
-            if let Some(agent) = lock.get_mut(&workspace_id) {
-                agent.status = AgentStatus::Idle;
-            }
-            let status_event = lock
-                .get(&workspace_id)
-                .cloned()
-                .unwrap_or_else(|| AgentInfo::new(workspace_id));
-            // Drop the lock before emitting
-            drop(lock);
-            let _ = app.emit(&format!("agent-status:{}", workspace_id), &status_event);
+    if is_result_event(&raw) {
+        let mut lock = agents.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(agent) = lock.get_mut(&workspace_id) {
+            agent.status = AgentStatus::Idle;
         }
+        let status_event = lock
+            .get(&workspace_id)
+            .cloned()
+            .unwrap_or_else(|| AgentInfo::new(workspace_id));
+        // Drop the lock before emitting
+        drop(lock);
+        let _ = app.emit(&format!("agent-status:{}", workspace_id), &status_event);
     }
 
     Ok(())
@@ -342,19 +350,69 @@ mod tests {
         assert!(json.contains("\"type\":\"shutdown\""));
     }
 
+    // ─── parse_sidecar_line_id tests ───────────────────────────────
+
     #[test]
-    fn test_handle_sidecar_line_invalid_json() {
-        // We can't easily construct an AppHandle in unit tests, but we can
-        // verify the JSON parsing path by checking error messages.
-        let result = serde_json::from_str::<serde_json::Value>("not json");
-        assert!(result.is_err());
+    fn test_parse_sidecar_line_id_valid() {
+        let line = r#"{"id":"550e8400-e29b-41d4-a716-446655440000","type":"system"}"#;
+        let (uuid, raw) = parse_sidecar_line_id(line).unwrap();
+        assert_eq!(uuid.to_string(), "550e8400-e29b-41d4-a716-446655440000");
+        assert_eq!(raw.get("type").unwrap().as_str().unwrap(), "system");
     }
 
     #[test]
-    fn test_handle_sidecar_line_missing_id() {
+    fn test_parse_sidecar_line_id_invalid_json() {
+        let result = parse_sidecar_line_id("not json at all");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid JSON"));
+    }
+
+    #[test]
+    fn test_parse_sidecar_line_id_missing_id_field() {
         let line = r#"{"type":"system","session_id":"abc"}"#;
-        let raw: serde_json::Value = serde_json::from_str(line).unwrap();
-        // No "id" field — this would fail in handle_sidecar_line
-        assert!(raw.get("id").is_none());
+        let result = parse_sidecar_line_id(line);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Missing 'id' field"));
+    }
+
+    #[test]
+    fn test_parse_sidecar_line_id_invalid_uuid() {
+        let line = r#"{"id":"not-a-uuid","type":"system"}"#;
+        let result = parse_sidecar_line_id(line);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid workspace UUID"));
+    }
+
+    #[test]
+    fn test_parse_sidecar_line_id_numeric_id() {
+        let line = r#"{"id":12345,"type":"system"}"#;
+        let result = parse_sidecar_line_id(line);
+        assert!(result.is_err()); // id must be a string
+    }
+
+    // ─── is_result_event tests ──────────────────────────────────────
+
+    #[test]
+    fn test_is_result_event_true() {
+        let raw: serde_json::Value = serde_json::json!({"type": "result", "id": "abc"});
+        assert!(is_result_event(&raw));
+    }
+
+    #[test]
+    fn test_is_result_event_false_for_system() {
+        let raw: serde_json::Value = serde_json::json!({"type": "system", "id": "abc"});
+        assert!(!is_result_event(&raw));
+    }
+
+    #[test]
+    fn test_is_result_event_false_for_missing_type() {
+        let raw: serde_json::Value = serde_json::json!({"id": "abc"});
+        assert!(!is_result_event(&raw));
+    }
+
+    #[test]
+    fn test_is_result_event_false_for_stream_event() {
+        let raw: serde_json::Value = serde_json::json!({"type": "stream_event", "id": "abc"});
+        assert!(!is_result_event(&raw));
     }
 }
