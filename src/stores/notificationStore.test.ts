@@ -132,4 +132,51 @@ describe("notificationStore", () => {
       expect(useNotificationStore.getState().panelOpen).toBe(false);
     });
   });
+
+  // ─── Mutation-killing tests ────────────────────────────────────────
+
+  describe("initial state", () => {
+    it("starts with empty notifications array", () => {
+      expect(useNotificationStore.getState().notifications).toEqual([]);
+      expect(Array.isArray(useNotificationStore.getState().notifications)).toBe(true);
+    });
+
+    it("starts with panelOpen false", () => {
+      expect(useNotificationStore.getState().panelOpen).toBe(false);
+    });
+  });
+
+  describe("notification IDs are unique and incrementing", () => {
+    it("generates unique IDs for each notification", () => {
+      const { addNotification } = useNotificationStore.getState();
+      addNotification({ type: "agent-complete", title: "A", message: "a", workspaceId: "ws-1", workspaceName: "ws" });
+      addNotification({ type: "agent-complete", title: "B", message: "b", workspaceId: "ws-1", workspaceName: "ws" });
+      const notifications = useNotificationStore.getState().notifications;
+      expect(notifications[0].id).not.toBe(notifications[1].id);
+    });
+  });
+
+  describe("unreadCount tracks correctly after dismiss", () => {
+    it("decrements unreadCount when unread notification is dismissed", () => {
+      const { addNotification } = useNotificationStore.getState();
+      addNotification({ type: "agent-complete", title: "A", message: "a", workspaceId: "ws-1", workspaceName: "ws" });
+      addNotification({ type: "agent-complete", title: "B", message: "b", workspaceId: "ws-1", workspaceName: "ws" });
+      expect(useNotificationStore.getState().unreadCount).toBe(2);
+
+      const id = useNotificationStore.getState().notifications[0].id;
+      useNotificationStore.getState().dismiss(id);
+      expect(useNotificationStore.getState().unreadCount).toBe(1);
+    });
+
+    it("does not change unreadCount when read notification is dismissed", () => {
+      const { addNotification } = useNotificationStore.getState();
+      addNotification({ type: "agent-complete", title: "A", message: "a", workspaceId: "ws-1", workspaceName: "ws" });
+      const id = useNotificationStore.getState().notifications[0].id;
+      useNotificationStore.getState().markRead(id);
+      expect(useNotificationStore.getState().unreadCount).toBe(0);
+
+      useNotificationStore.getState().dismiss(id);
+      expect(useNotificationStore.getState().unreadCount).toBe(0);
+    });
+  });
 });
