@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker/master/packages/core/schema/stryker-core.schema.json",
+  "testRunner": "vitest",
+  "checkers": ["typescript"],
+  "tsconfigFile": "tsconfig.json",
+  "reporters": ["clear-text", "progress"],
+  "concurrency": 4,
+  "timeoutMS": 30000,
+  "mutate": [
+    "src/stores/chatStore.ts",
+    "src/stores/agentStore.ts",
+    "src/stores/diffStore.ts",
+    "src/stores/workspaceStore.ts",
+    "src/stores/notificationStore.ts",
+    "src/stores/fileViewerStore.ts"
+  ],
+  "ignorePatterns": [
+    "coverage/**",
+    "e2e/**",
+    ".claude/**",
+    "src-tauri/target/**",
+    "src-tauri/sidecar/**",
+    "node_modules/**",
+    "dist/**"
+  ]
+}
