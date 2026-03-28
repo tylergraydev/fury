@@ -181,6 +181,29 @@ pub(crate) fn activate_agent(
     agent.session_id.clone()
 }
 
+/// Determine whether a running agent should block a new message.
+/// Returns true if the agent is Running AND its process is still alive.
+/// A stale "Running" status (process dead) should not block.
+pub(crate) fn should_block_new_message(agent: &AgentInfo) -> bool {
+    agent.status == AgentStatus::Running && is_agent_alive(agent)
+}
+
+/// Normalize optional JSON values: treat JSON null as None.
+/// Tauri deserializes JS `null` as `Some(Value::Null)` rather than `None`.
+pub(crate) fn normalize_null_value(val: Option<serde_json::Value>) -> Option<serde_json::Value> {
+    val.filter(|v| !v.is_null())
+}
+
+/// Normalize optional string values: treat empty strings as None.
+pub(crate) fn normalize_empty_string(val: Option<String>) -> Option<String> {
+    val.filter(|v| !v.is_empty())
+}
+
+/// Check if the agent type supports permission responses.
+pub(crate) fn supports_permission_response(agent_type: &AgentType) -> bool {
+    *agent_type != AgentType::CodexCli
+}
+
 /// Reset agent status to Idle after a failed spawn/write.
 fn reset_agent_on_error(
     agents: &Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
@@ -217,9 +240,7 @@ pub async fn send_message(
         let mut agents = state.agents.lock().unwrap();
         if let Some(agent) = agents.get_mut(&context_id) {
             if agent.status == AgentStatus::Running {
-                // Verify the process is actually alive before rejecting.
-                // Stale "Running" status can linger from crashed or stuck processes.
-                if is_agent_alive(agent) {
+                if should_block_new_message(agent) {
                     return Err(AppError::AgentError(
                         "Agent is already processing a message".to_string(),
                     ));
@@ -592,16 +613,15 @@ pub async fn respond_to_permission(
         let settings = state.settings.read().unwrap();
         settings.agent_type.clone()
     };
-    if agent_type == AgentType::CodexCli {
+    if !supports_permission_response(&agent_type) {
         return Err(AppError::AgentError(
             "Permission responses are not supported with Codex CLI".to_string(),
         ));
     }
 
     // Normalize null values to None so they are omitted from the sidecar JSON.
-    // Tauri deserializes JS `null` as Some(Value::Null) rather than None.
-    let updated_permissions = updated_permissions.filter(|v| !v.is_null());
-    let decision_classification = decision_classification.filter(|v| !v.is_empty());
+    let updated_permissions = normalize_null_value(updated_permissions);
+    let decision_classification = normalize_empty_string(decision_classification);
 
     // Send a PermissionResponse command to the sidecar
     let cmd = claude_process::SidecarCommand::PermissionResponse {
@@ -1316,5 +1336,94 @@ mod tests {
         let (thinking, plan) = extract_toggle_flags(&req);
         assert!(thinking);
         assert!(!plan);
+    }
+
+    // ─── should_block_new_message tests ──────────────────────────────
+
+    #[test]
+    fn test_should_block_running_no_pid_sidecar() {
+        let mut agent = AgentInfo::new(Uuid::new_v4());
+        agent.status = AgentStatus::Running;
+        agent.pid = None; // Sidecar-based, no PID
+        // Sidecar agent is considered alive when Running
+        assert!(should_block_new_message(&agent));
+    }
+
+    #[test]
+    fn test_should_block_running_dead_pid() {
+        let mut agent = AgentInfo::new(Uuid::new_v4());
+        agent.status = AgentStatus::Running;
+        agent.pid = Some(999_999_999); // Dead PID
+        // Process is dead — should NOT block (stale Running)
+        assert!(!should_block_new_message(&agent));
+    }
+
+    #[test]
+    fn test_should_not_block_idle() {
+        let agent = AgentInfo::new(Uuid::new_v4());
+        assert!(!should_block_new_message(&agent));
+    }
+
+    #[test]
+    fn test_should_not_block_error() {
+        let mut agent = AgentInfo::new(Uuid::new_v4());
+        agent.status = AgentStatus::Error("crash".to_string());
+        assert!(!should_block_new_message(&agent));
+    }
+
+    // ─── normalize_null_value tests ──────────────────────────────────
+
+    #[test]
+    fn test_normalize_null_value_none() {
+        assert!(normalize_null_value(None).is_none());
+    }
+
+    #[test]
+    fn test_normalize_null_value_json_null() {
+        assert!(normalize_null_value(Some(serde_json::Value::Null)).is_none());
+    }
+
+    #[test]
+    fn test_normalize_null_value_json_string() {
+        let val = serde_json::json!("hello");
+        assert_eq!(normalize_null_value(Some(val.clone())), Some(val));
+    }
+
+    #[test]
+    fn test_normalize_null_value_json_object() {
+        let val = serde_json::json!({"key": "value"});
+        assert_eq!(normalize_null_value(Some(val.clone())), Some(val));
+    }
+
+    // ─── normalize_empty_string tests ────────────────────────────────
+
+    #[test]
+    fn test_normalize_empty_string_none() {
+        assert!(normalize_empty_string(None).is_none());
+    }
+
+    #[test]
+    fn test_normalize_empty_string_empty() {
+        assert!(normalize_empty_string(Some(String::new())).is_none());
+    }
+
+    #[test]
+    fn test_normalize_empty_string_non_empty() {
+        assert_eq!(
+            normalize_empty_string(Some("allow".to_string())),
+            Some("allow".to_string())
+        );
+    }
+
+    // ─── supports_permission_response tests ──────────────────────────
+
+    #[test]
+    fn test_supports_permission_claude_code() {
+        assert!(supports_permission_response(&AgentType::ClaudeCode));
+    }
+
+    #[test]
+    fn test_does_not_support_permission_codex() {
+        assert!(!supports_permission_response(&AgentType::CodexCli));
     }
 }
