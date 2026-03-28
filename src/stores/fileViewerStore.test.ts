@@ -1306,6 +1306,61 @@ describe("fileViewerStore - split editor", () => {
 
 // ─── Mutation-killing tests: detectLanguage ─────────────────────────────
 
+describe("fileViewerStore - tab creation defaults", () => {
+  it("new tab starts with dirty=false after content loads", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "hello", language: "typescript" } as any);
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "test.ts", true);
+
+    await vi.waitFor(() => {
+      const tab = useFileViewerStore.getState().tabs.find(t => t.filePath === "test.ts");
+      expect(tab!.dirty).toBe(false);
+    });
+  });
+
+  it("new tab starts with loading=true then loading=false", async () => {
+    let resolveLoad: (v: any) => void;
+    vi.mocked(readWorkspaceFile).mockImplementation(() => new Promise(r => { resolveLoad = r; }));
+
+    const promise = useFileViewerStore.getState().openFile("ctx1", "workspace", "loading.ts", true);
+    const tabBefore = useFileViewerStore.getState().tabs.find(t => t.filePath === "loading.ts");
+    expect(tabBefore!.loading).toBe(true);
+
+    resolveLoad!({ content: "done", language: "typescript" });
+    await promise;
+
+    await vi.waitFor(() => {
+      const tabAfter = useFileViewerStore.getState().tabs.find(t => t.filePath === "loading.ts");
+      expect(tabAfter!.loading).toBe(false);
+    });
+  });
+
+  it("new tab starts with saving=false", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "saving.ts", true);
+    const tab = useFileViewerStore.getState().tabs.find(t => t.filePath === "saving.ts");
+    expect(tab!.saving).toBe(false);
+  });
+
+  it("new tab starts with error=null", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "err.ts", true);
+    const tab = useFileViewerStore.getState().tabs.find(t => t.filePath === "err.ts");
+    expect(tab!.error).toBeNull();
+  });
+
+  it("new tab starts with content=null and editedContent=null", async () => {
+    let resolveLoad: (v: any) => void;
+    vi.mocked(readWorkspaceFile).mockImplementation(() => new Promise(r => { resolveLoad = r; }));
+
+    useFileViewerStore.getState().openFile("ctx1", "workspace", "null.ts", true);
+    const tab = useFileViewerStore.getState().tabs.find(t => t.filePath === "null.ts");
+    expect(tab!.content).toBeNull();
+    expect(tab!.editedContent).toBeNull();
+
+    resolveLoad!({ content: "loaded", language: "typescript" });
+  });
+});
+
 describe("detectLanguage", () => {
   it.each([
     ["app.ts", "typescript"],
