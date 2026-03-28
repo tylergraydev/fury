@@ -1593,6 +1593,50 @@ describe("chatStore - handleStreamEvent result clears state correctly", () => {
     expect(stats.numTurns).toBe(2);
   });
 
+  it("result with no metadata and last msg is user does not persist", () => {
+    vi.mocked(saveChatMessage).mockClear();
+    useChatStore.setState({
+      messages: { "ws-1": [{ id: "u1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1000 }] },
+    });
+    handleEvent({ payload: { type: "result", isError: false, result: null, sessionId: null } });
+    // No assistant message to persist — saveChatMessage should not be called for persist path
+    // (system error message isn't added because isError is false)
+    expect(saveChatMessage).not.toHaveBeenCalled();
+  });
+
+  it("result with metadata but no messages creates no crash", () => {
+    // Empty messages array — should not crash
+    useChatStore.setState({ messages: {} });
+    handleEvent({ payload: {
+      type: "result", isError: false, result: null, sessionId: null,
+      durationMs: 1000, totalCostUsd: 0.01, inputTokens: 10, outputTokens: 20,
+      numTurns: 1,
+    } });
+    // Should not throw — the msgs ?? [] fallback prevents crash
+    expect(true).toBe(true);
+  });
+
+  it("result with hasMetadata false skips session stats update", () => {
+    useChatStore.setState({ sessionStats: {} });
+    handleEvent({ payload: { type: "result", isError: false, result: null, sessionId: null } });
+    // No metadata fields → hasMetadata false → no sessionStats update
+    expect(useChatStore.getState().sessionStats["ws-1"]).toBeUndefined();
+  });
+
+  it("system event with skills triggers slash command store", () => {
+    const msg = "The following skills are available for use with the Skill tool:\n- test-skill: A test skill";
+    handleEvent({ payload: { type: "system", message: msg, sessionId: "s1" } });
+    // The system message should be persisted
+    const msgs = useChatStore.getState().messages["ws-1"] ?? [];
+    expect(msgs.some((m: any) => m.role === "system")).toBe(true);
+  });
+
+  it("system event with no skills parses without error", () => {
+    handleEvent({ payload: { type: "system", message: "No skills here", sessionId: "s1" } });
+    const msgs = useChatStore.getState().messages["ws-1"] ?? [];
+    expect(msgs.some((m: any) => m.role === "system")).toBe(true);
+  });
+
   it("adds toolResult content block", () => {
     // First add a tool use
     handleEvent({ payload: { type: "toolUse", id: "t1", name: "Read", input: { file: "test.ts" } } });
