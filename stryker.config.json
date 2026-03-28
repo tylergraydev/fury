@@ -1,8 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker/master/packages/core/schema/stryker-core.schema.json",
   "testRunner": "vitest",
-  "checkers": ["typescript"],
-  "tsconfigFile": "tsconfig.json",
+  "checkers": [],
   "reporters": ["clear-text", "progress"],
   "concurrency": 4,
   "timeoutMS": 30000,
