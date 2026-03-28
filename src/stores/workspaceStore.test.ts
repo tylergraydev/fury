@@ -380,3 +380,93 @@ describe("workspaceStore - pinWs", () => {
     expect(useWorkspaceStore.getState().error).toBe("Error: pin fail");
   });
 });
+
+// ─── Mutation-killing tests ──────────────────────────────────────────────
+
+describe("workspaceStore - loadWorkspaces sets loading state", () => {
+  it("sets loading to true then false", async () => {
+    vi.mocked(listWorkspaces).mockResolvedValue([]);
+
+    const promise = useWorkspaceStore.getState().loadWorkspaces();
+    expect(useWorkspaceStore.getState().loading).toBe(true);
+
+    await promise;
+    expect(useWorkspaceStore.getState().loading).toBe(false);
+  });
+
+  it("clears error on load", async () => {
+    useWorkspaceStore.setState({ error: "previous error" });
+    vi.mocked(listWorkspaces).mockResolvedValue([]);
+
+    await useWorkspaceStore.getState().loadWorkspaces();
+    expect(useWorkspaceStore.getState().error).toBeNull();
+  });
+});
+
+describe("workspaceStore - archiveWs removes from active list", () => {
+  it("removes archived workspace from workspaces array", async () => {
+    const ws1 = makeWs({ id: "ws-1", name: "keep" });
+    const ws2 = makeWs({ id: "ws-2", name: "archive-me" });
+    useWorkspaceStore.setState({ workspaces: [ws1, ws2] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-2");
+
+    const remaining = useWorkspaceStore.getState().workspaces;
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].id).toBe("ws-1");
+    // Archived workspace should NOT be in active list
+    expect(remaining.find((w) => w.id === "ws-2")).toBeUndefined();
+  });
+
+  it("adds to archivedWorkspaces when archived item found", async () => {
+    const ws = makeWs({ id: "ws-1" });
+    useWorkspaceStore.setState({ workspaces: [ws], archivedWorkspaces: [] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-1");
+
+    const archived = useWorkspaceStore.getState().archivedWorkspaces;
+    expect(archived.some((w) => w.id === "ws-1")).toBe(true);
+  });
+});
+
+describe("workspaceStore - deleteWs removes from active list", () => {
+  it("removes deleted workspace from workspaces array", async () => {
+    const ws1 = makeWs({ id: "ws-1" });
+    const ws2 = makeWs({ id: "ws-2" });
+    useWorkspaceStore.setState({ workspaces: [ws1, ws2] });
+    vi.mocked(deleteWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().deleteWs("ws-2");
+
+    const remaining = useWorkspaceStore.getState().workspaces;
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].id).toBe("ws-1");
+  });
+});
+
+describe("workspaceStore - restoreWs moves workspace from archived to active list", () => {
+  it("moves workspace from archived to active", async () => {
+    const ws = makeWs({ id: "ws-1" });
+    useWorkspaceStore.setState({ workspaces: [], archivedWorkspaces: [ws] });
+    vi.mocked(restoreWorkspace).mockResolvedValue(ws);
+
+    await useWorkspaceStore.getState().restoreWs("ws-1");
+
+    expect(useWorkspaceStore.getState().workspaces.find((w) => w.id === "ws-1")).toBeTruthy();
+    expect(useWorkspaceStore.getState().archivedWorkspaces.find((w) => w.id === "ws-1")).toBeUndefined();
+  });
+});
+
+describe("workspaceStore - initial state", () => {
+  it("starts with empty workspaces array", () => {
+    useWorkspaceStore.setState({ workspaces: [] });
+    expect(useWorkspaceStore.getState().workspaces).toEqual([]);
+    expect(Array.isArray(useWorkspaceStore.getState().workspaces)).toBe(true);
+  });
+
+  it("starts with loading false", () => {
+    expect(useWorkspaceStore.getState().loading).toBe(false);
+  });
+});

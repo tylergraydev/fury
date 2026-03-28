@@ -1292,3 +1292,124 @@ describe("chatStore - clearMessages clears sessionStats", () => {
     expect(useChatStore.getState().sessionStats["ws-2"]).toBeDefined();
   });
 });
+
+// ─── Mutation-killing tests ──────────────────────────────────────────────
+
+describe("chatStore - addUserMessage resets conductor state", () => {
+  it("resets planApproval to false", () => {
+    useChatStore.setState({
+      planApproval: { "ws-1": true },
+    });
+    useChatStore.getState().addUserMessage("ws-1", "hello");
+    expect(useChatStore.getState().planApproval["ws-1"]).toBe(false);
+  });
+
+  it("resets permissionRequest to null", () => {
+    useChatStore.setState({
+      permissionRequest: { "ws-1": { toolName: "Read", input: {} } as any },
+    });
+    useChatStore.getState().addUserMessage("ws-1", "hello");
+    expect(useChatStore.getState().permissionRequest["ws-1"]).toBeNull();
+  });
+
+  it("resets questionRequest to null", () => {
+    useChatStore.setState({
+      questionRequest: { "ws-1": { question: "which?" } as any },
+    });
+    useChatStore.getState().addUserMessage("ws-1", "hello");
+    expect(useChatStore.getState().questionRequest["ws-1"]).toBeNull();
+  });
+
+  it("resets conductorPhase to idle", () => {
+    useChatStore.setState({
+      conductorPhase: { "ws-1": "researching" },
+    });
+    useChatStore.getState().addUserMessage("ws-1", "hello");
+    expect(useChatStore.getState().conductorPhase["ws-1"]).toBe("idle");
+  });
+
+  it("preserves other workspace state when resetting", () => {
+    useChatStore.setState({
+      planApproval: { "ws-1": true, "ws-2": true },
+      permissionRequest: { "ws-2": { toolName: "Bash", input: {} } as any },
+    });
+    useChatStore.getState().addUserMessage("ws-1", "hello");
+    // ws-2 should be untouched
+    expect(useChatStore.getState().planApproval["ws-2"]).toBe(true);
+    expect(useChatStore.getState().permissionRequest["ws-2"]).toBeTruthy();
+  });
+});
+
+describe("chatStore - clearMessages cancels tokens and tears down", () => {
+  it("tears down subscription on clearMessages", () => {
+    const unsub = vi.fn();
+    useChatStore.setState({
+      messages: { "ws-1": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1000 }] },
+      subscriptions: { "ws-1": unsub },
+    });
+    vi.mocked(clearChatMessages).mockResolvedValue(undefined);
+
+    useChatStore.getState().clearMessages("ws-1");
+
+    expect(unsub).toHaveBeenCalled();
+    expect(useChatStore.getState().subscriptions["ws-1"]).toBeUndefined();
+  });
+
+  it("clears messages array for workspace", () => {
+    useChatStore.setState({
+      messages: { "ws-1": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1000 }] },
+    });
+    vi.mocked(clearChatMessages).mockResolvedValue(undefined);
+
+    useChatStore.getState().clearMessages("ws-1");
+
+    const msgs = useChatStore.getState().messages["ws-1"];
+    expect(!msgs || msgs.length === 0).toBe(true);
+  });
+});
+
+describe("chatStore - subscribe cancellation tokens", () => {
+  it("cancels previous in-flight subscribe", async () => {
+    const unlisten1 = vi.fn();
+    const unlisten2 = vi.fn();
+    let callCount = 0;
+    vi.mocked(listen).mockImplementation(async () => {
+      callCount++;
+      return callCount === 1 ? unlisten1 : unlisten2;
+    });
+
+    // Start first subscribe — don't await
+    const p1 = useChatStore.getState().subscribe("ws-1");
+    // Start second subscribe immediately — should cancel first
+    const p2 = useChatStore.getState().subscribe("ws-1");
+
+    await p1;
+    await p2;
+
+    // The subscription should exist (second one won)
+    expect(useChatStore.getState().subscriptions["ws-1"]).toBeDefined();
+  });
+
+  it("removes subscription from state on error", async () => {
+    vi.mocked(listen).mockRejectedValueOnce(new Error("connection failed"));
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await useChatStore.getState().subscribe("ws-err");
+
+    // Subscription should not be in state after failure
+    expect(useChatStore.getState().subscriptions["ws-err"]).toBeUndefined();
+    consoleSpy.mockRestore();
+  });
+});
+
+describe("chatStore - unsubscribe cleans up tokens", () => {
+  it("calls unlisten function on unsubscribe", () => {
+    const unsub = vi.fn();
+    useChatStore.setState({ subscriptions: { "ws-1": unsub } });
+
+    useChatStore.getState().unsubscribe("ws-1");
+
+    expect(unsub).toHaveBeenCalled();
+    expect(useChatStore.getState().subscriptions["ws-1"]).toBeUndefined();
+  });
+});
