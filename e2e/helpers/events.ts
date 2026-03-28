@@ -134,6 +134,25 @@ export async function emitPlanApproval(
 }
 
 /**
+ * Emit a test runner event.
+ * The testRunnerStore listens on `test-runner:{contextId}`.
+ */
+export async function emitTestRunEvent(
+  page: Page,
+  contextId: string,
+  payload: unknown,
+) {
+  const eventName = `test-runner:${contextId}`;
+  const payloadStr = JSON.stringify(payload);
+  await page.evaluate(
+    ([eventName, payloadStr]) => {
+      (window as any).__E2E_EMIT_EVENT__(eventName, JSON.parse(payloadStr));
+    },
+    [eventName, payloadStr] as const,
+  );
+}
+
+/**
  * Emit a result event (agent finished) in the agent stream.
  */
 export async function emitResult(

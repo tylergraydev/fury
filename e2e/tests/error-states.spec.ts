@@ -1,5 +1,9 @@
 import { test, expect } from "../helpers/app";
-import { emitAgentStatus } from "../helpers/events";
+import {
+  emitAgentStatus,
+  emitStreamText,
+  emitResult,
+} from "../helpers/events";
 
 test.describe("Error & Edge States", () => {
   test("agent error status shows error indicator", async ({ appPage }) => {
@@ -8,36 +12,16 @@ test.describe("Error & Edge States", () => {
       appPage.getByText("/add-auth", { exact: true }),
     ).toBeVisible();
 
-    // Emit an error status for the agent
     await emitAgentStatus(appPage, "ws-auth", {
       Error: "Connection lost to Claude API",
     });
 
-    // The status dot in the top bar should show error state
     await expect(
       appPage.locator("[title='Agent error']"),
     ).toBeVisible({ timeout: 5000 });
   });
 
-  test("empty workspace shows help text with no messages", async ({
-    appPage,
-  }) => {
-    // ws-ui has no pre-seeded messages, so it should show empty state
-    await appPage.getByText("redesign-sidebar").click();
-    await expect(
-      appPage.getByText("/redesign-sidebar", { exact: true }),
-    ).toBeVisible();
-
-    // The chat panel should show some help/placeholder text when empty
-    // Look for the composer placeholder which is always visible
-    await expect(
-      appPage.getByPlaceholder(
-        "Ask to make changes, @mention files, run /commands",
-      ),
-    ).toBeVisible();
-  });
-
-  test("streaming with pending text shows Thinking indicator", async ({
+  test("agent recovers from error when set back to Idle", async ({
     appPage,
   }) => {
     await appPage.getByText("add-auth").click();
@@ -45,12 +29,95 @@ test.describe("Error & Edge States", () => {
       appPage.getByText("/add-auth", { exact: true }),
     ).toBeVisible();
 
-    // Set agent to Running without sending any stream text yet
-    await emitAgentStatus(appPage, "ws-auth", "Running");
+    // Set error state
+    await emitAgentStatus(appPage, "ws-auth", {
+      Error: "API rate limit exceeded",
+    });
+    await expect(
+      appPage.locator("[title='Agent error']"),
+    ).toBeVisible({ timeout: 5000 });
 
-    // Should show stop button in the composer area when running
+    // Recover to Idle
+    await emitAgentStatus(appPage, "ws-auth", "Idle");
+    await expect(
+      appPage.locator("[title='Agent error']"),
+    ).not.toBeVisible();
+  });
+
+  test("empty workspace shows composer placeholder", async ({ appPage }) => {
+    await appPage.getByText("redesign-sidebar").click();
+    await expect(
+      appPage.getByText("/redesign-sidebar", { exact: true }),
+    ).toBeVisible();
+
+    await expect(
+      appPage.getByPlaceholder(
+        "Ask to make changes, @mention files, run /commands",
+      ),
+    ).toBeVisible();
+  });
+
+  test("running agent shows stop button, idle hides it", async ({
+    appPage,
+  }) => {
+    await appPage.getByText("add-auth").click();
+    await expect(
+      appPage.getByText("/add-auth", { exact: true }),
+    ).toBeVisible();
+
+    // Running → stop button visible
+    await emitAgentStatus(appPage, "ws-auth", "Running");
     await expect(
       appPage.getByTitle("Stop"),
     ).toBeVisible({ timeout: 5000 });
+
+    // Idle → stop button hidden
+    await emitAgentStatus(appPage, "ws-auth", "Idle");
+    await expect(appPage.getByTitle("Stop")).not.toBeVisible();
+  });
+
+  test("agent result with error emits notification", async ({ appPage }) => {
+    await appPage.getByText("add-auth").click();
+    await expect(
+      appPage.getByText("/add-auth", { exact: true }),
+    ).toBeVisible();
+
+    // Start agent, stream text, then error result
+    await emitAgentStatus(appPage, "ws-auth", "Running");
+    await appPage.waitForTimeout(100);
+    await emitStreamText(appPage, "ws-auth", "Analyzing code...");
+    await emitResult(appPage, "ws-auth", {
+      isError: true,
+      result: "Process exited with code 1",
+    });
+    await emitAgentStatus(appPage, "ws-auth", "Idle");
+
+    // Streamed text should still be in the chat
+    await expect(
+      appPage.getByText("Analyzing code...").first(),
+    ).toBeVisible();
+
+    // Notification badge should appear (agent completed notification)
+    await expect(
+      appPage.getByTestId("notification-badge"),
+    ).toBeVisible();
+  });
+
+  test("stopping state transitions correctly", async ({ appPage }) => {
+    await appPage.getByText("add-auth").click();
+    await expect(
+      appPage.getByText("/add-auth", { exact: true }),
+    ).toBeVisible();
+
+    await emitAgentStatus(appPage, "ws-auth", "Running");
+    await expect(appPage.getByTitle("Stop")).toBeVisible({ timeout: 5000 });
+
+    // Transition to Stopping
+    await emitAgentStatus(appPage, "ws-auth", "Stopping");
+    await appPage.waitForTimeout(100);
+
+    // Finally Idle
+    await emitAgentStatus(appPage, "ws-auth", "Idle");
+    await expect(appPage.getByTitle("Stop")).not.toBeVisible();
   });
 });

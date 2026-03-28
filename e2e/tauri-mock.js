@@ -366,6 +366,62 @@
       case "get_repo_file_diff":
         return { path: args.filePath, original: "", modified: "", language: "typescript" };
 
+      // Chat search
+      case "search_chat_messages": {
+        if (!args.query) return [];
+        var q = args.query.toLowerCase();
+        var searchResults = [];
+        var wsIds = args.workspaceId ? [args.workspaceId] : Object.keys(MESSAGES);
+        wsIds.forEach(function(wsId) {
+          var msgs = MESSAGES[wsId] || [];
+          var ws = WORKSPACES.find(function(w) { return w.id === wsId; });
+          msgs.forEach(function(msg) {
+            var textBlocks = (msg.content || []).filter(function(c) { return c.type === "text"; });
+            textBlocks.forEach(function(block) {
+              if (block.text.toLowerCase().indexOf(q) >= 0) {
+                searchResults.push({
+                  messageId: msg.id,
+                  workspaceId: wsId,
+                  workspaceName: ws ? ws.name : wsId,
+                  role: msg.role,
+                  matchedText: block.text.substring(0, 120),
+                  timestamp: new Date(msg.timestamp).toISOString(),
+                });
+              }
+            });
+          });
+        });
+        return searchResults;
+      }
+
+      // Bookmarks
+      case "list_bookmarks":
+        return window.__E2E_BOOKMARKS__ || [];
+      case "create_bookmark": {
+        var bm = {
+          id: "bm-" + Date.now(),
+          repoId: args.repoId,
+          filePath: args.filePath,
+          lineNumber: args.lineNumber || 1,
+          note: args.note || null,
+          color: args.color || "blue",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        if (!window.__E2E_BOOKMARKS__) window.__E2E_BOOKMARKS__ = [];
+        window.__E2E_BOOKMARKS__.push(bm);
+        return bm;
+      }
+      case "update_bookmark":
+        return;
+      case "delete_bookmark": {
+        var allBm = window.__E2E_BOOKMARKS__ || [];
+        window.__E2E_BOOKMARKS__ = allBm.filter(function(b) { return b.id !== args.bookmarkId; });
+        return;
+      }
+      case "toggle_bookmark":
+        return;
+
       // Settings
       case "get_app_settings":
         return APP_SETTINGS;
@@ -500,7 +556,11 @@
       case "get_branch_status":
         return { branch: "feature/add-auth", defaultBranch: "main", ahead: 3, behind: 0, hasUpstream: true };
       case "get_git_log":
-        return [];
+        return [
+          { hash: "abc1234", message: "Add JWT auth middleware", author: "demo", timestamp: new Date(Date.now() - 60000).toISOString() },
+          { hash: "def5678", message: "Update route handlers", author: "demo", timestamp: new Date(Date.now() - 120000).toISOString() },
+          { hash: "ghi9012", message: "Fix test failures", author: "demo", timestamp: new Date(Date.now() - 180000).toISOString() },
+        ];
       case "fetch_upstream":
       case "pull_rebase":
       case "pull_merge":
@@ -570,6 +630,146 @@
       // Type definitions
       case "load_type_definitions":
         return { tsconfig: null, libs: [] };
+
+      // Test runner
+      case "detect_test_framework":
+      case "get_test_runner_config":
+        return { framework: "vitest", testCommand: "npx vitest run", testFileCommand: "npx vitest run {file}", workingDir: null, coverageCommand: "npx vitest run --coverage" };
+      case "save_test_runner_config":
+        return;
+      case "run_tests":
+      case "stop_tests":
+        return;
+      case "start_test_watch":
+      case "stop_test_watch":
+        return;
+      case "list_test_history":
+        return [];
+      case "run_coverage":
+        return;
+
+      // Snippets
+      case "list_snippets":
+        return window.__E2E_SNIPPETS__ || [];
+      case "create_snippet": {
+        var newSnippet = {
+          id: "snippet-" + Date.now(),
+          title: args.request.title,
+          content: args.request.content,
+          language: args.request.language || "typescript",
+          description: args.request.description || null,
+          tags: args.request.tags || [],
+          source: args.request.source || null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        if (!window.__E2E_SNIPPETS__) window.__E2E_SNIPPETS__ = [];
+        window.__E2E_SNIPPETS__.push(newSnippet);
+        return newSnippet;
+      }
+      case "update_snippet": {
+        var snippets = window.__E2E_SNIPPETS__ || [];
+        var sIdx = snippets.findIndex(function(s) { return s.id === args.snippetId; });
+        if (sIdx >= 0) {
+          if (args.request.title) snippets[sIdx].title = args.request.title;
+          if (args.request.content) snippets[sIdx].content = args.request.content;
+          snippets[sIdx].updatedAt = new Date().toISOString();
+          return snippets[sIdx];
+        }
+        return null;
+      }
+      case "delete_snippet": {
+        var allSnippets = window.__E2E_SNIPPETS__ || [];
+        window.__E2E_SNIPPETS__ = allSnippets.filter(function(s) { return s.id !== args.snippetId; });
+        return;
+      }
+
+      // Usage data
+      case "get_usage_data":
+        return [
+          { workspaceId: "ws-auth", workspaceName: "add-auth", timestamp: new Date(Date.now() - 3600000).toISOString(), totalCostUsd: 0.45, inputTokens: 12000, outputTokens: 8500, cacheReadTokens: 2000, cacheCreationTokens: 500, numTurns: 5, durationMs: 25000 },
+          { workspaceId: "ws-ui", workspaceName: "redesign-sidebar", timestamp: new Date(Date.now() - 7200000).toISOString(), totalCostUsd: 0.32, inputTokens: 9000, outputTokens: 6200, cacheReadTokens: 1500, cacheCreationTokens: 300, numTurns: 3, durationMs: 18000 },
+          { workspaceId: "ws-fix", workspaceName: "fix-pagination", timestamp: new Date(Date.now() - 10800000).toISOString(), totalCostUsd: 0.15, inputTokens: 4000, outputTokens: 2800, cacheReadTokens: 800, cacheCreationTokens: 100, numTurns: 2, durationMs: 9000 },
+        ];
+
+      // Workspace export
+      case "export_workspace":
+        return JSON.stringify({
+          workspace: { id: args.options.workspaceId },
+          exported: args.options,
+          exportedAt: new Date().toISOString(),
+        }, null, 2);
+
+      // Workspace templates
+      case "list_workspace_templates":
+        return (window.__E2E_TEMPLATES__ || {})[args.repoId] || [];
+      case "create_workspace_template": {
+        var tmpl = {
+          id: "template-" + Date.now(),
+          repoId: args.request.repoId,
+          name: args.request.name,
+          description: args.request.description || null,
+          setupScript: args.request.setupScript || null,
+          runScript: args.request.runScript || null,
+          archiveScript: args.request.archiveScript || null,
+          runScriptMode: args.request.runScriptMode || "nonconcurrent",
+          envVars: args.request.envVars || {},
+          sparseDirs: args.request.sparseDirs || [],
+          autoCommit: args.request.autoCommit || false,
+          createdAt: new Date().toISOString(),
+        };
+        if (!window.__E2E_TEMPLATES__) window.__E2E_TEMPLATES__ = {};
+        if (!window.__E2E_TEMPLATES__[args.request.repoId]) window.__E2E_TEMPLATES__[args.request.repoId] = [];
+        window.__E2E_TEMPLATES__[args.request.repoId].push(tmpl);
+        return tmpl;
+      }
+      case "update_workspace_template":
+      case "delete_workspace_template":
+        return;
+
+      // Linear / Issues
+      case "search_linear_issues": {
+        if (!args.query) return [];
+        return [
+          { id: "linear-1", identifier: "ENG-123", title: "Implement authentication", url: "https://linear.app/acme/issue/ENG-123", stateName: "In Progress", priority: 1, teamName: "Engineering", description: "Add JWT auth to API" },
+          { id: "linear-2", identifier: "ENG-456", title: "Database optimization", url: "https://linear.app/acme/issue/ENG-456", stateName: "Backlog", priority: 2, teamName: "Engineering", description: null },
+        ];
+      }
+      case "get_workspace_issues":
+        return (window.__E2E_LINKED_ISSUES__ || {})[args.workspaceId] || [];
+      case "link_issue_to_workspace": {
+        if (!window.__E2E_LINKED_ISSUES__) window.__E2E_LINKED_ISSUES__ = {};
+        if (!window.__E2E_LINKED_ISSUES__[args.request.workspaceId]) window.__E2E_LINKED_ISSUES__[args.request.workspaceId] = [];
+        window.__E2E_LINKED_ISSUES__[args.request.workspaceId].push({
+          issueId: args.request.issueId, workspaceId: args.request.workspaceId,
+          identifier: args.request.identifier, title: args.request.title,
+          url: args.request.url, linkedAt: new Date().toISOString(),
+        });
+        return;
+      }
+      case "unlink_issue_from_workspace": {
+        if (window.__E2E_LINKED_ISSUES__ && window.__E2E_LINKED_ISSUES__[args.request.workspaceId]) {
+          window.__E2E_LINKED_ISSUES__[args.request.workspaceId] = window.__E2E_LINKED_ISSUES__[args.request.workspaceId].filter(function(i) { return i.issueId !== args.request.issueId; });
+        }
+        return;
+      }
+
+      // Dev container
+      case "get_container_status":
+        return { status: "none", containerId: null, containerName: null };
+      case "start_container":
+        return { status: "running", containerId: "abc123def456", containerName: "fury-dev" };
+      case "stop_container":
+      case "rebuild_container":
+        return;
+      case "detect_devcontainer":
+        return null;
+      case "update_devcontainer_config":
+        return;
+      case "containerize_repo":
+        return JSON.stringify({ image: "node:20", features: {} });
+      case "apply_devcontainer_config":
+        return;
 
       default:
         console.warn("[tauri-mock] Unhandled command:", cmd, args);
