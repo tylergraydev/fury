@@ -759,6 +759,33 @@ describe("chatStore - formatErrorMessage (via result events)", () => {
     const result = getErrorText("Used 512 tokens");
     expect(result).toContain("Error: Used 512 tokens");
   });
+
+  // Kill || → && mutations by testing secondary condition paths
+  it("detects 401 via 'unauthorized' text without code match", () => {
+    expect(getErrorText("error: 401 please check credentials")).toContain("Authentication error (401)");
+  });
+
+  it("detects 403 via 'forbidden' text without code match", () => {
+    expect(getErrorText("error: 403 access forbidden")).toContain("Access denied (403)");
+  });
+
+  it("detects timeout via 'timed out' variation", () => {
+    expect(getErrorText("Connection timed out")).toContain("timed out");
+  });
+
+  it("returns exact short error in fallback (not trimmed)", () => {
+    const result = getErrorText("short error");
+    expect(result).toBe("Error: short error");
+    // Should NOT have "..." when under 120 chars
+    expect(result).not.toContain("...");
+  });
+
+  it("trims long error with ellipsis in fallback", () => {
+    const long = "A".repeat(150);
+    const result = getErrorText(long);
+    expect(result).toContain("...");
+    expect(result.length).toBeLessThan(150);
+  });
 });
 
 describe("chatStore - parseSkillsFromSystemMessage", () => {
@@ -1680,6 +1707,43 @@ describe("chatStore - addUserMessage resets conductor state", () => {
     // ws-2 should be untouched
     expect(useChatStore.getState().planApproval["ws-2"]).toBe(true);
     expect(useChatStore.getState().permissionRequest["ws-2"]).toBeTruthy();
+  });
+});
+
+describe("chatStore - clearMessages resets all workspace state", () => {
+  it("resets streamingText", () => {
+    useChatStore.setState({ streamingText: { "ws-1": "partial text" } });
+    vi.mocked(clearChatMessages).mockResolvedValue(undefined);
+    useChatStore.getState().clearMessages("ws-1");
+    expect(useChatStore.getState().streamingText["ws-1"]).toBe("");
+  });
+
+  it("resets planApproval to false", () => {
+    useChatStore.setState({ planApproval: { "ws-1": true } });
+    vi.mocked(clearChatMessages).mockResolvedValue(undefined);
+    useChatStore.getState().clearMessages("ws-1");
+    expect(useChatStore.getState().planApproval["ws-1"]).toBe(false);
+  });
+
+  it("resets permissionRequest to null", () => {
+    useChatStore.setState({ permissionRequest: { "ws-1": { toolName: "Bash", input: {} } as any } });
+    vi.mocked(clearChatMessages).mockResolvedValue(undefined);
+    useChatStore.getState().clearMessages("ws-1");
+    expect(useChatStore.getState().permissionRequest["ws-1"]).toBeNull();
+  });
+
+  it("resets questionRequest to null", () => {
+    useChatStore.setState({ questionRequest: { "ws-1": { question: "?" } as any } });
+    vi.mocked(clearChatMessages).mockResolvedValue(undefined);
+    useChatStore.getState().clearMessages("ws-1");
+    expect(useChatStore.getState().questionRequest["ws-1"]).toBeNull();
+  });
+
+  it("resets conductorPhase to idle", () => {
+    useChatStore.setState({ conductorPhase: { "ws-1": "researching" } });
+    vi.mocked(clearChatMessages).mockResolvedValue(undefined);
+    useChatStore.getState().clearMessages("ws-1");
+    expect(useChatStore.getState().conductorPhase["ws-1"]).toBe("idle");
   });
 });
 
