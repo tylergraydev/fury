@@ -63,7 +63,7 @@ function tabId(contextId: string, filePath: string): string {
   return `${contextId}:${filePath}`;
 }
 
-function detectLanguage(filePath: string): string {
+export function detectLanguage(filePath: string): string {
   const ext = filePath.split(".").pop()!;
   const map: Record<string, string> = {
     ts: "typescript",

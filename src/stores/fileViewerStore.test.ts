@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { detectLanguage } from "./fileViewerStore";
 
 vi.mock("../lib/tauri", () => ({
   readWorkspaceFile: vi.fn(),
@@ -1305,22 +1306,22 @@ describe("fileViewerStore - split editor", () => {
 
 // ─── Mutation-killing tests: detectLanguage ─────────────────────────────
 
-describe("fileViewerStore - detectLanguage via openFile", () => {
-  const cases: [string, string][] = [
-    ["src/app.ts", "typescript"],
-    ["src/app.tsx", "typescript"],
-    ["src/app.js", "javascript"],
-    ["src/app.jsx", "javascript"],
-    ["src/main.rs", "rust"],
-    ["src/main.py", "python"],
-    ["package.json", "json"],
+describe("detectLanguage", () => {
+  it.each([
+    ["app.ts", "typescript"],
+    ["app.tsx", "typescript"],
+    ["app.js", "javascript"],
+    ["app.jsx", "javascript"],
+    ["main.rs", "rust"],
+    ["main.py", "python"],
+    ["data.json", "json"],
     ["README.md", "markdown"],
-    ["styles.css", "css"],
+    ["style.css", "css"],
     ["index.html", "html"],
     ["config.toml", "toml"],
     ["config.yaml", "yaml"],
     ["config.yml", "yaml"],
-    ["script.sh", "shell"],
+    ["run.sh", "shell"],
     ["main.go", "go"],
     ["App.java", "java"],
     ["App.swift", "swift"],
@@ -1331,21 +1332,18 @@ describe("fileViewerStore - detectLanguage via openFile", () => {
     ["index.php", "php"],
     ["query.sql", "sql"],
     ["layout.xml", "xml"],
-    ["styles.scss", "scss"],
-    ["unknown.xyz", "plaintext"],
-  ];
+    ["style.scss", "scss"],
+    ["file.xyz", "plaintext"],
+  ])("returns %s for %s", (file, lang) => {
+    expect(detectLanguage(file)).toBe(lang);
+  });
 
-  for (const [filePath, expectedLang] of cases) {
-    it(`detects ${expectedLang} for ${filePath}`, async () => {
-      // Mock returns matching language so loadTabContent doesn't override
-      vi.mocked(readWorkspaceFile).mockResolvedValue({
-        content: "content",
-        language: expectedLang,
-      } as any);
-      await useFileViewerStore.getState().openFile("ctx1", "workspace", filePath, true);
-      const tab = useFileViewerStore.getState().tabs.find(t => t.filePath === filePath);
-      expect(tab).toBeTruthy();
-      expect(tab!.language).toBe(expectedLang);
-    });
-  }
+  it("handles files with multiple dots", () => {
+    expect(detectLanguage("my.component.tsx")).toBe("typescript");
+    expect(detectLanguage("data.test.json")).toBe("json");
+  });
+
+  it("returns plaintext for no extension", () => {
+    expect(detectLanguage("Makefile")).toBe("plaintext");
+  });
 });
