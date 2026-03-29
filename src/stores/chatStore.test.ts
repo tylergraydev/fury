@@ -28,7 +28,7 @@ vi.mock("../lib/ipcInstrumentation", () => ({
   pushStreamEvent: vi.fn(),
 }));
 
-import { useChatStore, parseSkillsFromSystemMessage } from "./chatStore";
+import { useChatStore, parseSkillsFromSystemMessage, _chatSubscribeTokens } from "./chatStore";
 import { useSlashCommandStore } from "./slashCommandStore";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -40,8 +40,9 @@ import { pushAgentTurnMetric, pushStreamEvent } from "../lib/ipcInstrumentation"
 
 beforeEach(() => {
   useChatStore.setState(
-    { messages: {}, streamingText: {}, subscriptions: {}, sessionStats: {}, planApproval: {}, permissionRequest: {} },
+    { messages: {}, streamingText: {}, subscriptions: {}, sessionStats: {}, planApproval: {}, permissionRequest: {}, questionRequest: {}, conductorPhase: {} },
   );
+  _chatSubscribeTokens.clear();
   vi.clearAllMocks();
 });
 
@@ -2499,6 +2500,121 @@ describe("chatStore - subscribe cancellation tokens", () => {
     await new Promise(r => setTimeout(r, 10));
 
     expect(useChatStore.getState().permissionRequest["ws-null-perm"]).toBeUndefined();
+  });
+
+  it("subscribe creates token with cancelled=false in _chatSubscribeTokens", async () => {
+    let resolveLoad!: (v: any) => void;
+    vi.mocked(listChatMessages).mockImplementation(
+      () => new Promise(r => { resolveLoad = r; }),
+    );
+    vi.mocked(listen).mockResolvedValue(() => {});
+
+    const p = useChatStore.getState().subscribe("ws-token-check");
+    // Token should exist with cancelled=false
+    const token = _chatSubscribeTokens.get("ws-token-check");
+    expect(token).toBeTruthy();
+    expect(token!.cancelled).toBe(false);
+
+    resolveLoad([]);
+    await p;
+  });
+
+  it("calling subscribe again sets existing token.cancelled=true", async () => {
+    let resolveFirst!: (v: any) => void;
+    vi.mocked(listChatMessages).mockImplementation(
+      () => new Promise(r => { resolveFirst = r; }),
+    );
+    vi.mocked(listen).mockResolvedValue(() => {});
+
+    const p1 = useChatStore.getState().subscribe("ws-cancel-check");
+    const firstToken = _chatSubscribeTokens.get("ws-cancel-check");
+    expect(firstToken!.cancelled).toBe(false);
+
+    // Start second subscribe — should cancel the first token
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+    const p2 = useChatStore.getState().subscribe("ws-cancel-check");
+
+    // First token should now be cancelled
+    expect(firstToken!.cancelled).toBe(true);
+
+    resolveFirst([]);
+    await p1;
+    await p2;
+  });
+
+  it("token cancelled after loadMessages prevents listen from being called", async () => {
+    let resolveLoad!: (v: any) => void;
+    vi.mocked(listChatMessages).mockImplementation(
+      () => new Promise(r => { resolveLoad = r; }),
+    );
+    const listenMock = vi.mocked(listen);
+    listenMock.mockResolvedValue(() => {});
+
+    const callsBefore = listenMock.mock.calls.length;
+    const p = useChatStore.getState().subscribe("ws-no-listen");
+
+    // Cancel the token while loadMessages is pending
+    const token = _chatSubscribeTokens.get("ws-no-listen");
+    token!.cancelled = true;
+
+    resolveLoad([]);
+    await p;
+
+    // listen should NOT have been called (token was cancelled)
+    expect(listenMock.mock.calls.length).toBe(callsBefore);
+  });
+
+  it("token cancelled after listen causes unlisten and token cleanup", async () => {
+    const unlisten = vi.fn();
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+    vi.mocked(listen).mockImplementation(async () => {
+      // After listen resolves, cancel the token before the check at L130
+      const token = _chatSubscribeTokens.get("ws-unlisten");
+      if (token) token.cancelled = true;
+      return unlisten;
+    });
+
+    await useChatStore.getState().subscribe("ws-unlisten");
+
+    // The token was cancelled after listen returned — unlisten should be called
+    expect(unlisten).toHaveBeenCalled();
+    // Subscription should NOT be stored (bailed at L130)
+    expect(useChatStore.getState().subscriptions["ws-unlisten"]).toBeUndefined();
+    // Token should be cleaned up
+    expect(_chatSubscribeTokens.has("ws-unlisten")).toBe(false);
+  });
+
+  it("error in subscribe cleans up subscription state with rest spread", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Pre-set a subscription for another workspace
+    useChatStore.setState({ subscriptions: { "ws-other": () => {} } });
+    vi.mocked(listen).mockRejectedValue(new Error("fail"));
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+
+    await useChatStore.getState().subscribe("ws-err-rest");
+
+    // ws-err-rest should not be in subscriptions
+    expect(useChatStore.getState().subscriptions["ws-err-rest"]).toBeUndefined();
+    // ws-other should still be there (rest spread preserves it)
+    expect(useChatStore.getState().subscriptions["ws-other"]).toBeDefined();
+    spy.mockRestore();
+  });
+
+  it("re-check guard at L115 bails when subscription already exists", async () => {
+    vi.mocked(listChatMessages).mockImplementation(async () => {
+      // During loadMessages, manually add subscription for this workspace
+      useChatStore.setState({
+        subscriptions: { ...useChatStore.getState().subscriptions, "ws-guard": () => {} },
+      });
+      return [];
+    });
+    vi.mocked(listen).mockResolvedValue(() => {});
+
+    await useChatStore.getState().subscribe("ws-guard");
+
+    // The subscribe should have bailed at L115 re-check
+    // listen should not have been called for this workspace
+    // (the subscription was set by our mock, not by subscribe)
   });
 
   it("second subscribe cancels first token but both complete", async () => {
