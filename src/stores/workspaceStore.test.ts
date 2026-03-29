@@ -1,23 +1,30 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-// Mock dependent stores
+// Mock dependent stores with accessible spies
+const mockChatUnsubscribe = vi.fn();
+const mockAgentUnsubscribe = vi.fn();
+const mockPrUnsubscribe = vi.fn();
+const mockCloseChatTabs = vi.fn();
+const mockCleanupActivity = vi.fn();
+const mockCleanupNotifications = vi.fn();
+
 vi.mock("./chatStore", () => ({
-  useChatStore: { getState: () => ({ unsubscribe: vi.fn() }) },
+  useChatStore: { getState: () => ({ unsubscribe: mockChatUnsubscribe }) },
 }));
 vi.mock("./agentStore", () => ({
-  useAgentStore: { getState: () => ({ unsubscribe: vi.fn() }) },
+  useAgentStore: { getState: () => ({ unsubscribe: mockAgentUnsubscribe }) },
 }));
 vi.mock("./prStore", () => ({
-  usePrStore: { getState: () => ({ unsubscribe: vi.fn() }) },
+  usePrStore: { getState: () => ({ unsubscribe: mockPrUnsubscribe }) },
 }));
 vi.mock("./uiStore", () => ({
-  useUIStore: { getState: () => ({ closeChatTabsForContext: vi.fn() }) },
+  useUIStore: { getState: () => ({ closeChatTabsForContext: mockCloseChatTabs }) },
 }));
 vi.mock("../lib/activityLogListeners", () => ({
-  cleanupWorkspaceTracking: vi.fn(),
+  cleanupWorkspaceTracking: mockCleanupActivity,
 }));
 vi.mock("../lib/notificationListeners", () => ({
-  cleanupWorkspaceTracking: vi.fn(),
+  cleanupWorkspaceTracking: mockCleanupNotifications,
 }));
 
 vi.mock("../lib/tauri", () => ({
@@ -652,5 +659,65 @@ describe("workspaceStore - restoreWs removes from archived list", () => {
     const archived = useWorkspaceStore.getState().archivedWorkspaces;
     expect(archived).toHaveLength(1);
     expect(archived[0].id).toBe("ws-2");
+  });
+});
+
+describe("workspaceStore - _cleanupWorkspace calls dependent stores", () => {
+  it("archiveWs calls chat/agent/pr unsubscribe and cleanup functions", async () => {
+    const ws = makeWs({ id: "ws-cleanup" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-cleanup");
+
+    expect(mockChatUnsubscribe).toHaveBeenCalledWith("ws-cleanup");
+    expect(mockAgentUnsubscribe).toHaveBeenCalledWith("ws-cleanup");
+    expect(mockPrUnsubscribe).toHaveBeenCalledWith("ws-cleanup");
+    expect(mockCleanupActivity).toHaveBeenCalledWith("ws-cleanup");
+    expect(mockCleanupNotifications).toHaveBeenCalledWith("ws-cleanup");
+  });
+
+  it("deleteWs calls chat/agent/pr unsubscribe and cleanup functions", async () => {
+    const ws = makeWs({ id: "ws-del-cleanup" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(deleteWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().deleteWs("ws-del-cleanup");
+
+    expect(mockChatUnsubscribe).toHaveBeenCalledWith("ws-del-cleanup");
+    expect(mockAgentUnsubscribe).toHaveBeenCalledWith("ws-del-cleanup");
+    expect(mockPrUnsubscribe).toHaveBeenCalledWith("ws-del-cleanup");
+  });
+
+  it("archiveWs calls closeChatTabsForContext on uiStore", async () => {
+    const ws = makeWs({ id: "ws-tabs" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-tabs");
+
+    expect(mockCloseChatTabs).toHaveBeenCalledWith("ws-tabs");
+  });
+
+  it("deleteWs calls closeChatTabsForContext on uiStore", async () => {
+    const ws = makeWs({ id: "ws-del-tabs" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(deleteWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().deleteWs("ws-del-tabs");
+
+    expect(mockCloseChatTabs).toHaveBeenCalledWith("ws-del-tabs");
+  });
+});
+
+describe("workspaceStore - createWs error clears on start", () => {
+  it("clears error before IPC call", async () => {
+    useWorkspaceStore.setState({ error: "old" });
+    const ws = makeWs({ id: "ws-new" });
+    vi.mocked(createWorkspace).mockResolvedValue(ws);
+
+    await useWorkspaceStore.getState().createWs({} as any);
+
+    expect(useWorkspaceStore.getState().error).toBeNull();
   });
 });

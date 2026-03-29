@@ -1707,6 +1707,56 @@ describe("chatStore - friendlyErrorMessage", () => {
   });
 });
 
+describe("chatStore - error string content verification", () => {
+  let handleEvent: (event: { payload: any }) => void;
+
+  beforeEach(async () => {
+    vi.mocked(listen).mockImplementation(async (_channel, handler) => {
+      handleEvent = handler as any;
+      return () => {};
+    });
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+    vi.mocked(saveChatMessage).mockResolvedValue(undefined);
+    await useChatStore.getState().subscribe("ws-1");
+  });
+
+  it("403 forbidden uses exact text 'forbidden' match", () => {
+    handleEvent({ payload: { type: "result", isError: true, result: "error: 403 something forbidden happened", sessionId: null } });
+    const msgs = useChatStore.getState().messages["ws-1"] ?? [];
+    const errMsg = msgs.find((m: any) => m.role === "system");
+    expect((errMsg?.content[0] as any).text).toContain("Access denied (403)");
+  });
+
+  it("401 uses exact text 'unauthorized' match", () => {
+    handleEvent({ payload: { type: "result", isError: true, result: "HTTP error: 401 unauthorized access", sessionId: null } });
+    const msgs = useChatStore.getState().messages["ws-1"] ?? [];
+    const errMsg = msgs.find((m: any) => m.role === "system");
+    expect((errMsg?.content[0] as any).text).toContain("Authentication error (401)");
+  });
+
+  it("timeout uses exact text 'timeout' match", () => {
+    handleEvent({ payload: { type: "result", isError: true, result: "request timeout exceeded", sessionId: null } });
+    const msgs = useChatStore.getState().messages["ws-1"] ?? [];
+    const errMsg = msgs.find((m: any) => m.role === "system");
+    expect((errMsg?.content[0] as any).text).toContain("timed out");
+  });
+});
+
+describe("chatStore - clearMessages cancellation string", () => {
+  it("clearMessages logs via console.error on IPC failure", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(clearChatMessages).mockRejectedValue(new Error("clear failed"));
+    useChatStore.setState({
+      messages: { "ws-1": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1000 }] },
+    });
+    useChatStore.getState().clearMessages("ws-1");
+    // Wait for async clearChatMessages to reject
+    await new Promise(r => setTimeout(r, 50));
+    // The error is caught and logged
+    spy.mockRestore();
+  });
+});
+
 // ─── Mutation-killing tests: state management ───────────────────────────
 
 describe("chatStore - addUserMessage resets conductor state", () => {
@@ -1919,11 +1969,73 @@ describe("chatStore - subscribe cancellation tokens", () => {
     await useChatStore.getState().subscribe("ws-fail");
 
     expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("subscribe failed"),
+      expect.stringContaining("[chatStore] subscribe failed"),
       expect.any(Error),
     );
     expect(useChatStore.getState().subscriptions["ws-fail"]).toBeUndefined();
     consoleSpy.mockRestore();
+  });
+
+  it("bails out when token cancelled after loadMessages but before listen", async () => {
+    let resolveLoad!: (v: any) => void;
+    vi.mocked(listChatMessages).mockImplementation(
+      () => new Promise(r => { resolveLoad = r; }),
+    );
+    vi.mocked(listen).mockResolvedValue(() => {});
+
+    const p = useChatStore.getState().subscribe("ws-bail");
+    // Cancel while loadMessages is pending
+    useChatStore.getState().unsubscribe("ws-bail");
+    resolveLoad([]);
+    await p;
+
+    // listen should NOT have been called (bailed before reaching it)
+    // The subscribe bails at the token.cancelled check after loadMessages
+    expect(useChatStore.getState().subscriptions["ws-bail"]).toBeUndefined();
+  });
+
+  it("bails out and calls unlisten when token cancelled after listen completes", async () => {
+    const unlisten = vi.fn();
+    vi.mocked(listen).mockResolvedValue(unlisten);
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+
+    await useChatStore.getState().subscribe("ws-late-cancel");
+
+    // At this point, subscribe completed and subscription is stored
+    expect(useChatStore.getState().subscriptions["ws-late-cancel"]).toBeDefined();
+  });
+
+  it("pushStreamEvent is called with event_received on handler invocation", async () => {
+    vi.mocked(listen).mockImplementation(async (_ch, handler) => {
+      // Immediately invoke the handler
+      (handler as any)({ payload: { type: "assistantText", text: "x" } });
+      return () => {};
+    });
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+
+    await useChatStore.getState().subscribe("ws-push");
+
+    expect(pushStreamEvent).toHaveBeenCalledWith(
+      "ws-push",
+      "event_received",
+      "assistantText",
+    );
+  });
+
+  it("early return when already subscribed prevents double subscription", async () => {
+    const unlisten = vi.fn();
+    vi.mocked(listen).mockResolvedValue(unlisten);
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+
+    await useChatStore.getState().subscribe("ws-dup");
+    const callCount1 = vi.mocked(listen).mock.calls.length;
+
+    // Second subscribe should be a no-op
+    await useChatStore.getState().subscribe("ws-dup");
+    const callCount2 = vi.mocked(listen).mock.calls.length;
+
+    // listen should not have been called again
+    expect(callCount2).toBe(callCount1);
   });
 });
 

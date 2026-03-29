@@ -454,7 +454,58 @@ describe("agentStore - fetchStatus", () => {
     // Should NOT throw
     await useAgentStore.getState().fetchStatus("ws-1");
 
-    expect(spy).toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining("[agentStore] Failed to fetch status"),
+      expect.any(Error),
+    );
     spy.mockRestore();
+  });
+});
+
+describe("agentStore - error message content", () => {
+  it("sendMessage error log includes function context", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(sendMessageCmd).mockRejectedValue(new Error("fail"));
+    await useAgentStore.getState().sendMessage("ws-1", "hi").catch(() => {});
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to send message"),
+      expect.any(Error),
+    );
+    spy.mockRestore();
+  });
+
+  it("stopAgent error log includes function context", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(stopAgentCmd).mockRejectedValue(new Error("fail"));
+    await useAgentStore.getState().stopAgent("ws-1").catch(() => {});
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to stop agent"),
+      expect.any(Error),
+    );
+    spy.mockRestore();
+  });
+
+  it("status listener pushes 'Idle' as default prevStatus", async () => {
+    const { pushStreamEvent } = await import("../lib/ipcInstrumentation");
+    const unlisten = vi.fn();
+    mockListen.mockResolvedValue(unlisten);
+    await useAgentStore.getState().subscribe("ws-str");
+
+    const callback = mockListen.mock.calls[mockListen.mock.calls.length - 1][1] as (event: any) => void;
+    callback({ payload: { status: "Running", workspaceId: "ws-str" } });
+
+    expect(pushStreamEvent).toHaveBeenCalledWith(
+      "ws-str",
+      "status_changed",
+      expect.stringContaining("Idle"),
+    );
+  });
+
+  it("model || undefined converts empty string to undefined", async () => {
+    vi.mocked(sendMessageCmd).mockResolvedValue(undefined);
+    await useAgentStore.getState().sendMessage("ws-1", "hi", "workspace", "");
+    expect(sendMessageCmd).toHaveBeenCalledWith(
+      expect.objectContaining({ model: undefined }),
+    );
   });
 });
