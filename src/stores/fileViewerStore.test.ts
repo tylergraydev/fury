@@ -1966,6 +1966,27 @@ describe("fileViewerStore - showChat and closeAllTabs reset focusedPane", () => 
   });
 });
 
+describe("fileViewerStore - showChat right-focus closes split and resets focusedPane", () => {
+  it("showChat with right focus sets focusedPane to 'left' (not empty)", () => {
+    const tab = { id: "ctx1:a.ts", filePath: "a.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    useFileViewerStore.setState({ tabs: [tab], splitActive: true, focusedPane: "right", leftActiveTabId: "ctx1:a.ts", rightActiveTabId: null });
+    useFileViewerStore.getState().showChat();
+    expect(useFileViewerStore.getState().focusedPane).toBe("left");
+    expect(useFileViewerStore.getState().focusedPane).not.toBe("");
+  });
+});
+
+describe("fileViewerStore - saveActiveFile guard: tab.saving check", () => {
+  it("save is no-op when tab is already saving", async () => {
+    const tab = { id: "ctx1:saving.ts", filePath: "saving.ts", contextId: "ctx1", contextType: "workspace" as const,
+      content: "x", editedContent: "y", language: "typescript", loading: false, saving: true, error: null, pinned: true, dirty: true };
+    useFileViewerStore.setState({ tabs: [tab], activeTabId: "ctx1:saving.ts" });
+    await useFileViewerStore.getState().saveActiveFile();
+    // writeWorkspaceFile should NOT be called (tab.saving guard)
+    expect(writeWorkspaceFile).not.toHaveBeenCalled();
+  });
+});
+
 describe("fileViewerStore - saveActiveFile guard: dirty check", () => {
   it("save is no-op when tab is not dirty", async () => {
     const tab = { id: "ctx1:clean.ts", filePath: "clean.ts", contextId: "ctx1", contextType: "workspace" as const,
