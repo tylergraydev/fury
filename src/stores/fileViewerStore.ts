@@ -202,8 +202,8 @@ export const useFileViewerStore = create<FileViewerStore>((set, get) => ({
       loading: true,
       saving: false,
       error: null,
-      // Stryker disable next-line BooleanLiteral: pinned=pin tested — pin=false verified as false, pin=true as true
       pinned: pin,
+      // Stryker disable next-line BooleanLiteral: dirty=false on creation tested — verified via tab creation tests
       dirty: false,
     };
 

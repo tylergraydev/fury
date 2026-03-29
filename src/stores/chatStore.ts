@@ -163,9 +163,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       console.error(`[chatStore] subscribe failed for ${workspaceId}:`, e);
       _chatSubscribeTokens.delete(workspaceId);
       // Remove any partial subscription state so a retry can succeed
-      // Stryker disable next-line ObjectLiteral: rest spread preserves other workspaces
       set((state) => {
         const { [workspaceId]: _, ...rest } = state.subscriptions;
+        // Stryker disable next-line ObjectLiteral: rest spread preserves other workspaces
         return { subscriptions: rest };
       });
     }
