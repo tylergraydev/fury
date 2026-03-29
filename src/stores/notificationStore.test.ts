@@ -188,6 +188,19 @@ describe("notificationStore", () => {
       expect(useNotificationStore.getState().unreadCount).toBe(1);
     });
 
+    it("addNotification after markRead calculates unreadCount from unread only", () => {
+      const { addNotification, markRead } = useNotificationStore.getState();
+      addNotification({ type: "agent-complete", title: "A", message: "a", workspaceId: "ws-1", workspaceName: "ws" });
+      const id = useNotificationStore.getState().notifications[0].id;
+      markRead(id);
+      expect(useNotificationStore.getState().unreadCount).toBe(0);
+
+      // Add another — unreadCount should be 1, not 2 (total notifications)
+      addNotification({ type: "agent-complete", title: "B", message: "b", workspaceId: "ws-1", workspaceName: "ws" });
+      expect(useNotificationStore.getState().unreadCount).toBe(1);
+      expect(useNotificationStore.getState().notifications.length).toBe(2);
+    });
+
     it("dismiss recalculates unreadCount correctly", () => {
       const { addNotification } = useNotificationStore.getState();
       addNotification({ type: "agent-complete", title: "A", message: "a", workspaceId: "ws-1", workspaceName: "ws" });

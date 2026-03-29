@@ -348,15 +348,41 @@ describe("diffStore - loadDiff error sets loading false", () => {
   });
 });
 
-describe("diffStore - selectFile key format string", () => {
-  it("constructs key as contextId:filePath", async () => {
+describe("diffStore - key format and getter functions", () => {
+  it("selectFile constructs key as contextId:filePath", async () => {
     vi.mocked(getFileDiff).mockResolvedValue({ path: "a.ts", original: "", modified: "", language: "typescript" } as any);
     useDiffStore.getState().selectFile("ctx-key", "src/a.ts");
     await vi.waitFor(() => {
       expect(useDiffStore.getState().fileDiffs["ctx-key:src/a.ts"]).toBeTruthy();
     });
-    // Verify the key format is exact
     expect(useDiffStore.getState().fileDiffs["ctx-key:src/a.ts"]!.path).toBe("a.ts");
+  });
+
+  it("getFileDiffContent uses contextId:filePath key to look up diff", () => {
+    useDiffStore.setState({
+      fileDiffs: { "ws-1:src/main.ts": { path: "src/main.ts", original: "old", modified: "new", language: "typescript" } as any },
+    });
+    const result = useDiffStore.getState().getFileDiffContent("ws-1", "src/main.ts");
+    expect(result).toBeTruthy();
+    expect(result!.path).toBe("src/main.ts");
+  });
+
+  it("getFileDiffContent returns null for unknown key", () => {
+    const result = useDiffStore.getState().getFileDiffContent("ws-99", "nope.ts");
+    expect(result).toBeNull();
+  });
+});
+
+describe("diffStore - patch preview error string", () => {
+  it("logs specific error message on patch failure", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getFilePatch).mockRejectedValue(new Error("patch fail"));
+    await useDiffStore.getState().loadPatchPreview("ws-str", "str.ts", false, "workspace");
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to load patch preview"),
+      expect.any(Error),
+    );
+    spy.mockRestore();
   });
 });
 
