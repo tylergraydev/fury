@@ -2284,6 +2284,31 @@ describe("chatStore - parseSkills -1 check precision", () => {
     expect(result.length).toBe(0);
   });
 
+  it("marker at index 0 (message starts with marker) still works", () => {
+    const msg = "skills are available for use with the Skill tool:\n- first: desc";
+    const result = parseSkillsFromSystemMessage(msg);
+    expect(result.length).toBe(1);
+    expect(result[0].name).toBe("first");
+  });
+
+  it("line with colon at index 0 in rest string is skipped (colonIdx === 0 → empty name)", () => {
+    // rest = ": description" → colonIdx = 0 → name = "" → skipped
+    const msg = "skills are available for use with the Skill tool:\n- : desc";
+    expect(parseSkillsFromSystemMessage(msg)).toEqual([]);
+  });
+
+  it("line with no colon at all is skipped (colonIdx === -1)", () => {
+    const msg = "skills are available for use with the Skill tool:\n- nocolon";
+    expect(parseSkillsFromSystemMessage(msg).length).toBe(0);
+  });
+
+  it("line with colon at index 1+ works correctly", () => {
+    const msg = "skills are available for use with the Skill tool:\n- x: d";
+    const result = parseSkillsFromSystemMessage(msg);
+    expect(result.length).toBe(1);
+    expect(result[0].name).toBe("x");
+  });
+
   it("empty name is skipped (!name check)", () => {
     const msg = "skills are available for use with the Skill tool:\n-  : whitespace name\n- real: desc";
     const result = parseSkillsFromSystemMessage(msg);

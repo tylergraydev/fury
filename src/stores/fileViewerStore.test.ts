@@ -1778,6 +1778,68 @@ describe("fileViewerStore - setActiveTab/showChat NON-split simple path", () => 
   });
 });
 
+describe("fileViewerStore - pinned field exactly equals pin parameter", () => {
+  it("new file with pin=false has pinned=false (not true)", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    // Ensure all existing tabs are pinned so preview adds new tab (not replaces)
+    const pinned = { id: "ctx1:pinned.ts", filePath: "pinned.ts", contextId: "ctx1", contextType: "workspace" as const,
+      content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    useFileViewerStore.setState({ tabs: [pinned], splitActive: false });
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "verify-pin.ts", false);
+
+    const tab = useFileViewerStore.getState().tabs.find(t => t.filePath === "verify-pin.ts")!;
+    // pinned must be exactly false — mutation changes to true
+    expect(tab.pinned).toBe(false);
+    expect(tab.pinned).not.toBe(true);
+  });
+});
+
+describe("fileViewerStore - preview replacement preserves pinned tabs", () => {
+  it("preview replacement keeps other pinned tabs intact", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    const pinned = { id: "ctx1:pinned.ts", filePath: "pinned.ts", contextId: "ctx1", contextType: "workspace" as const,
+      content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    const preview = { id: "ctx1:old.ts", filePath: "old.ts", contextId: "ctx1", contextType: "workspace" as const,
+      content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: false, dirty: false };
+    useFileViewerStore.setState({ tabs: [pinned, preview], splitActive: false });
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "new-prev.ts", false);
+
+    const tabs = useFileViewerStore.getState().tabs;
+    // Should still have 2 tabs (pinned preserved, preview replaced)
+    expect(tabs).toHaveLength(2);
+    expect(tabs[0].id).toBe("ctx1:pinned.ts"); // Pinned tab preserved
+    expect(tabs[1].filePath).toBe("new-prev.ts"); // Preview replaced
+  });
+});
+
+describe("fileViewerStore - closeTab split: close tab NOT in pane doesn't change that pane", () => {
+  it("closing tab not in left pane leaves leftActiveTabId unchanged", () => {
+    const t1 = { id: "ctx1:a.ts", filePath: "a.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    const t2 = { id: "ctx1:b.ts", filePath: "b.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    const t3 = { id: "ctx1:c.ts", filePath: "c.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    useFileViewerStore.setState({
+      tabs: [t1, t2, t3], splitActive: true, focusedPane: "right",
+      leftActiveTabId: "ctx1:a.ts", rightActiveTabId: "ctx1:b.ts", activeTabId: "ctx1:b.ts",
+    });
+    // Close b.ts (right pane tab) — left pane should be unchanged
+    useFileViewerStore.getState().closeTab("ctx1:b.ts");
+    expect(useFileViewerStore.getState().leftActiveTabId).toBe("ctx1:a.ts");
+  });
+
+  it("closing tab not in right pane leaves rightActiveTabId unchanged", () => {
+    const t1 = { id: "ctx1:a.ts", filePath: "a.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    const t2 = { id: "ctx1:b.ts", filePath: "b.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    const t3 = { id: "ctx1:c.ts", filePath: "c.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    useFileViewerStore.setState({
+      tabs: [t1, t2, t3], splitActive: true, focusedPane: "left",
+      leftActiveTabId: "ctx1:a.ts", rightActiveTabId: "ctx1:c.ts", activeTabId: "ctx1:a.ts",
+    });
+    // Close a.ts (left pane tab) — right pane should be unchanged
+    useFileViewerStore.getState().closeTab("ctx1:a.ts");
+    expect(useFileViewerStore.getState().rightActiveTabId).toBe("ctx1:c.ts");
+  });
+});
+
 describe("fileViewerStore - openFile pin in split mode sets pane", () => {
   it("new pinned file in split left-focused sets leftActiveTabId", async () => {
     vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
