@@ -12,6 +12,7 @@ import {
   setWorkspacePinned,
   getLastActiveContext,
   saveLastActiveContext,
+  listRepositories,
 } from "../lib/tauri";
 import { useUIStore } from "./uiStore";
 import { useChatStore } from "./chatStore";
@@ -72,19 +73,24 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   loadWorkspaces: async () => {
     set({ loading: true, error: null });
     try {
-      // Fetch workspaces and last active context in parallel
-      const [workspaces, [savedWsId, savedRepoId]] = await Promise.all([
-        listWorkspaces(),
-        // Only restore if nothing is active yet (first load on app start)
-        get().activeWorkspaceId || get().activeRepoId
-          ? Promise.resolve([null, null] as [string | null, string | null])
-          : getLastActiveContext(),
-      ]);
+      // Fetch workspaces, repos, and last active context in parallel
+      const [workspaces, repositories, [savedWsId, savedRepoId]] =
+        await Promise.all([
+          listWorkspaces(),
+          listRepositories(),
+          // Only restore if nothing is active yet (first load on app start)
+          get().activeWorkspaceId || get().activeRepoId
+            ? Promise.resolve([null, null] as [string | null, string | null])
+            : getLastActiveContext(),
+        ]);
 
       // Restore saved active context if valid
       if (savedWsId && workspaces.some((w) => w.id === savedWsId)) {
         set({ workspaces, loading: false, activeWorkspaceId: savedWsId });
-      } else if (savedRepoId) {
+      } else if (
+        savedRepoId &&
+        repositories.some((r) => r.id === savedRepoId)
+      ) {
         set({ workspaces, loading: false, activeRepoId: savedRepoId });
       } else {
         set({ workspaces, loading: false });
@@ -183,11 +189,10 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
   restoreWs: async (id: string) => {
     try {
-      await restoreWorkspace(id);
-      const ws = get().archivedWorkspaces.find((w) => w.id === id);
+      const ws = await restoreWorkspace(id);
       set({
         archivedWorkspaces: get().archivedWorkspaces.filter((w) => w.id !== id),
-        workspaces: ws ? [...get().workspaces, ws] : get().workspaces,
+        workspaces: [...get().workspaces, ws],
       });
     } catch (e) {
       set({ error: String(e) });

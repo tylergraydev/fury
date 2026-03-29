@@ -270,6 +270,7 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
     if has_fk {
         conn.execute_batch(
             "
+            BEGIN;
             CREATE TABLE chat_messages_new (
                 id TEXT UNIQUE,
                 workspace_id TEXT NOT NULL,
@@ -283,6 +284,7 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
             DROP TABLE chat_messages;
             ALTER TABLE chat_messages_new RENAME TO chat_messages;
             CREATE INDEX idx_chat_messages_workspace ON chat_messages(workspace_id);
+            COMMIT;
             ",
         )
         .map_err(|e| AppError::DbError(e.to_string()))?;
