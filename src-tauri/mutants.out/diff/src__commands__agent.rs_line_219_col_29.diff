@@ -1,0 +1,21 @@
+--- src/commands/agent.rs
++++ replace == with != in send_message
+@@ -211,17 +211,17 @@
+ ) -> Result<(), AppError> {
+     // Determine context_id (either workspace_id or repo_id)
+     let context_id = resolve_context_id(&request)?;
+ 
+     // Check if agent is already running
+     {
+         let mut agents = state.agents.lock().unwrap();
+         if let Some(agent) = agents.get_mut(&context_id) {
+-            if agent.status == AgentStatus::Running {
++            if agent.status != /* ~ changed by cargo-mutants ~ */ AgentStatus::Running {
+                 // Verify the process is actually alive before rejecting.
+                 // Stale "Running" status can linger from crashed or stuck processes.
+                 if is_agent_alive(agent) {
+                     return Err(AppError::AgentError(
+                         "Agent is already processing a message".to_string(),
+                     ));
+                 }
+                 // Process is dead — reset stale status so we can proceed

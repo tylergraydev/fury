@@ -1,0 +1,21 @@
+--- src/commands/agent.rs
++++ replace == with != in should_emit_status
+@@ -49,17 +49,17 @@
+ /// Determine whether to emit a status update based on current vs new status.
+ /// Suppresses Error status if agent is already Idle (stop_agent already reset it).
+ /// Returns (should_emit, new_status_to_set).
+ pub(crate) fn should_emit_status(
+     current_status: &AgentStatus,
+     new_status: &AgentStatus,
+ ) -> bool {
+     // If stop_agent already set Idle, don't overwrite with an Error
+-    let suppressed = *current_status == AgentStatus::Idle
++    let suppressed = *current_status != /* ~ changed by cargo-mutants ~ */ AgentStatus::Idle
+         && matches!(new_status, AgentStatus::Error(_));
+     !suppressed
+ }
+ 
+ /// Check if an agent is alive and running. Returns true if agent
+ /// status is Running and the PID is still alive. For sidecar-based agents
+ /// (no PID), Running status alone is sufficient since the sidecar manages
+ /// process lifecycle.

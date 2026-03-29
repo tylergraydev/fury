@@ -1,0 +1,33 @@
+--- src/commands/agent.rs
++++ replace resolve_container_exec_context -> Option<crate::models::devcontainer::ContainerExecContext> with Some(Default::default())
+@@ -133,29 +133,17 @@
+ /// Determine whether container execution context should be used for an agent.
+ /// Returns Some(ContainerExecContext) if the workspace has container mode enabled
+ /// with AgentExecMode::Container and a running container.
+ pub(crate) fn resolve_container_exec_context(
+     workspace: &crate::models::workspace::Workspace,
+     repo_name: &str,
+     container_id: Option<String>,
+ ) -> Option<crate::models::devcontainer::ContainerExecContext> {
+-    let config = workspace.devcontainer_config.as_ref()?;
+-    if !config.enabled
+-        || config.agent_exec_mode != crate::models::devcontainer::AgentExecMode::Container
+-    {
+-        return None;
+-    }
+-    let container_working_dir =
+-        crate::services::devcontainer::resolve_container_workspace_path(config, repo_name);
+-    let cid = container_id?;
+-    Some(crate::models::devcontainer::ContainerExecContext {
+-        container_id: cid,
+-        container_working_dir,
+-    })
++    Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Extract thinking and plan_mode flags from a request, defaulting to false.
+ pub(crate) fn extract_toggle_flags(request: &SendMessageRequest) -> (bool, bool) {
+     (
+         request.disable_thinking.unwrap_or(false),
+         request.disable_plan_mode.unwrap_or(false),
+     )

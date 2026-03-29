@@ -1,0 +1,26 @@
+--- src/commands/agent.rs
++++ replace get_pending_permission -> Result<Option<crate::models::agent::FrontendStreamEvent>, AppError> with Ok(None)
+@@ -632,22 +632,17 @@
+ 
+ /// Return any pending permission request for a workspace.
+ /// Called by the frontend on resubscribe (e.g. after HMR) to recover lost UI state.
+ #[tauri::command]
+ pub fn get_pending_permission(
+     state: State<'_, AppState>,
+     workspace_id: String,
+ ) -> Result<Option<crate::models::agent::FrontendStreamEvent>, AppError> {
+-    let id = parse_agent_workspace_id(&workspace_id)?;
+-    let lock = state
+-        .pending_permissions
+-        .lock()
+-        .unwrap_or_else(|e| e.into_inner());
+-    Ok(lock.get(&id).cloned())
++    Ok(None) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[tauri::command]
+ pub async fn send_followup_message(
+     state: State<'_, AppState>,
+     workspace_id: String,
+     message: String,
+ ) -> Result<(), AppError> {

@@ -1,0 +1,21 @@
+--- src/db/chat.rs
++++ replace > with == in snippet
+@@ -244,17 +244,17 @@
+     let max_len = 120;
+     if let Some(pos) = text_lower.find(query_lower) {
+         let start = pos.saturating_sub(40);
+         let end = (pos + query_lower.len() + 40).min(text.len());
+         // Align to char boundaries
+         let start = text.floor_char_boundary(start);
+         let end = text.ceil_char_boundary(end);
+         let mut s = String::new();
+-        if start > 0 {
++        if start == /* ~ changed by cargo-mutants ~ */ 0 {
+             s.push_str("...");
+         }
+         s.push_str(&text[start..end]);
+         if end < text.len() {
+             s.push_str("...");
+         }
+         s
+     } else {

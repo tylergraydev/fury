@@ -1,0 +1,62 @@
+--- src/commands/agent.rs
++++ replace respond_to_permission -> Result<(), AppError> with Ok(())
+@@ -581,58 +581,17 @@
+ #[tauri::command]
+ pub async fn respond_to_permission(
+     state: State<'_, AppState>,
+     workspace_id: String,
+     approved: bool,
+     updated_permissions: Option<serde_json::Value>,
+     decision_classification: Option<String>,
+ ) -> Result<(), AppError> {
+-    let id = parse_agent_workspace_id(&workspace_id)?;
+-
+-    let agent_type = {
+-        let settings = state.settings.read().unwrap();
+-        settings.agent_type.clone()
+-    };
+-    if agent_type == AgentType::CodexCli {
+-        return Err(AppError::AgentError(
+-            "Permission responses are not supported with Codex CLI".to_string(),
+-        ));
+-    }
+-
+-    // Normalize null values to None so they are omitted from the sidecar JSON.
+-    // Tauri deserializes JS `null` as Some(Value::Null) rather than None.
+-    let updated_permissions = updated_permissions.filter(|v| !v.is_null());
+-    let decision_classification = decision_classification.filter(|v| !v.is_empty());
+-
+-    // Send a PermissionResponse command to the sidecar
+-    let cmd = claude_process::SidecarCommand::PermissionResponse {
+-        id: id.to_string(),
+-        approved,
+-        updated_permissions,
+-        decision_classification,
+-    };
+-
+-    let mut handle = {
+-        let mut guard = state.agent_sidecar.lock().unwrap();
+-        guard.take().ok_or_else(|| {
+-            AppError::AgentError("Sidecar not running".to_string())
+-        })?
+-    };
+-
+-    // Clear the tracked pending permission now that the user has responded
+-    state
+-        .pending_permissions
+-        .lock()
+-        .unwrap_or_else(|e| e.into_inner())
+-        .remove(&id);
+-
+-    let result = claude_process::send_command(&mut handle, &cmd).await;
+-    state.agent_sidecar.lock().unwrap().replace(handle);
+-    result
++    Ok(()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Return any pending permission request for a workspace.
+ /// Called by the frontend on resubscribe (e.g. after HMR) to recover lost UI state.
+ #[tauri::command]
+ pub fn get_pending_permission(
+     state: State<'_, AppState>,
+     workspace_id: String,

@@ -1,0 +1,21 @@
+src/commands/agent.rs:141:5: replace resolve_container_exec_context -> Option<crate::models::devcontainer::ContainerExecContext> with Some(Default::default())
+src/commands/agent.rs:640:5: replace get_pending_permission -> Result<Option<crate::models::agent::FrontendStreamEvent>, AppError> with Ok(Some(Default::default()))
+src/db/bookmarks.rs:27:9: replace Database::list_bookmarks -> Result<Vec<FileBookmark>, AppError> with Ok(vec![Default::default()])
+src/db/bookmarks.rs:63:9: replace Database::list_bookmarks_for_file -> Result<Vec<FileBookmark>, AppError> with Ok(vec![Default::default()])
+src/db/bookmarks.rs:94:9: replace Database::get_bookmark -> Result<Option<FileBookmark>, AppError> with Ok(Some(Default::default()))
+src/db/chat.rs:38:9: replace Database::list_chat_messages -> Result<Vec<ChatMessage>, AppError> with Ok(vec![Default::default()])
+src/db/chat.rs:94:9: replace Database::search_chat_messages -> Result<Vec<ChatMessageSearchResult>, AppError> with Ok(vec![Default::default()])
+src/db/chat.rs:153:9: replace Database::get_usage_data -> Result<Vec<UsageDataPoint>, AppError> with Ok(vec![Default::default()])
+src/db/workspaces.rs:52:9: replace Database::list_workspaces -> Result<Vec<Workspace>, AppError> with Ok(vec![Default::default()])
+src/db/workspaces.rs:72:69: replace != with == in Database::list_workspaces
+src/db/workspaces.rs:73:64: replace != with == in Database::list_workspaces
+src/db/workspaces.rs:92:9: replace Database::list_archived_workspaces -> Result<Vec<Workspace>, AppError> with Ok(vec![])
+src/db/workspaces.rs:92:9: replace Database::list_archived_workspaces -> Result<Vec<Workspace>, AppError> with Ok(vec![Default::default()])
+src/db/workspaces.rs:112:69: replace != with == in Database::list_archived_workspaces
+src/db/workspaces.rs:113:64: replace != with == in Database::list_archived_workspaces
+src/db/workspaces.rs:132:9: replace Database::delete_workspace -> Result<(), AppError> with Ok(())
+src/db/workspaces.rs:144:9: replace Database::update_workspace_devcontainer_config -> Result<(), AppError> with Ok(())
+src/db/workspaces.rs:157:9: replace Database::update_workspace_sparse_dirs -> Result<(), AppError> with Ok(())
+src/db/workspaces.rs:166:9: replace Database::insert_workspace_link -> Result<(), AppError> with Ok(())
+src/db/workspaces.rs:174:9: replace Database::delete_workspace_link -> Result<(), AppError> with Ok(())
+src/db/workspaces.rs:182:9: replace Database::get_workspace_links -> Result<Vec<Uuid>, AppError> with Ok(vec![])

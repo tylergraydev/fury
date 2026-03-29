@@ -1,0 +1,21 @@
+--- src/db/bookmarks.rs
++++ replace > with < in Database::delete_bookmark_at_line
+@@ -149,17 +149,17 @@
+         repo_id: &Uuid,
+         file_path: &str,
+         line_number: u32,
+     ) -> Result<bool, AppError> {
+         let count = self.conn.execute(
+             "DELETE FROM file_bookmarks WHERE repo_id = ?1 AND file_path = ?2 AND line_number = ?3",
+             rusqlite::params![repo_id.to_string(), file_path, line_number],
+         )?;
+-        Ok(count > 0)
++        Ok(count < /* ~ changed by cargo-mutants ~ */ 0)
+     }
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use crate::test_helpers::*;
+     use chrono::Utc;
+     use uuid::Uuid;

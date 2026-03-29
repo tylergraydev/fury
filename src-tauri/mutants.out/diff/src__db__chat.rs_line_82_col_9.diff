@@ -1,0 +1,25 @@
+--- src/db/chat.rs
++++ replace Database::clear_chat_messages -> Result<(), AppError> with Ok(())
+@@ -74,21 +74,17 @@
+                 })
+             })?
+             .filter_map(|r| r.ok())
+             .collect();
+         Ok(messages)
+     }
+ 
+     pub fn clear_chat_messages(&self, workspace_id: &Uuid) -> Result<(), AppError> {
+-        self.conn.execute(
+-            "DELETE FROM chat_messages WHERE workspace_id = ?1",
+-            rusqlite::params![workspace_id.to_string()],
+-        )?;
+-        Ok(())
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn search_chat_messages(
+         &self,
+         query: &str,
+         workspace_id: Option<&Uuid>,
+     ) -> Result<Vec<ChatMessageSearchResult>, AppError> {
+         let pattern = format!("%{}%", query);

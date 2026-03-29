@@ -1,0 +1,25 @@
+--- src/db/workspaces.rs
++++ replace Database::delete_workspace_link -> Result<(), AppError> with Ok(())
+@@ -166,21 +166,17 @@
+         self.conn.execute(
+             "INSERT OR IGNORE INTO workspace_links (workspace_id, linked_workspace_id) VALUES (?1, ?2)",
+             rusqlite::params![ws_id.to_string(), linked_id.to_string()],
+         )?;
+         Ok(())
+     }
+ 
+     pub fn delete_workspace_link(&self, ws_id: &Uuid, linked_id: &Uuid) -> Result<(), AppError> {
+-        self.conn.execute(
+-            "DELETE FROM workspace_links WHERE workspace_id = ?1 AND linked_workspace_id = ?2",
+-            rusqlite::params![ws_id.to_string(), linked_id.to_string()],
+-        )?;
+-        Ok(())
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn get_workspace_links(&self, ws_id: &Uuid) -> Result<Vec<Uuid>, AppError> {
+         let mut stmt = self
+             .conn
+             .prepare("SELECT linked_workspace_id FROM workspace_links WHERE workspace_id = ?1")?;
+         let ids = stmt
+             .query_map(rusqlite::params![ws_id.to_string()], |row| {

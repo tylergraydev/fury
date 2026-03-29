@@ -1,0 +1,27 @@
+--- src/commands/agent.rs
++++ replace validate_working_dir -> Result<(), AppError> with Ok(())
+@@ -90,23 +90,17 @@
+ ) -> bool {
+     let is_cold_error = !had_content;
+     let exited_with_error = !exit_success && exit_code != Some(143);
+     is_cold_error && exited_with_error
+ }
+ 
+ /// Validate that a working directory path exists.
+ pub(crate) fn validate_working_dir(working_dir: &std::path::Path) -> Result<(), AppError> {
+-    if !working_dir.exists() {
+-        return Err(AppError::AgentError(format!(
+-            "Working directory does not exist: {}",
+-            working_dir.display()
+-        )));
+-    }
+-    Ok(())
++    Ok(()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Check if persistent process toggle settings match, determining if we can reuse it.
+ #[cfg(test)]
+ pub(crate) fn can_reuse_persistent_process(
+     handle_disable_thinking: bool,
+     handle_disable_plan_mode: bool,
+     request_disable_thinking: bool,

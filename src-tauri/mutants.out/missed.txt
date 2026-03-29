@@ -1,0 +1,21 @@
+src/commands/agent.rs:190:5: replace reset_agent_on_error with ()
+src/commands/agent.rs:213:5: replace send_message -> Result<(), AppError> with Ok(())
+src/commands/agent.rs:219:29: replace == with != in send_message
+src/commands/agent.rs:281:16: delete ! in send_message
+src/commands/agent.rs:371:12: delete ! in send_message
+src/commands/agent.rs:589:5: replace respond_to_permission -> Result<(), AppError> with Ok(())
+src/commands/agent.rs:595:19: replace == with != in respond_to_permission
+src/commands/agent.rs:603:62: delete ! in respond_to_permission
+src/commands/agent.rs:604:70: delete ! in respond_to_permission
+src/commands/agent.rs:640:5: replace get_pending_permission -> Result<Option<crate::models::agent::FrontendStreamEvent>, AppError> with Ok(None)
+src/commands/agent.rs:654:5: replace send_followup_message -> Result<(), AppError> with Ok(())
+src/commands/agent.rs:662:19: replace == with != in send_followup_message
+src/db/chat.rs:64:25: delete match arm "assistant" in Database::list_chat_messages
+src/db/chat.rs:247:44: replace + with * in snippet
+src/db/chat.rs:247:24: replace + with * in snippet
+src/db/chat.rs:252:18: replace > with == in snippet
+src/db/chat.rs:252:18: replace > with < in snippet
+src/db/chat.rs:252:18: replace > with >= in snippet
+src/db/chat.rs:256:16: replace < with == in snippet
+src/db/chat.rs:256:16: replace < with > in snippet
+src/db/chat.rs:256:16: replace < with <= in snippet

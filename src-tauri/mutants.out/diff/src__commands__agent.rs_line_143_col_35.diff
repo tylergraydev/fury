@@ -1,0 +1,21 @@
+--- src/commands/agent.rs
++++ replace != with == in resolve_container_exec_context
+@@ -135,17 +135,17 @@
+ /// with AgentExecMode::Container and a running container.
+ pub(crate) fn resolve_container_exec_context(
+     workspace: &crate::models::workspace::Workspace,
+     repo_name: &str,
+     container_id: Option<String>,
+ ) -> Option<crate::models::devcontainer::ContainerExecContext> {
+     let config = workspace.devcontainer_config.as_ref()?;
+     if !config.enabled
+-        || config.agent_exec_mode != crate::models::devcontainer::AgentExecMode::Container
++        || config.agent_exec_mode == /* ~ changed by cargo-mutants ~ */ crate::models::devcontainer::AgentExecMode::Container
+     {
+         return None;
+     }
+     let container_working_dir =
+         crate::services::devcontainer::resolve_container_workspace_path(config, repo_name);
+     let cid = container_id?;
+     Some(crate::models::devcontainer::ContainerExecContext {
+         container_id: cid,

@@ -1,0 +1,21 @@
+--- src/db/workspaces.rs
++++ replace != with == in Database::list_workspaces
+@@ -64,17 +64,17 @@
+                     branch: row.get(3)?,
+                     worktree_path: PathBuf::from(row.get::<_, String>(4)?),
+                     status: WorkspaceStatus::from_str(&status_str, error_msg),
+                     port_base: row.get(6)?,
+                     sparse_dirs: row
+                         .get::<_, Option<String>>(7)?
+                         .and_then(|s| serde_json::from_str(&s).ok()),
+                     notes: row.get(8)?,
+-                    auto_commit: row.get::<_, i32>(12).unwrap_or(1) != 0,
++                    auto_commit: row.get::<_, i32>(12).unwrap_or(1) == /* ~ changed by cargo-mutants ~ */ 0,
+                     pinned: row.get::<_, i32>(13).unwrap_or(0) != 0,
+                     created_at: row
+                         .get::<_, String>(9)?
+                         .parse()
+                         .unwrap_or_else(|_| chrono::Utc::now()),
+                     archived_at: row
+                         .get::<_, Option<String>>(10)?
+                         .and_then(|s| s.parse().ok()),

@@ -1,0 +1,61 @@
+--- src/db/chat.rs
++++ replace Database::list_chat_messages -> Result<Vec<ChatMessage>, AppError> with Ok(vec![Default::default()])
+@@ -30,57 +30,17 @@
+                 msg.display_text,
+                 metadata_json,
+             ],
+         )?;
+         Ok(())
+     }
+ 
+     pub fn list_chat_messages(&self, workspace_id: &Uuid) -> Result<Vec<ChatMessage>, AppError> {
+-        let mut stmt = self.conn.prepare(
+-            "SELECT id, workspace_id, role, content, timestamp, display_text, metadata
+-             FROM chat_messages WHERE workspace_id = ?1 ORDER BY timestamp ASC, rowid ASC",
+-        )?;
+-        let messages = stmt
+-            .query_map(rusqlite::params![workspace_id.to_string()], |row| {
+-                let role_str: String = row.get(2)?;
+-                let content_json: String = row.get(3)?;
+-                let timestamp_str: String = row.get(4)?;
+-                let display_text: Option<String> = row.get(5)?;
+-                let metadata_json: Option<String> = row.get(6)?;
+-                let metadata = match metadata_json {
+-                    Some(j) => match serde_json::from_str(&j) {
+-                        Ok(m) => Some(m),
+-                        Err(e) => {
+-                            eprintln!("[db] Failed to deserialize chat message metadata: {e}");
+-                            None
+-                        }
+-                    },
+-                    None => None,
+-                };
+-                Ok(ChatMessage {
+-                    id: row.get::<_, String>(0)?.parse::<Uuid>().unwrap_or_default(),
+-                    workspace_id: row.get::<_, String>(1)?.parse::<Uuid>().unwrap_or_default(),
+-                    role: match role_str.as_str() {
+-                        "user" => MessageRole::User,
+-                        "assistant" => MessageRole::Assistant,
+-                        _ => MessageRole::System,
+-                    },
+-                    content: serde_json::from_str::<Vec<ContentBlock>>(&content_json)
+-                        .unwrap_or_default(),
+-                    timestamp: timestamp_str
+-                        .parse::<DateTime<Utc>>()
+-                        .unwrap_or_else(|_| Utc::now()),
+-                    display_text,
+-                    metadata,
+-                })
+-            })?
+-            .filter_map(|r| r.ok())
+-            .collect();
+-        Ok(messages)
++        Ok(vec![Default::default()]) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn clear_chat_messages(&self, workspace_id: &Uuid) -> Result<(), AppError> {
+         self.conn.execute(
+             "DELETE FROM chat_messages WHERE workspace_id = ?1",
+             rusqlite::params![workspace_id.to_string()],
+         )?;
+         Ok(())

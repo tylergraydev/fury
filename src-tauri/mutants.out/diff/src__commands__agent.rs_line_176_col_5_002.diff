@@ -1,0 +1,26 @@
+--- src/commands/agent.rs
++++ replace activate_agent -> Option<String> with Some("xyzzy".into())
+@@ -168,22 +168,17 @@
+         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))
+ }
+ 
+ /// Get or create an AgentInfo entry, set it to Running, and return the session_id.
+ pub(crate) fn activate_agent(
+     agents: &mut HashMap<Uuid, AgentInfo>,
+     context_id: Uuid,
+ ) -> Option<String> {
+-    let agent = agents
+-        .entry(context_id)
+-        .or_insert_with(|| AgentInfo::new(context_id));
+-    agent.status = AgentStatus::Running;
+-    agent.started_at = Some(chrono::Utc::now());
+-    agent.session_id.clone()
++    Some("xyzzy".into()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Reset agent status to Idle after a failed spawn/write.
+ fn reset_agent_on_error(
+     agents: &Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
+     app: &tauri::AppHandle,
+     context_id: Uuid,
+ ) {

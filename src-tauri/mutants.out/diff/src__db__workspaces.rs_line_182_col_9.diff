@@ -1,0 +1,31 @@
+--- src/db/workspaces.rs
++++ replace Database::get_workspace_links -> Result<Vec<Uuid>, AppError> with Ok(vec![])
+@@ -174,27 +174,17 @@
+         self.conn.execute(
+             "DELETE FROM workspace_links WHERE workspace_id = ?1 AND linked_workspace_id = ?2",
+             rusqlite::params![ws_id.to_string(), linked_id.to_string()],
+         )?;
+         Ok(())
+     }
+ 
+     pub fn get_workspace_links(&self, ws_id: &Uuid) -> Result<Vec<Uuid>, AppError> {
+-        let mut stmt = self
+-            .conn
+-            .prepare("SELECT linked_workspace_id FROM workspace_links WHERE workspace_id = ?1")?;
+-        let ids = stmt
+-            .query_map(rusqlite::params![ws_id.to_string()], |row| {
+-                row.get::<_, String>(0)
+-            })?
+-            .filter_map(|r| r.ok())
+-            .filter_map(|s| s.parse::<Uuid>().ok())
+-            .collect();
+-        Ok(ids)
++        Ok(vec![]) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn update_workspace_notes(&self, id: &Uuid, notes: &str) -> Result<(), AppError> {
+         self.conn.execute(
+             "UPDATE workspaces SET notes = ?1 WHERE id = ?2",
+             rusqlite::params![notes, id.to_string()],
+         )?;
+         Ok(())

@@ -1,0 +1,72 @@
+--- src/db/chat.rs
++++ replace Database::search_chat_messages -> Result<Vec<ChatMessageSearchResult>, AppError> with Ok(vec![Default::default()])
+@@ -86,68 +86,17 @@
+         Ok(())
+     }
+ 
+     pub fn search_chat_messages(
+         &self,
+         query: &str,
+         workspace_id: Option<&Uuid>,
+     ) -> Result<Vec<ChatMessageSearchResult>, AppError> {
+-        let pattern = format!("%{}%", query);
+-        let (sql, params): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(ws_id) =
+-            workspace_id
+-        {
+-            (
+-                "SELECT cm.id, cm.workspace_id, w.name, cm.role, cm.content, cm.display_text, cm.timestamp
+-                 FROM chat_messages cm
+-                 JOIN workspaces w ON cm.workspace_id = w.id
+-                 WHERE cm.workspace_id = ?1
+-                   AND (cm.content LIKE ?2 OR cm.display_text LIKE ?2)
+-                 ORDER BY cm.timestamp DESC
+-                 LIMIT 50",
+-                vec![
+-                    Box::new(ws_id.to_string()) as Box<dyn rusqlite::types::ToSql>,
+-                    Box::new(pattern.clone()),
+-                ],
+-            )
+-        } else {
+-            (
+-                "SELECT cm.id, cm.workspace_id, w.name, cm.role, cm.content, cm.display_text, cm.timestamp
+-                 FROM chat_messages cm
+-                 JOIN workspaces w ON cm.workspace_id = w.id
+-                 WHERE cm.content LIKE ?1 OR cm.display_text LIKE ?1
+-                 ORDER BY cm.timestamp DESC
+-                 LIMIT 50",
+-                vec![Box::new(pattern.clone()) as Box<dyn rusqlite::types::ToSql>],
+-            )
+-        };
+-
+-        let mut stmt = self.conn.prepare(sql)?;
+-        let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+-            params.iter().map(|p| p.as_ref()).collect();
+-        let results = stmt
+-            .query_map(params_refs.as_slice(), |row| {
+-                let content_json: String = row.get(4)?;
+-                let display_text: Option<String> = row.get(5)?;
+-
+-                // Extract matched text from content blocks
+-                let matched = extract_matched_text(&content_json, &display_text, query);
+-
+-                Ok(ChatMessageSearchResult {
+-                    message_id: row.get(0)?,
+-                    workspace_id: row.get(1)?,
+-                    workspace_name: row.get(2)?,
+-                    role: row.get(3)?,
+-                    matched_text: matched,
+-                    timestamp: row.get(6)?,
+-                })
+-            })?
+-            .filter_map(|r| r.ok())
+-            .collect();
+-        Ok(results)
++        Ok(vec![Default::default()]) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn get_usage_data(
+         &self,
+         workspace_id: Option<&Uuid>,
+         since: Option<&str>,
+     ) -> Result<Vec<UsageDataPoint>, AppError> {
+         let mut sql = String::from(

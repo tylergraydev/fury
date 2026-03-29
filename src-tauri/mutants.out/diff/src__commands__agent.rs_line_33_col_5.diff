@@ -1,0 +1,34 @@
+--- src/commands/agent.rs
++++ replace status_from_exit -> AgentStatus with Default::default()
+@@ -25,30 +25,17 @@
+                 "Either workspaceId or repoId must be provided".to_string(),
+             )
+         })
+ }
+ 
+ /// Determine the new AgentStatus from a process exit status.
+ /// Exit code 143 = SIGTERM (128+15), expected for user-initiated stops.
+ pub(crate) fn status_from_exit(exit_code: Option<i32>, success: bool) -> AgentStatus {
+-    if success {
+-        AgentStatus::Idle
+-    } else {
+-        match exit_code {
+-            Some(143) => AgentStatus::Idle,
+-            Some(code) => AgentStatus::Error(format!(
+-                "Process exited with code: {}",
+-                code
+-            )),
+-            None => AgentStatus::Error(
+-                "Process exited with code: unknown".to_string(),
+-            ),
+-        }
+-    }
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Determine whether to emit a status update based on current vs new status.
+ /// Suppresses Error status if agent is already Idle (stop_agent already reset it).
+ /// Returns (should_emit, new_status_to_set).
+ pub(crate) fn should_emit_status(
+     current_status: &AgentStatus,
+     new_status: &AgentStatus,

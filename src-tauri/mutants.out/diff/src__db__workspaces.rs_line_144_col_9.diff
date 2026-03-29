@@ -1,0 +1,26 @@
+--- src/db/workspaces.rs
++++ replace Database::update_workspace_devcontainer_config -> Result<(), AppError> with Ok(())
+@@ -136,22 +136,17 @@
+         Ok(())
+     }
+ 
+     pub fn update_workspace_devcontainer_config(
+         &self,
+         id: &Uuid,
+         config: Option<&crate::models::devcontainer::DevContainerConfig>,
+     ) -> Result<(), AppError> {
+-        let json = config.map(|c| serde_json::to_string(c).unwrap_or_default());
+-        self.conn.execute(
+-            "UPDATE workspaces SET devcontainer_config = ?1 WHERE id = ?2",
+-            rusqlite::params![json, id.to_string()],
+-        )?;
+-        Ok(())
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn update_workspace_sparse_dirs(
+         &self,
+         id: &Uuid,
+         dirs: &Option<Vec<String>>,
+     ) -> Result<(), AppError> {
+         let json = dirs.as_ref().map(|d| serde_json::to_string(d).unwrap());

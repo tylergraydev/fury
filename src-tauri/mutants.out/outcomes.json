@@ -1,0 +1,6511 @@
+{
+  "outcomes": [
+    {
+      "scenario": "Baseline",
+      "summary": "Success",
+      "log_path": "log/baseline.log",
+      "diff_path": null,
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 63.410862667,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 36.92589425,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:20:5: replace resolve_context_id -> Result<Uuid, AppError> with Ok(Default::default())",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "resolve_context_id",
+            "return_type": "-> Result<Uuid, AppError>",
+            "span": {
+              "start": {
+                "line": 18,
+                "column": 1
+              },
+              "end": {
+                "line": 28,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 20,
+              "column": 5
+            },
+            "end": {
+              "line": 27,
+              "column": 11
+            }
+          },
+          "replacement": "Ok(Default::default())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_20_col_5.log",
+      "diff_path": "diff/src__commands__agent.rs_line_20_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 12.305169583,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.791326708,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:33:5: replace status_from_exit -> AgentStatus with Default::default()",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "status_from_exit",
+            "return_type": "-> AgentStatus",
+            "span": {
+              "start": {
+                "line": 30,
+                "column": 1
+              },
+              "end": {
+                "line": 47,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 33,
+              "column": 5
+            },
+            "end": {
+              "line": 46,
+              "column": 6
+            }
+          },
+          "replacement": "Default::default()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_33_col_5.log",
+      "diff_path": "diff/src__commands__agent.rs_line_33_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 11.974487,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.515024458,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:57:5: replace should_emit_status -> bool with true",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "should_emit_status",
+            "return_type": "-> bool",
+            "span": {
+              "start": {
+                "line": 49,
+                "column": 1
+              },
+              "end": {
+                "line": 60,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 57,
+              "column": 5
+            },
+            "end": {
+              "line": 59,
+              "column": 16
+            }
+          },
+          "replacement": "true",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_57_col_5.log",
+      "diff_path": "diff/src__commands__agent.rs_line_57_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 12.1016165,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.508275875,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:57:5: replace should_emit_status -> bool with false",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "should_emit_status",
+            "return_type": "-> bool",
+            "span": {
+              "start": {
+                "line": 49,
+                "column": 1
+              },
+              "end": {
+                "line": 60,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 57,
+              "column": 5
+            },
+            "end": {
+              "line": 59,
+              "column": 16
+            }
+          },
+          "replacement": "false",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_57_col_5_001.log",
+      "diff_path": "diff/src__commands__agent.rs_line_57_col_5_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 4.522269917,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.421955375,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:58:9: replace && with || in should_emit_status",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "should_emit_status",
+            "return_type": "-> bool",
+            "span": {
+              "start": {
+                "line": 49,
+                "column": 1
+              },
+              "end": {
+                "line": 60,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 58,
+              "column": 9
+            },
+            "end": {
+              "line": 58,
+              "column": 11
+            }
+          },
+          "replacement": "||",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_58_col_9.log",
+      "diff_path": "diff/src__commands__agent.rs_line_58_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 11.517978209,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.464768959,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:57:38: replace == with != in should_emit_status",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "should_emit_status",
+            "return_type": "-> bool",
+            "span": {
+              "start": {
+                "line": 49,
+                "column": 1
+              },
+              "end": {
+                "line": 60,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 57,
+              "column": 38
+            },
+            "end": {
+              "line": 57,
+              "column": 40
+            }
+          },
+          "replacement": "!=",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_57_col_38.log",
+      "diff_path": "diff/src__commands__agent.rs_line_57_col_38.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 4.59389875,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.469037667,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:59:5: delete ! in should_emit_status",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "should_emit_status",
+            "return_type": "-> bool",
+            "span": {
+              "start": {
+                "line": 49,
+                "column": 1
+              },
+              "end": {
+                "line": 60,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 59,
+              "column": 5
+            },
+            "end": {
+              "line": 59,
+              "column": 6
+            }
+          },
+          "replacement": "",
+          "genre": "UnaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_59_col_5.log",
+      "diff_path": "diff/src__commands__agent.rs_line_59_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 5.756508291,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.464970375,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:67:5: replace is_agent_alive -> bool with true",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "is_agent_alive",
+            "return_type": "-> bool",
+            "span": {
+              "start": {
+                "line": 62,
+                "column": 1
+              },
+              "end": {
+                "line": 74,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 67,
+              "column": 5
+            },
+            "end": {
+              "line": 73,
+              "column": 6
+            }
+          },
+          "replacement": "true",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_67_col_5.log",
+      "diff_path": "diff/src__commands__agent.rs_line_67_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 11.946017083,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.494397584,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:67:5: replace is_agent_alive -> bool with false",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "is_agent_alive",
+            "return_type": "-> bool",
+            "span": {
+              "start": {
+                "line": 62,
+                "column": 1
+              },
+              "end": {
+                "line": 74,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 67,
+              "column": 5
+            },
+            "end": {
+              "line": 73,
+              "column": 6
+            }
+          },
+          "replacement": "false",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_67_col_5_001.log",
+      "diff_path": "diff/src__commands__agent.rs_line_67_col_5_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 4.330014833,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.474993291,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:67:21: replace != with == in is_agent_alive",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "is_agent_alive",
+            "return_type": "-> bool",
+            "span": {
+              "start": {
+                "line": 62,
+                "column": 1
+              },
+              "end": {
+                "line": 74,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 67,
+              "column": 21
+            },
+            "end": {
+              "line": 67,
+              "column": 23
+            }
+          },
+          "replacement": "==",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_67_col_21.log",
+      "diff_path": "diff/src__commands__agent.rs_line_67_col_21.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 11.901781416,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.443481917,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:98:5: replace validate_working_dir -> Result<(), AppError> with Ok(())",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "validate_working_dir",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 96,
+                "column": 1
+              },
+              "end": {
+                "line": 105,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 98,
+              "column": 5
+            },
+            "end": {
+              "line": 104,
+              "column": 11
+            }
+          },
+          "replacement": "Ok(())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_98_col_5.log",
+      "diff_path": "diff/src__commands__agent.rs_line_98_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 11.882007125,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.508180125,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:98:8: delete ! in validate_working_dir",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "validate_working_dir",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 96,
+                "column": 1
+              },
+              "end": {
+                "line": 105,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 98,
+              "column": 8
+            },
+            "end": {
+              "line": 98,
+              "column": 9
+            }
+          },
+          "replacement": "",
+          "genre": "UnaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_98_col_8.log",
+      "diff_path": "diff/src__commands__agent.rs_line_98_col_8.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 11.866230375,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.504252375,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:126:5: replace collect_sibling_workspace_names -> Vec<String> with vec![]",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "collect_sibling_workspace_names",
+            "return_type": "-> Vec<String>",
+            "span": {
+              "start": {
+                "line": 119,
+                "column": 1
+              },
+              "end": {
+                "line": 131,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 126,
+              "column": 5
+            },
+            "end": {
+              "line": 130,
+              "column": 19
+            }
+          },
+          "replacement": "vec![]",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_126_col_5.log",
+      "diff_path": "diff/src__commands__agent.rs_line_126_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 12.629930542,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.489409667,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:126:5: replace collect_sibling_workspace_names -> Vec<String> with vec![String::new()]",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "collect_sibling_workspace_names",
+            "return_type": "-> Vec<String>",
+            "span": {
+              "start": {
+                "line": 119,
+                "column": 1
+              },
+              "end": {
+                "line": 131,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 126,
+              "column": 5
+            },
+            "end": {
+              "line": 130,
+              "column": 19
+            }
+          },
+          "replacement": "vec![String::new()]",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_126_col_5_001.log",
+      "diff_path": "diff/src__commands__agent.rs_line_126_col_5_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 6.536586542,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.435868167,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:126:5: replace collect_sibling_workspace_names -> Vec<String> with vec![\"xyzzy\".into()]",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "collect_sibling_workspace_names",
+            "return_type": "-> Vec<String>",
+            "span": {
+              "start": {
+                "line": 119,
+                "column": 1
+              },
+              "end": {
+                "line": 131,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 126,
+              "column": 5
+            },
+            "end": {
+              "line": 130,
+              "column": 19
+            }
+          },
+          "replacement": "vec![\"xyzzy\".into()]",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_126_col_5_002.log",
+      "diff_path": "diff/src__commands__agent.rs_line_126_col_5_002.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 4.770321708,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.488740959,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:128:44: replace && with || in collect_sibling_workspace_names",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "collect_sibling_workspace_names",
+            "return_type": "-> Vec<String>",
+            "span": {
+              "start": {
+                "line": 119,
+                "column": 1
+              },
+              "end": {
+                "line": 131,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 128,
+              "column": 44
+            },
+            "end": {
+              "line": 128,
+              "column": 46
+            }
+          },
+          "replacement": "||",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_128_col_44.log",
+      "diff_path": "diff/src__commands__agent.rs_line_128_col_44.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 13.807574334,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.555819208,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:128:33: replace == with != in collect_sibling_workspace_names",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "collect_sibling_workspace_names",
+            "return_type": "-> Vec<String>",
+            "span": {
+              "start": {
+                "line": 119,
+                "column": 1
+              },
+              "end": {
+                "line": 131,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 128,
+              "column": 33
+            },
+            "end": {
+              "line": 128,
+              "column": 35
+            }
+          },
+          "replacement": "!=",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_128_col_33.log",
+      "diff_path": "diff/src__commands__agent.rs_line_128_col_33.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 5.113774083,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.458885208,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:128:53: replace != with == in collect_sibling_workspace_names",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "collect_sibling_workspace_names",
+            "return_type": "-> Vec<String>",
+            "span": {
+              "start": {
+                "line": 119,
+                "column": 1
+              },
+              "end": {
+                "line": 131,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 128,
+              "column": 53
+            },
+            "end": {
+              "line": 128,
+              "column": 55
+            }
+          },
+          "replacement": "==",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_128_col_53.log",
+      "diff_path": "diff/src__commands__agent.rs_line_128_col_53.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 7.022067084,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.432302875,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:141:5: replace resolve_container_exec_context -> Option<crate::models::devcontainer::ContainerExecContext> with None",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "resolve_container_exec_context",
+            "return_type": "-> Option<crate::models::devcontainer::ContainerExecContext>",
+            "span": {
+              "start": {
+                "line": 133,
+                "column": 1
+              },
+              "end": {
+                "line": 154,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 141,
+              "column": 5
+            },
+            "end": {
+              "line": 153,
+              "column": 7
+            }
+          },
+          "replacement": "None",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_141_col_5.log",
+      "diff_path": "diff/src__commands__agent.rs_line_141_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 12.347283042,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.519522792,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:141:5: replace resolve_container_exec_context -> Option<crate::models::devcontainer::ContainerExecContext> with Some(Default::default())",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "resolve_container_exec_context",
+            "return_type": "-> Option<crate::models::devcontainer::ContainerExecContext>",
+            "span": {
+              "start": {
+                "line": 133,
+                "column": 1
+              },
+              "end": {
+                "line": 154,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 141,
+              "column": 5
+            },
+            "end": {
+              "line": 153,
+              "column": 7
+            }
+          },
+          "replacement": "Some(Default::default())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__commands__agent.rs_line_141_col_5_001.log",
+      "diff_path": "diff/src__commands__agent.rs_line_141_col_5_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 1.680314458,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:143:9: replace || with && in resolve_container_exec_context",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "resolve_container_exec_context",
+            "return_type": "-> Option<crate::models::devcontainer::ContainerExecContext>",
+            "span": {
+              "start": {
+                "line": 133,
+                "column": 1
+              },
+              "end": {
+                "line": 154,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 143,
+              "column": 9
+            },
+            "end": {
+              "line": 143,
+              "column": 11
+            }
+          },
+          "replacement": "&&",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_143_col_9.log",
+      "diff_path": "diff/src__commands__agent.rs_line_143_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 12.066333083,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.492265833,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:142:8: delete ! in resolve_container_exec_context",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "resolve_container_exec_context",
+            "return_type": "-> Option<crate::models::devcontainer::ContainerExecContext>",
+            "span": {
+              "start": {
+                "line": 133,
+                "column": 1
+              },
+              "end": {
+                "line": 154,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 142,
+              "column": 8
+            },
+            "end": {
+              "line": 142,
+              "column": 9
+            }
+          },
+          "replacement": "",
+          "genre": "UnaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_142_col_8.log",
+      "diff_path": "diff/src__commands__agent.rs_line_142_col_8.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 4.477562042,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.438049791,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:143:35: replace != with == in resolve_container_exec_context",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "resolve_container_exec_context",
+            "return_type": "-> Option<crate::models::devcontainer::ContainerExecContext>",
+            "span": {
+              "start": {
+                "line": 133,
+                "column": 1
+              },
+              "end": {
+                "line": 154,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 143,
+              "column": 35
+            },
+            "end": {
+              "line": 143,
+              "column": 37
+            }
+          },
+          "replacement": "==",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_143_col_35.log",
+      "diff_path": "diff/src__commands__agent.rs_line_143_col_35.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 4.378237125,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.429503375,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:158:5: replace extract_toggle_flags -> (bool, bool) with (true, true)",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "extract_toggle_flags",
+            "return_type": "-> (bool, bool)",
+            "span": {
+              "start": {
+                "line": 156,
+                "column": 1
+              },
+              "end": {
+                "line": 162,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 158,
+              "column": 5
+            },
+            "end": {
+              "line": 161,
+              "column": 6
+            }
+          },
+          "replacement": "(true, true)",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_158_col_5.log",
+      "diff_path": "diff/src__commands__agent.rs_line_158_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 11.340299375,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.501829999999998,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:158:5: replace extract_toggle_flags -> (bool, bool) with (true, false)",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "extract_toggle_flags",
+            "return_type": "-> (bool, bool)",
+            "span": {
+              "start": {
+                "line": 156,
+                "column": 1
+              },
+              "end": {
+                "line": 162,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 158,
+              "column": 5
+            },
+            "end": {
+              "line": 161,
+              "column": 6
+            }
+          },
+          "replacement": "(true, false)",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_158_col_5_001.log",
+      "diff_path": "diff/src__commands__agent.rs_line_158_col_5_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 4.460564333,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.467430042,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:158:5: replace extract_toggle_flags -> (bool, bool) with (false, true)",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "extract_toggle_flags",
+            "return_type": "-> (bool, bool)",
+            "span": {
+              "start": {
+                "line": 156,
+                "column": 1
+              },
+              "end": {
+                "line": 162,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 158,
+              "column": 5
+            },
+            "end": {
+              "line": 161,
+              "column": 6
+            }
+          },
+          "replacement": "(false, true)",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_158_col_5_002.log",
+      "diff_path": "diff/src__commands__agent.rs_line_158_col_5_002.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 4.608527042,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.488426041,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:158:5: replace extract_toggle_flags -> (bool, bool) with (false, false)",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "extract_toggle_flags",
+            "return_type": "-> (bool, bool)",
+            "span": {
+              "start": {
+                "line": 156,
+                "column": 1
+              },
+              "end": {
+                "line": 162,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 158,
+              "column": 5
+            },
+            "end": {
+              "line": 161,
+              "column": 6
+            }
+          },
+          "replacement": "(false, false)",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_158_col_5_003.log",
+      "diff_path": "diff/src__commands__agent.rs_line_158_col_5_003.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 4.58677875,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.450033166,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:166:5: replace parse_agent_workspace_id -> Result<Uuid, AppError> with Ok(Default::default())",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "parse_agent_workspace_id",
+            "return_type": "-> Result<Uuid, AppError>",
+            "span": {
+              "start": {
+                "line": 164,
+                "column": 1
+              },
+              "end": {
+                "line": 169,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 166,
+              "column": 5
+            },
+            "end": {
+              "line": 168,
+              "column": 63
+            }
+          },
+          "replacement": "Ok(Default::default())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_166_col_5.log",
+      "diff_path": "diff/src__commands__agent.rs_line_166_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 11.635791917,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.480980709,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:176:5: replace activate_agent -> Option<String> with None",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "activate_agent",
+            "return_type": "-> Option<String>",
+            "span": {
+              "start": {
+                "line": 171,
+                "column": 1
+              },
+              "end": {
+                "line": 182,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 176,
+              "column": 5
+            },
+            "end": {
+              "line": 181,
+              "column": 29
+            }
+          },
+          "replacement": "None",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_176_col_5.log",
+      "diff_path": "diff/src__commands__agent.rs_line_176_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 12.518887209,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.460519125,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:176:5: replace activate_agent -> Option<String> with Some(String::new())",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "activate_agent",
+            "return_type": "-> Option<String>",
+            "span": {
+              "start": {
+                "line": 171,
+                "column": 1
+              },
+              "end": {
+                "line": 182,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 176,
+              "column": 5
+            },
+            "end": {
+              "line": 181,
+              "column": 29
+            }
+          },
+          "replacement": "Some(String::new())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_176_col_5_001.log",
+      "diff_path": "diff/src__commands__agent.rs_line_176_col_5_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 5.381848417,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.4592515,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:176:5: replace activate_agent -> Option<String> with Some(\"xyzzy\".into())",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "activate_agent",
+            "return_type": "-> Option<String>",
+            "span": {
+              "start": {
+                "line": 171,
+                "column": 1
+              },
+              "end": {
+                "line": 182,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 176,
+              "column": 5
+            },
+            "end": {
+              "line": 181,
+              "column": 29
+            }
+          },
+          "replacement": "Some(\"xyzzy\".into())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__commands__agent.rs_line_176_col_5_002.log",
+      "diff_path": "diff/src__commands__agent.rs_line_176_col_5_002.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 5.000519875,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.460179917,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:190:5: replace reset_agent_on_error with ()",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "reset_agent_on_error",
+            "return_type": "",
+            "span": {
+              "start": {
+                "line": 184,
+                "column": 1
+              },
+              "end": {
+                "line": 204,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 190,
+              "column": 5
+            },
+            "end": {
+              "line": 203,
+              "column": 7
+            }
+          },
+          "replacement": "()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__commands__agent.rs_line_190_col_5.log",
+      "diff_path": "diff/src__commands__agent.rs_line_190_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 16.524606375,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.617404209,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:213:5: replace send_message -> Result<(), AppError> with Ok(())",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "send_message",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 206,
+                "column": 1
+              },
+              "end": {
+                "line": 579,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 213,
+              "column": 5
+            },
+            "end": {
+              "line": 578,
+              "column": 11
+            }
+          },
+          "replacement": "Ok(())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__commands__agent.rs_line_213_col_5.log",
+      "diff_path": "diff/src__commands__agent.rs_line_213_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 19.990091791,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.439634541,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:219:29: replace == with != in send_message",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "send_message",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 206,
+                "column": 1
+              },
+              "end": {
+                "line": 579,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 219,
+              "column": 29
+            },
+            "end": {
+              "line": 219,
+              "column": 31
+            }
+          },
+          "replacement": "!=",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__commands__agent.rs_line_219_col_29.log",
+      "diff_path": "diff/src__commands__agent.rs_line_219_col_29.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 21.591320833,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.400768334,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:281:16: delete ! in send_message",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "send_message",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 206,
+                "column": 1
+              },
+              "end": {
+                "line": 579,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 281,
+              "column": 16
+            },
+            "end": {
+              "line": 281,
+              "column": 17
+            }
+          },
+          "replacement": "",
+          "genre": "UnaryOperator"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__commands__agent.rs_line_281_col_16.log",
+      "diff_path": "diff/src__commands__agent.rs_line_281_col_16.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 13.545827166,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.381788959,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:371:12: delete ! in send_message",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "send_message",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 206,
+                "column": 1
+              },
+              "end": {
+                "line": 579,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 371,
+              "column": 12
+            },
+            "end": {
+              "line": 371,
+              "column": 13
+            }
+          },
+          "replacement": "",
+          "genre": "UnaryOperator"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__commands__agent.rs_line_371_col_12.log",
+      "diff_path": "diff/src__commands__agent.rs_line_371_col_12.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 9.606165291,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.461439375,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:589:5: replace respond_to_permission -> Result<(), AppError> with Ok(())",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "respond_to_permission",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 581,
+                "column": 1
+              },
+              "end": {
+                "line": 631,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 589,
+              "column": 5
+            },
+            "end": {
+              "line": 630,
+              "column": 11
+            }
+          },
+          "replacement": "Ok(())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__commands__agent.rs_line_589_col_5.log",
+      "diff_path": "diff/src__commands__agent.rs_line_589_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 16.421306333,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.471350833,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:595:19: replace == with != in respond_to_permission",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "respond_to_permission",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 581,
+                "column": 1
+              },
+              "end": {
+                "line": 631,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 595,
+              "column": 19
+            },
+            "end": {
+              "line": 595,
+              "column": 21
+            }
+          },
+          "replacement": "!=",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__commands__agent.rs_line_595_col_19.log",
+      "diff_path": "diff/src__commands__agent.rs_line_595_col_19.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 11.33475375,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.346170166,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:603:62: delete ! in respond_to_permission",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "respond_to_permission",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 581,
+                "column": 1
+              },
+              "end": {
+                "line": 631,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 603,
+              "column": 62
+            },
+            "end": {
+              "line": 603,
+              "column": 63
+            }
+          },
+          "replacement": "",
+          "genre": "UnaryOperator"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__commands__agent.rs_line_603_col_62.log",
+      "diff_path": "diff/src__commands__agent.rs_line_603_col_62.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 9.090913583,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.442521333,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:604:70: delete ! in respond_to_permission",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "respond_to_permission",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 581,
+                "column": 1
+              },
+              "end": {
+                "line": 631,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 604,
+              "column": 70
+            },
+            "end": {
+              "line": 604,
+              "column": 71
+            }
+          },
+          "replacement": "",
+          "genre": "UnaryOperator"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__commands__agent.rs_line_604_col_70.log",
+      "diff_path": "diff/src__commands__agent.rs_line_604_col_70.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 7.019437042,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.441904583,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:640:5: replace get_pending_permission -> Result<Option<crate::models::agent::FrontendStreamEvent>, AppError> with Ok(None)",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "get_pending_permission",
+            "return_type": "-> Result<Option<crate::models::agent::FrontendStreamEvent>, AppError>",
+            "span": {
+              "start": {
+                "line": 633,
+                "column": 1
+              },
+              "end": {
+                "line": 646,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 640,
+              "column": 5
+            },
+            "end": {
+              "line": 645,
+              "column": 31
+            }
+          },
+          "replacement": "Ok(None)",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__commands__agent.rs_line_640_col_5.log",
+      "diff_path": "diff/src__commands__agent.rs_line_640_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 12.27705025,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.407878375,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:640:5: replace get_pending_permission -> Result<Option<crate::models::agent::FrontendStreamEvent>, AppError> with Ok(Some(Default::default()))",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "get_pending_permission",
+            "return_type": "-> Result<Option<crate::models::agent::FrontendStreamEvent>, AppError>",
+            "span": {
+              "start": {
+                "line": 633,
+                "column": 1
+              },
+              "end": {
+                "line": 646,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 640,
+              "column": 5
+            },
+            "end": {
+              "line": 645,
+              "column": 31
+            }
+          },
+          "replacement": "Ok(Some(Default::default()))",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__commands__agent.rs_line_640_col_5_001.log",
+      "diff_path": "diff/src__commands__agent.rs_line_640_col_5_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 1.645992375,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:654:5: replace send_followup_message -> Result<(), AppError> with Ok(())",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "send_followup_message",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 648,
+                "column": 1
+              },
+              "end": {
+                "line": 714,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 654,
+              "column": 5
+            },
+            "end": {
+              "line": 713,
+              "column": 11
+            }
+          },
+          "replacement": "Ok(())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__commands__agent.rs_line_654_col_5.log",
+      "diff_path": "diff/src__commands__agent.rs_line_654_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 13.21845175,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.410290375,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/commands/agent.rs:662:19: replace == with != in send_followup_message",
+          "package": "fury",
+          "file": "src/commands/agent.rs",
+          "function": {
+            "function_name": "send_followup_message",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 648,
+                "column": 1
+              },
+              "end": {
+                "line": 714,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 662,
+              "column": 19
+            },
+            "end": {
+              "line": 662,
+              "column": 21
+            }
+          },
+          "replacement": "!=",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__commands__agent.rs_line_662_col_19.log",
+      "diff_path": "diff/src__commands__agent.rs_line_662_col_19.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 12.290806791,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.428800916,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/bookmarks.rs:9:9: replace Database::insert_bookmark -> Result<(), AppError> with Ok(())",
+          "package": "fury",
+          "file": "src/db/bookmarks.rs",
+          "function": {
+            "function_name": "Database::insert_bookmark",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 8,
+                "column": 5
+              },
+              "end": {
+                "line": 24,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 9,
+              "column": 9
+            },
+            "end": {
+              "line": 23,
+              "column": 15
+            }
+          },
+          "replacement": "Ok(())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__bookmarks.rs_line_9_col_9.log",
+      "diff_path": "diff/src__db__bookmarks.rs_line_9_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 12.31935625,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.443224291,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/bookmarks.rs:27:9: replace Database::list_bookmarks -> Result<Vec<FileBookmark>, AppError> with Ok(vec![])",
+          "package": "fury",
+          "file": "src/db/bookmarks.rs",
+          "function": {
+            "function_name": "Database::list_bookmarks",
+            "return_type": "-> Result<Vec<FileBookmark>, AppError>",
+            "span": {
+              "start": {
+                "line": 26,
+                "column": 5
+              },
+              "end": {
+                "line": 55,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 27,
+              "column": 9
+            },
+            "end": {
+              "line": 54,
+              "column": 22
+            }
+          },
+          "replacement": "Ok(vec![])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__bookmarks.rs_line_27_col_9.log",
+      "diff_path": "diff/src__db__bookmarks.rs_line_27_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 12.239660917,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.431540458,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/bookmarks.rs:27:9: replace Database::list_bookmarks -> Result<Vec<FileBookmark>, AppError> with Ok(vec![Default::default()])",
+          "package": "fury",
+          "file": "src/db/bookmarks.rs",
+          "function": {
+            "function_name": "Database::list_bookmarks",
+            "return_type": "-> Result<Vec<FileBookmark>, AppError>",
+            "span": {
+              "start": {
+                "line": 26,
+                "column": 5
+              },
+              "end": {
+                "line": 55,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 27,
+              "column": 9
+            },
+            "end": {
+              "line": 54,
+              "column": 22
+            }
+          },
+          "replacement": "Ok(vec![Default::default()])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__bookmarks.rs_line_27_col_9_001.log",
+      "diff_path": "diff/src__db__bookmarks.rs_line_27_col_9_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 1.7545682500000002,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/bookmarks.rs:63:9: replace Database::list_bookmarks_for_file -> Result<Vec<FileBookmark>, AppError> with Ok(vec![])",
+          "package": "fury",
+          "file": "src/db/bookmarks.rs",
+          "function": {
+            "function_name": "Database::list_bookmarks_for_file",
+            "return_type": "-> Result<Vec<FileBookmark>, AppError>",
+            "span": {
+              "start": {
+                "line": 57,
+                "column": 5
+              },
+              "end": {
+                "line": 91,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 63,
+              "column": 9
+            },
+            "end": {
+              "line": 90,
+              "column": 22
+            }
+          },
+          "replacement": "Ok(vec![])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__bookmarks.rs_line_63_col_9.log",
+      "diff_path": "diff/src__db__bookmarks.rs_line_63_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 10.595001791,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.527313875,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/bookmarks.rs:63:9: replace Database::list_bookmarks_for_file -> Result<Vec<FileBookmark>, AppError> with Ok(vec![Default::default()])",
+          "package": "fury",
+          "file": "src/db/bookmarks.rs",
+          "function": {
+            "function_name": "Database::list_bookmarks_for_file",
+            "return_type": "-> Result<Vec<FileBookmark>, AppError>",
+            "span": {
+              "start": {
+                "line": 57,
+                "column": 5
+              },
+              "end": {
+                "line": 91,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 63,
+              "column": 9
+            },
+            "end": {
+              "line": 90,
+              "column": 22
+            }
+          },
+          "replacement": "Ok(vec![Default::default()])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__bookmarks.rs_line_63_col_9_001.log",
+      "diff_path": "diff/src__db__bookmarks.rs_line_63_col_9_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 1.720130833,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/bookmarks.rs:94:9: replace Database::get_bookmark -> Result<Option<FileBookmark>, AppError> with Ok(None)",
+          "package": "fury",
+          "file": "src/db/bookmarks.rs",
+          "function": {
+            "function_name": "Database::get_bookmark",
+            "return_type": "-> Result<Option<FileBookmark>, AppError>",
+            "span": {
+              "start": {
+                "line": 93,
+                "column": 5
+              },
+              "end": {
+                "line": 123,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 94,
+              "column": 9
+            },
+            "end": {
+              "line": 122,
+              "column": 10
+            }
+          },
+          "replacement": "Ok(None)",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__bookmarks.rs_line_94_col_9.log",
+      "diff_path": "diff/src__db__bookmarks.rs_line_94_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 13.961863,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.479943165999998,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/bookmarks.rs:94:9: replace Database::get_bookmark -> Result<Option<FileBookmark>, AppError> with Ok(Some(Default::default()))",
+          "package": "fury",
+          "file": "src/db/bookmarks.rs",
+          "function": {
+            "function_name": "Database::get_bookmark",
+            "return_type": "-> Result<Option<FileBookmark>, AppError>",
+            "span": {
+              "start": {
+                "line": 93,
+                "column": 5
+              },
+              "end": {
+                "line": 123,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 94,
+              "column": 9
+            },
+            "end": {
+              "line": 122,
+              "column": 10
+            }
+          },
+          "replacement": "Ok(Some(Default::default()))",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__bookmarks.rs_line_94_col_9_001.log",
+      "diff_path": "diff/src__db__bookmarks.rs_line_94_col_9_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 1.764127458,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/bookmarks.rs:126:9: replace Database::update_bookmark -> Result<(), AppError> with Ok(())",
+          "package": "fury",
+          "file": "src/db/bookmarks.rs",
+          "function": {
+            "function_name": "Database::update_bookmark",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 125,
+                "column": 5
+              },
+              "end": {
+                "line": 137,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 126,
+              "column": 9
+            },
+            "end": {
+              "line": 136,
+              "column": 15
+            }
+          },
+          "replacement": "Ok(())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__bookmarks.rs_line_126_col_9.log",
+      "diff_path": "diff/src__db__bookmarks.rs_line_126_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 8.250156666,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.463418708,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/bookmarks.rs:140:9: replace Database::delete_bookmark -> Result<(), AppError> with Ok(())",
+          "package": "fury",
+          "file": "src/db/bookmarks.rs",
+          "function": {
+            "function_name": "Database::delete_bookmark",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 139,
+                "column": 5
+              },
+              "end": {
+                "line": 145,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 140,
+              "column": 9
+            },
+            "end": {
+              "line": 144,
+              "column": 15
+            }
+          },
+          "replacement": "Ok(())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__bookmarks.rs_line_140_col_9.log",
+      "diff_path": "diff/src__db__bookmarks.rs_line_140_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 5.868743375,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.466974458,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/bookmarks.rs:153:9: replace Database::delete_bookmark_at_line -> Result<bool, AppError> with Ok(true)",
+          "package": "fury",
+          "file": "src/db/bookmarks.rs",
+          "function": {
+            "function_name": "Database::delete_bookmark_at_line",
+            "return_type": "-> Result<bool, AppError>",
+            "span": {
+              "start": {
+                "line": 147,
+                "column": 5
+              },
+              "end": {
+                "line": 158,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 153,
+              "column": 9
+            },
+            "end": {
+              "line": 157,
+              "column": 22
+            }
+          },
+          "replacement": "Ok(true)",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__bookmarks.rs_line_153_col_9.log",
+      "diff_path": "diff/src__db__bookmarks.rs_line_153_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 9.023266042,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.682659,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/bookmarks.rs:153:9: replace Database::delete_bookmark_at_line -> Result<bool, AppError> with Ok(false)",
+          "package": "fury",
+          "file": "src/db/bookmarks.rs",
+          "function": {
+            "function_name": "Database::delete_bookmark_at_line",
+            "return_type": "-> Result<bool, AppError>",
+            "span": {
+              "start": {
+                "line": 147,
+                "column": 5
+              },
+              "end": {
+                "line": 158,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 153,
+              "column": 9
+            },
+            "end": {
+              "line": 157,
+              "column": 22
+            }
+          },
+          "replacement": "Ok(false)",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__bookmarks.rs_line_153_col_9_001.log",
+      "diff_path": "diff/src__db__bookmarks.rs_line_153_col_9_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 9.643566833,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.449141,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/bookmarks.rs:157:18: replace > with == in Database::delete_bookmark_at_line",
+          "package": "fury",
+          "file": "src/db/bookmarks.rs",
+          "function": {
+            "function_name": "Database::delete_bookmark_at_line",
+            "return_type": "-> Result<bool, AppError>",
+            "span": {
+              "start": {
+                "line": 147,
+                "column": 5
+              },
+              "end": {
+                "line": 158,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 157,
+              "column": 18
+            },
+            "end": {
+              "line": 157,
+              "column": 19
+            }
+          },
+          "replacement": "==",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__bookmarks.rs_line_157_col_18.log",
+      "diff_path": "diff/src__db__bookmarks.rs_line_157_col_18.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 7.581875209,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.549451667,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/bookmarks.rs:157:18: replace > with < in Database::delete_bookmark_at_line",
+          "package": "fury",
+          "file": "src/db/bookmarks.rs",
+          "function": {
+            "function_name": "Database::delete_bookmark_at_line",
+            "return_type": "-> Result<bool, AppError>",
+            "span": {
+              "start": {
+                "line": 147,
+                "column": 5
+              },
+              "end": {
+                "line": 158,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 157,
+              "column": 18
+            },
+            "end": {
+              "line": 157,
+              "column": 19
+            }
+          },
+          "replacement": "<",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__bookmarks.rs_line_157_col_18_001.log",
+      "diff_path": "diff/src__db__bookmarks.rs_line_157_col_18_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 6.856815,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.47769725,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/bookmarks.rs:157:18: replace > with >= in Database::delete_bookmark_at_line",
+          "package": "fury",
+          "file": "src/db/bookmarks.rs",
+          "function": {
+            "function_name": "Database::delete_bookmark_at_line",
+            "return_type": "-> Result<bool, AppError>",
+            "span": {
+              "start": {
+                "line": 147,
+                "column": 5
+              },
+              "end": {
+                "line": 158,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 157,
+              "column": 18
+            },
+            "end": {
+              "line": 157,
+              "column": 19
+            }
+          },
+          "replacement": ">=",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__bookmarks.rs_line_157_col_18_002.log",
+      "diff_path": "diff/src__db__bookmarks.rs_line_157_col_18_002.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 7.174635667,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.577227417,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:11:9: replace Database::insert_chat_message -> Result<(), AppError> with Ok(())",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "Database::insert_chat_message",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 10,
+                "column": 5
+              },
+              "end": {
+                "line": 35,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 11,
+              "column": 9
+            },
+            "end": {
+              "line": 34,
+              "column": 15
+            }
+          },
+          "replacement": "Ok(())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__chat.rs_line_11_col_9.log",
+      "diff_path": "diff/src__db__chat.rs_line_11_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 8.926994125,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.49843775,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:38:9: replace Database::list_chat_messages -> Result<Vec<ChatMessage>, AppError> with Ok(vec![])",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "Database::list_chat_messages",
+            "return_type": "-> Result<Vec<ChatMessage>, AppError>",
+            "span": {
+              "start": {
+                "line": 37,
+                "column": 5
+              },
+              "end": {
+                "line": 79,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 38,
+              "column": 9
+            },
+            "end": {
+              "line": 78,
+              "column": 21
+            }
+          },
+          "replacement": "Ok(vec![])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__chat.rs_line_38_col_9.log",
+      "diff_path": "diff/src__db__chat.rs_line_38_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 10.990921375,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.415333125,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:38:9: replace Database::list_chat_messages -> Result<Vec<ChatMessage>, AppError> with Ok(vec![Default::default()])",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "Database::list_chat_messages",
+            "return_type": "-> Result<Vec<ChatMessage>, AppError>",
+            "span": {
+              "start": {
+                "line": 37,
+                "column": 5
+              },
+              "end": {
+                "line": 79,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 38,
+              "column": 9
+            },
+            "end": {
+              "line": 78,
+              "column": 21
+            }
+          },
+          "replacement": "Ok(vec![Default::default()])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__chat.rs_line_38_col_9_001.log",
+      "diff_path": "diff/src__db__chat.rs_line_38_col_9_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 1.728620792,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:63:25: delete match arm \"user\" in Database::list_chat_messages",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "Database::list_chat_messages",
+            "return_type": "-> Result<Vec<ChatMessage>, AppError>",
+            "span": {
+              "start": {
+                "line": 37,
+                "column": 5
+              },
+              "end": {
+                "line": 79,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 63,
+              "column": 25
+            },
+            "end": {
+              "line": 63,
+              "column": 53
+            }
+          },
+          "replacement": "",
+          "genre": "MatchArm"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__chat.rs_line_63_col_25.log",
+      "diff_path": "diff/src__db__chat.rs_line_63_col_25.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 10.516851166,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.498052333,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:64:25: delete match arm \"assistant\" in Database::list_chat_messages",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "Database::list_chat_messages",
+            "return_type": "-> Result<Vec<ChatMessage>, AppError>",
+            "span": {
+              "start": {
+                "line": 37,
+                "column": 5
+              },
+              "end": {
+                "line": 79,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 64,
+              "column": 25
+            },
+            "end": {
+              "line": 64,
+              "column": 63
+            }
+          },
+          "replacement": "",
+          "genre": "MatchArm"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__db__chat.rs_line_64_col_25.log",
+      "diff_path": "diff/src__db__chat.rs_line_64_col_25.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 5.744496792,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.7188295,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:82:9: replace Database::clear_chat_messages -> Result<(), AppError> with Ok(())",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "Database::clear_chat_messages",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 81,
+                "column": 5
+              },
+              "end": {
+                "line": 87,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 82,
+              "column": 9
+            },
+            "end": {
+              "line": 86,
+              "column": 15
+            }
+          },
+          "replacement": "Ok(())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__chat.rs_line_82_col_9.log",
+      "diff_path": "diff/src__db__chat.rs_line_82_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 8.720755375,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.4475615,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:94:9: replace Database::search_chat_messages -> Result<Vec<ChatMessageSearchResult>, AppError> with Ok(vec![])",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "Database::search_chat_messages",
+            "return_type": "-> Result<Vec<ChatMessageSearchResult>, AppError>",
+            "span": {
+              "start": {
+                "line": 89,
+                "column": 5
+              },
+              "end": {
+                "line": 146,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 94,
+              "column": 9
+            },
+            "end": {
+              "line": 145,
+              "column": 20
+            }
+          },
+          "replacement": "Ok(vec![])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__chat.rs_line_94_col_9.log",
+      "diff_path": "diff/src__db__chat.rs_line_94_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 11.82615425,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.482144,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:94:9: replace Database::search_chat_messages -> Result<Vec<ChatMessageSearchResult>, AppError> with Ok(vec![Default::default()])",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "Database::search_chat_messages",
+            "return_type": "-> Result<Vec<ChatMessageSearchResult>, AppError>",
+            "span": {
+              "start": {
+                "line": 89,
+                "column": 5
+              },
+              "end": {
+                "line": 146,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 94,
+              "column": 9
+            },
+            "end": {
+              "line": 145,
+              "column": 20
+            }
+          },
+          "replacement": "Ok(vec![Default::default()])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__chat.rs_line_94_col_9_001.log",
+      "diff_path": "diff/src__db__chat.rs_line_94_col_9_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 2.022737042,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:153:9: replace Database::get_usage_data -> Result<Vec<UsageDataPoint>, AppError> with Ok(vec![])",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "Database::get_usage_data",
+            "return_type": "-> Result<Vec<UsageDataPoint>, AppError>",
+            "span": {
+              "start": {
+                "line": 148,
+                "column": 5
+              },
+              "end": {
+                "line": 212,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 153,
+              "column": 9
+            },
+            "end": {
+              "line": 211,
+              "column": 20
+            }
+          },
+          "replacement": "Ok(vec![])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__chat.rs_line_153_col_9.log",
+      "diff_path": "diff/src__db__chat.rs_line_153_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 10.957857375,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.4780425,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:153:9: replace Database::get_usage_data -> Result<Vec<UsageDataPoint>, AppError> with Ok(vec![Default::default()])",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "Database::get_usage_data",
+            "return_type": "-> Result<Vec<UsageDataPoint>, AppError>",
+            "span": {
+              "start": {
+                "line": 148,
+                "column": 5
+              },
+              "end": {
+                "line": 212,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 153,
+              "column": 9
+            },
+            "end": {
+              "line": 211,
+              "column": 20
+            }
+          },
+          "replacement": "Ok(vec![Default::default()])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__chat.rs_line_153_col_9_001.log",
+      "diff_path": "diff/src__db__chat.rs_line_153_col_9_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 2.3270414170000002,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:178:23: replace += with -= in Database::get_usage_data",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "Database::get_usage_data",
+            "return_type": "-> Result<Vec<UsageDataPoint>, AppError>",
+            "span": {
+              "start": {
+                "line": 148,
+                "column": 5
+              },
+              "end": {
+                "line": 212,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 178,
+              "column": 23
+            },
+            "end": {
+              "line": 178,
+              "column": 25
+            }
+          },
+          "replacement": "-=",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__chat.rs_line_178_col_23.log",
+      "diff_path": "diff/src__db__chat.rs_line_178_col_23.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 10.584197,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.483441209,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:178:23: replace += with *= in Database::get_usage_data",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "Database::get_usage_data",
+            "return_type": "-> Result<Vec<UsageDataPoint>, AppError>",
+            "span": {
+              "start": {
+                "line": 148,
+                "column": 5
+              },
+              "end": {
+                "line": 212,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 178,
+              "column": 23
+            },
+            "end": {
+              "line": 178,
+              "column": 25
+            }
+          },
+          "replacement": "*=",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__chat.rs_line_178_col_23_001.log",
+      "diff_path": "diff/src__db__chat.rs_line_178_col_23_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 6.9461885,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.48755475,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:217:5: replace extract_matched_text -> String with String::new()",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "extract_matched_text",
+            "return_type": "-> String",
+            "span": {
+              "start": {
+                "line": 215,
+                "column": 1
+              },
+              "end": {
+                "line": 239,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 217,
+              "column": 5
+            },
+            "end": {
+              "line": 238,
+              "column": 40
+            }
+          },
+          "replacement": "String::new()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__chat.rs_line_217_col_5.log",
+      "diff_path": "diff/src__db__chat.rs_line_217_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 10.280911875,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.459153458,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:217:5: replace extract_matched_text -> String with \"xyzzy\".into()",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "extract_matched_text",
+            "return_type": "-> String",
+            "span": {
+              "start": {
+                "line": 215,
+                "column": 1
+              },
+              "end": {
+                "line": 239,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 217,
+              "column": 5
+            },
+            "end": {
+              "line": 238,
+              "column": 40
+            }
+          },
+          "replacement": "\"xyzzy\".into()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__chat.rs_line_217_col_5_001.log",
+      "diff_path": "diff/src__db__chat.rs_line_217_col_5_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 8.446230375,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.495860208,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:243:5: replace snippet -> String with String::new()",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "snippet",
+            "return_type": "-> String",
+            "span": {
+              "start": {
+                "line": 241,
+                "column": 1
+              },
+              "end": {
+                "line": 263,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 243,
+              "column": 5
+            },
+            "end": {
+              "line": 262,
+              "column": 6
+            }
+          },
+          "replacement": "String::new()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__chat.rs_line_243_col_5.log",
+      "diff_path": "diff/src__db__chat.rs_line_243_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 10.264819375,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.504104583,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:243:5: replace snippet -> String with \"xyzzy\".into()",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "snippet",
+            "return_type": "-> String",
+            "span": {
+              "start": {
+                "line": 241,
+                "column": 1
+              },
+              "end": {
+                "line": 263,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 243,
+              "column": 5
+            },
+            "end": {
+              "line": 262,
+              "column": 6
+            }
+          },
+          "replacement": "\"xyzzy\".into()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__chat.rs_line_243_col_5_001.log",
+      "diff_path": "diff/src__db__chat.rs_line_243_col_5_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 8.7035465,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.506129333,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:247:44: replace + with - in snippet",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "snippet",
+            "return_type": "-> String",
+            "span": {
+              "start": {
+                "line": 241,
+                "column": 1
+              },
+              "end": {
+                "line": 263,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 247,
+              "column": 44
+            },
+            "end": {
+              "line": 247,
+              "column": 45
+            }
+          },
+          "replacement": "-",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__chat.rs_line_247_col_44.log",
+      "diff_path": "diff/src__db__chat.rs_line_247_col_44.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 10.369562584,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.568023291,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:247:44: replace + with * in snippet",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "snippet",
+            "return_type": "-> String",
+            "span": {
+              "start": {
+                "line": 241,
+                "column": 1
+              },
+              "end": {
+                "line": 263,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 247,
+              "column": 44
+            },
+            "end": {
+              "line": 247,
+              "column": 45
+            }
+          },
+          "replacement": "*",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__db__chat.rs_line_247_col_44_001.log",
+      "diff_path": "diff/src__db__chat.rs_line_247_col_44_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 8.272125208,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.750028042,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:247:24: replace + with - in snippet",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "snippet",
+            "return_type": "-> String",
+            "span": {
+              "start": {
+                "line": 241,
+                "column": 1
+              },
+              "end": {
+                "line": 263,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 247,
+              "column": 24
+            },
+            "end": {
+              "line": 247,
+              "column": 25
+            }
+          },
+          "replacement": "-",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__chat.rs_line_247_col_24.log",
+      "diff_path": "diff/src__db__chat.rs_line_247_col_24.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 8.306888875,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.421165708,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:247:24: replace + with * in snippet",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "snippet",
+            "return_type": "-> String",
+            "span": {
+              "start": {
+                "line": 241,
+                "column": 1
+              },
+              "end": {
+                "line": 263,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 247,
+              "column": 24
+            },
+            "end": {
+              "line": 247,
+              "column": 25
+            }
+          },
+          "replacement": "*",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__db__chat.rs_line_247_col_24_001.log",
+      "diff_path": "diff/src__db__chat.rs_line_247_col_24_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 8.17436075,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.567697834,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:252:18: replace > with == in snippet",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "snippet",
+            "return_type": "-> String",
+            "span": {
+              "start": {
+                "line": 241,
+                "column": 1
+              },
+              "end": {
+                "line": 263,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 252,
+              "column": 18
+            },
+            "end": {
+              "line": 252,
+              "column": 19
+            }
+          },
+          "replacement": "==",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__db__chat.rs_line_252_col_18.log",
+      "diff_path": "diff/src__db__chat.rs_line_252_col_18.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 9.168183791,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.5433065,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:252:18: replace > with < in snippet",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "snippet",
+            "return_type": "-> String",
+            "span": {
+              "start": {
+                "line": 241,
+                "column": 1
+              },
+              "end": {
+                "line": 263,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 252,
+              "column": 18
+            },
+            "end": {
+              "line": 252,
+              "column": 19
+            }
+          },
+          "replacement": "<",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__db__chat.rs_line_252_col_18_001.log",
+      "diff_path": "diff/src__db__chat.rs_line_252_col_18_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 9.21976,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.643755834,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:252:18: replace > with >= in snippet",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "snippet",
+            "return_type": "-> String",
+            "span": {
+              "start": {
+                "line": 241,
+                "column": 1
+              },
+              "end": {
+                "line": 263,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 252,
+              "column": 18
+            },
+            "end": {
+              "line": 252,
+              "column": 19
+            }
+          },
+          "replacement": ">=",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__db__chat.rs_line_252_col_18_002.log",
+      "diff_path": "diff/src__db__chat.rs_line_252_col_18_002.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 8.591580291,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.551105917,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:256:16: replace < with == in snippet",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "snippet",
+            "return_type": "-> String",
+            "span": {
+              "start": {
+                "line": 241,
+                "column": 1
+              },
+              "end": {
+                "line": 263,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 256,
+              "column": 16
+            },
+            "end": {
+              "line": 256,
+              "column": 17
+            }
+          },
+          "replacement": "==",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__db__chat.rs_line_256_col_16.log",
+      "diff_path": "diff/src__db__chat.rs_line_256_col_16.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 8.352946375,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.548522959,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:256:16: replace < with > in snippet",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "snippet",
+            "return_type": "-> String",
+            "span": {
+              "start": {
+                "line": 241,
+                "column": 1
+              },
+              "end": {
+                "line": 263,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 256,
+              "column": 16
+            },
+            "end": {
+              "line": 256,
+              "column": 17
+            }
+          },
+          "replacement": ">",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__db__chat.rs_line_256_col_16_001.log",
+      "diff_path": "diff/src__db__chat.rs_line_256_col_16_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 8.613212916,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.822852791,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/chat.rs:256:16: replace < with <= in snippet",
+          "package": "fury",
+          "file": "src/db/chat.rs",
+          "function": {
+            "function_name": "snippet",
+            "return_type": "-> String",
+            "span": {
+              "start": {
+                "line": 241,
+                "column": 1
+              },
+              "end": {
+                "line": 263,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 256,
+              "column": 16
+            },
+            "end": {
+              "line": 256,
+              "column": 17
+            }
+          },
+          "replacement": "<=",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__db__chat.rs_line_256_col_16_002.log",
+      "diff_path": "diff/src__db__chat.rs_line_256_col_16_002.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 8.54778975,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 32.59411625,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/workspaces.rs:10:9: replace Database::insert_workspace -> Result<(), AppError> with Ok(())",
+          "package": "fury",
+          "file": "src/db/workspaces.rs",
+          "function": {
+            "function_name": "Database::insert_workspace",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 9,
+                "column": 5
+              },
+              "end": {
+                "line": 30,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 10,
+              "column": 9
+            },
+            "end": {
+              "line": 29,
+              "column": 15
+            }
+          },
+          "replacement": "Ok(())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__workspaces.rs_line_10_col_9.log",
+      "diff_path": "diff/src__db__workspaces.rs_line_10_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 10.837060542,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.427628959,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/workspaces.rs:37:9: replace Database::update_workspace_status -> Result<(), AppError> with Ok(())",
+          "package": "fury",
+          "file": "src/db/workspaces.rs",
+          "function": {
+            "function_name": "Database::update_workspace_status",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 32,
+                "column": 5
+              },
+              "end": {
+                "line": 49,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 37,
+              "column": 9
+            },
+            "end": {
+              "line": 48,
+              "column": 15
+            }
+          },
+          "replacement": "Ok(())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__workspaces.rs_line_37_col_9.log",
+      "diff_path": "diff/src__db__workspaces.rs_line_37_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 11.069821542,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.486985167,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/workspaces.rs:52:9: replace Database::list_workspaces -> Result<Vec<Workspace>, AppError> with Ok(vec![])",
+          "package": "fury",
+          "file": "src/db/workspaces.rs",
+          "function": {
+            "function_name": "Database::list_workspaces",
+            "return_type": "-> Result<Vec<Workspace>, AppError>",
+            "span": {
+              "start": {
+                "line": 51,
+                "column": 5
+              },
+              "end": {
+                "line": 89,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 52,
+              "column": 9
+            },
+            "end": {
+              "line": 88,
+              "column": 23
+            }
+          },
+          "replacement": "Ok(vec![])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__db__workspaces.rs_line_52_col_9.log",
+      "diff_path": "diff/src__db__workspaces.rs_line_52_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 13.537346333,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 31.529779875,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--",
+            "--skip",
+            "port_allocator"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/workspaces.rs:52:9: replace Database::list_workspaces -> Result<Vec<Workspace>, AppError> with Ok(vec![Default::default()])",
+          "package": "fury",
+          "file": "src/db/workspaces.rs",
+          "function": {
+            "function_name": "Database::list_workspaces",
+            "return_type": "-> Result<Vec<Workspace>, AppError>",
+            "span": {
+              "start": {
+                "line": 51,
+                "column": 5
+              },
+              "end": {
+                "line": 89,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 52,
+              "column": 9
+            },
+            "end": {
+              "line": 88,
+              "column": 23
+            }
+          },
+          "replacement": "Ok(vec![Default::default()])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__workspaces.rs_line_52_col_9_001.log",
+      "diff_path": "diff/src__db__workspaces.rs_line_52_col_9_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 2.053000083,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/workspaces.rs:72:69: replace != with == in Database::list_workspaces",
+          "package": "fury",
+          "file": "src/db/workspaces.rs",
+          "function": {
+            "function_name": "Database::list_workspaces",
+            "return_type": "-> Result<Vec<Workspace>, AppError>",
+            "span": {
+              "start": {
+                "line": 51,
+                "column": 5
+              },
+              "end": {
+                "line": 89,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 72,
+              "column": 69
+            },
+            "end": {
+              "line": 72,
+              "column": 71
+            }
+          },
+          "replacement": "==",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__workspaces.rs_line_72_col_69.log",
+      "diff_path": "diff/src__db__workspaces.rs_line_72_col_69.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 10.586743334,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/workspaces.rs:73:64: replace != with == in Database::list_workspaces",
+          "package": "fury",
+          "file": "src/db/workspaces.rs",
+          "function": {
+            "function_name": "Database::list_workspaces",
+            "return_type": "-> Result<Vec<Workspace>, AppError>",
+            "span": {
+              "start": {
+                "line": 51,
+                "column": 5
+              },
+              "end": {
+                "line": 89,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 73,
+              "column": 64
+            },
+            "end": {
+              "line": 73,
+              "column": 66
+            }
+          },
+          "replacement": "==",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__workspaces.rs_line_73_col_64.log",
+      "diff_path": "diff/src__db__workspaces.rs_line_73_col_64.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 6.170994791,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/workspaces.rs:92:9: replace Database::list_archived_workspaces -> Result<Vec<Workspace>, AppError> with Ok(vec![])",
+          "package": "fury",
+          "file": "src/db/workspaces.rs",
+          "function": {
+            "function_name": "Database::list_archived_workspaces",
+            "return_type": "-> Result<Vec<Workspace>, AppError>",
+            "span": {
+              "start": {
+                "line": 91,
+                "column": 5
+              },
+              "end": {
+                "line": 129,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 92,
+              "column": 9
+            },
+            "end": {
+              "line": 128,
+              "column": 23
+            }
+          },
+          "replacement": "Ok(vec![])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__workspaces.rs_line_92_col_9.log",
+      "diff_path": "diff/src__db__workspaces.rs_line_92_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 10.091434209,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/workspaces.rs:92:9: replace Database::list_archived_workspaces -> Result<Vec<Workspace>, AppError> with Ok(vec![Default::default()])",
+          "package": "fury",
+          "file": "src/db/workspaces.rs",
+          "function": {
+            "function_name": "Database::list_archived_workspaces",
+            "return_type": "-> Result<Vec<Workspace>, AppError>",
+            "span": {
+              "start": {
+                "line": 91,
+                "column": 5
+              },
+              "end": {
+                "line": 129,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 92,
+              "column": 9
+            },
+            "end": {
+              "line": 128,
+              "column": 23
+            }
+          },
+          "replacement": "Ok(vec![Default::default()])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__workspaces.rs_line_92_col_9_001.log",
+      "diff_path": "diff/src__db__workspaces.rs_line_92_col_9_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 1.8242737500000001,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/workspaces.rs:112:69: replace != with == in Database::list_archived_workspaces",
+          "package": "fury",
+          "file": "src/db/workspaces.rs",
+          "function": {
+            "function_name": "Database::list_archived_workspaces",
+            "return_type": "-> Result<Vec<Workspace>, AppError>",
+            "span": {
+              "start": {
+                "line": 91,
+                "column": 5
+              },
+              "end": {
+                "line": 129,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 112,
+              "column": 69
+            },
+            "end": {
+              "line": 112,
+              "column": 71
+            }
+          },
+          "replacement": "==",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__workspaces.rs_line_112_col_69.log",
+      "diff_path": "diff/src__db__workspaces.rs_line_112_col_69.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 8.744412042,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/workspaces.rs:113:64: replace != with == in Database::list_archived_workspaces",
+          "package": "fury",
+          "file": "src/db/workspaces.rs",
+          "function": {
+            "function_name": "Database::list_archived_workspaces",
+            "return_type": "-> Result<Vec<Workspace>, AppError>",
+            "span": {
+              "start": {
+                "line": 91,
+                "column": 5
+              },
+              "end": {
+                "line": 129,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 113,
+              "column": 64
+            },
+            "end": {
+              "line": 113,
+              "column": 66
+            }
+          },
+          "replacement": "==",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__workspaces.rs_line_113_col_64.log",
+      "diff_path": "diff/src__db__workspaces.rs_line_113_col_64.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 5.011237083,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/workspaces.rs:132:9: replace Database::delete_workspace -> Result<(), AppError> with Ok(())",
+          "package": "fury",
+          "file": "src/db/workspaces.rs",
+          "function": {
+            "function_name": "Database::delete_workspace",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 131,
+                "column": 5
+              },
+              "end": {
+                "line": 137,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 132,
+              "column": 9
+            },
+            "end": {
+              "line": 136,
+              "column": 15
+            }
+          },
+          "replacement": "Ok(())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__workspaces.rs_line_132_col_9.log",
+      "diff_path": "diff/src__db__workspaces.rs_line_132_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 5.606377459,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/workspaces.rs:144:9: replace Database::update_workspace_devcontainer_config -> Result<(), AppError> with Ok(())",
+          "package": "fury",
+          "file": "src/db/workspaces.rs",
+          "function": {
+            "function_name": "Database::update_workspace_devcontainer_config",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 139,
+                "column": 5
+              },
+              "end": {
+                "line": 150,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 144,
+              "column": 9
+            },
+            "end": {
+              "line": 149,
+              "column": 15
+            }
+          },
+          "replacement": "Ok(())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__workspaces.rs_line_144_col_9.log",
+      "diff_path": "diff/src__db__workspaces.rs_line_144_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 10.097185416,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/workspaces.rs:157:9: replace Database::update_workspace_sparse_dirs -> Result<(), AppError> with Ok(())",
+          "package": "fury",
+          "file": "src/db/workspaces.rs",
+          "function": {
+            "function_name": "Database::update_workspace_sparse_dirs",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 152,
+                "column": 5
+              },
+              "end": {
+                "line": 163,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 157,
+              "column": 9
+            },
+            "end": {
+              "line": 162,
+              "column": 15
+            }
+          },
+          "replacement": "Ok(())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__workspaces.rs_line_157_col_9.log",
+      "diff_path": "diff/src__db__workspaces.rs_line_157_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 7.6171855,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/workspaces.rs:166:9: replace Database::insert_workspace_link -> Result<(), AppError> with Ok(())",
+          "package": "fury",
+          "file": "src/db/workspaces.rs",
+          "function": {
+            "function_name": "Database::insert_workspace_link",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 165,
+                "column": 5
+              },
+              "end": {
+                "line": 171,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 166,
+              "column": 9
+            },
+            "end": {
+              "line": 170,
+              "column": 15
+            }
+          },
+          "replacement": "Ok(())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__workspaces.rs_line_166_col_9.log",
+      "diff_path": "diff/src__db__workspaces.rs_line_166_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 6.992027167,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/workspaces.rs:174:9: replace Database::delete_workspace_link -> Result<(), AppError> with Ok(())",
+          "package": "fury",
+          "file": "src/db/workspaces.rs",
+          "function": {
+            "function_name": "Database::delete_workspace_link",
+            "return_type": "-> Result<(), AppError>",
+            "span": {
+              "start": {
+                "line": 173,
+                "column": 5
+              },
+              "end": {
+                "line": 179,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 174,
+              "column": 9
+            },
+            "end": {
+              "line": 178,
+              "column": 15
+            }
+          },
+          "replacement": "Ok(())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__workspaces.rs_line_174_col_9.log",
+      "diff_path": "diff/src__db__workspaces.rs_line_174_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 4.029861292,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/db/workspaces.rs:182:9: replace Database::get_workspace_links -> Result<Vec<Uuid>, AppError> with Ok(vec![])",
+          "package": "fury",
+          "file": "src/db/workspaces.rs",
+          "function": {
+            "function_name": "Database::get_workspace_links",
+            "return_type": "-> Result<Vec<Uuid>, AppError>",
+            "span": {
+              "start": {
+                "line": 181,
+                "column": 5
+              },
+              "end": {
+                "line": 193,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 182,
+              "column": 9
+            },
+            "end": {
+              "line": 192,
+              "column": 16
+            }
+          },
+          "replacement": "Ok(vec![])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__db__workspaces.rs_line_182_col_9.log",
+      "diff_path": "diff/src__db__workspaces.rs_line_182_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 4.0268815,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        }
+      ]
+    }
+  ],
+  "total_mutants": 100,
+  "missed": 21,
+  "caught": 58,
+  "timeout": 0,
+  "unviable": 21,
+  "success": 0,
+  "start_time": "2026-03-28T16:51:50.590228Z",
+  "end_time": null,
+  "cargo_mutants_version": "27.0.0"
+}
