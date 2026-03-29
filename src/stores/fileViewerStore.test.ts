@@ -1361,6 +1361,76 @@ describe("fileViewerStore - tab creation defaults", () => {
   });
 });
 
+describe("fileViewerStore - openFile pin/reuse edge cases", () => {
+  it("re-opening existing tab without pin does NOT pin it", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    // Open unpinned
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "reuse.ts", false);
+    const before = useFileViewerStore.getState().tabs.find(t => t.filePath === "reuse.ts");
+    expect(before!.pinned).toBe(false);
+
+    // Re-open without pin — should still be unpinned
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "reuse.ts", false);
+    const after = useFileViewerStore.getState().tabs.find(t => t.filePath === "reuse.ts");
+    expect(after!.pinned).toBe(false);
+  });
+
+  it("re-opening existing unpinned tab with pin=true pins it", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "pin-me.ts", false);
+    expect(useFileViewerStore.getState().tabs.find(t => t.filePath === "pin-me.ts")!.pinned).toBe(false);
+
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "pin-me.ts", true);
+    expect(useFileViewerStore.getState().tabs.find(t => t.filePath === "pin-me.ts")!.pinned).toBe(true);
+  });
+
+  it("new pinned tab sets pinned=true", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "new-pinned.ts", true);
+    const tab = useFileViewerStore.getState().tabs.find(t => t.filePath === "new-pinned.ts");
+    expect(tab!.pinned).toBe(true);
+  });
+
+  it("new unpinned tab sets pinned=false", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "new-preview.ts", false);
+    const tab = useFileViewerStore.getState().tabs.find(t => t.filePath === "new-preview.ts");
+    expect(tab!.pinned).toBe(false);
+  });
+});
+
+describe("fileViewerStore - saveActiveFile edge cases", () => {
+  it("save uses editedContent when available", async () => {
+    vi.mocked(writeWorkspaceFile).mockResolvedValue({ content: "saved", language: "typescript", formatted: true } as any);
+    useFileViewerStore.setState({
+      tabs: [{
+        id: "ctx1:save.ts", filePath: "save.ts", contextId: "ctx1", contextType: "workspace",
+        content: "original", editedContent: "modified", language: "typescript",
+        loading: false, saving: false, error: null, pinned: true, dirty: true,
+      }],
+      activeTabId: "ctx1:save.ts",
+    });
+
+    await useFileViewerStore.getState().saveActiveFile();
+    expect(writeWorkspaceFile).toHaveBeenCalledWith("ctx1", "save.ts", "modified", true);
+  });
+
+  it("save falls back to content when editedContent is null", async () => {
+    vi.mocked(writeWorkspaceFile).mockResolvedValue({ content: "saved", language: "typescript", formatted: true } as any);
+    useFileViewerStore.setState({
+      tabs: [{
+        id: "ctx1:fallback.ts", filePath: "fallback.ts", contextId: "ctx1", contextType: "workspace",
+        content: "original", editedContent: null, language: "typescript",
+        loading: false, saving: false, error: null, pinned: true, dirty: true,
+      }],
+      activeTabId: "ctx1:fallback.ts",
+    });
+
+    await useFileViewerStore.getState().saveActiveFile();
+    expect(writeWorkspaceFile).toHaveBeenCalledWith("ctx1", "fallback.ts", "original", true);
+  });
+});
+
 describe("detectLanguage", () => {
   it.each([
     ["app.ts", "typescript"],
