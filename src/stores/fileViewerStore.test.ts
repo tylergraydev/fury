@@ -1725,6 +1725,59 @@ describe("fileViewerStore - openFile new tab pin vs preview in non-split", () =>
   });
 });
 
+describe("fileViewerStore - openFile reuse NON-split does NOT touch pane IDs", () => {
+  it("re-opening existing tab in non-split mode leaves pane IDs null", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    const tab = { id: "ctx1:exist.ts", filePath: "exist.ts", contextId: "ctx1", contextType: "workspace" as const,
+      content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    useFileViewerStore.setState({ tabs: [tab], splitActive: false, leftActiveTabId: null, rightActiveTabId: null });
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "exist.ts", false);
+    // Non-split → should NOT set leftActiveTabId or rightActiveTabId
+    expect(useFileViewerStore.getState().leftActiveTabId).toBeNull();
+    expect(useFileViewerStore.getState().rightActiveTabId).toBeNull();
+  });
+});
+
+describe("fileViewerStore - openFile preview NON-split does NOT touch pane IDs", () => {
+  it("preview replacement in non-split mode leaves pane IDs null", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    const preview = { id: "ctx1:old.ts", filePath: "old.ts", contextId: "ctx1", contextType: "workspace" as const,
+      content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: false, dirty: false };
+    useFileViewerStore.setState({ tabs: [preview], splitActive: false, leftActiveTabId: null, rightActiveTabId: null });
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "new.ts", false);
+    expect(useFileViewerStore.getState().leftActiveTabId).toBeNull();
+    expect(useFileViewerStore.getState().rightActiveTabId).toBeNull();
+  });
+});
+
+describe("fileViewerStore - closeTab NON-split does NOT update pane IDs", () => {
+  it("closeTab in non-split leaves pane IDs null", () => {
+    const t1 = { id: "ctx1:a.ts", filePath: "a.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    const t2 = { id: "ctx1:b.ts", filePath: "b.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    useFileViewerStore.setState({ tabs: [t1, t2], activeTabId: "ctx1:a.ts", splitActive: false, leftActiveTabId: null, rightActiveTabId: null });
+    useFileViewerStore.getState().closeTab("ctx1:a.ts");
+    expect(useFileViewerStore.getState().leftActiveTabId).toBeNull();
+    expect(useFileViewerStore.getState().rightActiveTabId).toBeNull();
+  });
+});
+
+describe("fileViewerStore - setActiveTab/showChat NON-split simple path", () => {
+  it("setActiveTab in non-split just sets activeTabId", () => {
+    const t1 = { id: "ctx1:a.ts", filePath: "a.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    useFileViewerStore.setState({ tabs: [t1], splitActive: false, activeTabId: null });
+    useFileViewerStore.getState().setActiveTab("ctx1:a.ts");
+    expect(useFileViewerStore.getState().activeTabId).toBe("ctx1:a.ts");
+    // Pane IDs should not be touched
+    expect(useFileViewerStore.getState().leftActiveTabId).toBeNull();
+  });
+
+  it("showChat in non-split sets activeTabId to null", () => {
+    useFileViewerStore.setState({ activeTabId: "ctx1:a.ts", splitActive: false });
+    useFileViewerStore.getState().showChat();
+    expect(useFileViewerStore.getState().activeTabId).toBeNull();
+  });
+});
+
 describe("fileViewerStore - openFile pin in split mode sets pane", () => {
   it("new pinned file in split left-focused sets leftActiveTabId", async () => {
     vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
