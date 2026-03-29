@@ -329,14 +329,23 @@ describe("agentStore - status change tracking via listener", () => {
   });
 
   it("does NOT set runStartedAt on Running→Running (already running)", () => {
-    // Set to Running
+    // Set to Running via state (not callback) so runStartedAt isn't set
     useAgentStore.setState({
       agents: { "ws-1": { workspaceId: "ws-1", status: "Running" } as any },
+      runStartedAt: {}, // explicitly empty
     });
 
     callback({ payload: { status: "Running", workspaceId: "ws-1" } });
-    // becameRunning should be false (prev was already Running)
+    // becameRunning should be false (prevStatus === "Running", so !== fails)
     // runStartedAt should NOT be set
+    expect(useAgentStore.getState().runStartedAt["ws-1"]).toBeUndefined();
+  });
+
+  it("does NOT set runStartedAt on Idle→Idle", () => {
+    // prevStatus defaults to Idle, newStatus is Idle
+    // becameRunning should be false
+    useAgentStore.setState({ runStartedAt: {} });
+    callback({ payload: { status: "Idle", workspaceId: "ws-1" } });
     expect(useAgentStore.getState().runStartedAt["ws-1"]).toBeUndefined();
   });
 
