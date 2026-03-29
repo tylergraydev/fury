@@ -652,6 +652,87 @@ describe("workspaceStore - archiveWs non-active workspace", () => {
   });
 });
 
+describe("workspaceStore - _cleanupWorkspace handles store errors", () => {
+  it("archiveWs succeeds even when chatStore.unsubscribe throws", async () => {
+    const spy = vi.spyOn(useChatStore.getState(), "unsubscribe").mockImplementation(() => { throw new Error("chat crash"); });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const ws = makeWs({ id: "ws-err-chat" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-err-chat");
+
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("chat cleanup failed"), expect.any(Error));
+    spy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it("archiveWs succeeds even when agentStore.unsubscribe throws", async () => {
+    const spy = vi.spyOn(useAgentStore.getState(), "unsubscribe").mockImplementation(() => { throw new Error("agent crash"); });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const ws = makeWs({ id: "ws-err-agent" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-err-agent");
+
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("agent cleanup failed"), expect.any(Error));
+    spy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it("archiveWs succeeds even when prStore.unsubscribe throws", async () => {
+    const spy = vi.spyOn(usePrStore.getState(), "unsubscribe").mockImplementation(() => { throw new Error("pr crash"); });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const ws = makeWs({ id: "ws-err-pr" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-err-pr");
+
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("pr cleanup failed"), expect.any(Error));
+    spy.mockRestore();
+    warnSpy.mockRestore();
+  });
+});
+
+describe("workspaceStore - archiveWs find and wasActive edge cases", () => {
+  it("archiveWs with ID not in list leaves archivedWorkspaces unchanged", async () => {
+    const ws = makeWs({ id: "ws-exists" });
+    useWorkspaceStore.setState({ workspaces: [ws], archivedWorkspaces: [] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-not-exists");
+
+    // find returns undefined → archivedWorkspaces not updated
+    expect(useWorkspaceStore.getState().archivedWorkspaces).toHaveLength(0);
+  });
+
+  it("archiveWs non-active workspace keeps activeWorkspaceId unchanged", async () => {
+    const ws1 = makeWs({ id: "ws-keep-active" });
+    const ws2 = makeWs({ id: "ws-archive-me" });
+    useWorkspaceStore.setState({ workspaces: [ws1, ws2], activeWorkspaceId: "ws-keep-active" });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-archive-me");
+
+    // wasActive is false → activeWorkspaceId stays as ws-keep-active
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBe("ws-keep-active");
+  });
+
+  it("archiveWs active workspace switches to next available", async () => {
+    const ws1 = makeWs({ id: "ws-active-gone" });
+    const ws2 = makeWs({ id: "ws-next" });
+    useWorkspaceStore.setState({ workspaces: [ws1, ws2], activeWorkspaceId: "ws-active-gone" });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-active-gone");
+
+    // wasActive is true → nextActive should be remaining[0].id = ws-next
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBe("ws-next");
+  });
+});
+
 describe("workspaceStore - restoreWs removes from archived list", () => {
   it("filters restored workspace from archivedWorkspaces", async () => {
     const ws1 = makeWs({ id: "ws-1" });

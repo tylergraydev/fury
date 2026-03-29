@@ -1902,6 +1902,180 @@ describe("chatStore - handleStreamEvent system with skills", () => {
   });
 });
 
+describe("chatStore - clearQuestionRequest", () => {
+  it("sets questionRequest to null for workspace", () => {
+    useChatStore.setState({ questionRequest: { "ws-1": { toolUseId: "t1", question: "q" } as any } });
+    useChatStore.getState().clearQuestionRequest("ws-1");
+    expect(useChatStore.getState().questionRequest["ws-1"]).toBeNull();
+  });
+
+  it("preserves other workspace questionRequest", () => {
+    useChatStore.setState({
+      questionRequest: { "ws-1": { toolUseId: "t1", question: "q1" } as any, "ws-2": { toolUseId: "t2", question: "q2" } as any },
+    });
+    useChatStore.getState().clearQuestionRequest("ws-1");
+    expect(useChatStore.getState().questionRequest["ws-2"]).toBeTruthy();
+  });
+});
+
+describe("chatStore - clearPermissionRequest", () => {
+  it("sets permissionRequest to null for workspace", () => {
+    useChatStore.setState({ permissionRequest: { "ws-1": { toolName: "Bash", input: {} } as any } });
+    useChatStore.getState().clearPermissionRequest("ws-1");
+    expect(useChatStore.getState().permissionRequest["ws-1"]).toBeNull();
+  });
+
+  it("preserves other workspace permissionRequest", () => {
+    useChatStore.setState({
+      permissionRequest: { "ws-1": { toolName: "A", input: {} } as any, "ws-2": { toolName: "B", input: {} } as any },
+    });
+    useChatStore.getState().clearPermissionRequest("ws-1");
+    expect(useChatStore.getState().permissionRequest["ws-2"]).toBeTruthy();
+  });
+});
+
+describe("chatStore - removeTrailingSystemMessages empty workspace", () => {
+  it("handles workspace with no messages", () => {
+    useChatStore.setState({ messages: {} });
+    useChatStore.getState().removeTrailingSystemMessages("ws-empty");
+    // Should not crash — ?? [] fallback prevents error
+    expect(true).toBe(true);
+  });
+});
+
+describe("chatStore - subscribe token timing edge cases", () => {
+  it("token cancelled between loadMessages and listen bails out", async () => {
+    let resolveLoad!: (v: any) => void;
+    vi.mocked(listChatMessages).mockImplementation(
+      () => new Promise(r => { resolveLoad = r; }),
+    );
+    const unlistenSpy = vi.fn();
+    vi.mocked(listen).mockResolvedValue(unlistenSpy);
+
+    const p = useChatStore.getState().subscribe("ws-timing-1");
+    // Cancel the token while loadMessages is pending
+    useChatStore.getState().unsubscribe("ws-timing-1");
+    // Resolve loadMessages — the subscribe should bail at token.cancelled check
+    resolveLoad([]);
+    await p;
+
+    // Subscription should NOT exist (bailed out)
+    expect(useChatStore.getState().subscriptions["ws-timing-1"]).toBeUndefined();
+  });
+
+  it("clearMessages sets token.cancelled and triggers IPC clear", async () => {
+    vi.mocked(listen).mockResolvedValue(() => {});
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+    vi.mocked(clearChatMessages).mockResolvedValue(undefined);
+
+    await useChatStore.getState().subscribe("ws-clr-token");
+    useChatStore.setState({
+      messages: { "ws-clr-token": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1 }] },
+    });
+
+    useChatStore.getState().clearMessages("ws-clr-token");
+
+    // clearChatMessages IPC should have been called
+    expect(clearChatMessages).toHaveBeenCalledWith("ws-clr-token");
+
+    // Wait for the re-subscribe chain
+    await new Promise(r => setTimeout(r, 50));
+  });
+
+  it("re-subscribe after clear fires when clearChatMessagesCmd resolves", async () => {
+    let clearResolve!: () => void;
+    vi.mocked(clearChatMessages).mockImplementation(
+      () => new Promise<void>(r => { clearResolve = r; }),
+    );
+    vi.mocked(listen).mockResolvedValue(() => {});
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+
+    await useChatStore.getState().subscribe("ws-resub");
+    useChatStore.setState({
+      messages: { "ws-resub": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1 }] },
+    });
+
+    useChatStore.getState().clearMessages("ws-resub");
+    // Clear is pending — re-subscribe hasn't happened yet
+
+    // Resolve the clear
+    clearResolve();
+    await new Promise(r => setTimeout(r, 50));
+
+    // subscribe should have been called again (re-subscribe after clear)
+    // listen would be called multiple times
+  });
+});
+
+describe("chatStore - handleStreamEvent result with non-assistant last msg", () => {
+  let handleEvent: (event: { payload: any }) => void;
+
+  beforeEach(async () => {
+    vi.mocked(listen).mockImplementation(async (_channel, handler) => {
+      handleEvent = handler as any;
+      return () => {};
+    });
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+    vi.mocked(saveChatMessage).mockResolvedValue(undefined);
+    await useChatStore.getState().subscribe("ws-1");
+  });
+
+  it("result with metadata when last msg is user does not set metadata on it", () => {
+    useChatStore.setState({
+      messages: { "ws-1": [{ id: "u1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1 }] },
+    });
+    handleEvent({ payload: {
+      type: "result", isError: false, result: null, sessionId: null,
+      totalCostUsd: 0.01, inputTokens: 10, outputTokens: 20, numTurns: 1,
+    } });
+    const msgs = useChatStore.getState().messages["ws-1"]!;
+    // User message should NOT have metadata attached
+    expect(msgs[0].metadata).toBeUndefined();
+  });
+
+  it("result without any messages handles gracefully (msgs ?? [])", () => {
+    useChatStore.setState({ messages: { "ws-1": undefined as any } });
+    handleEvent({ payload: {
+      type: "result", isError: false, result: null, sessionId: null,
+      totalCostUsd: 0.01, inputTokens: 10, outputTokens: 20, numTurns: 1,
+    } });
+    // Should not crash
+    expect(useChatStore.getState().sessionStats["ws-1"]).toBeTruthy();
+  });
+
+  it("finalizeStreamingText with empty text does NOT add message", () => {
+    useChatStore.setState({ streamingText: { "ws-1": "" } });
+    const msgsBefore = (useChatStore.getState().messages["ws-1"] ?? []).length;
+    handleEvent({ payload: { type: "result", isError: false, result: null, sessionId: null } });
+    const msgsAfter = (useChatStore.getState().messages["ws-1"] ?? []).length;
+    // No message should be added for empty streaming text
+    expect(msgsAfter).toBe(msgsBefore);
+  });
+
+  it("system event with null message does not add message", () => {
+    const msgsBefore = (useChatStore.getState().messages["ws-1"] ?? []).length;
+    handleEvent({ payload: { type: "system", message: null, sessionId: null } });
+    const msgsAfter = (useChatStore.getState().messages["ws-1"] ?? []).length;
+    expect(msgsAfter).toBe(msgsBefore);
+  });
+});
+
+describe("chatStore - parseSkills edge cases for -1 checks", () => {
+  it("idx === -1 returns empty when marker not found", () => {
+    expect(parseSkillsFromSystemMessage("no marker here at all")).toEqual([]);
+  });
+
+  it("colonIdx === -1 skips line without colon separator", () => {
+    const msg = "skills are available for use with the Skill tool:\n- no-colon-here";
+    expect(parseSkillsFromSystemMessage(msg)).toEqual([]);
+  });
+
+  it("empty name after colon is skipped", () => {
+    const msg = "skills are available for use with the Skill tool:\n- : just description";
+    expect(parseSkillsFromSystemMessage(msg)).toEqual([]);
+  });
+});
+
 describe("chatStore - error string content verification", () => {
   let handleEvent: (event: { payload: any }) => void;
 

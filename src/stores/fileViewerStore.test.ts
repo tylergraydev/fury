@@ -1634,6 +1634,138 @@ describe("fileViewerStore - saveActiveFile conditional branches", () => {
   });
 });
 
+describe("fileViewerStore - openFile pin in split mode sets pane", () => {
+  it("new pinned file in split left-focused sets leftActiveTabId", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    useFileViewerStore.setState({ tabs: [], splitActive: true, focusedPane: "left", leftActiveTabId: null, rightActiveTabId: null });
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "pin-left.ts", true);
+    expect(useFileViewerStore.getState().leftActiveTabId).toBe("ctx1:pin-left.ts");
+    expect(useFileViewerStore.getState().rightActiveTabId).toBeNull();
+  });
+
+  it("new pinned file in split right-focused sets rightActiveTabId", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    useFileViewerStore.setState({ tabs: [], splitActive: true, focusedPane: "right", leftActiveTabId: null, rightActiveTabId: null });
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "pin-right.ts", true);
+    expect(useFileViewerStore.getState().rightActiveTabId).toBe("ctx1:pin-right.ts");
+    expect(useFileViewerStore.getState().leftActiveTabId).toBeNull();
+  });
+});
+
+describe("fileViewerStore - openFile preview in split mode sets pane", () => {
+  it("new preview file in split left-focused sets leftActiveTabId", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    useFileViewerStore.setState({ tabs: [], splitActive: true, focusedPane: "left", leftActiveTabId: null, rightActiveTabId: null });
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "prev-left.ts", false);
+    expect(useFileViewerStore.getState().leftActiveTabId).toBe("ctx1:prev-left.ts");
+  });
+
+  it("replacing preview tab in split preserves pane assignment", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    const preview = { id: "ctx1:old.ts", filePath: "old.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: false, dirty: false };
+    useFileViewerStore.setState({ tabs: [preview], splitActive: true, focusedPane: "right", leftActiveTabId: null, rightActiveTabId: "ctx1:old.ts" });
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "new.ts", false);
+    expect(useFileViewerStore.getState().rightActiveTabId).toBe("ctx1:new.ts");
+  });
+});
+
+describe("fileViewerStore - closeTab split pane updates", () => {
+  it("closing left pane tab picks next excluding right pane tab", () => {
+    const t1 = { id: "ctx1:a.ts", filePath: "a.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    const t2 = { id: "ctx1:b.ts", filePath: "b.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    const t3 = { id: "ctx1:c.ts", filePath: "c.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    useFileViewerStore.setState({
+      tabs: [t1, t2, t3], splitActive: true, focusedPane: "left",
+      leftActiveTabId: "ctx1:a.ts", rightActiveTabId: "ctx1:c.ts", activeTabId: "ctx1:a.ts",
+    });
+    useFileViewerStore.getState().closeTab("ctx1:a.ts");
+    const left = useFileViewerStore.getState().leftActiveTabId;
+    expect(left).toBe("ctx1:b.ts"); // Picks b, not c (c is in right pane)
+  });
+
+  it("closing right pane tab picks next from remaining tabs", () => {
+    const t1 = { id: "ctx1:a.ts", filePath: "a.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    const t2 = { id: "ctx1:b.ts", filePath: "b.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    const t3 = { id: "ctx1:c.ts", filePath: "c.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    useFileViewerStore.setState({
+      tabs: [t1, t2, t3], splitActive: true, focusedPane: "right",
+      leftActiveTabId: "ctx1:a.ts", rightActiveTabId: "ctx1:c.ts", activeTabId: "ctx1:c.ts",
+    });
+    useFileViewerStore.getState().closeTab("ctx1:c.ts");
+    const right = useFileViewerStore.getState().rightActiveTabId;
+    // Should pick b.ts (not a.ts which is in left)
+    expect(right).toBe("ctx1:b.ts");
+  });
+
+  it("activeTabId follows focused pane after close", () => {
+    const t1 = { id: "ctx1:a.ts", filePath: "a.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    const t2 = { id: "ctx1:b.ts", filePath: "b.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    const t3 = { id: "ctx1:c.ts", filePath: "c.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    useFileViewerStore.setState({
+      tabs: [t1, t2, t3], splitActive: true, focusedPane: "left",
+      leftActiveTabId: "ctx1:a.ts", rightActiveTabId: "ctx1:c.ts", activeTabId: "ctx1:a.ts",
+    });
+    useFileViewerStore.getState().closeTab("ctx1:a.ts");
+    // Focused pane is left, so activeTabId should match new leftActiveTabId
+    expect(useFileViewerStore.getState().activeTabId).toBe(useFileViewerStore.getState().leftActiveTabId);
+  });
+
+  it("closing last tab in single-pane selects by Math.min(idx, length-1)", () => {
+    const t1 = { id: "ctx1:a.ts", filePath: "a.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    const t2 = { id: "ctx1:b.ts", filePath: "b.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    useFileViewerStore.setState({ tabs: [t1, t2], activeTabId: "ctx1:b.ts", splitActive: false });
+    // Close the last tab (index 1) — Math.min(1, 0) = 0, selects t1
+    useFileViewerStore.getState().closeTab("ctx1:b.ts");
+    expect(useFileViewerStore.getState().activeTabId).toBe("ctx1:a.ts");
+  });
+});
+
+describe("fileViewerStore - setActiveTab/showChat split mode routing", () => {
+  it("setActiveTab in split left-focused sets leftActiveTabId", () => {
+    const t1 = { id: "ctx1:a.ts", filePath: "a.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    const t2 = { id: "ctx1:b.ts", filePath: "b.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    useFileViewerStore.setState({
+      tabs: [t1, t2], splitActive: true, focusedPane: "left",
+      leftActiveTabId: "ctx1:a.ts", rightActiveTabId: "ctx1:b.ts", activeTabId: "ctx1:a.ts",
+    });
+    useFileViewerStore.getState().setActiveTab("ctx1:b.ts");
+    expect(useFileViewerStore.getState().leftActiveTabId).toBe("ctx1:b.ts");
+    expect(useFileViewerStore.getState().activeTabId).toBe("ctx1:b.ts");
+  });
+
+  it("showChat in split left-focused clears left tab", () => {
+    const t1 = { id: "ctx1:a.ts", filePath: "a.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    useFileViewerStore.setState({
+      tabs: [t1], splitActive: true, focusedPane: "left",
+      leftActiveTabId: "ctx1:a.ts", rightActiveTabId: null, activeTabId: "ctx1:a.ts",
+    });
+    useFileViewerStore.getState().showChat();
+    expect(useFileViewerStore.getState().leftActiveTabId).toBeNull();
+  });
+});
+
+describe("fileViewerStore - saveActiveFile guard conditions", () => {
+  it("save is no-op when tab is already saving", async () => {
+    const tab = { id: "ctx1:saving.ts", filePath: "saving.ts", contextId: "ctx1", contextType: "workspace" as const,
+      content: "x", editedContent: "y", language: "typescript", loading: false, saving: true, error: null, pinned: true, dirty: true };
+    useFileViewerStore.setState({ tabs: [tab], activeTabId: "ctx1:saving.ts" });
+    await useFileViewerStore.getState().saveActiveFile();
+    expect(writeWorkspaceFile).not.toHaveBeenCalled();
+  });
+});
+
+describe("fileViewerStore - splitEditor without tabId", () => {
+  it("splitEditor with no tabId sets rightActiveTabId to null and activeTabId to leftTab", () => {
+    const tab = { id: "ctx1:only.ts", filePath: "only.ts", contextId: "ctx1", contextType: "workspace" as const,
+      content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    useFileViewerStore.setState({ tabs: [tab], activeTabId: "ctx1:only.ts", splitActive: false });
+    useFileViewerStore.getState().splitEditor();
+    expect(useFileViewerStore.getState().rightActiveTabId).toBeNull();
+    expect(useFileViewerStore.getState().activeTabId).toBe("ctx1:only.ts");
+    expect(useFileViewerStore.getState().leftActiveTabId).toBe("ctx1:only.ts");
+  });
+});
+
 describe("fileViewerStore - splitEditor string values", () => {
   it("splitEditor sets focusedPane to 'right'", () => {
     const tab = { id: "ctx1:a.ts", filePath: "a.ts", contextId: "ctx1", contextType: "workspace" as const,
