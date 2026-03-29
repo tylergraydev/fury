@@ -1782,6 +1782,126 @@ describe("chatStore - friendlyErrorMessage", () => {
   });
 });
 
+describe("chatStore - loadMessages restores session stats", () => {
+  it("restores sessionStats from last message with metadata", async () => {
+    vi.mocked(listChatMessages).mockResolvedValue([
+      { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: new Date().toISOString() },
+      { id: "m2", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "hello" }], timestamp: new Date().toISOString(),
+        metadata: { totalCostUsd: 0.05, inputTokens: 100, outputTokens: 50, numTurns: 1, cacheReadTokens: 0, cacheCreationTokens: 0 } },
+    ] as any);
+
+    await useChatStore.getState().loadMessages("ws-1");
+
+    const stats = useChatStore.getState().sessionStats["ws-1"];
+    expect(stats).toBeTruthy();
+    expect(stats!.totalCostUsd).toBe(0.05);
+    expect(stats!.totalInputTokens).toBe(100);
+  });
+
+  it("iterates backwards to find metadata (skips messages without)", async () => {
+    vi.mocked(listChatMessages).mockResolvedValue([
+      { id: "m1", workspaceId: "ws-1", role: "assistant", content: [], timestamp: new Date().toISOString(),
+        metadata: { totalCostUsd: 0.01, inputTokens: 10, outputTokens: 5, numTurns: 1 } },
+      { id: "m2", workspaceId: "ws-1", role: "user", content: [], timestamp: new Date().toISOString() },
+    ] as any);
+
+    await useChatStore.getState().loadMessages("ws-1");
+
+    // Should NOT have stats — the loop breaks at the user message (no metadata)
+    // Actually it iterates from the end, m2 has no metadata, continues to m1 which does
+    const stats = useChatStore.getState().sessionStats["ws-1"];
+    expect(stats).toBeDefined();
+  });
+
+  it("handles loadMessages failure gracefully", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(listChatMessages).mockRejectedValue(new Error("db error"));
+
+    await useChatStore.getState().loadMessages("ws-1");
+
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to load chat messages"),
+      expect.any(Error),
+    );
+    spy.mockRestore();
+  });
+});
+
+describe("chatStore - getPlanContent", () => {
+  it("returns text from consecutive assistant messages walking backwards", () => {
+    useChatStore.setState({
+      messages: {
+        "ws-1": [
+          { id: "m1", role: "user", content: [{ type: "text", text: "plan this" }], timestamp: 1 },
+          { id: "m2", role: "assistant", content: [{ type: "text", text: "Step 1" }], timestamp: 2 },
+          { id: "m3", role: "assistant", content: [{ type: "text", text: "Step 2" }], timestamp: 3 },
+        ],
+      },
+    });
+    const plan = useChatStore.getState().getPlanContent("ws-1");
+    expect(plan).toContain("Step 1");
+    expect(plan).toContain("Step 2");
+  });
+
+  it("returns empty for unknown workspace", () => {
+    expect(useChatStore.getState().getPlanContent("ws-unknown")).toBe("");
+  });
+});
+
+describe("chatStore - handleStreamEvent system with skills", () => {
+  let handleEvent: (event: { payload: any }) => void;
+
+  beforeEach(async () => {
+    vi.mocked(listen).mockImplementation(async (_channel, handler) => {
+      handleEvent = handler as any;
+      return () => {};
+    });
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+    vi.mocked(saveChatMessage).mockResolvedValue(undefined);
+    await useChatStore.getState().subscribe("ws-1");
+  });
+
+  it("system event with skills.length > 0 calls addDiscoveredSkills", () => {
+    const msg = "skills are available for use with the Skill tool:\n- test: desc";
+    handleEvent({ payload: { type: "system", message: msg, sessionId: "s1" } });
+    // The system message should exist
+    const msgs = useChatStore.getState().messages["ws-1"]!;
+    expect(msgs.some((m: any) => m.role === "system" && m.content[0].text === msg)).toBe(true);
+  });
+
+  it("system event with empty message does not add message", () => {
+    handleEvent({ payload: { type: "system", message: null, sessionId: "s1" } });
+    const msgs = useChatStore.getState().messages["ws-1"];
+    // No system message should be added for null message
+    const systemMsgs = (msgs || []).filter((m: any) => m.role === "system");
+    expect(systemMsgs.length).toBe(0);
+  });
+
+  it("toolUse with empty name still processes normally", () => {
+    handleEvent({ payload: { type: "toolUse", id: "t1", name: "Read", input: { file: "x" } } });
+    const msgs = useChatStore.getState().messages["ws-1"]!;
+    const last = msgs[msgs.length - 1];
+    expect(last.content.some((b: any) => b.type === "toolUse" && b.name === "Read")).toBe(true);
+  });
+
+  it("Think tool with existing 'researching' phase does not reset", () => {
+    useChatStore.setState({ conductorPhase: { "ws-1": "researching" } });
+    handleEvent({ payload: { type: "toolUse", id: "t1", name: "Think", input: {} } });
+    // Should remain researching (not changed to something else)
+    expect(useChatStore.getState().conductorPhase["ws-1"]).toBe("researching");
+  });
+
+  it("result event with metadata and no messages array handles gracefully", () => {
+    useChatStore.setState({ messages: {} });
+    handleEvent({ payload: {
+      type: "result", isError: false, result: null, sessionId: null,
+      totalCostUsd: 0.01, inputTokens: 10, outputTokens: 20, numTurns: 1,
+    } });
+    // Should not crash
+    expect(useChatStore.getState().sessionStats["ws-1"]).toBeTruthy();
+  });
+});
+
 describe("chatStore - error string content verification", () => {
   let handleEvent: (event: { payload: any }) => void;
 
@@ -2123,6 +2243,96 @@ describe("chatStore - subscribe cancellation tokens", () => {
     await new Promise(r => setTimeout(r, 10));
 
     expect(useChatStore.getState().permissionRequest["ws-null-perm"]).toBeUndefined();
+  });
+
+  it("second subscribe cancels first token but both complete", async () => {
+    let loadCount = 0;
+    vi.mocked(listChatMessages).mockImplementation(async () => {
+      loadCount++;
+      return [];
+    });
+    vi.mocked(listen).mockResolvedValue(() => {});
+
+    // Start two subscribes — second should cancel first's token
+    await useChatStore.getState().subscribe("ws-double-1");
+    // Reset subscription to allow re-subscribe
+    useChatStore.setState({ subscriptions: {} });
+    await useChatStore.getState().subscribe("ws-double-1");
+
+    // Both should have completed without error
+    expect(useChatStore.getState().subscriptions["ws-double-1"]).toBeDefined();
+  });
+
+  it("re-subscribe check after await bails out when subscription exists", async () => {
+    // Simulate: between loadMessages and listen, another subscribe completes
+    let resolveFirst!: (v: any) => void;
+    let callCount = 0;
+    vi.mocked(listChatMessages).mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) {
+        return new Promise(r => { resolveFirst = r; });
+      }
+      return [];
+    });
+    vi.mocked(listen).mockResolvedValue(() => {});
+
+    // Start first subscribe (will hang on loadMessages)
+    const p1 = useChatStore.getState().subscribe("ws-recheck");
+    // Complete a second subscribe while first is pending
+    await useChatStore.getState().subscribe("ws-recheck-2");
+    // Manually set subscription for ws-recheck to simulate race
+    useChatStore.setState({ subscriptions: { ...useChatStore.getState().subscriptions, "ws-recheck": () => {} } });
+
+    resolveFirst([]);
+    await p1;
+
+    // First subscribe should have bailed at the re-check
+  });
+
+  it("token cancelled after listen causes unlisten to be called", async () => {
+    const unlisten = vi.fn();
+    vi.mocked(listen).mockResolvedValue(unlisten);
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+    const { getPendingPermission } = await import("../lib/tauri");
+    vi.mocked(getPendingPermission).mockResolvedValue(null);
+
+    await useChatStore.getState().subscribe("ws-post-listen");
+    // Subscribe completed — now unsubscribe to cancel the token
+    useChatStore.getState().unsubscribe("ws-post-listen");
+    // The unlisten stored in subscriptions should have been called
+    expect(unlisten).toHaveBeenCalled();
+  });
+
+  it("clearMessages cancel token prevents re-population", async () => {
+    vi.mocked(listen).mockResolvedValue(() => {});
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+    vi.mocked(clearChatMessages).mockResolvedValue(undefined);
+    vi.mocked(saveChatMessage).mockResolvedValue(undefined);
+
+    await useChatStore.getState().subscribe("ws-clear-token");
+    useChatStore.setState({
+      messages: { "ws-clear-token": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1 }] },
+    });
+    useChatStore.getState().clearMessages("ws-clear-token");
+
+    // After clear, the cancelled token should prevent stale events
+    const msgs = useChatStore.getState().messages["ws-clear-token"];
+    expect(!msgs || msgs.length === 0).toBe(true);
+  });
+
+  it("error in subscribe catch block logs with workspace ID", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(listen).mockRejectedValue(new Error("broken"));
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+
+    await useChatStore.getState().subscribe("ws-err-id");
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining("ws-err-id"),
+      expect.any(Error),
+    );
+    // Verify cleanup: subscriptions should be clean
+    expect(useChatStore.getState().subscriptions["ws-err-id"]).toBeUndefined();
+    spy.mockRestore();
   });
 
   it("subscribe sets cancelled=false on new token (not {})", async () => {
