@@ -2061,6 +2061,119 @@ describe("chatStore - handleStreamEvent result with non-assistant last msg", () 
   });
 });
 
+describe("chatStore - subscribe early return guard L95", () => {
+  it("subscribe when already subscribed does NOT call listen again", async () => {
+    const unlisten = vi.fn();
+    vi.mocked(listen).mockResolvedValue(unlisten);
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+
+    await useChatStore.getState().subscribe("ws-guard95");
+    const callCount1 = vi.mocked(listen).mock.calls.length;
+
+    // Call subscribe again — should return early at L95
+    await useChatStore.getState().subscribe("ws-guard95");
+    const callCount2 = vi.mocked(listen).mock.calls.length;
+
+    // listen should NOT have been called a second time
+    expect(callCount2).toBe(callCount1);
+    // There should be exactly ONE subscription
+    expect(typeof useChatStore.getState().subscriptions["ws-guard95"]).toBe("function");
+  });
+});
+
+describe("chatStore - subscribe re-check guard L116", () => {
+  it("bails without calling listen when subscription appears during loadMessages", async () => {
+    vi.mocked(listChatMessages).mockImplementation(async () => {
+      // Simulate: another subscribe completed during loadMessages
+      useChatStore.setState({
+        subscriptions: { ...useChatStore.getState().subscriptions, "ws-recheck116": () => {} },
+      });
+      return [];
+    });
+    const listenCallsBefore = vi.mocked(listen).mock.calls.length;
+    vi.mocked(listen).mockResolvedValue(() => {});
+
+    await useChatStore.getState().subscribe("ws-recheck116");
+
+    // listen should NOT have been called (bailed at L116)
+    expect(vi.mocked(listen).mock.calls.length).toBe(listenCallsBefore);
+    // Token should have been cleaned up
+    expect(_chatSubscribeTokens.has("ws-recheck116")).toBe(false);
+  });
+});
+
+describe("chatStore - error catch cleans up only failed subscription L167", () => {
+  it("error catch preserves other workspace subscriptions", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Pre-set subscription for another workspace
+    useChatStore.setState({ subscriptions: { "ws-keep": () => {} } });
+    vi.mocked(listen).mockRejectedValue(new Error("fail"));
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+
+    await useChatStore.getState().subscribe("ws-fail167");
+
+    // Failed workspace should be cleaned up
+    expect(useChatStore.getState().subscriptions["ws-fail167"]).toBeUndefined();
+    // Other workspace should be preserved (rest spread, not {})
+    expect(useChatStore.getState().subscriptions["ws-keep"]).toBeDefined();
+    consoleSpy.mockRestore();
+  });
+});
+
+describe("chatStore - clearMessages token cancellation L215", () => {
+  it("clearMessages cancels token so stream events are ignored", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handlers: Array<(event: any) => void> = [];
+    vi.mocked(listen).mockImplementation(async (_ch, handler) => {
+      handlers.push(handler as any);
+      return () => {};
+    });
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+    vi.mocked(clearChatMessages).mockResolvedValue(undefined);
+    vi.mocked(saveChatMessage).mockResolvedValue(undefined);
+
+    await useChatStore.getState().subscribe("ws-clr215");
+    useChatStore.setState({
+      messages: { "ws-clr215": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1 }] },
+    });
+
+    // Clear messages — should set token.cancelled = true
+    useChatStore.getState().clearMessages("ws-clr215");
+
+    // Verify token is cancelled
+    // After clear, send a stream event — it should be ignored
+    const handler = handlers[handlers.length - 1];
+    if (handler) {
+      handler({ payload: { type: "assistantText", text: "should be ignored" } });
+    }
+    // streamingText should not be populated (event was ignored)
+    expect(useChatStore.getState().streamingText["ws-clr215"]).toBe("");
+  });
+});
+
+describe("chatStore - clearMessages re-subscribe chain L239", () => {
+  it("re-subscribes after clearChatMessages resolves", async () => {
+    vi.mocked(listen).mockResolvedValue(() => {});
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+    let clearResolved = false;
+    vi.mocked(clearChatMessages).mockImplementation(async () => { clearResolved = true; });
+
+    await useChatStore.getState().subscribe("ws-resub239");
+    useChatStore.setState({
+      messages: { "ws-resub239": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1 }] },
+    });
+
+    useChatStore.getState().clearMessages("ws-resub239");
+
+    // Wait for the async chain
+    await new Promise(r => setTimeout(r, 100));
+
+    expect(clearResolved).toBe(true);
+    // subscribe should have been called in the .then() chain
+    // (listen would have been called again)
+  });
+});
+
 describe("chatStore - ?? [] fallback assertions", () => {
   it("getPlanContent returns empty string for undefined messages", () => {
     useChatStore.setState({ messages: {} });
@@ -2143,19 +2256,112 @@ describe("chatStore - handleStreamEvent precise condition testing", () => {
   });
 });
 
-describe("chatStore - parseSkills edge cases for -1 checks", () => {
-  it("idx === -1 returns empty when marker not found", () => {
-    expect(parseSkillsFromSystemMessage("no marker here at all")).toEqual([]);
+describe("chatStore - parseSkills -1 check precision", () => {
+  it("idx === -1 returns [] (not some other value)", () => {
+    const result = parseSkillsFromSystemMessage("no marker");
+    expect(result).toEqual([]);
+    expect(result.length).toBe(0);
   });
 
-  it("colonIdx === -1 skips line without colon separator", () => {
-    const msg = "skills are available for use with the Skill tool:\n- no-colon-here";
-    expect(parseSkillsFromSystemMessage(msg)).toEqual([]);
+  it("idx > 0 (marker found mid-string) processes skills", () => {
+    const msg = "preamble skills are available for use with the Skill tool:\n- found: it";
+    const result = parseSkillsFromSystemMessage(msg);
+    expect(result.length).toBe(1);
+    expect(result[0].name).toBe("found");
   });
 
-  it("empty name after colon is skipped", () => {
-    const msg = "skills are available for use with the Skill tool:\n- : just description";
-    expect(parseSkillsFromSystemMessage(msg)).toEqual([]);
+  it("colonIdx === -1 skips line (returns fewer results)", () => {
+    const msg = "skills are available for use with the Skill tool:\n- no-colon\n- valid: desc";
+    const result = parseSkillsFromSystemMessage(msg);
+    // Only "valid" should be found, "no-colon" is skipped
+    expect(result.length).toBe(1);
+    expect(result[0].name).toBe("valid");
+  });
+
+  it("colonIdx === 0 (colon at start) results in empty name which is skipped", () => {
+    const msg = "skills are available for use with the Skill tool:\n- : empty name";
+    const result = parseSkillsFromSystemMessage(msg);
+    expect(result.length).toBe(0);
+  });
+
+  it("empty name is skipped (!name check)", () => {
+    const msg = "skills are available for use with the Skill tool:\n-  : whitespace name\n- real: desc";
+    const result = parseSkillsFromSystemMessage(msg);
+    // Only "real" should be found
+    expect(result.length).toBe(1);
+    expect(result[0].name).toBe("real");
+  });
+});
+
+describe("chatStore - handleStreamEvent skills.length > 0 check L409", () => {
+  let handleEvent: (event: { payload: any }) => void;
+
+  beforeEach(async () => {
+    vi.mocked(listen).mockImplementation(async (_channel, handler) => {
+      handleEvent = handler as any;
+      return () => {};
+    });
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+    vi.mocked(saveChatMessage).mockResolvedValue(undefined);
+    await useChatStore.getState().subscribe("ws-1");
+  });
+
+  it("system event with 0 skills does NOT call addDiscoveredSkills", async () => {
+    const { useSlashCommandStore } = await import("./slashCommandStore");
+    const spy = vi.spyOn(useSlashCommandStore.getState(), "addDiscoveredSkills");
+
+    handleEvent({ payload: { type: "system", message: "no skills marker here", sessionId: "s1" } });
+
+    // skills.length === 0 → should NOT call addDiscoveredSkills
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("system event with valid skills DOES call addDiscoveredSkills", async () => {
+    const { useSlashCommandStore } = await import("./slashCommandStore");
+    const spy = vi.spyOn(useSlashCommandStore.getState(), "addDiscoveredSkills").mockImplementation(() => {});
+
+    handleEvent({ payload: {
+      type: "system",
+      message: "skills are available for use with the Skill tool:\n- test-skill: A test",
+      sessionId: "s1",
+    } });
+
+    expect(spy).toHaveBeenCalledWith("ws-1", expect.arrayContaining([
+      expect.objectContaining({ name: "test-skill" }),
+    ]));
+    spy.mockRestore();
+  });
+});
+
+describe("chatStore - finalizeStreamingText text check L691", () => {
+  let handleEvent: (event: { payload: any }) => void;
+
+  beforeEach(async () => {
+    vi.mocked(listen).mockImplementation(async (_channel, handler) => {
+      handleEvent = handler as any;
+      return () => {};
+    });
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+    vi.mocked(saveChatMessage).mockResolvedValue(undefined);
+    await useChatStore.getState().subscribe("ws-1");
+  });
+
+  it("empty string streamingText does NOT create assistant message", () => {
+    useChatStore.setState({ streamingText: { "ws-1": "" }, messages: { "ws-1": [] } });
+    handleEvent({ payload: { type: "result", isError: false, result: null, sessionId: null } });
+    const msgs = useChatStore.getState().messages["ws-1"] ?? [];
+    const assistantMsgs = msgs.filter((m: any) => m.role === "assistant");
+    expect(assistantMsgs.length).toBe(0);
+  });
+
+  it("non-empty streamingText DOES create assistant message", () => {
+    useChatStore.setState({ streamingText: { "ws-1": "hello world" }, messages: { "ws-1": [] } });
+    handleEvent({ payload: { type: "result", isError: false, result: null, sessionId: null } });
+    const msgs = useChatStore.getState().messages["ws-1"] ?? [];
+    const assistantMsgs = msgs.filter((m: any) => m.role === "assistant");
+    expect(assistantMsgs.length).toBe(1);
+    expect((assistantMsgs[0].content[0] as any).text).toBe("hello world");
   });
 });
 

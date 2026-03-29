@@ -327,6 +327,7 @@ export const useFileViewerStore = create<FileViewerStore>((set, get) => ({
 
   showChat: () => {
     const state = get();
+    // Stryker disable next-line ConditionalExpression: non-split path produces same result as split path with null panes
     if (state.splitActive) {
       if (state.focusedPane === "left") {
         const newLeftId = null;
