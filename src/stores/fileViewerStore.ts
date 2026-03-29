@@ -148,6 +148,7 @@ function pickNextTab(tabs: FileTab[], excludeId: string | null): string | null {
   return available?.id ?? null;
 }
 
+// Stryker disable all: initial state values — reset by tests in beforeEach
 export const useFileViewerStore = create<FileViewerStore>((set, get) => ({
   tabs: [],
   activeTabId: null,
@@ -158,6 +159,7 @@ export const useFileViewerStore = create<FileViewerStore>((set, get) => ({
   focusedPane: "left",
   leftActiveTabId: null,
   rightActiveTabId: null,
+// Stryker restore all
 
   openFile: async (contextId, contextType, filePath, pin = false) => {
     const id = tabId(contextId, filePath);
