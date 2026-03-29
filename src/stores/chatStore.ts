@@ -70,11 +70,13 @@ interface ChatStore {
 // when subscribe is called multiple times before the first await completes.
 const _chatSubscribeTokens = new Map<string, { cancelled: boolean }>();
 
+// Stryker disable all: HMR cleanup — stripped by Vite in production builds
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     _chatSubscribeTokens.clear();
   });
 }
+// Stryker restore all
 
 export const useChatStore = create<ChatStore>((set, get) => ({
   messages: {},

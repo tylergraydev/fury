@@ -53,8 +53,8 @@ interface WorkspaceStore {
 export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   workspaces: [],
   archivedWorkspaces: [],
-  activeWorkspaceId: import.meta.env.DEV ? sessionStorage.getItem("fury:activeWorkspaceId") : null,
-  activeRepoId: import.meta.env.DEV ? sessionStorage.getItem("fury:activeRepoId") : null,
+  activeWorkspaceId: sessionStorage.getItem("fury:activeWorkspaceId") ?? null,
+  activeRepoId: sessionStorage.getItem("fury:activeRepoId") ?? null,
   loading: false,
   error: null,
 
@@ -133,20 +133,16 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   },
 
   setActive: (id: string | null) => {
-    if (import.meta.env.DEV) {
-      if (id) sessionStorage.setItem("fury:activeWorkspaceId", id);
-      else sessionStorage.removeItem("fury:activeWorkspaceId");
-      sessionStorage.removeItem("fury:activeRepoId");
-    }
+    if (id) sessionStorage.setItem("fury:activeWorkspaceId", id);
+    else sessionStorage.removeItem("fury:activeWorkspaceId");
+    sessionStorage.removeItem("fury:activeRepoId");
     set({ activeWorkspaceId: id, activeRepoId: null });
   },
 
   setActiveRepo: (id: string | null) => {
-    if (import.meta.env.DEV) {
-      if (id) sessionStorage.setItem("fury:activeRepoId", id);
-      else sessionStorage.removeItem("fury:activeRepoId");
-      sessionStorage.removeItem("fury:activeWorkspaceId");
-    }
+    if (id) sessionStorage.setItem("fury:activeRepoId", id);
+    else sessionStorage.removeItem("fury:activeRepoId");
+    sessionStorage.removeItem("fury:activeWorkspaceId");
     set({ activeRepoId: id, activeWorkspaceId: null });
   },
 
