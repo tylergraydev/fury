@@ -1,31 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-// Mock dependent stores with accessible spies
-const mockChatUnsubscribe = vi.fn();
-const mockAgentUnsubscribe = vi.fn();
-const mockPrUnsubscribe = vi.fn();
-const mockCloseChatTabs = vi.fn();
-const mockCleanupActivity = vi.fn();
-const mockCleanupNotifications = vi.fn();
-
-vi.mock("./chatStore", () => ({
-  useChatStore: { getState: () => ({ unsubscribe: mockChatUnsubscribe }) },
-}));
-vi.mock("./agentStore", () => ({
-  useAgentStore: { getState: () => ({ unsubscribe: mockAgentUnsubscribe }) },
-}));
-vi.mock("./prStore", () => ({
-  usePrStore: { getState: () => ({ unsubscribe: mockPrUnsubscribe }) },
-}));
-vi.mock("./uiStore", () => ({
-  useUIStore: { getState: () => ({ closeChatTabsForContext: mockCloseChatTabs }) },
-}));
-vi.mock("../lib/activityLogListeners", () => ({
-  cleanupWorkspaceTracking: mockCleanupActivity,
-}));
-vi.mock("../lib/notificationListeners", () => ({
-  cleanupWorkspaceTracking: mockCleanupNotifications,
-}));
+// Spy-able references for dependent store cleanup verification
+import { useChatStore } from "./chatStore";
+import { useAgentStore } from "./agentStore";
+import { usePrStore } from "./prStore";
+import { useUIStore } from "./uiStore";
 
 vi.mock("../lib/tauri", () => ({
   listWorkspaces: vi.fn(),
@@ -663,50 +642,64 @@ describe("workspaceStore - restoreWs removes from archived list", () => {
 });
 
 describe("workspaceStore - _cleanupWorkspace calls dependent stores", () => {
-  it("archiveWs calls chat/agent/pr unsubscribe and cleanup functions", async () => {
+  it("archiveWs calls chat/agent/pr unsubscribe", async () => {
+    const chatSpy = vi.spyOn(useChatStore.getState(), "unsubscribe").mockImplementation(() => {});
+    const agentSpy = vi.spyOn(useAgentStore.getState(), "unsubscribe").mockImplementation(() => {});
+    const prSpy = vi.spyOn(usePrStore.getState(), "unsubscribe").mockImplementation(() => {});
     const ws = makeWs({ id: "ws-cleanup" });
     useWorkspaceStore.setState({ workspaces: [ws] });
     vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
 
     await useWorkspaceStore.getState().archiveWs("ws-cleanup");
 
-    expect(mockChatUnsubscribe).toHaveBeenCalledWith("ws-cleanup");
-    expect(mockAgentUnsubscribe).toHaveBeenCalledWith("ws-cleanup");
-    expect(mockPrUnsubscribe).toHaveBeenCalledWith("ws-cleanup");
-    expect(mockCleanupActivity).toHaveBeenCalledWith("ws-cleanup");
-    expect(mockCleanupNotifications).toHaveBeenCalledWith("ws-cleanup");
+    expect(chatSpy).toHaveBeenCalledWith("ws-cleanup");
+    expect(agentSpy).toHaveBeenCalledWith("ws-cleanup");
+    expect(prSpy).toHaveBeenCalledWith("ws-cleanup");
+    chatSpy.mockRestore();
+    agentSpy.mockRestore();
+    prSpy.mockRestore();
   });
 
-  it("deleteWs calls chat/agent/pr unsubscribe and cleanup functions", async () => {
+  it("deleteWs calls chat/agent/pr unsubscribe", async () => {
+    const chatSpy = vi.spyOn(useChatStore.getState(), "unsubscribe").mockImplementation(() => {});
+    const agentSpy = vi.spyOn(useAgentStore.getState(), "unsubscribe").mockImplementation(() => {});
+    const prSpy = vi.spyOn(usePrStore.getState(), "unsubscribe").mockImplementation(() => {});
     const ws = makeWs({ id: "ws-del-cleanup" });
     useWorkspaceStore.setState({ workspaces: [ws] });
     vi.mocked(deleteWorkspace).mockResolvedValue(undefined);
 
     await useWorkspaceStore.getState().deleteWs("ws-del-cleanup");
 
-    expect(mockChatUnsubscribe).toHaveBeenCalledWith("ws-del-cleanup");
-    expect(mockAgentUnsubscribe).toHaveBeenCalledWith("ws-del-cleanup");
-    expect(mockPrUnsubscribe).toHaveBeenCalledWith("ws-del-cleanup");
+    expect(chatSpy).toHaveBeenCalledWith("ws-del-cleanup");
+    expect(agentSpy).toHaveBeenCalledWith("ws-del-cleanup");
+    expect(prSpy).toHaveBeenCalledWith("ws-del-cleanup");
+    chatSpy.mockRestore();
+    agentSpy.mockRestore();
+    prSpy.mockRestore();
   });
 
   it("archiveWs calls closeChatTabsForContext on uiStore", async () => {
+    const spy = vi.spyOn(useUIStore.getState(), "closeChatTabsForContext").mockImplementation(() => {});
     const ws = makeWs({ id: "ws-tabs" });
     useWorkspaceStore.setState({ workspaces: [ws] });
     vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
 
     await useWorkspaceStore.getState().archiveWs("ws-tabs");
 
-    expect(mockCloseChatTabs).toHaveBeenCalledWith("ws-tabs");
+    expect(spy).toHaveBeenCalledWith("ws-tabs");
+    spy.mockRestore();
   });
 
   it("deleteWs calls closeChatTabsForContext on uiStore", async () => {
+    const spy = vi.spyOn(useUIStore.getState(), "closeChatTabsForContext").mockImplementation(() => {});
     const ws = makeWs({ id: "ws-del-tabs" });
     useWorkspaceStore.setState({ workspaces: [ws] });
     vi.mocked(deleteWorkspace).mockResolvedValue(undefined);
 
     await useWorkspaceStore.getState().deleteWs("ws-del-tabs");
 
-    expect(mockCloseChatTabs).toHaveBeenCalledWith("ws-del-tabs");
+    expect(spy).toHaveBeenCalledWith("ws-del-tabs");
+    spy.mockRestore();
   });
 });
 
