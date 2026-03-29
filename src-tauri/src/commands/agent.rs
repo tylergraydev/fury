@@ -423,6 +423,14 @@ pub async fn send_message(
 
     let (disable_thinking, disable_plan_mode) = extract_toggle_flags(&request);
 
+    // Store plan mode on the agent so followup messages can read it back
+    {
+        let mut agents = state.agents.lock().unwrap();
+        if let Some(agent) = agents.get_mut(&context_id) {
+            agent.disable_plan_mode = disable_plan_mode;
+        }
+    }
+
     // Validate working directory exists before spawning
     if let Err(e) = validate_working_dir(&working_dir) {
         reset_agent_on_error(&state.agents, &app, context_id);
@@ -706,10 +714,14 @@ pub async fn send_followup_message(
     }
 
     // For Claude Code (SDK), a followup message goes through the sidecar.
-    // Retrieve the session_id to resume the conversation.
-    let session_id = {
+    // Retrieve the session_id and plan mode setting to resume the conversation.
+    let (session_id, disable_plan_mode) = {
         let agents = state.agents.lock().unwrap();
-        agents.get(&id).and_then(|a| a.session_id.clone())
+        let agent = agents.get(&id);
+        (
+            agent.and_then(|a| a.session_id.clone()),
+            agent.map(|a| a.disable_plan_mode).unwrap_or(false),
+        )
     };
 
     // Look up the workspace's working directory for the query
@@ -721,6 +733,8 @@ pub async fn send_followup_message(
             .unwrap_or_default()
     };
 
+    let permission_mode = resolve_permission_mode(disable_plan_mode);
+
     let cmd = claude_process::SidecarCommand::Query {
         id: id.to_string(),
         prompt: message,
@@ -728,7 +742,7 @@ pub async fn send_followup_message(
         session_id,
         model: None,
         system_prompt: None,
-        permission_mode: "default".to_string(),
+        permission_mode: permission_mode.to_string(),
         env_vars: None,
         additional_dirs: None,
         disable_thinking: None,

@@ -19,6 +19,9 @@ pub struct AgentInfo {
     pub status: AgentStatus,
     pub started_at: Option<DateTime<Utc>>,
     pub pid: Option<u32>,
+    /// Tracks whether plan mode was disabled for this agent session.
+    /// `false` means plan mode is ON (send "plan"), `true` means plan mode is OFF (send "default").
+    pub disable_plan_mode: bool,
 }
 
 impl AgentInfo {
@@ -29,6 +32,7 @@ impl AgentInfo {
             status: AgentStatus::Idle,
             started_at: None,
             pid: None,
+            disable_plan_mode: false,
         }
     }
 }
