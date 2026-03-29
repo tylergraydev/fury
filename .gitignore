@@ -37,3 +37,10 @@ src-tauri/target/
 
 # Git worktrees
 .worktrees/
+
+# Coverage & mutation testing
+coverage/
+reports/mutation/
+src-tauri/mutants.out/
+src-tauri/mutants.out.old/
+src-tauri/package-lock.json

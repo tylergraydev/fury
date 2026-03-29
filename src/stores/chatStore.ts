@@ -68,8 +68,17 @@ interface ChatStore {
 
 // Cancel tokens for in-flight subscribe calls — prevents double-subscription
 // when subscribe is called multiple times before the first await completes.
-/** @internal Exported for testing only — do not use in production code */
-export const _chatSubscribeTokens = new Map<string, { cancelled: boolean }>();
+const _chatSubscribeTokens = new Map<string, { cancelled: boolean }>();
+
+/** @internal Clear cancel tokens — for testing only */
+export function _resetSubscribeTokens(): void {
+  _chatSubscribeTokens.clear();
+}
+
+/** @internal Read-only access to cancel tokens — for testing only */
+export function _getSubscribeTokens(): ReadonlyMap<string, { cancelled: boolean }> {
+  return _chatSubscribeTokens;
+}
 
 // Stryker disable all: HMR cleanup — stripped by Vite in production builds
 if (import.meta.hot) {

@@ -28,6 +28,7 @@ export function TerminalPanel({ context }: TerminalPanelProps) {
 
     // Defer terminal creation by one frame to avoid blocking the initial
     // layout paint with a synchronous IPC call.
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const rafId = requestAnimationFrame(() => {
       const terminalPromise = context.type === "workspace"
         ? createTerminal(context.id, 80, 24)
@@ -35,7 +36,7 @@ export function TerminalPanel({ context }: TerminalPanelProps) {
 
       // Race the IPC call against a timeout so the UI doesn't hang indefinitely
       // if the backend never responds (e.g. mutex deadlock, invalid worktree).
-      const timeoutId = setTimeout(() => {
+      timeoutId = setTimeout(() => {
         if (active) {
           setError("Terminal creation timed out. The backend did not respond within 10 seconds.");
         }
@@ -62,6 +63,7 @@ export function TerminalPanel({ context }: TerminalPanelProps) {
     return () => {
       active = false;
       cancelAnimationFrame(rafId);
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
       if (prevIdRef.current) {
         closeTerminal(prevIdRef.current).catch(() => {});
         prevIdRef.current = null;

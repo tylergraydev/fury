@@ -28,7 +28,7 @@ vi.mock("../lib/ipcInstrumentation", () => ({
   pushStreamEvent: vi.fn(),
 }));
 
-import { useChatStore, parseSkillsFromSystemMessage, _chatSubscribeTokens } from "./chatStore";
+import { useChatStore, parseSkillsFromSystemMessage, _resetSubscribeTokens, _getSubscribeTokens } from "./chatStore";
 import { useSlashCommandStore } from "./slashCommandStore";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -42,7 +42,7 @@ beforeEach(() => {
   useChatStore.setState(
     { messages: {}, streamingText: {}, subscriptions: {}, sessionStats: {}, planApproval: {}, permissionRequest: {}, questionRequest: {}, conductorPhase: {} },
   );
-  _chatSubscribeTokens.clear();
+  _resetSubscribeTokens();
   vi.clearAllMocks();
 });
 
@@ -2098,7 +2098,7 @@ describe("chatStore - subscribe re-check guard L116", () => {
     // listen should NOT have been called (bailed at L116)
     expect(vi.mocked(listen).mock.calls.length).toBe(listenCallsBefore);
     // Token should have been cleaned up
-    expect(_chatSubscribeTokens.has("ws-recheck116")).toBe(false);
+    expect(_getSubscribeTokens().has("ws-recheck116")).toBe(false);
   });
 });
 
@@ -2742,7 +2742,7 @@ describe("chatStore - subscribe cancellation tokens", () => {
 
     const p = useChatStore.getState().subscribe("ws-token-check");
     // Token should exist with cancelled=false
-    const token = _chatSubscribeTokens.get("ws-token-check");
+    const token = _getSubscribeTokens().get("ws-token-check");
     expect(token).toBeTruthy();
     expect(token!.cancelled).toBe(false);
 
@@ -2758,7 +2758,7 @@ describe("chatStore - subscribe cancellation tokens", () => {
     vi.mocked(listen).mockResolvedValue(() => {});
 
     const p1 = useChatStore.getState().subscribe("ws-cancel-check");
-    const firstToken = _chatSubscribeTokens.get("ws-cancel-check");
+    const firstToken = _getSubscribeTokens().get("ws-cancel-check");
     expect(firstToken!.cancelled).toBe(false);
 
     // Start second subscribe — should cancel the first token
@@ -2785,7 +2785,7 @@ describe("chatStore - subscribe cancellation tokens", () => {
     const p = useChatStore.getState().subscribe("ws-no-listen");
 
     // Cancel the token while loadMessages is pending
-    const token = _chatSubscribeTokens.get("ws-no-listen");
+    const token = _getSubscribeTokens().get("ws-no-listen");
     token!.cancelled = true;
 
     resolveLoad([]);
@@ -2800,7 +2800,7 @@ describe("chatStore - subscribe cancellation tokens", () => {
     vi.mocked(listChatMessages).mockResolvedValue([]);
     vi.mocked(listen).mockImplementation(async () => {
       // After listen resolves, cancel the token before the check at L130
-      const token = _chatSubscribeTokens.get("ws-unlisten");
+      const token = _getSubscribeTokens().get("ws-unlisten");
       if (token) token.cancelled = true;
       return unlisten;
     });
@@ -2812,7 +2812,7 @@ describe("chatStore - subscribe cancellation tokens", () => {
     // Subscription should NOT be stored (bailed at L130)
     expect(useChatStore.getState().subscriptions["ws-unlisten"]).toBeUndefined();
     // Token should be cleaned up
-    expect(_chatSubscribeTokens.has("ws-unlisten")).toBe(false);
+    expect(_getSubscribeTokens().has("ws-unlisten")).toBe(false);
   });
 
   it("error in subscribe cleans up subscription state with rest spread", async () => {

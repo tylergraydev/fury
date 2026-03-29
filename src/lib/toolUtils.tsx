@@ -37,6 +37,7 @@ export function normalizeToolName(name: string): string {
   if (lower.includes("task")) return "Task";
   if (lower.includes("notebook")) return "Notebook";
   if (lower.includes("web")) return "Web";
+  if (lower.includes("exitplan")) return name;
   if (lower.includes("think") || lower.includes("plan")) return "Think";
   if (lower.includes("diff")) return "Diff";
   return name;
