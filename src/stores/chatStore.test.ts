@@ -889,6 +889,54 @@ not a skill line
     expect(skills[0].description).toBe("spaced description");
   });
 
+  it("only parses content AFTER the marker (not before)", () => {
+    // "- fake: before marker" should NOT be parsed
+    const message = `- fake: before marker
+skills are available for use with the Skill tool:
+- real: after marker`;
+    const skills = parseSkillsFromSystemMessage(message);
+    expect(skills).toHaveLength(1);
+    expect(skills[0].name).toBe("real");
+  });
+
+  it("endIdx === 0 (end tag immediately after marker) returns empty", () => {
+    const message = `skills are available for use with the Skill tool:</system-reminder>
+- should-not-parse: this`;
+    const skills = parseSkillsFromSystemMessage(message);
+    expect(skills).toHaveLength(0);
+  });
+
+  it("handles lines with leading whitespace before dash", () => {
+    const message = `skills are available for use with the Skill tool:
+   - indented: should work`;
+    const skills = parseSkillsFromSystemMessage(message);
+    expect(skills).toHaveLength(1);
+    expect(skills[0].name).toBe("indented");
+  });
+
+  it("skips lines that don't start with '- ' after trimming", () => {
+    const message = `skills are available for use with the Skill tool:
+* bullet: not a dash
+-- double-dash: not valid
+- valid: this works`;
+    const skills = parseSkillsFromSystemMessage(message);
+    expect(skills).toHaveLength(1);
+    expect(skills[0].name).toBe("valid");
+  });
+
+  it("returns -1 check: message without marker returns empty", () => {
+    expect(parseSkillsFromSystemMessage("random text without the marker")).toEqual([]);
+  });
+
+  it("colonIdx === -1: line without ': ' separator is skipped", () => {
+    const message = `skills are available for use with the Skill tool:
+- no-separator-here
+- valid: has separator`;
+    const skills = parseSkillsFromSystemMessage(message);
+    expect(skills).toHaveLength(1);
+    expect(skills[0].name).toBe("valid");
+  });
+
   it("sets source to 'plugin' for all discovered skills", () => {
     const message = `skills are available for use with the Skill tool:
 - a: desc a
