@@ -6,7 +6,7 @@ import { useCheckpointStore } from "../../stores/checkpointStore";
 import { useTodoStore } from "../../stores/todoStore";
 import type { ChatMessage } from "../../lib/tauri";
 import { respondToPermission, addClaudePermissions } from "../../lib/tauri";
-import { MessageList, segmentTurns } from "./MessageList";
+import { MessageList, segmentTurns, type MessageListHandle } from "./MessageList";
 import { Composer } from "./Composer";
 import { ChatTOC } from "./ChatTOC";
 import { ChatSearch } from "./ChatSearch";
@@ -98,6 +98,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
     }
   }, [agentStatus, contextId, permissionRequest]);
 
+  const messageListHandleRef = useRef<MessageListHandle | null>(null);
   const tocRef = useRef<HTMLDivElement>(null);
   const tocButtonRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -160,6 +161,8 @@ export function ChatPanel({ contextId, contextType }: Props) {
       const disablePlanMode = planEnabled ? undefined : true;
       /* v8 ignore stop */
       useChatStore.getState().addUserMessage(contextId, message, displayText);
+      // Auto-scroll to bottom when user sends a new message
+      messageListHandleRef.current?.scrollToBottom();
       try {
         await useAgentStore
           .getState()
@@ -193,6 +196,8 @@ export function ChatPanel({ contextId, contextType }: Props) {
     // Remove trailing system (error) messages before retrying
     useChatStore.getState().removeTrailingSystemMessages(contextId);
     useChatStore.getState().addUserMessage(contextId, text, lastUserMsg.displayText);
+    // Auto-scroll to bottom on retry
+    messageListHandleRef.current?.scrollToBottom();
     /* v8 ignore start */
     const disableThinking = thinkingEnabled ? undefined : true;
     const disablePlanMode = planEnabled ? undefined : true;
@@ -256,6 +261,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
           workspaceName={workspace?.name}
           onAction={(prompt) => handleSend(prompt)}
           isPlanApproval={isPlanApproval}
+          handleRef={messageListHandleRef}
         />
         <div className="absolute right-3 top-3 z-20 flex gap-1">
           <button

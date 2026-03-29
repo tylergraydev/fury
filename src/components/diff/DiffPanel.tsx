@@ -49,6 +49,7 @@ export function DiffPanel({ contextId }: Props) {
             scrollBeyondLastLine: false,
             minimap: { enabled: false },
             fontSize: 12,
+            automaticLayout: true,
           }}
         />
       </div>

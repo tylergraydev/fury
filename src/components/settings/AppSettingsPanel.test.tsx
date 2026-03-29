@@ -265,6 +265,14 @@ describe("AppSettingsPanel", () => {
     expect(closeViewTab).toHaveBeenCalledWith("settings");
   });
 
+  it("closes settings when Escape key is pressed", () => {
+    const closeViewTab = vi.fn();
+    useUIStore.setState({ closeViewTab: closeViewTab });
+    render(<AppSettingsPanel />);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(closeViewTab).toHaveBeenCalledWith("settings");
+  });
+
   it("switches to all tabs correctly", async () => {
     render(<AppSettingsPanel />);
 

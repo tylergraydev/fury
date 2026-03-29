@@ -236,6 +236,7 @@ export function WorktreeCompareSection({ workspaceId }: Props) {
                   scrollBeyondLastLine: false,
                   minimap: { enabled: false },
                   fontSize: 12,
+                  automaticLayout: true,
                 }}
               />
             ) : (

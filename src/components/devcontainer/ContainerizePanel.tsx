@@ -136,6 +136,7 @@ export default function ContainerizePanel({
               fontSize: 12,
               tabSize: 2,
               wordWrap: "on",
+              automaticLayout: true,
             }}
           />
         </div>
