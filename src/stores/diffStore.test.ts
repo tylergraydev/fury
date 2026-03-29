@@ -334,6 +334,32 @@ describe("diffStore - loading state transitions", () => {
   });
 });
 
+describe("diffStore - loadDiff error sets loading false", () => {
+  it("sets loading false on loadDiff failure", async () => {
+    vi.mocked(getDiff).mockRejectedValue(new Error("network error"));
+    await useDiffStore.getState().loadDiff("ws-err-load");
+    expect(useDiffStore.getState().loading["ws-err-load"]).toBe(false);
+  });
+
+  it("sets error on loadDiff failure", async () => {
+    vi.mocked(getDiff).mockRejectedValue(new Error("db error"));
+    await useDiffStore.getState().loadDiff("ws-err-msg");
+    expect(useDiffStore.getState().error["ws-err-msg"]).toContain("db error");
+  });
+});
+
+describe("diffStore - selectFile key format string", () => {
+  it("constructs key as contextId:filePath", async () => {
+    vi.mocked(getFileDiff).mockResolvedValue({ path: "a.ts", original: "", modified: "", language: "typescript" } as any);
+    useDiffStore.getState().selectFile("ctx-key", "src/a.ts");
+    await vi.waitFor(() => {
+      expect(useDiffStore.getState().fileDiffs["ctx-key:src/a.ts"]).toBeTruthy();
+    });
+    // Verify the key format is exact
+    expect(useDiffStore.getState().fileDiffs["ctx-key:src/a.ts"]!.path).toBe("a.ts");
+  });
+});
+
 describe("diffStore - file diff error handling", () => {
   it("logs error on loadFileDiff failure", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});

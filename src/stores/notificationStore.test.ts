@@ -136,13 +136,16 @@ describe("notificationStore", () => {
   // ─── Mutation-killing tests ────────────────────────────────────────
 
   describe("initial state", () => {
-    it("starts with empty notifications array", () => {
-      expect(useNotificationStore.getState().notifications).toEqual([]);
-      expect(Array.isArray(useNotificationStore.getState().notifications)).toBe(true);
+    it("starts with empty notifications array (not pre-populated)", () => {
+      const n = useNotificationStore.getState().notifications;
+      expect(n).toEqual([]);
+      expect(n.length).toBe(0);
     });
 
-    it("starts with panelOpen false", () => {
+    it("starts with panelOpen false (panel closed)", () => {
       expect(useNotificationStore.getState().panelOpen).toBe(false);
+      // Verify it's actually false, not truthy
+      expect(useNotificationStore.getState().panelOpen).not.toBe(true);
     });
   });
 
@@ -153,6 +156,50 @@ describe("notificationStore", () => {
       addNotification({ type: "agent-complete", title: "B", message: "b", workspaceId: "ws-1", workspaceName: "ws" });
       const notifications = useNotificationStore.getState().notifications;
       expect(notifications[0].id).not.toBe(notifications[1].id);
+    });
+
+    it("generates incrementing IDs (second > first numerically)", () => {
+      const { addNotification } = useNotificationStore.getState();
+      addNotification({ type: "agent-complete", title: "A", message: "a", workspaceId: "ws-1", workspaceName: "ws" });
+      addNotification({ type: "agent-complete", title: "B", message: "b", workspaceId: "ws-1", workspaceName: "ws" });
+      const [newer, older] = useNotificationStore.getState().notifications;
+      // Notifications are newest-first, so newer.id > older.id
+      expect(Number(newer.id)).toBeGreaterThan(Number(older.id));
+    });
+  });
+
+  describe("unreadCount calculated from unread notifications", () => {
+    it("addNotification increments unreadCount", () => {
+      const { addNotification } = useNotificationStore.getState();
+      addNotification({ type: "agent-complete", title: "A", message: "a", workspaceId: "ws-1", workspaceName: "ws" });
+      expect(useNotificationStore.getState().unreadCount).toBe(1);
+      addNotification({ type: "agent-complete", title: "B", message: "b", workspaceId: "ws-1", workspaceName: "ws" });
+      expect(useNotificationStore.getState().unreadCount).toBe(2);
+    });
+
+    it("markRead reduces unreadCount", () => {
+      const { addNotification } = useNotificationStore.getState();
+      addNotification({ type: "agent-complete", title: "A", message: "a", workspaceId: "ws-1", workspaceName: "ws" });
+      addNotification({ type: "agent-complete", title: "B", message: "b", workspaceId: "ws-1", workspaceName: "ws" });
+      expect(useNotificationStore.getState().unreadCount).toBe(2);
+
+      const id = useNotificationStore.getState().notifications[0].id;
+      useNotificationStore.getState().markRead(id);
+      expect(useNotificationStore.getState().unreadCount).toBe(1);
+    });
+
+    it("dismiss recalculates unreadCount correctly", () => {
+      const { addNotification } = useNotificationStore.getState();
+      addNotification({ type: "agent-complete", title: "A", message: "a", workspaceId: "ws-1", workspaceName: "ws" });
+      addNotification({ type: "agent-complete", title: "B", message: "b", workspaceId: "ws-1", workspaceName: "ws" });
+
+      // Mark one as read, then dismiss the unread one
+      const [newer, older] = useNotificationStore.getState().notifications;
+      useNotificationStore.getState().markRead(older.id);
+      expect(useNotificationStore.getState().unreadCount).toBe(1);
+
+      useNotificationStore.getState().dismiss(newer.id);
+      expect(useNotificationStore.getState().unreadCount).toBe(0);
     });
   });
 
