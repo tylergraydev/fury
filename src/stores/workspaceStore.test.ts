@@ -626,6 +626,32 @@ describe("workspaceStore - archiveWs selects next workspace", () => {
   });
 });
 
+describe("workspaceStore - archiveWs non-active workspace", () => {
+  it("does not change activeWorkspaceId when archiving non-active", async () => {
+    const ws1 = makeWs({ id: "ws-active" });
+    const ws2 = makeWs({ id: "ws-other" });
+    useWorkspaceStore.setState({ workspaces: [ws1, ws2], activeWorkspaceId: "ws-active" });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-other");
+
+    // Active workspace should remain unchanged
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBe("ws-active");
+    expect(useWorkspaceStore.getState().workspaces).toHaveLength(1);
+    expect(useWorkspaceStore.getState().workspaces[0].id).toBe("ws-active");
+  });
+
+  it("archives non-existent ID gracefully (archived is undefined)", async () => {
+    useWorkspaceStore.setState({ workspaces: [], archivedWorkspaces: [] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-nonexist");
+
+    // archivedWorkspaces should not grow (find returned undefined)
+    expect(useWorkspaceStore.getState().archivedWorkspaces).toHaveLength(0);
+  });
+});
+
 describe("workspaceStore - restoreWs removes from archived list", () => {
   it("filters restored workspace from archivedWorkspaces", async () => {
     const ws1 = makeWs({ id: "ws-1" });
