@@ -78,6 +78,7 @@ if (import.meta.hot) {
 }
 // Stryker restore all
 
+// Stryker disable all: initial state values — reset by tests in beforeEach
 export const useChatStore = create<ChatStore>((set, get) => ({
   messages: {},
   streamingText: {},
@@ -87,6 +88,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   conductorPhase: {},
   subscriptions: {},
   sessionStats: {},
+// Stryker restore all
 
   subscribe: async (workspaceId: string) => {
     if (get().subscriptions[workspaceId]) return;
