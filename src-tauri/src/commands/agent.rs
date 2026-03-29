@@ -153,6 +153,11 @@ pub(crate) fn resolve_container_exec_context(
     })
 }
 
+/// Map disable_plan_mode to the permission mode string for the sidecar CLI.
+pub(crate) fn resolve_permission_mode(disable_plan_mode: bool) -> &'static str {
+    if disable_plan_mode { "default" } else { "plan" }
+}
+
 /// Extract thinking and plan_mode flags from a request, defaulting to false.
 pub(crate) fn extract_toggle_flags(request: &SendMessageRequest) -> (bool, bool) {
     (
@@ -482,7 +487,7 @@ pub async fn send_message(
             }
         }
 
-        let permission_mode = "default";
+        let permission_mode = resolve_permission_mode(disable_plan_mode);
 
         let cmd = claude_process::SidecarCommand::Query {
             id: context_id.to_string(),
