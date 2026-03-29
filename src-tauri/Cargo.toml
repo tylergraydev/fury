@@ -1,6 +1,6 @@
 [package]
 name = "fury"
-version = "1.16.0"
+version = "2.0.0"
 description = "Cross-platform coding agent orchestration"
 authors = ["Tyler Gray"]
 edition = "2021"
