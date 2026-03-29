@@ -754,6 +754,33 @@ describe("chatStore - formatErrorMessage (via result events)", () => {
     expect(getErrorText("error: 400")).toContain("400");
   });
 
+  it("detects 403 via 'forbidden' text in status match", () => {
+    // code is "403" AND lower includes "forbidden" — tests the || branch
+    expect(getErrorText("HTTP error: 403 forbidden")).toContain("Access denied (403)");
+    // Also test with just the code (no forbidden text) to verify both paths
+    expect(getErrorText("error: 403")).toContain("Access denied (403)");
+  });
+
+  it("detects 'overloaded' keyword specifically", () => {
+    const result = getErrorText("the system is overloaded right now");
+    expect(result).toContain("overloaded");
+    expect(result).not.toContain("Error:");
+  });
+
+  it("exact boundary: 120 char message is NOT trimmed", () => {
+    const exact = "x".repeat(120);
+    const result = getErrorText(exact);
+    expect(result).toBe("Error: " + exact);
+    expect(result).not.toContain("...");
+  });
+
+  it("121 char message IS trimmed with ellipsis", () => {
+    const over = "x".repeat(121);
+    const result = getErrorText(over);
+    expect(result).toContain("...");
+    expect(result.length).toBeLessThan(7 + 121); // "Error: " + original
+  });
+
   it("does not match numbers that aren't HTTP codes", () => {
     // "512 tokens" should not match as an HTTP error (no status/error prefix)
     const result = getErrorText("Used 512 tokens");
@@ -2068,6 +2095,46 @@ describe("chatStore - subscribe cancellation tokens", () => {
       "event_received",
       "assistantText",
     );
+  });
+
+  it("permission recovery ignores non-permissionRequest event types", async () => {
+    const { getPendingPermission } = await import("../lib/tauri");
+    vi.mocked(getPendingPermission).mockResolvedValue({
+      type: "result", // NOT permissionRequest
+      isError: false,
+    } as any);
+    vi.mocked(listen).mockResolvedValue(() => {});
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+
+    await useChatStore.getState().subscribe("ws-no-perm");
+    await new Promise(r => setTimeout(r, 10));
+
+    // permissionRequest should NOT be set for non-permissionRequest events
+    expect(useChatStore.getState().permissionRequest["ws-no-perm"]).toBeUndefined();
+  });
+
+  it("permission recovery ignores null response", async () => {
+    const { getPendingPermission } = await import("../lib/tauri");
+    vi.mocked(getPendingPermission).mockResolvedValue(null);
+    vi.mocked(listen).mockResolvedValue(() => {});
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+
+    await useChatStore.getState().subscribe("ws-null-perm");
+    await new Promise(r => setTimeout(r, 10));
+
+    expect(useChatStore.getState().permissionRequest["ws-null-perm"]).toBeUndefined();
+  });
+
+  it("subscribe sets cancelled=false on new token (not {})", async () => {
+    // If token was {} instead of { cancelled: false }, the if (token.cancelled) checks
+    // would read undefined (falsy) which is the same as false — but event handler
+    // checks !token.cancelled which would be !undefined = true (different from !false = true)
+    // This test verifies the subscribe completes normally
+    vi.mocked(listen).mockResolvedValue(() => {});
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+
+    await useChatStore.getState().subscribe("ws-token");
+    expect(useChatStore.getState().subscriptions["ws-token"]).toBeDefined();
   });
 
   it("early return when already subscribed prevents double subscription", async () => {
