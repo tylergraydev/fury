@@ -517,4 +517,12 @@ describe("agentStore - error message content", () => {
       expect.objectContaining({ model: undefined }),
     );
   });
+
+  it("model passed correctly in repo context", async () => {
+    vi.mocked(sendMessageCmd).mockResolvedValue(undefined);
+    await useAgentStore.getState().sendMessage("repo-1", "hi", "repo", "haiku");
+    expect(sendMessageCmd).toHaveBeenCalledWith(
+      expect.objectContaining({ repoId: "repo-1", model: "haiku" }),
+    );
+  });
 });
