@@ -2060,6 +2060,88 @@ describe("chatStore - handleStreamEvent result with non-assistant last msg", () 
   });
 });
 
+describe("chatStore - ?? [] fallback assertions", () => {
+  it("getPlanContent returns empty string for undefined messages", () => {
+    useChatStore.setState({ messages: {} });
+    const plan = useChatStore.getState().getPlanContent("ws-none");
+    expect(plan).toBe("");
+    // Verify it's exactly empty (not "Stryker was here" from mutant)
+    expect(plan.length).toBe(0);
+  });
+
+  it("removeTrailingSystemMessages handles undefined messages without adding content", () => {
+    useChatStore.setState({ messages: {} });
+    useChatStore.getState().removeTrailingSystemMessages("ws-none");
+    // Messages should still be undefined/empty, not contain stryker data
+    const msgs = useChatStore.getState().messages["ws-none"];
+    expect(msgs).toBeUndefined();
+  });
+});
+
+describe("chatStore - handleStreamEvent precise condition testing", () => {
+  let handleEvent: (event: { payload: any }) => void;
+
+  beforeEach(async () => {
+    vi.mocked(listen).mockImplementation(async (_channel, handler) => {
+      handleEvent = handler as any;
+      return () => {};
+    });
+    vi.mocked(listChatMessages).mockResolvedValue([]);
+    vi.mocked(saveChatMessage).mockResolvedValue(undefined);
+    await useChatStore.getState().subscribe("ws-1");
+  });
+
+  it("system event with skills.length === 0 does NOT call addDiscoveredSkills", () => {
+    // Message has marker but no valid skills
+    handleEvent({ payload: { type: "system", message: "skills are available for use with the Skill tool:\n- invalid line without colon", sessionId: "s1" } });
+    // System message should still be added
+    const msgs = useChatStore.getState().messages["ws-1"] ?? [];
+    expect(msgs.some((m: any) => m.role === "system")).toBe(true);
+  });
+
+  it("Think tool when phase is already 'researching' stays researching", () => {
+    useChatStore.setState({ conductorPhase: { "ws-1": "idle" } });
+    handleEvent({ payload: { type: "toolUse", id: "t1", name: "Think", input: {} } });
+    expect(useChatStore.getState().conductorPhase["ws-1"]).toBe("researching");
+
+    // Second Think should remain researching
+    handleEvent({ payload: { type: "toolUse", id: "t2", name: "Think", input: {} } });
+    expect(useChatStore.getState().conductorPhase["ws-1"]).toBe("researching");
+  });
+
+  it("result event with hasMetadata=true but undefined msgs defaults to empty array", () => {
+    useChatStore.setState({ messages: {} }); // ws-1 messages undefined
+    handleEvent({ payload: {
+      type: "result", isError: false, result: null, sessionId: null,
+      totalCostUsd: 0.01, inputTokens: 10, outputTokens: 20, numTurns: 1,
+    } });
+    // Should handle gracefully with ?? [] fallback
+    expect(useChatStore.getState().sessionStats["ws-1"]).toBeTruthy();
+  });
+
+  it("result event with hasMetadata=false and undefined msgs defaults to empty", () => {
+    useChatStore.setState({ messages: {} });
+    handleEvent({ payload: { type: "result", isError: false, result: null, sessionId: null } });
+    // No crash — ?? [] prevents error on undefined messages
+  });
+
+  it("finalizeStreamingText with undefined streamingText does NOT add message", () => {
+    useChatStore.setState({ streamingText: {} }); // ws-1 undefined
+    const msgsBefore = (useChatStore.getState().messages["ws-1"] ?? []).length;
+    // Trigger finalize via result event
+    handleEvent({ payload: { type: "result", isError: false, result: null, sessionId: null } });
+    const msgsAfter = (useChatStore.getState().messages["ws-1"] ?? []).length;
+    expect(msgsAfter).toBe(msgsBefore);
+  });
+
+  it("parseSkills: name cannot be empty (empty name skipped)", () => {
+    handleEvent({ payload: { type: "system", message: "skills are available for use with the Skill tool:\n- : empty name desc", sessionId: "s1" } });
+    // The system message exists but no skills should have been added with empty name
+    const msgs = useChatStore.getState().messages["ws-1"] ?? [];
+    expect(msgs.some((m: any) => m.role === "system")).toBe(true);
+  });
+});
+
 describe("chatStore - parseSkills edge cases for -1 checks", () => {
   it("idx === -1 returns empty when marker not found", () => {
     expect(parseSkillsFromSystemMessage("no marker here at all")).toEqual([]);

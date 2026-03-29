@@ -1634,6 +1634,97 @@ describe("fileViewerStore - saveActiveFile conditional branches", () => {
   });
 });
 
+describe("fileViewerStore - openFile pin only targets specific tab", () => {
+  it("re-opening with pin=true only pins the target tab, not others", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    // Create two unpinned tabs
+    const t1 = { id: "ctx1:a.ts", filePath: "a.ts", contextId: "ctx1", contextType: "workspace" as const,
+      content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: false, dirty: false };
+    const t2 = { id: "ctx1:b.ts", filePath: "b.ts", contextId: "ctx1", contextType: "workspace" as const,
+      content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: false, dirty: false };
+    useFileViewerStore.setState({ tabs: [t1, t2], activeTabId: "ctx1:a.ts" });
+
+    // Re-open a.ts with pin=true
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "a.ts", true);
+
+    const tabs = useFileViewerStore.getState().tabs;
+    // a.ts should be pinned
+    expect(tabs.find(t => t.id === "ctx1:a.ts")!.pinned).toBe(true);
+    // b.ts should still be unpinned
+    expect(tabs.find(t => t.id === "ctx1:b.ts")!.pinned).toBe(false);
+  });
+
+  it("re-opening already pinned tab with pin=true does NOT remap tabs", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    const pinned = { id: "ctx1:pinned.ts", filePath: "pinned.ts", contextId: "ctx1", contextType: "workspace" as const,
+      content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    const other = { id: "ctx1:other.ts", filePath: "other.ts", contextId: "ctx1", contextType: "workspace" as const,
+      content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: false, dirty: false };
+    useFileViewerStore.setState({ tabs: [pinned, other], activeTabId: "ctx1:other.ts" });
+
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "pinned.ts", true);
+
+    // Already pinned → pin && !existing.pinned is false → tabs should NOT be remapped
+    // other.ts should still be unpinned (not affected by the remap)
+    expect(useFileViewerStore.getState().tabs.find(t => t.id === "ctx1:other.ts")!.pinned).toBe(false);
+  });
+
+  it("openFile with pin=false and unpinned existing tab does NOT pin", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    const t = { id: "ctx1:unpin.ts", filePath: "unpin.ts", contextId: "ctx1", contextType: "workspace" as const,
+      content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: false, dirty: false };
+    useFileViewerStore.setState({ tabs: [t], activeTabId: "ctx1:unpin.ts" });
+
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "unpin.ts", false);
+
+    expect(useFileViewerStore.getState().tabs[0].pinned).toBe(false);
+  });
+});
+
+describe("fileViewerStore - openFile new tab pin vs preview in non-split", () => {
+  it("new file with pin=false creates unpinned tab (pinned field is false, not true)", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    useFileViewerStore.setState({ tabs: [], splitActive: false });
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "preview.ts", false);
+    const tab = useFileViewerStore.getState().tabs.find(t => t.filePath === "preview.ts");
+    expect(tab!.pinned).toBe(false);
+    // Verify it's exactly false, not just falsy
+    expect(tab!.pinned).not.toBe(true);
+  });
+
+  it("new file with pin=true enters pin branch (adds tab, not replaces)", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    const existing = { id: "ctx1:existing.ts", filePath: "existing.ts", contextId: "ctx1", contextType: "workspace" as const,
+      content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: false, dirty: false };
+    useFileViewerStore.setState({ tabs: [existing], splitActive: false });
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "new-pin.ts", true);
+    // Should have 2 tabs (pinned tab added, not replaced)
+    expect(useFileViewerStore.getState().tabs).toHaveLength(2);
+    expect(useFileViewerStore.getState().tabs.find(t => t.filePath === "new-pin.ts")!.pinned).toBe(true);
+  });
+
+  it("new file with pin=false replaces existing unpinned tab", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    const existing = { id: "ctx1:old-preview.ts", filePath: "old-preview.ts", contextId: "ctx1", contextType: "workspace" as const,
+      content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: false, dirty: false };
+    useFileViewerStore.setState({ tabs: [existing], splitActive: false });
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "new-preview.ts", false);
+    // Should still have 1 tab (replaced, not added)
+    expect(useFileViewerStore.getState().tabs).toHaveLength(1);
+    expect(useFileViewerStore.getState().tabs[0].filePath).toBe("new-preview.ts");
+  });
+
+  it("new file with pin=false adds when all existing are pinned", async () => {
+    vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
+    const pinned = { id: "ctx1:pinned.ts", filePath: "pinned.ts", contextId: "ctx1", contextType: "workspace" as const,
+      content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    useFileViewerStore.setState({ tabs: [pinned], splitActive: false });
+    await useFileViewerStore.getState().openFile("ctx1", "workspace", "no-replace.ts", false);
+    // No unpinned preview to replace → adds new tab
+    expect(useFileViewerStore.getState().tabs).toHaveLength(2);
+  });
+});
+
 describe("fileViewerStore - openFile pin in split mode sets pane", () => {
   it("new pinned file in split left-focused sets leftActiveTabId", async () => {
     vi.mocked(readWorkspaceFile).mockResolvedValue({ content: "x", language: "typescript" } as any);
@@ -1741,6 +1832,32 @@ describe("fileViewerStore - setActiveTab/showChat split mode routing", () => {
     });
     useFileViewerStore.getState().showChat();
     expect(useFileViewerStore.getState().leftActiveTabId).toBeNull();
+  });
+});
+
+describe("fileViewerStore - showChat and closeAllTabs reset focusedPane", () => {
+  it("showChat in split with left focus resets focusedPane to 'left'", () => {
+    const tab = { id: "ctx1:a.ts", filePath: "a.ts", contextId: "ctx1", contextType: "workspace" as const, content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    useFileViewerStore.setState({ tabs: [tab], splitActive: true, focusedPane: "left", leftActiveTabId: "ctx1:a.ts", rightActiveTabId: null });
+    useFileViewerStore.getState().showChat();
+    expect(useFileViewerStore.getState().focusedPane).toBe("left");
+  });
+
+  it("closeAllTabs resets focusedPane to 'left'", () => {
+    useFileViewerStore.setState({ focusedPane: "right", splitActive: true });
+    useFileViewerStore.getState().closeAllTabs();
+    expect(useFileViewerStore.getState().focusedPane).toBe("left");
+    expect(useFileViewerStore.getState().splitActive).toBe(false);
+  });
+});
+
+describe("fileViewerStore - saveActiveFile guard: dirty check", () => {
+  it("save is no-op when tab is not dirty", async () => {
+    const tab = { id: "ctx1:clean.ts", filePath: "clean.ts", contextId: "ctx1", contextType: "workspace" as const,
+      content: "x", editedContent: null, language: "typescript", loading: false, saving: false, error: null, pinned: true, dirty: false };
+    useFileViewerStore.setState({ tabs: [tab], activeTabId: "ctx1:clean.ts" });
+    await useFileViewerStore.getState().saveActiveFile();
+    expect(writeWorkspaceFile).not.toHaveBeenCalled();
   });
 });
 

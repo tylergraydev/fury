@@ -708,6 +708,29 @@ describe("workspaceStore - archiveWs find and wasActive edge cases", () => {
     expect(useWorkspaceStore.getState().archivedWorkspaces).toHaveLength(0);
   });
 
+  it("archiveWs non-active workspace preserves activeRepoId", async () => {
+    const ws1 = makeWs({ id: "ws-active" });
+    const ws2 = makeWs({ id: "ws-other" });
+    useWorkspaceStore.setState({ workspaces: [ws1, ws2], activeWorkspaceId: "ws-active", activeRepoId: "repo-keep" });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-other");
+
+    // wasActive is false → activeRepoId should NOT be cleared
+    expect(useWorkspaceStore.getState().activeRepoId).toBe("repo-keep");
+  });
+
+  it("archiveWs active workspace clears activeRepoId", async () => {
+    const ws = makeWs({ id: "ws-active-repo" });
+    useWorkspaceStore.setState({ workspaces: [ws], activeWorkspaceId: "ws-active-repo", activeRepoId: "repo-clear" });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-active-repo");
+
+    // wasActive is true → activeRepoId should be null
+    expect(useWorkspaceStore.getState().activeRepoId).toBeNull();
+  });
+
   it("archiveWs non-active workspace keeps activeWorkspaceId unchanged", async () => {
     const ws1 = makeWs({ id: "ws-keep-active" });
     const ws2 = makeWs({ id: "ws-archive-me" });
