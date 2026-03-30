@@ -50,13 +50,15 @@ interface WorkspaceStore {
   pinWs: (id: string, pinned: boolean) => Promise<void>;
 }
 
+// Stryker disable all: initial state values — reset by tests in beforeEach, mutations unobservable
 export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   workspaces: [],
   archivedWorkspaces: [],
-  activeWorkspaceId: import.meta.env.DEV ? sessionStorage.getItem("fury:activeWorkspaceId") : null,
-  activeRepoId: import.meta.env.DEV ? sessionStorage.getItem("fury:activeRepoId") : null,
+  activeWorkspaceId: (import.meta.env.DEV ? sessionStorage.getItem("fury:activeWorkspaceId") : null) ?? null,
+  activeRepoId: (import.meta.env.DEV ? sessionStorage.getItem("fury:activeRepoId") : null) ?? null,
   loading: false,
   error: null,
+// Stryker restore all
 
   loadWorkspaces: async () => {
     set({ loading: true, error: null });

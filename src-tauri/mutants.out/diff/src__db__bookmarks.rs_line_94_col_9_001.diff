@@ -1,0 +1,49 @@
+--- src/db/bookmarks.rs
++++ replace Database::get_bookmark -> Result<Option<FileBookmark>, AppError> with Ok(Some(Default::default()))
+@@ -86,45 +86,17 @@
+                 })
+             })?
+             .filter_map(|r| r.ok())
+             .collect();
+         Ok(bookmarks)
+     }
+ 
+     pub fn get_bookmark(&self, id: &Uuid) -> Result<Option<FileBookmark>, AppError> {
+-        let mut stmt = self.conn.prepare(
+-            "SELECT id, repo_id, file_path, line_number, note, color, created_at, updated_at
+-             FROM file_bookmarks WHERE id = ?1",
+-        )?;
+-        let result = stmt.query_row(rusqlite::params![id.to_string()], |row| {
+-            let id_str: String = row.get(0)?;
+-            let repo_id_str: String = row.get(1)?;
+-            let created_str: String = row.get(6)?;
+-            let updated_str: String = row.get(7)?;
+-            Ok(FileBookmark {
+-                id: Uuid::parse_str(&id_str).unwrap_or_default(),
+-                repo_id: Uuid::parse_str(&repo_id_str).unwrap_or_default(),
+-                file_path: row.get(2)?,
+-                line_number: row.get(3)?,
+-                note: row.get(4)?,
+-                color: row.get(5)?,
+-                created_at: DateTime::parse_from_rfc3339(&created_str)
+-                    .map(|dt| dt.with_timezone(&Utc))
+-                    .unwrap_or_else(|_| Utc::now()),
+-                updated_at: DateTime::parse_from_rfc3339(&updated_str)
+-                    .map(|dt| dt.with_timezone(&Utc))
+-                    .unwrap_or_else(|_| Utc::now()),
+-            })
+-        });
+-        match result {
+-            Ok(bookmark) => Ok(Some(bookmark)),
+-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+-            Err(e) => Err(AppError::DbError(e.to_string())),
+-        }
++        Ok(Some(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn update_bookmark(&self, bookmark: &FileBookmark) -> Result<(), AppError> {
+         self.conn.execute(
+             "UPDATE file_bookmarks SET note = ?1, color = ?2, line_number = ?3, updated_at = ?4 WHERE id = ?5",
+             rusqlite::params![
+                 bookmark.note,
+                 bookmark.color,

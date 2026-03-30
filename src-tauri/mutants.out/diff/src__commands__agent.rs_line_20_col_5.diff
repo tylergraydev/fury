@@ -1,0 +1,28 @@
+--- src/commands/agent.rs
++++ replace resolve_context_id -> Result<Uuid, AppError> with Ok(Default::default())
+@@ -12,24 +12,17 @@
+ use uuid::Uuid;
+ 
+ // ---------------------------------------------------------------------------
+ // Inner (testable) functions
+ // ---------------------------------------------------------------------------
+ 
+ /// Resolve context_id from the request: either workspace_id or repo_id.
+ pub(crate) fn resolve_context_id(request: &SendMessageRequest) -> Result<Uuid, AppError> {
+-    request
+-        .workspace_id
+-        .or(request.repo_id)
+-        .ok_or_else(|| {
+-            AppError::AgentError(
+-                "Either workspaceId or repoId must be provided".to_string(),
+-            )
+-        })
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Determine the new AgentStatus from a process exit status.
+ /// Exit code 143 = SIGTERM (128+15), expected for user-initiated stops.
+ pub(crate) fn status_from_exit(exit_code: Option<i32>, success: bool) -> AgentStatus {
+     if success {
+         AgentStatus::Idle
+     } else {

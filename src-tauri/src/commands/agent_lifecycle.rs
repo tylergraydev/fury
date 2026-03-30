@@ -258,4 +258,71 @@ mod tests {
         let result = clear_session(state, Uuid::new_v4().to_string()).await;
         assert!(result.is_ok());
     }
+
+    // Note: stop_agent() cannot be tested directly because it takes
+    // tauri::AppHandle (concrete Wry runtime) which is incompatible with
+    // MockRuntime from test helpers. The stop_agent logic is covered by
+    // integration tests (e2e/integration/tests/agent-stream.spec.ts).
+    // The state transition logic (Running → Stopping → Idle) is tested
+    // in commands/agent.rs via the extracted pure functions.
+
+    #[test]
+    fn test_parse_agent_workspace_id_valid() {
+        let id = Uuid::new_v4();
+        let result = parse_agent_workspace_id(&id.to_string());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), id);
+    }
+
+    #[test]
+    fn test_parse_agent_workspace_id_invalid() {
+        let result = parse_agent_workspace_id("not-a-uuid");
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cmd_get_agent_status_running() {
+        let app = mock_app_with_state();
+        let ws_id = Uuid::new_v4();
+
+        // Set up a Running agent
+        {
+            let app_state = app.state::<crate::state::AppState>();
+            let mut agents = app_state.agents.lock().unwrap();
+            let mut agent = AgentInfo::new(ws_id);
+            agent.status = AgentStatus::Running;
+            agent.session_id = Some("sess-123".to_string());
+            agents.insert(ws_id, agent);
+        }
+
+        let state: tauri::State<'_, crate::state::AppState> = app.state();
+        let result = get_agent_status(state, ws_id.to_string()).await.unwrap();
+        assert_eq!(result.status, AgentStatus::Running);
+        assert_eq!(result.session_id, Some("sess-123".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_cmd_clear_session_with_running_agent() {
+        let app = mock_app_with_state();
+        let ws_id = Uuid::new_v4();
+
+        {
+            let app_state = app.state::<crate::state::AppState>();
+            let mut agents = app_state.agents.lock().unwrap();
+            let mut agent = AgentInfo::new(ws_id);
+            agent.status = AgentStatus::Running;
+            agent.session_id = Some("sess-to-clear".to_string());
+            agents.insert(ws_id, agent);
+        }
+
+        let state: tauri::State<'_, crate::state::AppState> = app.state();
+        clear_session(state, ws_id.to_string()).await.unwrap();
+
+        let app_state = app.state::<crate::state::AppState>();
+        let agents = app_state.agents.lock().unwrap();
+        let agent = agents.get(&ws_id).unwrap();
+        assert!(agent.session_id.is_none());
+        // Status should remain Running (clear_session only clears session_id)
+        assert_eq!(agent.status, AgentStatus::Running);
+    }
 }

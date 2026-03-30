@@ -1,0 +1,44 @@
+--- src/db/chat.rs
++++ replace Database::insert_chat_message -> Result<(), AppError> with Ok(())
+@@ -3,40 +3,17 @@
+ use crate::models::chat::{
+     ChatMessage, ChatMessageSearchResult, ContentBlock, MessageRole, UsageDataPoint,
+ };
+ use chrono::{DateTime, Utc};
+ use uuid::Uuid;
+ 
+ impl Database {
+     pub fn insert_chat_message(&self, msg: &ChatMessage) -> Result<(), AppError> {
+-        let content_json = serde_json::to_string(&msg.content)?;
+-        let metadata_json = msg
+-            .metadata
+-            .as_ref()
+-            .map(serde_json::to_string)
+-            .transpose()?;
+-        let role_str = match msg.role {
+-            MessageRole::User => "user",
+-            MessageRole::Assistant => "assistant",
+-            MessageRole::System => "system",
+-        };
+-        self.conn.execute(
+-            "INSERT OR REPLACE INTO chat_messages (id, workspace_id, role, content, timestamp, display_text, metadata) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+-            rusqlite::params![
+-                msg.id.to_string(),
+-                msg.workspace_id.to_string(),
+-                role_str,
+-                content_json,
+-                msg.timestamp.to_rfc3339(),
+-                msg.display_text,
+-                metadata_json,
+-            ],
+-        )?;
+-        Ok(())
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn list_chat_messages(&self, workspace_id: &Uuid) -> Result<Vec<ChatMessage>, AppError> {
+         let mut stmt = self.conn.prepare(
+             "SELECT id, workspace_id, role, content, timestamp, display_text, metadata
+              FROM chat_messages WHERE workspace_id = ?1 ORDER BY timestamp ASC, rowid ASC",
+         )?;
+         let messages = stmt

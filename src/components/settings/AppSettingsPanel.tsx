@@ -53,6 +53,17 @@ export function AppSettingsPanel() {
   );
   const closeSettings = () => useUIStore.getState().closeViewTab("settings");
 
+  // Close settings on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        useUIStore.getState().closeViewTab("settings");
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   // Clear the initial tab after consuming it
   useEffect(() => {
     if (settingsInitialTab) {

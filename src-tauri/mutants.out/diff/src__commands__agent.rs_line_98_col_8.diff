@@ -1,0 +1,21 @@
+--- src/commands/agent.rs
++++ delete ! in validate_working_dir
+@@ -90,17 +90,17 @@
+ ) -> bool {
+     let is_cold_error = !had_content;
+     let exited_with_error = !exit_success && exit_code != Some(143);
+     is_cold_error && exited_with_error
+ }
+ 
+ /// Validate that a working directory path exists.
+ pub(crate) fn validate_working_dir(working_dir: &std::path::Path) -> Result<(), AppError> {
+-    if !working_dir.exists() {
++    if  /* ~ changed by cargo-mutants ~ */working_dir.exists() {
+         return Err(AppError::AgentError(format!(
+             "Working directory does not exist: {}",
+             working_dir.display()
+         )));
+     }
+     Ok(())
+ }
+ 

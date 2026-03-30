@@ -298,3 +298,150 @@ describe("diffStore - refresh clears patch cache", () => {
     expect(useDiffStore.getState().patchPreviews["repo-1:main.rs"]).toBeUndefined();
   });
 });
+
+// ─── Mutation-killing tests ──────────────────────────────────────────────
+
+describe("diffStore - loading state transitions", () => {
+  it("sets loading true during loadDiff when no cached data", async () => {
+    vi.mocked(getDiff).mockImplementation(() => new Promise(() => {})); // never resolves
+    useDiffStore.getState().loadDiff("ws-load-true");
+    expect(useDiffStore.getState().loading["ws-load-true"]).toBe(true);
+  });
+
+  it("sets loading false after loadDiff completes", async () => {
+    vi.mocked(getDiff).mockResolvedValue({ files: [], totalAdditions: 0, totalDeletions: 0 } as any);
+    await useDiffStore.getState().loadDiff("ws-load-false");
+    expect(useDiffStore.getState().loading["ws-load-false"]).toBe(false);
+  });
+
+  it("skips loading indicator when cached data exists", async () => {
+    useDiffStore.setState({ diffResults: { "ws-cached": { files: [] } as any } });
+    vi.mocked(getDiff).mockResolvedValue({ files: [{ path: "new.ts" }] } as any);
+    await useDiffStore.getState().loadDiff("ws-cached");
+    expect(useDiffStore.getState().loading["ws-cached"]).toBe(false);
+  });
+
+  it("sets loading true during loadRepoDiff when no cached data", async () => {
+    vi.mocked(getRepoDiff).mockImplementation(() => new Promise(() => {}));
+    useDiffStore.getState().loadRepoDiff("repo-loading");
+    expect(useDiffStore.getState().loading["repo-loading"]).toBe(true);
+  });
+
+  it("sets loading false after loadRepoDiff completes", async () => {
+    vi.mocked(getRepoDiff).mockResolvedValue({ files: [], totalAdditions: 0, totalDeletions: 0 } as any);
+    await useDiffStore.getState().loadRepoDiff("repo-done");
+    expect(useDiffStore.getState().loading["repo-done"]).toBe(false);
+  });
+});
+
+describe("diffStore - loadDiff error sets loading false", () => {
+  it("sets loading false on loadDiff failure", async () => {
+    vi.mocked(getDiff).mockRejectedValue(new Error("network error"));
+    await useDiffStore.getState().loadDiff("ws-err-load");
+    expect(useDiffStore.getState().loading["ws-err-load"]).toBe(false);
+  });
+
+  it("sets error on loadDiff failure", async () => {
+    vi.mocked(getDiff).mockRejectedValue(new Error("db error"));
+    await useDiffStore.getState().loadDiff("ws-err-msg");
+    expect(useDiffStore.getState().error["ws-err-msg"]).toContain("db error");
+  });
+});
+
+describe("diffStore - key format and getter functions", () => {
+  it("selectFile constructs key as contextId:filePath", async () => {
+    vi.mocked(getFileDiff).mockResolvedValue({ path: "a.ts", original: "", modified: "", language: "typescript" } as any);
+    useDiffStore.getState().selectFile("ctx-key", "src/a.ts");
+    await vi.waitFor(() => {
+      expect(useDiffStore.getState().fileDiffs["ctx-key:src/a.ts"]).toBeTruthy();
+    });
+    expect(useDiffStore.getState().fileDiffs["ctx-key:src/a.ts"]!.path).toBe("a.ts");
+  });
+
+  it("getFileDiffContent uses contextId:filePath key to look up diff", () => {
+    useDiffStore.setState({
+      fileDiffs: { "ws-1:src/main.ts": { path: "src/main.ts", original: "old", modified: "new", language: "typescript" } as any },
+    });
+    const result = useDiffStore.getState().getFileDiffContent("ws-1", "src/main.ts");
+    expect(result).toBeTruthy();
+    expect(result!.path).toBe("src/main.ts");
+  });
+
+  it("getFileDiffContent returns null for unknown key", () => {
+    const result = useDiffStore.getState().getFileDiffContent("ws-99", "nope.ts");
+    expect(result).toBeNull();
+  });
+});
+
+describe("diffStore - patch preview error string", () => {
+  it("logs specific error message on patch failure", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getFilePatch).mockRejectedValue(new Error("patch fail"));
+    await useDiffStore.getState().loadPatchPreview("ws-str", "str.ts", false, "workspace");
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to load patch preview"),
+      expect.any(Error),
+    );
+    spy.mockRestore();
+  });
+});
+
+describe("diffStore - file diff error handling", () => {
+  it("logs error on loadFileDiff failure", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getFileDiff).mockRejectedValue(new Error("not found"));
+    await useDiffStore.getState().loadFileDiff("ws-1", "missing.ts");
+    expect(spy).toHaveBeenCalledWith("Failed to load file diff:", expect.any(Error));
+    spy.mockRestore();
+  });
+
+  it("logs error on loadRepoFileDiff failure", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getRepoFileDiff).mockRejectedValue(new Error("not found"));
+    await useDiffStore.getState().loadRepoFileDiff("repo-1", "missing.ts");
+    expect(spy).toHaveBeenCalledWith("Failed to load repo file diff:", expect.any(Error));
+    spy.mockRestore();
+  });
+});
+
+describe("diffStore - patch preview loading state", () => {
+  it("sets patchLoading true during loadPatchPreview", async () => {
+    vi.mocked(getFilePatch).mockImplementation(() => new Promise(() => {}));
+    useDiffStore.getState().loadPatchPreview("ws-patch-1", "loading.ts", false, "workspace");
+    expect(useDiffStore.getState().patchLoading["ws-patch-1:loading.ts"]).toBe(true);
+  });
+
+  it("logs error on patch preview failure", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getFilePatch).mockRejectedValue(new Error("fail"));
+    await useDiffStore.getState().loadPatchPreview("ws-patch-err", "err.ts", false, "workspace");
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});
+
+describe("diffStore - selectFile key format", () => {
+  it("uses contextId:filePath as the key for fileDiffs", async () => {
+    vi.mocked(getFileDiff).mockResolvedValue({ path: "test.ts", original: "", modified: "", language: "typescript" } as any);
+    useDiffStore.getState().selectFile("ws-1", "test.ts");
+    // Wait for async loadFileDiff
+    await vi.waitFor(() => {
+      expect(useDiffStore.getState().fileDiffs["ws-1:test.ts"]).toBeTruthy();
+    });
+  });
+});
+
+describe("diffStore - clearPatchPreviews", () => {
+  it("clears both previews and loading for workspace prefix", () => {
+    useDiffStore.setState({
+      patchPreviews: { "ws-1:a.ts": {} as any, "ws-1:b.ts": {} as any, "ws-2:c.ts": {} as any },
+      patchLoading: { "ws-1:a.ts": true, "ws-1:b.ts": false, "ws-2:c.ts": true },
+    });
+    useDiffStore.getState().clearPatchPreviews("ws-1");
+    expect(useDiffStore.getState().patchPreviews["ws-1:a.ts"]).toBeUndefined();
+    expect(useDiffStore.getState().patchPreviews["ws-1:b.ts"]).toBeUndefined();
+    expect(useDiffStore.getState().patchPreviews["ws-2:c.ts"]).toBeTruthy();
+    expect(useDiffStore.getState().patchLoading["ws-1:a.ts"]).toBeUndefined();
+    expect(useDiffStore.getState().patchLoading["ws-2:c.ts"]).toBe(true);
+  });
+});

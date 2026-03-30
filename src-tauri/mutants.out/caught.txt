@@ -1,0 +1,58 @@
+src/commands/agent.rs:20:5: replace resolve_context_id -> Result<Uuid, AppError> with Ok(Default::default())
+src/commands/agent.rs:33:5: replace status_from_exit -> AgentStatus with Default::default()
+src/commands/agent.rs:57:5: replace should_emit_status -> bool with true
+src/commands/agent.rs:57:5: replace should_emit_status -> bool with false
+src/commands/agent.rs:58:9: replace && with || in should_emit_status
+src/commands/agent.rs:57:38: replace == with != in should_emit_status
+src/commands/agent.rs:59:5: delete ! in should_emit_status
+src/commands/agent.rs:67:5: replace is_agent_alive -> bool with true
+src/commands/agent.rs:67:5: replace is_agent_alive -> bool with false
+src/commands/agent.rs:67:21: replace != with == in is_agent_alive
+src/commands/agent.rs:98:5: replace validate_working_dir -> Result<(), AppError> with Ok(())
+src/commands/agent.rs:98:8: delete ! in validate_working_dir
+src/commands/agent.rs:126:5: replace collect_sibling_workspace_names -> Vec<String> with vec![]
+src/commands/agent.rs:126:5: replace collect_sibling_workspace_names -> Vec<String> with vec![String::new()]
+src/commands/agent.rs:126:5: replace collect_sibling_workspace_names -> Vec<String> with vec!["xyzzy".into()]
+src/commands/agent.rs:128:44: replace && with || in collect_sibling_workspace_names
+src/commands/agent.rs:128:33: replace == with != in collect_sibling_workspace_names
+src/commands/agent.rs:128:53: replace != with == in collect_sibling_workspace_names
+src/commands/agent.rs:141:5: replace resolve_container_exec_context -> Option<crate::models::devcontainer::ContainerExecContext> with None
+src/commands/agent.rs:143:9: replace || with && in resolve_container_exec_context
+src/commands/agent.rs:142:8: delete ! in resolve_container_exec_context
+src/commands/agent.rs:143:35: replace != with == in resolve_container_exec_context
+src/commands/agent.rs:158:5: replace extract_toggle_flags -> (bool, bool) with (true, true)
+src/commands/agent.rs:158:5: replace extract_toggle_flags -> (bool, bool) with (true, false)
+src/commands/agent.rs:158:5: replace extract_toggle_flags -> (bool, bool) with (false, true)
+src/commands/agent.rs:158:5: replace extract_toggle_flags -> (bool, bool) with (false, false)
+src/commands/agent.rs:166:5: replace parse_agent_workspace_id -> Result<Uuid, AppError> with Ok(Default::default())
+src/commands/agent.rs:176:5: replace activate_agent -> Option<String> with None
+src/commands/agent.rs:176:5: replace activate_agent -> Option<String> with Some(String::new())
+src/commands/agent.rs:176:5: replace activate_agent -> Option<String> with Some("xyzzy".into())
+src/db/bookmarks.rs:9:9: replace Database::insert_bookmark -> Result<(), AppError> with Ok(())
+src/db/bookmarks.rs:27:9: replace Database::list_bookmarks -> Result<Vec<FileBookmark>, AppError> with Ok(vec![])
+src/db/bookmarks.rs:63:9: replace Database::list_bookmarks_for_file -> Result<Vec<FileBookmark>, AppError> with Ok(vec![])
+src/db/bookmarks.rs:94:9: replace Database::get_bookmark -> Result<Option<FileBookmark>, AppError> with Ok(None)
+src/db/bookmarks.rs:126:9: replace Database::update_bookmark -> Result<(), AppError> with Ok(())
+src/db/bookmarks.rs:140:9: replace Database::delete_bookmark -> Result<(), AppError> with Ok(())
+src/db/bookmarks.rs:153:9: replace Database::delete_bookmark_at_line -> Result<bool, AppError> with Ok(true)
+src/db/bookmarks.rs:153:9: replace Database::delete_bookmark_at_line -> Result<bool, AppError> with Ok(false)
+src/db/bookmarks.rs:157:18: replace > with == in Database::delete_bookmark_at_line
+src/db/bookmarks.rs:157:18: replace > with < in Database::delete_bookmark_at_line
+src/db/bookmarks.rs:157:18: replace > with >= in Database::delete_bookmark_at_line
+src/db/chat.rs:11:9: replace Database::insert_chat_message -> Result<(), AppError> with Ok(())
+src/db/chat.rs:38:9: replace Database::list_chat_messages -> Result<Vec<ChatMessage>, AppError> with Ok(vec![])
+src/db/chat.rs:63:25: delete match arm "user" in Database::list_chat_messages
+src/db/chat.rs:82:9: replace Database::clear_chat_messages -> Result<(), AppError> with Ok(())
+src/db/chat.rs:94:9: replace Database::search_chat_messages -> Result<Vec<ChatMessageSearchResult>, AppError> with Ok(vec![])
+src/db/chat.rs:153:9: replace Database::get_usage_data -> Result<Vec<UsageDataPoint>, AppError> with Ok(vec![])
+src/db/chat.rs:178:23: replace += with -= in Database::get_usage_data
+src/db/chat.rs:178:23: replace += with *= in Database::get_usage_data
+src/db/chat.rs:217:5: replace extract_matched_text -> String with String::new()
+src/db/chat.rs:217:5: replace extract_matched_text -> String with "xyzzy".into()
+src/db/chat.rs:243:5: replace snippet -> String with String::new()
+src/db/chat.rs:243:5: replace snippet -> String with "xyzzy".into()
+src/db/chat.rs:247:44: replace + with - in snippet
+src/db/chat.rs:247:24: replace + with - in snippet
+src/db/workspaces.rs:10:9: replace Database::insert_workspace -> Result<(), AppError> with Ok(())
+src/db/workspaces.rs:37:9: replace Database::update_workspace_status -> Result<(), AppError> with Ok(())
+src/db/workspaces.rs:52:9: replace Database::list_workspaces -> Result<Vec<Workspace>, AppError> with Ok(vec![])

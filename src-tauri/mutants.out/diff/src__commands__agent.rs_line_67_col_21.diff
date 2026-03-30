@@ -1,0 +1,21 @@
+--- src/commands/agent.rs
++++ replace != with == in is_agent_alive
+@@ -59,17 +59,17 @@
+     !suppressed
+ }
+ 
+ /// Check if an agent is alive and running. Returns true if agent
+ /// status is Running and the PID is still alive. For sidecar-based agents
+ /// (no PID), Running status alone is sufficient since the sidecar manages
+ /// process lifecycle.
+ pub(crate) fn is_agent_alive(agent: &AgentInfo) -> bool {
+-    if agent.status != AgentStatus::Running {
++    if agent.status == /* ~ changed by cargo-mutants ~ */ AgentStatus::Running {
+         return false;
+     }
+     match agent.pid {
+         Some(pid) => crate::platform::is_process_alive(pid),
+         None => true, // Sidecar-based agent: no PID, trust the status
+     }
+ }
+ 

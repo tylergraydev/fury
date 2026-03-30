@@ -243,6 +243,7 @@ export function FileViewerPanel({ tab, repoId }: Props) {
         parameterHints: { enabled: true },
         fixedOverflowWidgets: true,
         inlineSuggest: { enabled: true },
+        automaticLayout: true,
       }}
     />
   );

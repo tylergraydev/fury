@@ -1,0 +1,25 @@
+--- src/db/bookmarks.rs
++++ replace Database::delete_bookmark -> Result<(), AppError> with Ok(())
+@@ -132,21 +132,17 @@
+                 bookmark.updated_at.to_rfc3339(),
+                 bookmark.id.to_string(),
+             ],
+         )?;
+         Ok(())
+     }
+ 
+     pub fn delete_bookmark(&self, id: &Uuid) -> Result<(), AppError> {
+-        self.conn.execute(
+-            "DELETE FROM file_bookmarks WHERE id = ?1",
+-            rusqlite::params![id.to_string()],
+-        )?;
+-        Ok(())
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn delete_bookmark_at_line(
+         &self,
+         repo_id: &Uuid,
+         file_path: &str,
+         line_number: u32,
+     ) -> Result<bool, AppError> {

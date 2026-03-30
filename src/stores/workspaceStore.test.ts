@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
+// Spy-able references for dependent store cleanup verification
+import { useChatStore } from "./chatStore";
+import { useAgentStore } from "./agentStore";
+import { usePrStore } from "./prStore";
+import { useUIStore } from "./uiStore";
+
 vi.mock("../lib/tauri", () => ({
   listWorkspaces: vi.fn(),
   createWorkspace: vi.fn(),
@@ -378,5 +384,463 @@ describe("workspaceStore - pinWs", () => {
     ).rejects.toThrow("pin fail");
 
     expect(useWorkspaceStore.getState().error).toBe("Error: pin fail");
+  });
+});
+
+// ─── Mutation-killing tests ──────────────────────────────────────────────
+
+describe("workspaceStore - loadWorkspaces sets loading state", () => {
+  it("sets loading to true then false", async () => {
+    vi.mocked(listWorkspaces).mockResolvedValue([]);
+
+    const promise = useWorkspaceStore.getState().loadWorkspaces();
+    expect(useWorkspaceStore.getState().loading).toBe(true);
+
+    await promise;
+    expect(useWorkspaceStore.getState().loading).toBe(false);
+  });
+
+  it("clears error on load", async () => {
+    useWorkspaceStore.setState({ error: "previous error" });
+    vi.mocked(listWorkspaces).mockResolvedValue([]);
+
+    await useWorkspaceStore.getState().loadWorkspaces();
+    expect(useWorkspaceStore.getState().error).toBeNull();
+  });
+});
+
+describe("workspaceStore - archiveWs removes from active list", () => {
+  it("removes archived workspace from workspaces array", async () => {
+    const ws1 = makeWs({ id: "ws-1", name: "keep" });
+    const ws2 = makeWs({ id: "ws-2", name: "archive-me" });
+    useWorkspaceStore.setState({ workspaces: [ws1, ws2] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-2");
+
+    const remaining = useWorkspaceStore.getState().workspaces;
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].id).toBe("ws-1");
+    // Archived workspace should NOT be in active list
+    expect(remaining.find((w) => w.id === "ws-2")).toBeUndefined();
+  });
+
+  it("adds to archivedWorkspaces when archived item found", async () => {
+    const ws = makeWs({ id: "ws-1" });
+    useWorkspaceStore.setState({ workspaces: [ws], archivedWorkspaces: [] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-1");
+
+    const archived = useWorkspaceStore.getState().archivedWorkspaces;
+    expect(archived.some((w) => w.id === "ws-1")).toBe(true);
+  });
+});
+
+describe("workspaceStore - deleteWs removes from active list", () => {
+  it("removes deleted workspace from workspaces array", async () => {
+    const ws1 = makeWs({ id: "ws-1" });
+    const ws2 = makeWs({ id: "ws-2" });
+    useWorkspaceStore.setState({ workspaces: [ws1, ws2] });
+    vi.mocked(deleteWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().deleteWs("ws-2");
+
+    const remaining = useWorkspaceStore.getState().workspaces;
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].id).toBe("ws-1");
+  });
+});
+
+describe("workspaceStore - restoreWs moves workspace from archived to active list", () => {
+  it("moves workspace from archived to active", async () => {
+    const ws = makeWs({ id: "ws-1" });
+    useWorkspaceStore.setState({ workspaces: [], archivedWorkspaces: [ws] });
+    vi.mocked(restoreWorkspace).mockResolvedValue(ws);
+
+    await useWorkspaceStore.getState().restoreWs("ws-1");
+
+    expect(useWorkspaceStore.getState().workspaces.find((w) => w.id === "ws-1")).toBeTruthy();
+    expect(useWorkspaceStore.getState().archivedWorkspaces.find((w) => w.id === "ws-1")).toBeUndefined();
+  });
+});
+
+describe("workspaceStore - initial state", () => {
+  it("starts with empty workspaces array", () => {
+    useWorkspaceStore.setState({ workspaces: [] });
+    expect(useWorkspaceStore.getState().workspaces).toEqual([]);
+    expect(Array.isArray(useWorkspaceStore.getState().workspaces)).toBe(true);
+  });
+
+  it("starts with empty archivedWorkspaces array", () => {
+    useWorkspaceStore.setState({ archivedWorkspaces: [] });
+    expect(useWorkspaceStore.getState().archivedWorkspaces).toEqual([]);
+    expect(Array.isArray(useWorkspaceStore.getState().archivedWorkspaces)).toBe(true);
+  });
+
+  it("starts with loading false", () => {
+    expect(useWorkspaceStore.getState().loading).toBe(false);
+  });
+
+  it("starts with error null", () => {
+    expect(useWorkspaceStore.getState().error).toBeNull();
+  });
+});
+
+describe("workspaceStore - setActive changes activeWorkspaceId", () => {
+  it("sets activeWorkspaceId", () => {
+    useWorkspaceStore.getState().setActive("ws-42");
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBe("ws-42");
+  });
+
+  it("clears activeWorkspaceId with null", () => {
+    useWorkspaceStore.setState({ activeWorkspaceId: "ws-1" });
+    useWorkspaceStore.getState().setActive(null);
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBeNull();
+  });
+});
+
+describe("workspaceStore - archiveWs clears activeWorkspaceId when archiving active", () => {
+  it("clears activeWorkspaceId when archiving the active workspace", async () => {
+    const ws = makeWs({ id: "ws-active" });
+    useWorkspaceStore.setState({ workspaces: [ws], activeWorkspaceId: "ws-active" });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-active");
+
+    expect(useWorkspaceStore.getState().activeWorkspaceId).not.toBe("ws-active");
+  });
+});
+
+describe("workspaceStore - loadWorkspaces error handling", () => {
+  it("sets error message on failure", async () => {
+    vi.mocked(listWorkspaces).mockRejectedValue(new Error("DB locked"));
+
+    await useWorkspaceStore.getState().loadWorkspaces();
+
+    expect(useWorkspaceStore.getState().error).toBe("Error: DB locked");
+    expect(useWorkspaceStore.getState().loading).toBe(false);
+  });
+
+  it("clears error on success after previous failure", async () => {
+    useWorkspaceStore.setState({ error: "previous" });
+    vi.mocked(listWorkspaces).mockResolvedValue([]);
+
+    await useWorkspaceStore.getState().loadWorkspaces();
+    expect(useWorkspaceStore.getState().error).toBeNull();
+  });
+});
+
+describe("workspaceStore - setActive sessionStorage", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  it("stores workspace ID in sessionStorage when setting active", () => {
+    useWorkspaceStore.getState().setActive("ws-99");
+    expect(sessionStorage.getItem("fury:activeWorkspaceId")).toBe("ws-99");
+  });
+
+  it("removes workspace ID from sessionStorage when clearing active", () => {
+    sessionStorage.setItem("fury:activeWorkspaceId", "ws-old");
+    useWorkspaceStore.getState().setActive(null);
+    expect(sessionStorage.getItem("fury:activeWorkspaceId")).toBeNull();
+  });
+
+  it("removes repo ID from sessionStorage when setting workspace active", () => {
+    sessionStorage.setItem("fury:activeRepoId", "repo-old");
+    useWorkspaceStore.getState().setActive("ws-99");
+    expect(sessionStorage.getItem("fury:activeRepoId")).toBeNull();
+  });
+
+  it("clears activeRepoId when setting workspace active", () => {
+    useWorkspaceStore.setState({ activeRepoId: "repo-1" });
+    useWorkspaceStore.getState().setActive("ws-99");
+    expect(useWorkspaceStore.getState().activeRepoId).toBeNull();
+  });
+});
+
+describe("workspaceStore - setActiveRepo sessionStorage", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  it("stores repo ID in sessionStorage when setting active repo", () => {
+    useWorkspaceStore.getState().setActiveRepo("repo-42");
+    expect(sessionStorage.getItem("fury:activeRepoId")).toBe("repo-42");
+  });
+
+  it("removes repo ID from sessionStorage when clearing active repo", () => {
+    sessionStorage.setItem("fury:activeRepoId", "repo-old");
+    useWorkspaceStore.getState().setActiveRepo(null);
+    expect(sessionStorage.getItem("fury:activeRepoId")).toBeNull();
+  });
+
+  it("removes workspace ID from sessionStorage when setting repo active", () => {
+    sessionStorage.setItem("fury:activeWorkspaceId", "ws-old");
+    useWorkspaceStore.getState().setActiveRepo("repo-42");
+    expect(sessionStorage.getItem("fury:activeWorkspaceId")).toBeNull();
+  });
+
+  it("clears activeWorkspaceId when setting repo active", () => {
+    useWorkspaceStore.setState({ activeWorkspaceId: "ws-1" });
+    useWorkspaceStore.getState().setActiveRepo("repo-42");
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBeNull();
+  });
+});
+
+describe("workspaceStore - createWs clears error", () => {
+  it("clears error before creating", async () => {
+    useWorkspaceStore.setState({ error: "old error" });
+    const ws = makeWs({ id: "ws-new" });
+    vi.mocked(createWorkspace).mockResolvedValue(ws);
+
+    await useWorkspaceStore.getState().createWs({} as any);
+    expect(useWorkspaceStore.getState().error).toBeNull();
+  });
+});
+
+describe("workspaceStore - archiveWs selects next workspace", () => {
+  it("selects next workspace when archiving active one", async () => {
+    const ws1 = makeWs({ id: "ws-1" });
+    const ws2 = makeWs({ id: "ws-2" });
+    useWorkspaceStore.setState({ workspaces: [ws1, ws2], activeWorkspaceId: "ws-1" });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-1");
+
+    // Should select ws-2 as next active
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBe("ws-2");
+  });
+
+  it("finds the archived workspace before removing it", async () => {
+    const ws1 = makeWs({ id: "ws-1", name: "found-me" });
+    useWorkspaceStore.setState({ workspaces: [ws1], archivedWorkspaces: [] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-1");
+
+    const archived = useWorkspaceStore.getState().archivedWorkspaces;
+    expect(archived).toHaveLength(1);
+    expect(archived[0].name).toBe("found-me");
+  });
+});
+
+describe("workspaceStore - archiveWs non-active workspace", () => {
+  it("does not change activeWorkspaceId when archiving non-active", async () => {
+    const ws1 = makeWs({ id: "ws-active" });
+    const ws2 = makeWs({ id: "ws-other" });
+    useWorkspaceStore.setState({ workspaces: [ws1, ws2], activeWorkspaceId: "ws-active" });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-other");
+
+    // Active workspace should remain unchanged
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBe("ws-active");
+    expect(useWorkspaceStore.getState().workspaces).toHaveLength(1);
+    expect(useWorkspaceStore.getState().workspaces[0].id).toBe("ws-active");
+  });
+
+  it("archives non-existent ID gracefully (archived is undefined)", async () => {
+    useWorkspaceStore.setState({ workspaces: [], archivedWorkspaces: [] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-nonexist");
+
+    // archivedWorkspaces should not grow (find returned undefined)
+    expect(useWorkspaceStore.getState().archivedWorkspaces).toHaveLength(0);
+  });
+});
+
+describe("workspaceStore - _cleanupWorkspace handles store errors", () => {
+  it("archiveWs succeeds even when chatStore.unsubscribe throws", async () => {
+    const spy = vi.spyOn(useChatStore.getState(), "unsubscribe").mockImplementation(() => { throw new Error("chat crash"); });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const ws = makeWs({ id: "ws-err-chat" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-err-chat");
+
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("chat cleanup failed"), expect.any(Error));
+    spy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it("archiveWs succeeds even when agentStore.unsubscribe throws", async () => {
+    const spy = vi.spyOn(useAgentStore.getState(), "unsubscribe").mockImplementation(() => { throw new Error("agent crash"); });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const ws = makeWs({ id: "ws-err-agent" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-err-agent");
+
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("agent cleanup failed"), expect.any(Error));
+    spy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it("archiveWs succeeds even when prStore.unsubscribe throws", async () => {
+    const spy = vi.spyOn(usePrStore.getState(), "unsubscribe").mockImplementation(() => { throw new Error("pr crash"); });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const ws = makeWs({ id: "ws-err-pr" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-err-pr");
+
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("pr cleanup failed"), expect.any(Error));
+    spy.mockRestore();
+    warnSpy.mockRestore();
+  });
+});
+
+describe("workspaceStore - archiveWs find and wasActive edge cases", () => {
+  it("archiveWs with ID not in list leaves archivedWorkspaces unchanged", async () => {
+    const ws = makeWs({ id: "ws-exists" });
+    useWorkspaceStore.setState({ workspaces: [ws], archivedWorkspaces: [] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-not-exists");
+
+    // find returns undefined → archivedWorkspaces not updated
+    expect(useWorkspaceStore.getState().archivedWorkspaces).toHaveLength(0);
+  });
+
+  it("archiveWs non-active workspace preserves activeRepoId", async () => {
+    const ws1 = makeWs({ id: "ws-active" });
+    const ws2 = makeWs({ id: "ws-other" });
+    useWorkspaceStore.setState({ workspaces: [ws1, ws2], activeWorkspaceId: "ws-active", activeRepoId: "repo-keep" });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-other");
+
+    // wasActive is false → activeRepoId should NOT be cleared
+    expect(useWorkspaceStore.getState().activeRepoId).toBe("repo-keep");
+  });
+
+  it("archiveWs active workspace clears activeRepoId", async () => {
+    const ws = makeWs({ id: "ws-active-repo" });
+    useWorkspaceStore.setState({ workspaces: [ws], activeWorkspaceId: "ws-active-repo", activeRepoId: "repo-clear" });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-active-repo");
+
+    // wasActive is true → activeRepoId should be null
+    expect(useWorkspaceStore.getState().activeRepoId).toBeNull();
+  });
+
+  it("archiveWs non-active workspace keeps activeWorkspaceId unchanged", async () => {
+    const ws1 = makeWs({ id: "ws-keep-active" });
+    const ws2 = makeWs({ id: "ws-archive-me" });
+    useWorkspaceStore.setState({ workspaces: [ws1, ws2], activeWorkspaceId: "ws-keep-active" });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-archive-me");
+
+    // wasActive is false → activeWorkspaceId stays as ws-keep-active
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBe("ws-keep-active");
+  });
+
+  it("archiveWs active workspace switches to next available", async () => {
+    const ws1 = makeWs({ id: "ws-active-gone" });
+    const ws2 = makeWs({ id: "ws-next" });
+    useWorkspaceStore.setState({ workspaces: [ws1, ws2], activeWorkspaceId: "ws-active-gone" });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-active-gone");
+
+    // wasActive is true → nextActive should be remaining[0].id = ws-next
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBe("ws-next");
+  });
+});
+
+describe("workspaceStore - restoreWs removes from archived list", () => {
+  it("filters restored workspace from archivedWorkspaces", async () => {
+    const ws1 = makeWs({ id: "ws-1" });
+    const ws2 = makeWs({ id: "ws-2" });
+    useWorkspaceStore.setState({ workspaces: [], archivedWorkspaces: [ws1, ws2] });
+    vi.mocked(restoreWorkspace).mockResolvedValue(ws1);
+
+    await useWorkspaceStore.getState().restoreWs("ws-1");
+
+    const archived = useWorkspaceStore.getState().archivedWorkspaces;
+    expect(archived).toHaveLength(1);
+    expect(archived[0].id).toBe("ws-2");
+  });
+});
+
+describe("workspaceStore - _cleanupWorkspace calls dependent stores", () => {
+  it("archiveWs calls chat/agent/pr unsubscribe", async () => {
+    const chatSpy = vi.spyOn(useChatStore.getState(), "unsubscribe").mockImplementation(() => {});
+    const agentSpy = vi.spyOn(useAgentStore.getState(), "unsubscribe").mockImplementation(() => {});
+    const prSpy = vi.spyOn(usePrStore.getState(), "unsubscribe").mockImplementation(() => {});
+    const ws = makeWs({ id: "ws-cleanup" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-cleanup");
+
+    expect(chatSpy).toHaveBeenCalledWith("ws-cleanup");
+    expect(agentSpy).toHaveBeenCalledWith("ws-cleanup");
+    expect(prSpy).toHaveBeenCalledWith("ws-cleanup");
+    chatSpy.mockRestore();
+    agentSpy.mockRestore();
+    prSpy.mockRestore();
+  });
+
+  it("deleteWs calls chat/agent/pr unsubscribe", async () => {
+    const chatSpy = vi.spyOn(useChatStore.getState(), "unsubscribe").mockImplementation(() => {});
+    const agentSpy = vi.spyOn(useAgentStore.getState(), "unsubscribe").mockImplementation(() => {});
+    const prSpy = vi.spyOn(usePrStore.getState(), "unsubscribe").mockImplementation(() => {});
+    const ws = makeWs({ id: "ws-del-cleanup" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(deleteWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().deleteWs("ws-del-cleanup");
+
+    expect(chatSpy).toHaveBeenCalledWith("ws-del-cleanup");
+    expect(agentSpy).toHaveBeenCalledWith("ws-del-cleanup");
+    expect(prSpy).toHaveBeenCalledWith("ws-del-cleanup");
+    chatSpy.mockRestore();
+    agentSpy.mockRestore();
+    prSpy.mockRestore();
+  });
+
+  it("archiveWs calls closeChatTabsForContext on uiStore", async () => {
+    const spy = vi.spyOn(useUIStore.getState(), "closeChatTabsForContext").mockImplementation(() => {});
+    const ws = makeWs({ id: "ws-tabs" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(archiveWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().archiveWs("ws-tabs");
+
+    expect(spy).toHaveBeenCalledWith("ws-tabs");
+    spy.mockRestore();
+  });
+
+  it("deleteWs calls closeChatTabsForContext on uiStore", async () => {
+    const spy = vi.spyOn(useUIStore.getState(), "closeChatTabsForContext").mockImplementation(() => {});
+    const ws = makeWs({ id: "ws-del-tabs" });
+    useWorkspaceStore.setState({ workspaces: [ws] });
+    vi.mocked(deleteWorkspace).mockResolvedValue(undefined);
+
+    await useWorkspaceStore.getState().deleteWs("ws-del-tabs");
+
+    expect(spy).toHaveBeenCalledWith("ws-del-tabs");
+    spy.mockRestore();
+  });
+});
+
+describe("workspaceStore - createWs error clears on start", () => {
+  it("clears error before IPC call", async () => {
+    useWorkspaceStore.setState({ error: "old" });
+    const ws = makeWs({ id: "ws-new" });
+    vi.mocked(createWorkspace).mockResolvedValue(ws);
+
+    await useWorkspaceStore.getState().createWs({} as any);
+
+    expect(useWorkspaceStore.getState().error).toBeNull();
   });
 });

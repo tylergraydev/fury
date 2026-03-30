@@ -1,0 +1,27 @@
+--- src/commands/agent.rs
++++ replace is_agent_alive -> bool with true
+@@ -59,23 +59,17 @@
+     !suppressed
+ }
+ 
+ /// Check if an agent is alive and running. Returns true if agent
+ /// status is Running and the PID is still alive. For sidecar-based agents
+ /// (no PID), Running status alone is sufficient since the sidecar manages
+ /// process lifecycle.
+ pub(crate) fn is_agent_alive(agent: &AgentInfo) -> bool {
+-    if agent.status != AgentStatus::Running {
+-        return false;
+-    }
+-    match agent.pid {
+-        Some(pid) => crate::platform::is_process_alive(pid),
+-        None => true, // Sidecar-based agent: no PID, trust the status
+-    }
++    true /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Convert a boolean approval flag to the permission response string.
+ #[cfg(test)]
+ pub(crate) fn permission_response_str(approved: bool) -> &'static str {
+     if approved { "yes" } else { "no" }
+ }
+ 

@@ -1,0 +1,21 @@
+--- src/commands/agent.rs
++++ delete ! in respond_to_permission
+@@ -596,17 +596,17 @@
+         return Err(AppError::AgentError(
+             "Permission responses are not supported with Codex CLI".to_string(),
+         ));
+     }
+ 
+     // Normalize null values to None so they are omitted from the sidecar JSON.
+     // Tauri deserializes JS `null` as Some(Value::Null) rather than None.
+     let updated_permissions = updated_permissions.filter(|v| !v.is_null());
+-    let decision_classification = decision_classification.filter(|v| !v.is_empty());
++    let decision_classification = decision_classification.filter(|v|  /* ~ changed by cargo-mutants ~ */v.is_empty());
+ 
+     // Send a PermissionResponse command to the sidecar
+     let cmd = claude_process::SidecarCommand::PermissionResponse {
+         id: id.to_string(),
+         approved,
+         updated_permissions,
+         decision_classification,
+     };

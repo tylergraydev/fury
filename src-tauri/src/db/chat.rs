@@ -467,4 +467,76 @@ mod tests {
         let ws1_data = db.get_usage_data(Some(&ws1.id), None).unwrap();
         assert_eq!(ws1_data.len(), 1);
     }
+
+    // ─── snippet() mutation-killing tests ────────────────────────────
+
+    #[test]
+    fn test_snippet_short_text_returns_full() {
+        let result = super::snippet("hello world", "hello");
+        assert_eq!(result, "hello world");
+        // No ellipsis for short text
+        assert!(!result.contains("..."));
+    }
+
+    #[test]
+    fn test_snippet_long_text_adds_leading_ellipsis() {
+        let long = format!("{}MATCH{}", "a".repeat(60), "b".repeat(60));
+        let result = super::snippet(&long, "match");
+        assert!(result.starts_with("..."), "Expected leading ellipsis for mid-text match: {result}");
+    }
+
+    #[test]
+    fn test_snippet_long_text_adds_trailing_ellipsis() {
+        let long = format!("MATCH{}", "b".repeat(200));
+        let result = super::snippet(&long, "match");
+        assert!(result.ends_with("..."), "Expected trailing ellipsis: {result}");
+    }
+
+    #[test]
+    fn test_snippet_match_at_start_no_leading_ellipsis() {
+        let text = format!("MATCH{}", "x".repeat(200));
+        let result = super::snippet(&text, "match");
+        assert!(!result.starts_with("..."), "Should not have leading ellipsis: {result}");
+        assert!(result.ends_with("..."), "Should have trailing ellipsis: {result}");
+    }
+
+    #[test]
+    fn test_snippet_match_at_end_no_trailing_ellipsis() {
+        let text = format!("{}MATCH", "x".repeat(200));
+        let result = super::snippet(&text, "match");
+        assert!(result.starts_with("..."), "Should have leading ellipsis: {result}");
+        assert!(!result.ends_with("..."), "Should not have trailing ellipsis: {result}");
+    }
+
+    #[test]
+    fn test_snippet_no_match_returns_truncated() {
+        let long = "a".repeat(200);
+        let result = super::snippet(&long, "zzz");
+        assert_eq!(result.len(), 120);
+    }
+
+    #[test]
+    fn test_snippet_boundary_arithmetic() {
+        // Ensure pos + query.len() + 40 doesn't exceed text length
+        let text = "short MATCH end";
+        let result = super::snippet(text, "match");
+        assert!(result.contains("MATCH"));
+        assert_eq!(result, "short MATCH end");
+    }
+
+    #[test]
+    fn test_search_returns_assistant_role() {
+        let db = test_db();
+        let (_repo, ws) = insert_test_repo_and_workspace(&db);
+        let mut msg = test_chat_message(ws.id);
+        msg.role = MessageRole::Assistant;
+        msg.content = vec![ContentBlock::Text {
+            text: "I found the bug in auth module".to_string(),
+        }];
+        msg.display_text = Some("I found the bug in auth module".to_string());
+        db.insert_chat_message(&msg).unwrap();
+        let results = db.search_chat_messages("auth module", Some(&ws.id)).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].role, "assistant");
+    }
 }

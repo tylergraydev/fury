@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::commands::script as script_cmd;
 use crate::error::AppError;
+use crate::models::agent::AgentStatus;
 use crate::models::workspace::{CreateWorkspaceRequest, Workspace, WorkspaceInfo, WorkspaceStatus};
 use crate::services::script_runner::ScriptKind;
 use crate::services::{claude_process, script_runner, worktree};
@@ -398,6 +399,89 @@ pub async fn list_workspaces(state: State<'_, AppState>) -> Result<Vec<Workspace
         .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
+/// Clean up all runtime resources associated with a workspace.
+/// Called by both archive and delete to prevent resource leaks.
+pub(crate) async fn cleanup_workspace_resources(state: &AppState, id: Uuid) {
+    // 1. Stop agent (if running) — kill process, clear stdin, persistent handle
+    {
+        let pid = {
+            let mut agents = state.agents.lock().unwrap();
+            if let Some(agent) = agents.get_mut(&id) {
+                agent.status = AgentStatus::Idle;
+                agent.pid.take()
+            } else {
+                None
+            }
+        };
+        if let Some(pid) = pid {
+            let _ = crate::platform::kill_process_group(pid);
+        }
+        if let Some(mut child) = state.agent_processes.lock().unwrap().remove(&id) {
+            let _ = child.start_kill();
+        }
+        state.persistent_agents.lock().unwrap().remove(&id);
+        state.agent_stdins.lock().unwrap().remove(&id);
+    }
+
+    // 2. Kill running scripts (setup, run, archive keys)
+    for kind in &["setup", "run", "archive"] {
+        let key = format!("{}:{}", id, kind);
+        script_cmd::kill_script_by_key(&state.script_pids, &key);
+    }
+
+    // 3. Close terminal sessions belonging to this workspace
+    {
+        let mut sessions = state.terminal_sessions.lock().unwrap();
+        let ws_terminal_ids: Vec<Uuid> = sessions
+            .iter()
+            .filter(|(_, s)| s.workspace_id == id)
+            .map(|(tid, _)| *tid)
+            .collect();
+        for tid in ws_terminal_ids {
+            if let Some(mut session) = sessions.remove(&tid) {
+                let _ = session.child.kill();
+            }
+        }
+    }
+
+    // 4. Stop spotlight watcher
+    {
+        let handle = state.spotlight_watchers.lock().unwrap().remove(&id);
+        if let Some(handle) = handle {
+            let _ = tokio::task::spawn_blocking(move || handle.stop()).await;
+        }
+    }
+
+    // 5. Stop diff watcher
+    {
+        let handle = state.diff_watchers.lock().unwrap().remove(&id);
+        if let Some(handle) = handle {
+            let _ = tokio::task::spawn_blocking(move || handle.stop()).await;
+        }
+    }
+
+    // 6. Stop test processes and watchers for this workspace
+    {
+        let key = format!("test:{}", id);
+        let mut processes = state.test_processes.lock().unwrap();
+        if let Some(pid) = processes.remove(&key) {
+            let _ = crate::platform::kill_process_group(pid);
+        }
+    }
+    {
+        let key = id.to_string();
+        let handle = state.test_watchers.lock().unwrap().remove(&key);
+        if let Some(handle) = handle {
+            let _ = tokio::task::spawn_blocking(move || handle.stop()).await;
+        }
+    }
+
+    // 7. Clear pending permissions and agent metadata
+    state.pending_permissions.lock().unwrap().remove(&id);
+    state.agents.lock().unwrap().remove(&id);
+    state.indexing_status.lock().unwrap().remove(&id);
+}
+
 #[tauri::command]
 pub async fn archive_workspace(
     app: tauri::AppHandle,
@@ -405,6 +489,9 @@ pub async fn archive_workspace(
     workspace_id: String,
 ) -> Result<(), AppError> {
     let id = parse_workspace_id(&workspace_id)?;
+
+    // Clean up all runtime resources (agents, scripts, terminals, watchers)
+    cleanup_workspace_resources(&state, id).await;
 
     // Update status and get info for archive script
     let (repo_id, worktree_path) = {
@@ -470,6 +557,9 @@ pub async fn delete_workspace(
     workspace_id: String,
 ) -> Result<(), AppError> {
     let id = parse_workspace_id(&workspace_id)?;
+
+    // Clean up all runtime resources (agents, scripts, terminals, watchers)
+    cleanup_workspace_resources(&state, id).await;
 
     // Get workspace info for cleanup
     let ws = {
@@ -1156,6 +1246,87 @@ mod tests {
 
         let app_state = app.state::<crate::state::AppState>();
         assert!(!app_state.container_states.lock().unwrap().contains_key(&ws_id));
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_workspace_resources_clears_agents() {
+        let (app, _repo_id, ws_id) = setup_ws_state();
+        let state = app.state::<crate::state::AppState>();
+        state.agents.lock().unwrap().insert(
+            ws_id,
+            crate::models::agent::AgentInfo::new(ws_id),
+        );
+        state.pending_permissions.lock().unwrap().insert(
+            ws_id,
+            crate::models::agent::FrontendStreamEvent::System {
+                session_id: None,
+                message: Some("test".to_string()),
+            },
+        );
+
+        cleanup_workspace_resources(&state, ws_id).await;
+
+        assert!(!state.agents.lock().unwrap().contains_key(&ws_id));
+        assert!(!state.pending_permissions.lock().unwrap().contains_key(&ws_id));
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_workspace_resources_clears_indexing_status() {
+        let (app, _repo_id, ws_id) = setup_ws_state();
+        let state = app.state::<crate::state::AppState>();
+        state.indexing_status.lock().unwrap().insert(
+            ws_id,
+            crate::models::mcp::IndexingStatus {
+                repo_id: ws_id.to_string(),
+                repo_path: "/tmp/test".to_string(),
+                status: crate::models::mcp::IndexingState::Indexed,
+                error: None,
+                last_indexed_at: None,
+            },
+        );
+
+        cleanup_workspace_resources(&state, ws_id).await;
+
+        assert!(!state.indexing_status.lock().unwrap().contains_key(&ws_id));
+    }
+
+    #[tokio::test]
+    async fn test_delete_workspace_clears_all_resources() {
+        let (app, _repo_id, ws_id) = setup_ws_state();
+        {
+            let state = app.state::<crate::state::AppState>();
+            state.agents.lock().unwrap().insert(
+                ws_id,
+                crate::models::agent::AgentInfo::new(ws_id),
+            );
+            state.pending_permissions.lock().unwrap().insert(
+                ws_id,
+                crate::models::agent::FrontendStreamEvent::System {
+                    session_id: None,
+                    message: Some("test".to_string()),
+                },
+            );
+            state.indexing_status.lock().unwrap().insert(
+                ws_id,
+                crate::models::mcp::IndexingStatus {
+                    repo_id: ws_id.to_string(),
+                    repo_path: "/tmp/test".to_string(),
+                    status: crate::models::mcp::IndexingState::Indexed,
+                    error: None,
+                    last_indexed_at: None,
+                },
+            );
+        }
+
+        let state: tauri::State<'_, crate::state::AppState> = app.state();
+        let result = delete_workspace(state, ws_id.to_string()).await;
+        assert!(result.is_ok());
+
+        let s = app.state::<crate::state::AppState>();
+        assert!(!s.agents.lock().unwrap().contains_key(&ws_id));
+        assert!(!s.pending_permissions.lock().unwrap().contains_key(&ws_id));
+        assert!(!s.indexing_status.lock().unwrap().contains_key(&ws_id));
+        assert!(!s.workspaces.read().unwrap().contains_key(&ws_id));
     }
 
     #[tokio::test]

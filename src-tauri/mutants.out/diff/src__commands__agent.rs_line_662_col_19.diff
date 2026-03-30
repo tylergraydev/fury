@@ -1,0 +1,21 @@
+--- src/commands/agent.rs
++++ replace == with != in send_followup_message
+@@ -654,17 +654,17 @@
+     let id = parse_agent_workspace_id(&workspace_id)?;
+ 
+     let agent_type = {
+         let settings = state.settings.read().unwrap();
+         settings.agent_type.clone()
+     };
+ 
+     // For Codex CLI, keep the existing stdin-based approach
+-    if agent_type == AgentType::CodexCli {
++    if agent_type != /* ~ changed by cargo-mutants ~ */ AgentType::CodexCli {
+         let stdin_handle = state.agent_stdins.lock().unwrap().remove(&id);
+         if let Some(mut stdin) = stdin_handle {
+             let write_result = claude_process::write_message(&mut stdin, &message).await;
+             state.agent_stdins.lock().unwrap().insert(id, stdin);
+             write_result?;
+             return Ok(());
+         }
+         return Err(AppError::AgentError(

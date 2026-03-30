@@ -1,0 +1,24 @@
+--- src/commands/agent.rs
++++ replace extract_toggle_flags -> (bool, bool) with (true, true)
+@@ -150,20 +150,17 @@
+     Some(crate::models::devcontainer::ContainerExecContext {
+         container_id: cid,
+         container_working_dir,
+     })
+ }
+ 
+ /// Extract thinking and plan_mode flags from a request, defaulting to false.
+ pub(crate) fn extract_toggle_flags(request: &SendMessageRequest) -> (bool, bool) {
+-    (
+-        request.disable_thinking.unwrap_or(false),
+-        request.disable_plan_mode.unwrap_or(false),
+-    )
++    (true, true) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Parse a workspace_id string into a Uuid, returning WorkspaceNotFound on failure.
+ pub(crate) fn parse_agent_workspace_id(workspace_id: &str) -> Result<Uuid, AppError> {
+     workspace_id
+         .parse()
+         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))
+ }

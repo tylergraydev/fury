@@ -1,5 +1,4 @@
 import {
-  Command,
   CommandDialog,
   CommandEmpty,
   CommandGroup,
@@ -50,18 +49,16 @@ export function CommandPalette({
       open={open}
       onOpenChange={onOpenChange}
       label="Command Palette"
+      className="command-palette"
+      style={{
+        backgroundColor: "var(--bg-primary)",
+        border: "1px solid var(--border)",
+        borderRadius: 8,
+        overflow: "hidden",
+        maxWidth: 480,
+        width: "100%",
+      }}
     >
-      <Command
-        className="command-palette"
-        style={{
-          backgroundColor: "var(--bg-primary)",
-          border: "1px solid var(--border)",
-          borderRadius: 8,
-          overflow: "hidden",
-          maxWidth: 480,
-          width: "100%",
-        }}
-      >
         <CommandInput
           placeholder={isWorkspaceSearch ? "Search workspaces..." : "Type a command..."}
           style={{
@@ -295,7 +292,6 @@ export function CommandPalette({
             </>
           )}
         </CommandList>
-      </Command>
     </CommandDialog>
   );
 }

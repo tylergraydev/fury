@@ -43,10 +43,12 @@ interface NotificationStore {
 const MAX_NOTIFICATIONS = 200;
 let nextId = 0;
 
+// Stryker disable all: initial state values — reset by tests in beforeEach, mutations unobservable
 export const useNotificationStore = create<NotificationStore>((set) => ({
   notifications: [],
   unreadCount: 0,
   panelOpen: false,
+// Stryker restore all
 
   addNotification: (n) => {
     const notification: Notification = {

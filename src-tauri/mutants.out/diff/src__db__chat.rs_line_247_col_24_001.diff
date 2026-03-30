@@ -1,0 +1,21 @@
+--- src/db/chat.rs
++++ replace + with * in snippet
+@@ -239,17 +239,17 @@
+ }
+ 
+ /// Return a short snippet around the first occurrence of `query_lower` in `text`.
+ fn snippet(text: &str, query_lower: &str) -> String {
+     let text_lower = text.to_lowercase();
+     let max_len = 120;
+     if let Some(pos) = text_lower.find(query_lower) {
+         let start = pos.saturating_sub(40);
+-        let end = (pos + query_lower.len() + 40).min(text.len());
++        let end = (pos * /* ~ changed by cargo-mutants ~ */ query_lower.len() + 40).min(text.len());
+         // Align to char boundaries
+         let start = text.floor_char_boundary(start);
+         let end = text.ceil_char_boundary(end);
+         let mut s = String::new();
+         if start > 0 {
+             s.push_str("...");
+         }
+         s.push_str(&text[start..end]);

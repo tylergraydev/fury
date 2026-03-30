@@ -1,0 +1,58 @@
+{
+  "outcomes": [
+    {
+      "scenario": "Baseline",
+      "summary": "Failure",
+      "log_path": "log/baseline.log",
+      "diff_path": null,
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 64.111078917,
+          "process_status": "Success",
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=fury@1.16.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.056097584,
+          "process_status": {
+            "Failure": 1
+          },
+          "argv": [
+            "/Users/tyler/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=fury@1.16.0",
+            "--skip",
+            "port_allocator",
+            "-f",
+            "src/commands/agent.rs",
+            "-f",
+            "src/services/claude_process/stream.rs",
+            "-f",
+            "src/db/chat.rs",
+            "-f",
+            "src/db/workspaces.rs",
+            "-f",
+            "src/db/bookmarks.rs"
+          ]
+        }
+      ]
+    }
+  ],
+  "total_mutants": 0,
+  "missed": 0,
+  "caught": 0,
+  "timeout": 0,
+  "unviable": 0,
+  "success": 0,
+  "start_time": "2026-03-28T16:50:37.648697Z",
+  "end_time": "2026-03-28T16:51:42.184881Z",
+  "cargo_mutants_version": "27.0.0"
+}

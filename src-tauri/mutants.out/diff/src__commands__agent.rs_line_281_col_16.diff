@@ -1,0 +1,21 @@
+--- src/commands/agent.rs
++++ delete ! in send_message
+@@ -273,17 +273,17 @@
+             AgentType::CodexCli => codex_process::build_env_vars(&workspace, &repo, &settings, provider_override),
+         };
+ 
+         // Agent teams: add sibling workspace names (env var is harmless for Codex,
+     // though FURY_AGENT_TEAMS is only set by Claude's build_env_vars)
+         if settings.experimental.agent_teams {
+             let workspaces = state.workspaces.read().unwrap();
+             let siblings = collect_sibling_workspace_names(&workspaces, workspace.id, workspace.repo_id);
+-            if !siblings.is_empty() {
++            if  /* ~ changed by cargo-mutants ~ */siblings.is_empty() {
+                 env.insert(
+                     "FURY_TEAM_WORKSPACES".to_string(),
+                     siblings.join(","),
+                 );
+             }
+         }
+ 
+         (workspace.worktree_path.clone(), env)

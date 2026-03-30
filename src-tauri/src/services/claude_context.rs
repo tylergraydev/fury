@@ -443,6 +443,54 @@ mod tests {
     fn test_is_json_line_brace_in_middle() {
         assert!(!is_json_line("log: {some data}"));
     }
+
+    // ─── parse_indexing_status tests ────────────────────────────────
+
+    #[test]
+    fn test_parse_indexing_status_complete() {
+        let val = serde_json::json!({"content": [{"text": "Indexing completed successfully"}]});
+        assert_eq!(parse_indexing_status(&val), IndexingOutcome::Complete);
+    }
+
+    #[test]
+    fn test_parse_indexing_status_complete_100_percent() {
+        let val = serde_json::json!({"content": [{"text": "Progress: 100%"}]});
+        assert_eq!(parse_indexing_status(&val), IndexingOutcome::Complete);
+    }
+
+    #[test]
+    fn test_parse_indexing_status_error() {
+        let val = serde_json::json!({"content": [{"text": "Indexing failed with error"}]});
+        match parse_indexing_status(&val) {
+            IndexingOutcome::Error(msg) => assert!(msg.contains("failed")),
+            other => panic!("Expected Error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_indexing_status_in_progress() {
+        let val = serde_json::json!({"content": [{"text": "Currently indexing 50% progress"}]});
+        match parse_indexing_status(&val) {
+            IndexingOutcome::InProgress(msg) => assert!(msg.contains("indexing")),
+            other => panic!("Expected InProgress, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_indexing_status_inactive() {
+        let val = serde_json::json!({"content": [{"text": "No tasks running"}]});
+        match parse_indexing_status(&val) {
+            IndexingOutcome::Inactive(msg) => assert!(msg.contains("No tasks")),
+            other => panic!("Expected Inactive, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_indexing_status_empty_response() {
+        let val = serde_json::json!({});
+        // Empty response → extract_status_text returns "" → inactive (no keywords)
+        assert!(matches!(parse_indexing_status(&val), IndexingOutcome::Inactive(_)));
+    }
 }
 
 // --- Extracted pure logic for testability ---
@@ -488,6 +536,33 @@ pub fn is_json_line(line: &str) -> bool {
     line.trim().starts_with('{')
 }
 
+/// The outcome of checking an indexing status response.
+#[derive(Debug, PartialEq)]
+pub(crate) enum IndexingOutcome {
+    /// Indexing completed successfully.
+    Complete,
+    /// Indexing is still running.
+    InProgress(String),
+    /// Indexing encountered an error.
+    Error(String),
+    /// No active indexing detected (assumed done after initial poll).
+    Inactive(String),
+}
+
+/// Determine the indexing outcome from an MCP status response value.
+pub(crate) fn parse_indexing_status(response: &serde_json::Value) -> IndexingOutcome {
+    let status = extract_status_text(response);
+    if is_indexing_complete(status) {
+        IndexingOutcome::Complete
+    } else if is_indexing_error(status) {
+        IndexingOutcome::Error(status.to_string())
+    } else if is_inactive_indexing(status) {
+        IndexingOutcome::Inactive(status.to_string())
+    } else {
+        IndexingOutcome::InProgress(status.to_string())
+    }
+}
+
 /// Index a codebase by spawning the MCP server, calling index_codebase,
 /// then polling get_indexing_status until completion before shutting down.
 pub fn index_codebase(
@@ -529,40 +604,23 @@ pub fn index_codebase(
         let status = client.call_tool("get_indexing_status", json!({ "path": repo_path }));
         match &status {
             Ok(val) => {
-                let text = val
-                    .get("content")
-                    .and_then(|c| c.as_array())
-                    .and_then(|arr| arr.first())
-                    .and_then(|item| item.get("text"))
-                    .and_then(|t| t.as_str())
-                    .unwrap_or("");
-
+                let text = extract_status_text(val);
                 eprintln!("[claude-context] poll {}: {}", poll_count + 1, text);
 
-                let text_lower = text.to_lowercase();
-
-                // "completed" or "100%" means done. "indexed" alone is ambiguous
-                // ("being indexed" = in progress vs "indexed" = done)
-                if text_lower.contains("completed") || text_lower.contains("100%") {
-                    eprintln!("[claude-context] Indexing complete!");
-                    break;
-                }
-
-                // "not being indexed" or "no active indexing" = nothing running,
-                // but also not "being indexed" = still in progress
-                if !text_lower.contains("indexing")
-                    && !text_lower.contains("progress")
-                    && !text_lower.contains("processing")
-                    && poll_count > 0
-                {
-                    // No indexing activity detected — assume done
-                    eprintln!("[claude-context] No active indexing detected, assuming complete.");
-                    break;
-                }
-
-                if text_lower.contains("error") || text_lower.contains("failed") {
-                    client.shutdown();
-                    return Err(AppError::McpError(format!("Indexing failed: {}", text)));
+                match parse_indexing_status(val) {
+                    IndexingOutcome::Complete => {
+                        eprintln!("[claude-context] Indexing complete!");
+                        break;
+                    }
+                    IndexingOutcome::Error(msg) => {
+                        client.shutdown();
+                        return Err(AppError::McpError(format!("Indexing failed: {}", msg)));
+                    }
+                    IndexingOutcome::Inactive(_) if poll_count > 0 => {
+                        eprintln!("[claude-context] No active indexing detected, assuming complete.");
+                        break;
+                    }
+                    _ => {} // InProgress or first-poll Inactive — continue polling
                 }
             }
             Err(e) => {

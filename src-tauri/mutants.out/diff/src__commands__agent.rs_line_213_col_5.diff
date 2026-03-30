@@ -1,0 +1,386 @@
+--- src/commands/agent.rs
++++ replace send_message -> Result<(), AppError> with Ok(())
+@@ -205,382 +205,17 @@
+ 
+ #[tauri::command]
+ pub async fn send_message(
+     app: tauri::AppHandle,
+     state: State<'_, AppState>,
+     request: SendMessageRequest,
+ ) -> Result<(), AppError> {
+     // Determine context_id (either workspace_id or repo_id)
+-    let context_id = resolve_context_id(&request)?;
+-
+-    // Check if agent is already running
+-    {
+-        let mut agents = state.agents.lock().unwrap();
+-        if let Some(agent) = agents.get_mut(&context_id) {
+-            if agent.status == AgentStatus::Running {
+-                // Verify the process is actually alive before rejecting.
+-                // Stale "Running" status can linger from crashed or stuck processes.
+-                if is_agent_alive(agent) {
+-                    return Err(AppError::AgentError(
+-                        "Agent is already processing a message".to_string(),
+-                    ));
+-                }
+-                // Process is dead — reset stale status so we can proceed
+-                agent.status = AgentStatus::Idle;
+-                agent.pid = None;
+-                // Clean up orphaned handles
+-                drop(agents);
+-                state.agent_processes.lock().unwrap().remove(&context_id);
+-                state.agent_stdins.lock().unwrap().remove(&context_id);
+-                state.persistent_agents.lock().unwrap().remove(&context_id);
+-                let _ = app.emit(
+-                    &format!("agent-status:{}", context_id),
+-                    &AgentStatusEvent {
+-                        workspace_id: context_id,
+-                        status: AgentStatus::Idle,
+-                    },
+-                );
+-            }
+-        }
+-    }
+-
+-    // Read agent type from settings
+-    let agent_type = {
+-        let settings = state.settings.read().unwrap();
+-        settings.agent_type.clone()
+-    };
+-
+-    // Resolve working directory and env vars based on context type and agent type
+-    let (working_dir, env_vars) = if let Some(workspace_id) = request.workspace_id {
+-        // Workspace mode: use worktree path
+-        let (workspace, repo) = {
+-            let workspaces = state.workspaces.read().unwrap();
+-            let ws = workspaces
+-                .get(&workspace_id)
+-                .ok_or(AppError::WorkspaceNotFound(workspace_id))?
+-                .clone();
+-            let repos = state.repositories.read().unwrap();
+-            let repo = repos
+-                .get(&ws.repo_id)
+-                .ok_or(AppError::RepoNotFound(ws.repo_id))?
+-                .clone();
+-            (ws, repo)
+-        };
+-        let settings = state.settings.read().unwrap().clone();
+-        let repo_settings = crate::commands::script::resolve_settings(&state, &repo.id).ok();
+-        let provider_override = repo_settings.as_ref().and_then(|s| s.provider_override.as_ref());
+-        let mut env = match agent_type {
+-            AgentType::ClaudeCode => claude_process::build_env_vars(&workspace, &repo, &settings, provider_override),
+-            AgentType::CodexCli => codex_process::build_env_vars(&workspace, &repo, &settings, provider_override),
+-        };
+-
+-        // Agent teams: add sibling workspace names (env var is harmless for Codex,
+-    // though FURY_AGENT_TEAMS is only set by Claude's build_env_vars)
+-        if settings.experimental.agent_teams {
+-            let workspaces = state.workspaces.read().unwrap();
+-            let siblings = collect_sibling_workspace_names(&workspaces, workspace.id, workspace.repo_id);
+-            if !siblings.is_empty() {
+-                env.insert(
+-                    "FURY_TEAM_WORKSPACES".to_string(),
+-                    siblings.join(","),
+-                );
+-            }
+-        }
+-
+-        (workspace.worktree_path.clone(), env)
+-    } else {
+-        // Repo mode: use repo path directly
+-        let repo_id = request.repo_id.unwrap();
+-        let repo = {
+-            let repos = state.repositories.read().unwrap();
+-            repos
+-                .get(&repo_id)
+-                .ok_or(AppError::RepoNotFound(repo_id))?
+-                .clone()
+-        };
+-        let settings = state.settings.read().unwrap().clone();
+-        let repo_settings = crate::commands::script::resolve_settings(&state, &repo_id).ok();
+-        let provider_override = repo_settings.as_ref().and_then(|s| s.provider_override.as_ref());
+-        let env = match agent_type {
+-            AgentType::ClaudeCode => claude_process::build_repo_env_vars(&repo, &settings, provider_override),
+-            AgentType::CodexCli => codex_process::build_repo_env_vars(&repo, &settings, provider_override),
+-        };
+-        (repo.path.clone(), env)
+-    };
+-
+-    // Get or create agent info, extract session_id
+-    let session_id = {
+-        let mut agents = state.agents.lock().unwrap();
+-        activate_agent(&mut agents, context_id)
+-    };
+-
+-    // Create checkpoint before sending message (workspace mode only)
+-    if request.workspace_id.is_some() {
+-        let session_id_str = session_id.clone().unwrap_or_default();
+-        let turn_index = {
+-            let db = state.db.lock().unwrap();
+-            db.as_ref()
+-                .map(|db| db.get_next_turn_index(&context_id).unwrap_or(0))
+-                .unwrap_or(0)
+-        };
+-
+-        match crate::services::checkpoint::create_checkpoint(
+-            &working_dir,
+-            context_id,
+-            &session_id_str,
+-            turn_index,
+-            &request.message,
+-        ) {
+-            Ok(checkpoint) => {
+-                let db = state.db.lock().unwrap();
+-                if let Some(db) = db.as_ref() {
+-                    let _ = db.insert_checkpoint(&checkpoint);
+-                }
+-                let _ = app.emit(
+-                    &format!("checkpoint-created:{}", context_id),
+-                    &checkpoint,
+-                );
+-            }
+-            Err(e) => {
+-                eprintln!("[checkpoint] Failed to create checkpoint: {}", e);
+-            }
+-        }
+-    }
+-
+-    // Emit status change
+-    let _ = app.emit(
+-        &format!("agent-status:{}", context_id),
+-        &AgentStatusEvent {
+-            workspace_id: context_id,
+-            status: AgentStatus::Running,
+-        },
+-    );
+-
+-    // Resolve linked workspace directories (for --add-dir)
+-    // Get link IDs from db first, then drop the db lock before acquiring workspaces lock
+-    // to respect lock ordering (workspaces before db)
+-    let linked_dirs = if request.workspace_id.is_some() {
+-        let link_ids = {
+-            let db = state.db.lock().unwrap();
+-            if let Some(db) = db.as_ref() {
+-                db.get_workspace_links(&context_id).unwrap_or_default()
+-            } else {
+-                vec![]
+-            }
+-        };
+-        // Now get workspace data (db lock is dropped)
+-        if !link_ids.is_empty() {
+-            let workspaces = state.workspaces.read().unwrap();
+-            link_ids
+-                .iter()
+-                .filter_map(|id| workspaces.get(id))
+-                .map(|ws| ws.worktree_path.clone())
+-                .collect()
+-        } else {
+-            vec![]
+-        }
+-    } else {
+-        vec![]
+-    };
+-
+-    // Get system prompt additions
+-    let system_prompt = {
+-        let settings = state.settings.read().unwrap();
+-        settings.system_prompt_additions.clone()
+-    };
+-
+-    let (disable_thinking, _disable_plan_mode) = extract_toggle_flags(&request);
+-
+-    // Validate working directory exists before spawning
+-    if let Err(e) = validate_working_dir(&working_dir) {
+-        reset_agent_on_error(&state.agents, &app, context_id);
+-        return Err(e);
+-    }
+-
+-    // Filter out non-existent linked directories to prevent CLI failures
+-    let linked_dirs: Vec<PathBuf> = linked_dirs
+-        .into_iter()
+-        .filter(|d| d.exists())
+-        .collect();
+-
+-    // Resolve container execution context if workspace has container mode enabled
+-    let container_ctx = if let Some(workspace_id) = request.workspace_id {
+-        let workspaces = state.workspaces.read().unwrap();
+-        if let Some(ws) = workspaces.get(&workspace_id) {
+-            let repos = state.repositories.read().unwrap();
+-            let repo_name = repos
+-                .get(&ws.repo_id)
+-                .map(|r| r.name.clone())
+-                .unwrap_or_else(|| "workspace".to_string());
+-            let container_id = {
+-                let states = state.container_states.lock().unwrap();
+-                states
+-                    .get(&workspace_id)
+-                    .and_then(|cs| cs.container_id.clone())
+-            };
+-            resolve_container_exec_context(ws, &repo_name, container_id)
+-        } else {
+-            None
+-        }
+-    } else {
+-        None
+-    };
+-
+-    match agent_type {
+-    AgentType::ClaudeCode => {
+-        // Sidecar mode: ensure the singleton sidecar is running, then send a Query command.
+-        // The sidecar's background reader handles streaming events back to the frontend.
+-        {
+-            let mut sidecar_guard = state.agent_sidecar.lock().unwrap();
+-            if sidecar_guard.is_none() {
+-                *sidecar_guard = Some(
+-                    claude_process::start_sidecar(&app, Arc::clone(&state.agents))
+-                        .inspect_err(|_| {
+-                            reset_agent_on_error(&state.agents, &app, context_id);
+-                        })?
+-                );
+-            }
+-        }
+-
+-        let permission_mode = "default";
+-
+-        let cmd = claude_process::SidecarCommand::Query {
+-            id: context_id.to_string(),
+-            prompt: request.message.clone(),
+-            cwd: working_dir.to_string_lossy().to_string(),
+-            session_id: session_id.clone(),
+-            model: request.model.clone(),
+-            system_prompt: system_prompt.clone(),
+-            permission_mode: permission_mode.to_string(),
+-            env_vars: Some(env_vars),
+-            additional_dirs: Some(linked_dirs.iter().map(|d| d.to_string_lossy().to_string()).collect()),
+-            disable_thinking: Some(disable_thinking),
+-        };
+-
+-        // Take the handle out of the Mutex, send the command (async), then put it back.
+-        // This avoids holding a std::sync::Mutex across an .await point.
+-        let mut handle = {
+-            let mut guard = state.agent_sidecar.lock().unwrap();
+-            guard.take().ok_or_else(|| {
+-                reset_agent_on_error(&state.agents, &app, context_id);
+-                AppError::AgentError("Sidecar not running".to_string())
+-            })?
+-        };
+-
+-        let result = claude_process::send_command(&mut handle, &cmd).await;
+-
+-        // Always put handle back
+-        state.agent_sidecar.lock().unwrap().replace(handle);
+-
+-        result.inspect_err(|_| {
+-            reset_agent_on_error(&state.agents, &app, context_id);
+-        })?;
+-    } // end AgentType::ClaudeCode
+-
+-    AgentType::CodexCli => {
+-        // Codex: one-shot mode only via `codex exec --json --full-auto`
+-        // (Codex CLI does not support interactive approval or persistent sessions)
+-        let (child, stdin) = match codex_process::spawn_and_stream(
+-            context_id,
+-            &request.message,
+-            &working_dir,
+-            env_vars,
+-            request.model.as_deref(),
+-            app.clone(),
+-            Arc::clone(&state.agents),
+-            container_ctx,
+-        )
+-        .await
+-        {
+-            Ok(result) => result,
+-            Err(e) => {
+-                reset_agent_on_error(&state.agents, &app, context_id);
+-                return Err(e);
+-            }
+-        };
+-
+-        // Store stdin handle
+-        state
+-            .agent_stdins
+-            .lock()
+-            .unwrap()
+-            .insert(context_id, stdin);
+-
+-        // Store PID in agent info for stop_agent
+-        if let Some(pid) = child.id() {
+-            let mut agents = state.agents.lock().unwrap();
+-            if let Some(agent) = agents.get_mut(&context_id) {
+-                agent.pid = Some(pid);
+-            }
+-        }
+-
+-        // Store child process handle
+-        {
+-            let mut processes = state.agent_processes.lock().unwrap();
+-            processes.insert(context_id, child);
+-        }
+-
+-        // Background task: wait for process exit
+-        let agents_ref = Arc::clone(&state.agents);
+-        let processes_ref = Arc::clone(&state.agent_processes);
+-        let stdins_ref = Arc::clone(&state.agent_stdins);
+-        let app_clone = app.clone();
+-        tokio::spawn(async move {
+-            let mut child = {
+-                let mut processes =
+-                    processes_ref.lock().unwrap_or_else(|e| e.into_inner());
+-                processes.remove(&context_id)
+-            };
+-
+-            let exit_status = if let Some(ref mut c) = child {
+-                c.wait().await.ok()
+-            } else {
+-                None
+-            };
+-
+-            stdins_ref
+-                .lock()
+-                .unwrap_or_else(|e| e.into_inner())
+-                .remove(&context_id);
+-
+-            let new_status = match exit_status {
+-                Some(ref status) => status_from_exit(status.code(), status.success()),
+-                None => AgentStatus::Idle,
+-            };
+-
+-            let should_emit = {
+-                let mut agents =
+-                    agents_ref.lock().unwrap_or_else(|e| e.into_inner());
+-                if let Some(agent) = agents.get_mut(&context_id) {
+-                    let emit = should_emit_status(&agent.status, &new_status);
+-                    if emit {
+-                        agent.status = new_status.clone();
+-                    }
+-                    agent.pid = None;
+-                    emit
+-                } else {
+-                    false
+-                }
+-            };
+-
+-            if should_emit {
+-                let _ = app_clone.emit(
+-                    &format!("agent-status:{}", context_id),
+-                    &AgentStatusEvent {
+-                        workspace_id: context_id,
+-                        status: new_status,
+-                    },
+-                );
+-            }
+-        });
+-    }
+-    } // end match agent_type
+-
+-    Ok(())
++    Ok(()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[tauri::command]
+ pub async fn respond_to_permission(
+     state: State<'_, AppState>,
+     workspace_id: String,
+     approved: bool,
+     updated_permissions: Option<serde_json::Value>,

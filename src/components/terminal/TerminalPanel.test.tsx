@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { TerminalPanel } from "./TerminalPanel";
 
 // Make rAF synchronous so createTerminal fires within the same tick as render
@@ -58,6 +58,31 @@ describe("TerminalPanel", () => {
     await waitFor(() => {
       expect(screen.getByText(/spawn failed/)).toBeInTheDocument();
     });
+  });
+
+  it("shows Retry button when terminal creation fails", async () => {
+    (createTerminal as any).mockRejectedValueOnce(new Error("spawn failed"));
+    render(<TerminalPanel context={{ type: "workspace", id: "ws-1" }} />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    });
+  });
+
+  it("retries terminal creation when Retry button is clicked", async () => {
+    (createTerminal as any).mockRejectedValueOnce(new Error("spawn failed"));
+    render(<TerminalPanel context={{ type: "workspace", id: "ws-1" }} />);
+    await waitFor(() => {
+      expect(screen.getByText(/spawn failed/)).toBeInTheDocument();
+    });
+
+    // Second call succeeds
+    (createTerminal as any).mockResolvedValueOnce("term-retry-ok");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("terminal-view")).toBeInTheDocument();
+    });
+    expect(screen.getByText("term-retry-ok")).toBeInTheDocument();
   });
 
   it("calls closeTerminal on unmount", async () => {
@@ -180,5 +205,82 @@ describe("TerminalPanel", () => {
     unmount();
     // The .catch(() => {}) swallows the error
     await new Promise((r) => setTimeout(r, 10));
+  });
+});
+
+describe("TerminalPanel timeout", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Only fake setTimeout/clearTimeout — leave rAF as the synchronous stub above
+    vi.useFakeTimers({ shouldAdvanceTime: false, toFake: ["setTimeout", "clearTimeout"] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("shows timeout error when backend does not respond within 10 seconds", async () => {
+    // Never-resolving promise to simulate a hung backend
+    (createTerminal as any).mockImplementation(() =>
+      new Promise<string>(() => {})
+    );
+    render(<TerminalPanel context={{ type: "workspace", id: "ws-1" }} />);
+    expect(screen.getByText("Starting terminal...")).toBeInTheDocument();
+
+    // Advance past the timeout
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+
+    expect(screen.getByText(/timed out/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("does not show timeout error if terminal resolves before timeout", async () => {
+    // Use a controllable promise
+    let resolveCreate!: (value: string) => void;
+    (createTerminal as any).mockImplementation(() =>
+      new Promise<string>((res) => { resolveCreate = res; })
+    );
+    render(<TerminalPanel context={{ type: "workspace", id: "ws-1" }} />);
+    expect(screen.getByText("Starting terminal...")).toBeInTheDocument();
+
+    // Resolve before timeout
+    await act(async () => {
+      resolveCreate("term-fast");
+    });
+
+    expect(screen.getByTestId("terminal-view")).toBeInTheDocument();
+
+    // Advance past the timeout — should have no effect since the timer was cleared
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+
+    expect(screen.queryByText(/timed out/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("terminal-view")).toBeInTheDocument();
+  });
+
+  it("does not show timeout error if terminal rejects before timeout", async () => {
+    let rejectCreate!: (err: Error) => void;
+    (createTerminal as any).mockImplementation(() =>
+      new Promise<string>((_res, rej) => { rejectCreate = rej; })
+    );
+    render(<TerminalPanel context={{ type: "workspace", id: "ws-1" }} />);
+
+    // Reject before timeout
+    await act(async () => {
+      rejectCreate(new Error("spawn failed"));
+    });
+
+    expect(screen.getByText(/spawn failed/)).toBeInTheDocument();
+
+    // Advance past the timeout — should not override the actual error
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+
+    expect(screen.queryByText(/timed out/)).not.toBeInTheDocument();
+    expect(screen.getByText(/spawn failed/)).toBeInTheDocument();
   });
 });

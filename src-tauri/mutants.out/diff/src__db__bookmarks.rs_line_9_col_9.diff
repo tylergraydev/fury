@@ -1,0 +1,35 @@
+--- src/db/bookmarks.rs
++++ replace Database::insert_bookmark -> Result<(), AppError> with Ok(())
+@@ -1,31 +1,17 @@
+ use super::Database;
+ use crate::error::AppError;
+ use crate::models::bookmark::FileBookmark;
+ use chrono::{DateTime, Utc};
+ use uuid::Uuid;
+ 
+ impl Database {
+     pub fn insert_bookmark(&self, bookmark: &FileBookmark) -> Result<(), AppError> {
+-        self.conn.execute(
+-            "INSERT INTO file_bookmarks (id, repo_id, file_path, line_number, note, color, created_at, updated_at)
+-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+-            rusqlite::params![
+-                bookmark.id.to_string(),
+-                bookmark.repo_id.to_string(),
+-                bookmark.file_path,
+-                bookmark.line_number,
+-                bookmark.note,
+-                bookmark.color,
+-                bookmark.created_at.to_rfc3339(),
+-                bookmark.updated_at.to_rfc3339(),
+-            ],
+-        )?;
+-        Ok(())
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn list_bookmarks(&self, repo_id: &Uuid) -> Result<Vec<FileBookmark>, AppError> {
+         let mut stmt = self.conn.prepare(
+             "SELECT id, repo_id, file_path, line_number, note, color, created_at, updated_at
+              FROM file_bookmarks WHERE repo_id = ?1 ORDER BY file_path ASC, line_number ASC",
+         )?;
+         let bookmarks = stmt

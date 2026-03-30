@@ -1,0 +1,21 @@
+--- src/db/chat.rs
++++ replace < with > in snippet
+@@ -248,17 +248,17 @@
+         // Align to char boundaries
+         let start = text.floor_char_boundary(start);
+         let end = text.ceil_char_boundary(end);
+         let mut s = String::new();
+         if start > 0 {
+             s.push_str("...");
+         }
+         s.push_str(&text[start..end]);
+-        if end < text.len() {
++        if end > /* ~ changed by cargo-mutants ~ */ text.len() {
+             s.push_str("...");
+         }
+         s
+     } else {
+         text.chars().take(max_len).collect()
+     }
+ }
+ 

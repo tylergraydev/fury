@@ -1,0 +1,21 @@
+--- src/commands/agent.rs
++++ replace != with == in collect_sibling_workspace_names
+@@ -120,17 +120,17 @@
+ /// Returns names of workspaces sharing the same repo but excluding the current workspace.
+ pub(crate) fn collect_sibling_workspace_names(
+     workspaces: &HashMap<Uuid, crate::models::workspace::Workspace>,
+     current_ws_id: Uuid,
+     repo_id: Uuid,
+ ) -> Vec<String> {
+     workspaces
+         .values()
+-        .filter(|ws| ws.repo_id == repo_id && ws.id != current_ws_id)
++        .filter(|ws| ws.repo_id == repo_id && ws.id == /* ~ changed by cargo-mutants ~ */ current_ws_id)
+         .map(|ws| ws.name.clone())
+         .collect()
+ }
+ 
+ /// Determine whether container execution context should be used for an agent.
+ /// Returns Some(ContainerExecContext) if the workspace has container mode enabled
+ /// with AgentExecMode::Container and a running container.
+ pub(crate) fn resolve_container_exec_context(

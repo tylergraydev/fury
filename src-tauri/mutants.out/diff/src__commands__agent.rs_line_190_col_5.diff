@@ -1,0 +1,34 @@
+--- src/commands/agent.rs
++++ replace reset_agent_on_error with ()
+@@ -182,30 +182,17 @@
+ }
+ 
+ /// Reset agent status to Idle after a failed spawn/write.
+ fn reset_agent_on_error(
+     agents: &Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
+     app: &tauri::AppHandle,
+     context_id: Uuid,
+ ) {
+-    {
+-        let mut lock = agents.lock().unwrap_or_else(|e| e.into_inner());
+-        if let Some(agent) = lock.get_mut(&context_id) {
+-            agent.status = AgentStatus::Idle;
+-            agent.pid = None;
+-        }
+-    }
+-    let _ = app.emit(
+-        &format!("agent-status:{}", context_id),
+-        &AgentStatusEvent {
+-            workspace_id: context_id,
+-            status: AgentStatus::Idle,
+-        },
+-    );
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[tauri::command]
+ pub async fn send_message(
+     app: tauri::AppHandle,
+     state: State<'_, AppState>,
+     request: SendMessageRequest,
+ ) -> Result<(), AppError> {

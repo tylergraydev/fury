@@ -168,4 +168,135 @@ mod tests {
         assert!(perms.allow.is_empty());
         assert!(perms.deny.is_empty());
     }
+
+    #[test]
+    fn test_add_permissions_to_empty_file() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        write_settings(&path, &serde_json::json!({})).unwrap();
+
+        // Simulate add_claude_permissions logic on the temp file
+        let mut settings = read_settings(&path).unwrap();
+        let permissions = settings
+            .as_object_mut()
+            .unwrap()
+            .entry("permissions")
+            .or_insert_with(|| serde_json::json!({}));
+        let allow = permissions
+            .as_object_mut()
+            .unwrap()
+            .entry("allow")
+            .or_insert_with(|| serde_json::json!([]));
+
+        let existing: Vec<String> = serde_json::from_value(allow.clone()).unwrap_or_default();
+        let mut merged = existing;
+        for rule in &["Read".to_string(), "Glob".to_string()] {
+            if !merged.contains(rule) {
+                merged.push(rule.clone());
+            }
+        }
+        *allow = serde_json::to_value(&merged).unwrap();
+        write_settings(&path, &settings).unwrap();
+
+        // Verify
+        let result = read_settings(&path).unwrap();
+        let perms: ClaudePermissions =
+            serde_json::from_value(result["permissions"].clone()).unwrap();
+        assert_eq!(perms.allow, vec!["Read", "Glob"]);
+    }
+
+    #[test]
+    fn test_add_permissions_no_duplicates() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        let initial = serde_json::json!({"permissions": {"allow": ["Read"]}});
+        write_settings(&path, &initial).unwrap();
+
+        let mut settings = read_settings(&path).unwrap();
+        let allow = settings["permissions"].as_object_mut().unwrap()
+            .entry("allow")
+            .or_insert_with(|| serde_json::json!([]));
+        let existing: Vec<String> = serde_json::from_value(allow.clone()).unwrap_or_default();
+        let mut merged = existing;
+        for rule in &["Read".to_string(), "Write".to_string()] {
+            if !merged.contains(rule) {
+                merged.push(rule.clone());
+            }
+        }
+        *allow = serde_json::to_value(&merged).unwrap();
+        write_settings(&path, &settings).unwrap();
+
+        let result = read_settings(&path).unwrap();
+        let perms: ClaudePermissions =
+            serde_json::from_value(result["permissions"].clone()).unwrap();
+        assert_eq!(perms.allow, vec!["Read", "Write"]); // No duplicate "Read"
+    }
+
+    #[test]
+    fn test_remove_permissions() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        let initial = serde_json::json!({"permissions": {"allow": ["Read", "Write", "Glob"]}});
+        write_settings(&path, &initial).unwrap();
+
+        let mut settings = read_settings(&path).unwrap();
+        if let Some(allow) = settings["permissions"].as_object_mut().unwrap().get_mut("allow") {
+            let existing: Vec<String> = serde_json::from_value(allow.clone()).unwrap_or_default();
+            let filtered: Vec<String> = existing
+                .into_iter()
+                .filter(|r| !["Read", "Glob"].contains(&r.as_str()))
+                .collect();
+            *allow = serde_json::to_value(&filtered).unwrap();
+        }
+        write_settings(&path, &settings).unwrap();
+
+        let result = read_settings(&path).unwrap();
+        let perms: ClaudePermissions =
+            serde_json::from_value(result["permissions"].clone()).unwrap();
+        assert_eq!(perms.allow, vec!["Write"]); // Read and Glob removed
+    }
+
+    #[test]
+    fn test_remove_nonexistent_rule() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        let initial = serde_json::json!({"permissions": {"allow": ["Read"]}});
+        write_settings(&path, &initial).unwrap();
+
+        let mut settings = read_settings(&path).unwrap();
+        if let Some(allow) = settings["permissions"].as_object_mut().unwrap().get_mut("allow") {
+            let existing: Vec<String> = serde_json::from_value(allow.clone()).unwrap_or_default();
+            let filtered: Vec<String> = existing
+                .into_iter()
+                .filter(|r| r != "NonExistent")
+                .collect();
+            *allow = serde_json::to_value(&filtered).unwrap();
+        }
+        write_settings(&path, &settings).unwrap();
+
+        let result = read_settings(&path).unwrap();
+        let perms: ClaudePermissions =
+            serde_json::from_value(result["permissions"].clone()).unwrap();
+        assert_eq!(perms.allow, vec!["Read"]); // Unchanged
+    }
+
+    #[test]
+    fn test_read_settings_invalid_json() {
+        let mut tmp = NamedTempFile::new().unwrap();
+        write!(tmp, "not valid json {{{{").unwrap();
+        let result = read_settings(&tmp.path().to_path_buf());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_claude_permissions_serialization() {
+        let perms = ClaudePermissions {
+            allow: vec!["Read".to_string(), "Write".to_string()],
+            deny: vec![],
+        };
+        let json = serde_json::to_value(&perms).unwrap();
+        // deny should be skipped when empty (skip_serializing_if)
+        assert!(json.get("deny").is_none());
+        assert_eq!(json["allow"].as_array().unwrap().len(), 2);
+    }
 }

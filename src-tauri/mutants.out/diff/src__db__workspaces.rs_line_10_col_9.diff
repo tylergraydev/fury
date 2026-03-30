@@ -1,0 +1,40 @@
+--- src/db/workspaces.rs
++++ replace Database::insert_workspace -> Result<(), AppError> with Ok(())
+@@ -2,36 +2,17 @@
+ use crate::error::AppError;
+ use crate::models::linear::WorkspaceIssue;
+ use crate::models::workspace::{Workspace, WorkspaceStatus};
+ use std::path::PathBuf;
+ use uuid::Uuid;
+ 
+ impl Database {
+     pub fn insert_workspace(&self, ws: &Workspace) -> Result<(), AppError> {
+-        self.conn.execute(
+-            "INSERT INTO workspaces (id, repo_id, name, branch, worktree_path, status, port_base, sparse_dirs, notes, created_at, auto_commit, pinned, devcontainer_config)
+-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+-            rusqlite::params![
+-                ws.id.to_string(),
+-                ws.repo_id.to_string(),
+-                ws.name,
+-                ws.branch,
+-                ws.worktree_path.to_string_lossy().to_string(),
+-                ws.status.as_str(),
+-                ws.port_base,
+-                ws.sparse_dirs.as_ref().map(|d| serde_json::to_string(d).unwrap_or_default()),
+-                ws.notes,
+-                ws.created_at.to_rfc3339(),
+-                ws.auto_commit as i32,
+-                ws.pinned as i32,
+-                ws.devcontainer_config.as_ref().map(|c| serde_json::to_string(c).unwrap_or_default()),
+-            ],
+-        )?;
+-        Ok(())
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn update_workspace_status(
+         &self,
+         id: &Uuid,
+         status: &WorkspaceStatus,
+     ) -> Result<(), AppError> {
+         self.conn.execute(

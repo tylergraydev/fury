@@ -1,0 +1,25 @@
+--- src/db/workspaces.rs
++++ replace Database::delete_workspace -> Result<(), AppError> with Ok(())
+@@ -124,21 +124,17 @@
+                 })
+             })?
+             .filter_map(|r| r.ok())
+             .collect();
+         Ok(workspaces)
+     }
+ 
+     pub fn delete_workspace(&self, id: &Uuid) -> Result<(), AppError> {
+-        self.conn.execute(
+-            "DELETE FROM workspaces WHERE id = ?1",
+-            rusqlite::params![id.to_string()],
+-        )?;
+-        Ok(())
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn update_workspace_devcontainer_config(
+         &self,
+         id: &Uuid,
+         config: Option<&crate::models::devcontainer::DevContainerConfig>,
+     ) -> Result<(), AppError> {
+         let json = config.map(|c| serde_json::to_string(c).unwrap_or_default());

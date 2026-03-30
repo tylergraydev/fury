@@ -163,17 +163,16 @@ pub fn parse_stream_line(line: &str) -> Vec<FrontendStreamEvent> {
                 None => return vec![],
             };
 
-            // Process each content block — emit all of them
+            // Process each content block — skip text blocks because the text
+            // was already streamed incrementally via content_block_delta events.
+            // Emitting it again here would duplicate the entire response content.
             let mut events = Vec::new();
             for block in content {
                 let block_type = block.get("type").and_then(|t| t.as_str()).unwrap_or("");
                 match block_type {
                     "text" => {
-                        if let Some(text) = block.get("text").and_then(|t| t.as_str()) {
-                            events.push(FrontendStreamEvent::AssistantText {
-                                text: text.to_string(),
-                            });
-                        }
+                        // Text already delivered via stream_event content_block_delta;
+                        // skip to avoid duplication.
                     }
                     "tool_use" => {
                         let id = block
@@ -392,17 +391,13 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_assistant_text_event() {
+    fn test_parse_assistant_text_event_skipped_from_assistant_message() {
+        // Text blocks in "assistant" messages are skipped because text was
+        // already streamed via content_block_delta events.
         let line =
             r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Hello world"}]}}"#;
         let events = parse_stream_line(line);
-        assert_eq!(events.len(), 1);
-        match &events[0] {
-            FrontendStreamEvent::AssistantText { text } => {
-                assert_eq!(text, "Hello world");
-            }
-            _ => panic!("Expected AssistantText event"),
-        }
+        assert!(events.is_empty(), "Text from assistant message should be skipped to avoid duplication");
     }
 
     #[test]
@@ -452,16 +447,13 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_multi_block_assistant_message() {
+    fn test_parse_multi_block_assistant_message_skips_text() {
+        // Text blocks are skipped (already streamed), but image blocks are still emitted.
         let line = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Here is a screenshot:"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"abc123"}}]}}"#;
         let events = parse_stream_line(line);
-        assert_eq!(events.len(), 2);
+        assert_eq!(events.len(), 1);
         assert!(matches!(
             &events[0],
-            FrontendStreamEvent::AssistantText { .. }
-        ));
-        assert!(matches!(
-            &events[1],
             FrontendStreamEvent::AssistantImage { .. }
         ));
     }

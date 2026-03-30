@@ -381,9 +381,11 @@ export const usePrStore = create<PrStore>((set, get) => ({
     // Don't start if already polling
     if (_pollIntervals.has(workspaceId)) return;
 
+    // Jitter interval 30-40s to stagger polls across workspaces
+    const jitter = 30000 + Math.floor(Math.random() * 10000);
     const interval = setInterval(() => {
       get().refreshChecks(workspaceId);
-    }, 30000);
+    }, jitter);
 
     _pollIntervals.set(workspaceId, interval);
   },

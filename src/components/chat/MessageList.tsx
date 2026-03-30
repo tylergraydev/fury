@@ -112,6 +112,10 @@ function CollapsedTurnSummary({
   );
 }
 
+export interface MessageListHandle {
+  scrollToBottom: () => void;
+}
+
 interface Props {
   messages: ChatMessage[];
   streamingText: string;
@@ -124,6 +128,7 @@ interface Props {
   workspaceName?: string;
   onAction?: (prompt: string) => void;
   isPlanApproval?: boolean;
+  handleRef?: React.MutableRefObject<MessageListHandle | null>;
 }
 
 export function MessageList({
@@ -138,6 +143,7 @@ export function MessageList({
   workspaceName,
   onAction,
   isPlanApproval,
+  handleRef,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -186,6 +192,13 @@ export function MessageList({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     setIsNearBottom(true);
   }, []);
+
+  // Expose scrollToBottom to parent via handleRef
+  useEffect(() => {
+    if (handleRef) {
+      handleRef.current = { scrollToBottom };
+    }
+  }, [handleRef, scrollToBottom]);
 
   const { orphans, turns } = useMemo(() => segmentTurns(messages), [messages]);
 

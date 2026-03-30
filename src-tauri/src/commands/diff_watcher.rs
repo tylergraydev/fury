@@ -99,4 +99,19 @@ mod tests {
         let result = stop_diff_watcher(state, Uuid::new_v4().to_string()).await;
         assert!(result.is_ok());
     }
+
+    #[tokio::test]
+    async fn test_cmd_stop_diff_watcher_idempotent() {
+        let app = test_helpers::mock_app_with_state();
+        let ws_id = Uuid::new_v4();
+
+        // Stop twice — both should succeed
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result1 = stop_diff_watcher(state, ws_id.to_string()).await;
+        assert!(result1.is_ok());
+
+        let state2: State<'_, crate::state::AppState> = app.state();
+        let result2 = stop_diff_watcher(state2, ws_id.to_string()).await;
+        assert!(result2.is_ok());
+    }
 }

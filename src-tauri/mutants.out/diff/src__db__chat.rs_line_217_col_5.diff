@@ -1,0 +1,42 @@
+--- src/db/chat.rs
++++ replace extract_matched_text -> String with String::new()
+@@ -209,38 +209,17 @@
+             .collect();
+ 
+         Ok(results)
+     }
+ }
+ 
+ /// Extract a text snippet from chat message content that matches the search query.
+ fn extract_matched_text(content_json: &str, display_text: &Option<String>, query: &str) -> String {
+-    let query_lower = query.to_lowercase();
+-
+-    // Check display_text first
+-    if let Some(dt) = display_text {
+-        if dt.to_lowercase().contains(&query_lower) {
+-            return snippet(dt, &query_lower);
+-        }
+-    }
+-
+-    // Parse content blocks and search text blocks
+-    if let Ok(blocks) = serde_json::from_str::<Vec<ContentBlock>>(content_json) {
+-        for block in &blocks {
+-            if let ContentBlock::Text { text } = block {
+-                if text.to_lowercase().contains(&query_lower) {
+-                    return snippet(text, &query_lower);
+-                }
+-            }
+-        }
+-    }
+-
+-    // Fallback: raw substring match on JSON
+-    snippet(content_json, &query_lower)
++    String::new() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Return a short snippet around the first occurrence of `query_lower` in `text`.
+ fn snippet(text: &str, query_lower: &str) -> String {
+     let text_lower = text.to_lowercase();
+     let max_len = 120;
+     if let Some(pos) = text_lower.find(query_lower) {
+         let start = pos.saturating_sub(40);

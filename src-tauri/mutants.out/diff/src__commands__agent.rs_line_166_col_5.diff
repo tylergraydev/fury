@@ -1,0 +1,23 @@
+--- src/commands/agent.rs
++++ replace parse_agent_workspace_id -> Result<Uuid, AppError> with Ok(Default::default())
+@@ -158,19 +158,17 @@
+     (
+         request.disable_thinking.unwrap_or(false),
+         request.disable_plan_mode.unwrap_or(false),
+     )
+ }
+ 
+ /// Parse a workspace_id string into a Uuid, returning WorkspaceNotFound on failure.
+ pub(crate) fn parse_agent_workspace_id(workspace_id: &str) -> Result<Uuid, AppError> {
+-    workspace_id
+-        .parse()
+-        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Get or create an AgentInfo entry, set it to Running, and return the session_id.
+ pub(crate) fn activate_agent(
+     agents: &mut HashMap<Uuid, AgentInfo>,
+     context_id: Uuid,
+ ) -> Option<String> {
+     let agent = agents

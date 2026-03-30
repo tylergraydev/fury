@@ -53,6 +53,7 @@ const _inflightDiff = new Set<string>();
 const _inflightRepoDiff = new Set<string>();
 const _inflightPatch = new Set<string>();
 
+// Stryker disable all: HMR cleanup — stripped by Vite in production builds
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     _inflightDiff.clear();
@@ -60,6 +61,7 @@ if (import.meta.hot) {
     _inflightPatch.clear();
   });
 }
+// Stryker restore all
 
 export const useDiffStore = create<DiffStore>((set, get) => ({
   diffResults: {},

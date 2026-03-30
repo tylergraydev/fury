@@ -129,6 +129,7 @@ Please edit the file at ${conflict.path} to resolve the conflict, combining both
             minimap: { enabled: false },
             fontSize: 12,
             wordWrap: "on",
+            automaticLayout: true,
           }}
         />
       </div>

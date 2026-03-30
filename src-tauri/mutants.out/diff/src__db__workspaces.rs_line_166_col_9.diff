@@ -1,0 +1,25 @@
+--- src/db/workspaces.rs
++++ replace Database::insert_workspace_link -> Result<(), AppError> with Ok(())
+@@ -158,21 +158,17 @@
+         self.conn.execute(
+             "UPDATE workspaces SET sparse_dirs = ?1 WHERE id = ?2",
+             rusqlite::params![json, id.to_string()],
+         )?;
+         Ok(())
+     }
+ 
+     pub fn insert_workspace_link(&self, ws_id: &Uuid, linked_id: &Uuid) -> Result<(), AppError> {
+-        self.conn.execute(
+-            "INSERT OR IGNORE INTO workspace_links (workspace_id, linked_workspace_id) VALUES (?1, ?2)",
+-            rusqlite::params![ws_id.to_string(), linked_id.to_string()],
+-        )?;
+-        Ok(())
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn delete_workspace_link(&self, ws_id: &Uuid, linked_id: &Uuid) -> Result<(), AppError> {
+         self.conn.execute(
+             "DELETE FROM workspace_links WHERE workspace_id = ?1 AND linked_workspace_id = ?2",
+             rusqlite::params![ws_id.to_string(), linked_id.to_string()],
+         )?;
+         Ok(())

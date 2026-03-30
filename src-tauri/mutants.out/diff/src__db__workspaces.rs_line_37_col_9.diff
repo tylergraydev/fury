@@ -1,0 +1,32 @@
+--- src/db/workspaces.rs
++++ replace Database::update_workspace_status -> Result<(), AppError> with Ok(())
+@@ -29,28 +29,17 @@
+         Ok(())
+     }
+ 
+     pub fn update_workspace_status(
+         &self,
+         id: &Uuid,
+         status: &WorkspaceStatus,
+     ) -> Result<(), AppError> {
+-        self.conn.execute(
+-            "UPDATE workspaces SET status = ?1, archived_at = ?2 WHERE id = ?3",
+-            rusqlite::params![
+-                status.as_str(),
+-                match status {
+-                    WorkspaceStatus::Archived => Some(chrono::Utc::now().to_rfc3339()),
+-                    _ => None,
+-                },
+-                id.to_string(),
+-            ],
+-        )?;
+-        Ok(())
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn list_workspaces(&self) -> Result<Vec<Workspace>, AppError> {
+         let mut stmt = self.conn.prepare(
+             "SELECT id, repo_id, name, branch, worktree_path, status, port_base, sparse_dirs, notes, created_at, archived_at, error_message, auto_commit, pinned, devcontainer_config
+              FROM workspaces WHERE status != 'archived'",
+         )?;
+         let workspaces = stmt

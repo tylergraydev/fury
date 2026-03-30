@@ -1,0 +1,36 @@
+---
+title: History
+description: Unified activity timeline of commits, chat messages, and checkpoints
+---
+
+The history view displays a unified activity timeline for your workspace, merging git commits, chat messages, and checkpoints into a single chronological view.
+
+## Opening the history view
+
+Open the history view from the command palette (<Tooltip tip="Ctrl+K on Windows/Linux">**Cmd+K**</Tooltip>) and search for **Open History**.
+
+## Timeline entries
+
+The timeline shows three types of entries, sorted newest first:
+
+| Type | Icon | Description |
+|------|------|-------------|
+| **Git commit** | Git icon (blue) | Commit hash, message, author, and timestamp |
+| **User message** | User icon | Your chat messages (first 200 characters) |
+| **Assistant message** | Sparkles icon (purple) | Agent responses with tool usage badges |
+| **Checkpoint** | Revert icon (green) | Checkpoint number, commit SHA, and associated user message |
+
+System messages are excluded from the timeline.
+
+## Reverting to a checkpoint
+
+Each checkpoint entry has a **Revert to here** button. Clicking it restores the workspace to that checkpoint's state. The button is disabled while the agent is running — stop the agent first.
+
+## Refreshing
+
+Click the **Refresh** button in the header to reload git log data. The timeline also loads automatically when you open the history view.
+
+## Empty states
+
+- **No workspace selected** — Prompts you to select a workspace
+- **No activity yet** — Shown when the workspace has no commits, messages, or checkpoints
