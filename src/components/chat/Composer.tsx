@@ -566,8 +566,8 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
         />
       )}
 
-      {/* Input area with autocomplete — hidden when question card is active */}
-      <div className="relative" style={{ display: questionRequest ? "none" : undefined }}>
+      {/* Input area with autocomplete — conditionally rendered when question card is not active */}
+      {!questionRequest && <div className="relative">
         {/* Slash command autocomplete dropdown */}
         {showSlashMenu && matchingCommands.length > 0 && (
           <div
@@ -941,7 +941,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
             </div>
           </div>
         </div>
-      </div>
+      </div>}
 
       {showPromptLibrary && (
         <PromptLibraryDialog

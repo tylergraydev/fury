@@ -22,8 +22,9 @@ import {
 
 export function normalizeToolName(name: string): string {
   const lower = name.toLowerCase();
-  // Check compound names before their substrings
-  if (lower.includes("askfollowup") || lower.includes("ask_followup") || lower.includes("askuser") || lower.includes("ask_user")) return "AskQuestion";
+  // Check compound names before their substrings — use exact boundaries to avoid
+  // substring collisions (e.g. "mask_user" matching "ask_user").
+  if (lower === "askfollowupquestion" || lower === "ask_followup_question" || lower === "askfollowup" || lower === "ask_followup" || lower === "askuser" || lower === "ask_user" || lower === "askuserquestion" || lower === "ask_user_question" || lower === "askquestion" || lower === "ask_question") return "AskQuestion";
   if (lower.includes("todowrite") || lower.includes("todo_write")) return "TodoWrite";
   if (lower.includes("todoread") || lower.includes("todo_read")) return "TodoRead";
   if (lower.includes("webfetch")) return "WebFetch";

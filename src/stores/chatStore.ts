@@ -347,6 +347,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   clearQuestionRequest: (workspaceId: string) => {
     set((state) => ({
       questionRequest: { ...state.questionRequest, [workspaceId]: null },
+      conductorPhase: { ...state.conductorPhase, [workspaceId]: "idle" },
     }));
   },
 }));

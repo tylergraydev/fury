@@ -54,8 +54,8 @@ interface WorkspaceStore {
 export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   workspaces: [],
   archivedWorkspaces: [],
-  activeWorkspaceId: sessionStorage.getItem("fury:activeWorkspaceId") ?? null,
-  activeRepoId: sessionStorage.getItem("fury:activeRepoId") ?? null,
+  activeWorkspaceId: (import.meta.env.DEV ? sessionStorage.getItem("fury:activeWorkspaceId") : null) ?? null,
+  activeRepoId: (import.meta.env.DEV ? sessionStorage.getItem("fury:activeRepoId") : null) ?? null,
   loading: false,
   error: null,
 // Stryker restore all
@@ -135,16 +135,20 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   },
 
   setActive: (id: string | null) => {
-    if (id) sessionStorage.setItem("fury:activeWorkspaceId", id);
-    else sessionStorage.removeItem("fury:activeWorkspaceId");
-    sessionStorage.removeItem("fury:activeRepoId");
+    if (import.meta.env.DEV) {
+      if (id) sessionStorage.setItem("fury:activeWorkspaceId", id);
+      else sessionStorage.removeItem("fury:activeWorkspaceId");
+      sessionStorage.removeItem("fury:activeRepoId");
+    }
     set({ activeWorkspaceId: id, activeRepoId: null });
   },
 
   setActiveRepo: (id: string | null) => {
-    if (id) sessionStorage.setItem("fury:activeRepoId", id);
-    else sessionStorage.removeItem("fury:activeRepoId");
-    sessionStorage.removeItem("fury:activeWorkspaceId");
+    if (import.meta.env.DEV) {
+      if (id) sessionStorage.setItem("fury:activeRepoId", id);
+      else sessionStorage.removeItem("fury:activeRepoId");
+      sessionStorage.removeItem("fury:activeWorkspaceId");
+    }
     set({ activeRepoId: id, activeWorkspaceId: null });
   },
 

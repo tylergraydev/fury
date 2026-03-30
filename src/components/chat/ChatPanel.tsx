@@ -177,6 +177,10 @@ export function ChatPanel({ contextId, contextType }: Props) {
   const handleStop = useCallback(async () => {
     try {
       await useAgentStore.getState().stopAgent(contextId);
+      // Clear any pending question/permission so the user isn't stuck with a
+      // card that can no longer be answered (agent is now idle).
+      useChatStore.getState().clearQuestionRequest(contextId);
+      useChatStore.getState().clearPermissionRequest(contextId);
     } catch (e) {
       console.error("Failed to stop agent:", e);
     }
