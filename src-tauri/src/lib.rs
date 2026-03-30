@@ -298,6 +298,63 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                let state = app.state::<AppState>();
+
+                // Kill all agent child processes
+                {
+                    let mut processes = state.agent_processes.lock().unwrap();
+                    for (_, mut child) in processes.drain() {
+                        let _ = child.start_kill();
+                    }
+                }
+
+                // Drop persistent agent handles and stdins
+                state.persistent_agents.lock().unwrap().clear();
+                state.agent_stdins.lock().unwrap().clear();
+
+                // Kill all running scripts
+                {
+                    let mut pids = state.script_pids.lock().unwrap();
+                    for (_, pid) in pids.drain() {
+                        let _ = platform::kill_process_group(pid);
+                    }
+                }
+
+                // Close all terminal sessions
+                {
+                    let mut sessions = state.terminal_sessions.lock().unwrap();
+                    for (_, mut session) in sessions.drain() {
+                        let _ = session.child.kill();
+                    }
+                }
+
+                // Stop copilot LSP
+                {
+                    let mut copilot = state.copilot.lock().unwrap();
+                    if let Some((_, mut child)) = copilot.take() {
+                        let _ = child.start_kill();
+                    }
+                }
+
+                // Stop sidecar
+                {
+                    let mut sidecar = state.agent_sidecar.lock().unwrap();
+                    if let Some(mut handle) = sidecar.take() {
+                        let _ = handle.child.start_kill();
+                    }
+                }
+
+                // Kill test processes
+                {
+                    let mut processes = state.test_processes.lock().unwrap();
+                    for (_, pid) in processes.drain() {
+                        let _ = platform::kill_process_group(pid);
+                    }
+                }
+            }
+        });
 }

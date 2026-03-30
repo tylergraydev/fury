@@ -570,7 +570,8 @@ describe("prStore - polling", () => {
 
     usePrStore.getState().startPolling("ws-1");
 
-    await vi.advanceTimersByTimeAsync(30000);
+    // Interval is 30-40s due to jitter; advance past the max to ensure it fires
+    await vi.advanceTimersByTimeAsync(40000);
 
     expect(getPrChecks).toHaveBeenCalledWith("ws-1");
     usePrStore.getState().stopPolling("ws-1");
