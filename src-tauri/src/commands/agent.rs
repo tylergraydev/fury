@@ -172,10 +172,22 @@ pub(crate) fn parse_agent_workspace_id(workspace_id: &str) -> Result<Uuid, AppEr
 pub(crate) fn activate_agent(
     agents: &mut HashMap<Uuid, AgentInfo>,
     context_id: Uuid,
+    db: &std::sync::Mutex<Option<crate::db::Database>>,
 ) -> Option<String> {
     let agent = agents
         .entry(context_id)
-        .or_insert_with(|| AgentInfo::new(context_id));
+        .or_insert_with(|| {
+            let mut info = AgentInfo::new(context_id);
+            // Restore session_id from DB if available (survives app restart)
+            if let Ok(guard) = db.lock() {
+                if let Some(db) = guard.as_ref() {
+                    if let Ok(Some(sid)) = db.get_session_id(&context_id.to_string()) {
+                        info.session_id = Some(sid);
+                    }
+                }
+            }
+            info
+        });
     agent.status = AgentStatus::Running;
     agent.started_at = Some(chrono::Utc::now());
     agent.session_id.clone()
@@ -331,7 +343,7 @@ pub async fn send_message(
     // Get or create agent info, extract session_id
     let session_id = {
         let mut agents = state.agents.lock().unwrap();
-        activate_agent(&mut agents, context_id)
+        activate_agent(&mut agents, context_id, &state.db)
     };
 
     // Create checkpoint before sending message (workspace mode only)
@@ -409,7 +421,7 @@ pub async fn send_message(
         settings.system_prompt_additions.clone()
     };
 
-    let (disable_thinking, _disable_plan_mode) = extract_toggle_flags(&request);
+    let (disable_thinking, disable_plan_mode) = extract_toggle_flags(&request);
 
     // Validate working directory exists before spawning
     if let Err(e) = validate_working_dir(&working_dir) {
@@ -454,7 +466,7 @@ pub async fn send_message(
             let mut sidecar_guard = state.agent_sidecar.lock().unwrap();
             if sidecar_guard.is_none() {
                 *sidecar_guard = Some(
-                    claude_process::start_sidecar(&app, Arc::clone(&state.agents))
+                    claude_process::start_sidecar(&app, Arc::clone(&state.agents), Arc::clone(&state.db))
                         .inspect_err(|_| {
                             reset_agent_on_error(&state.agents, &app, context_id);
                         })?
@@ -475,6 +487,7 @@ pub async fn send_message(
             env_vars: Some(env_vars),
             additional_dirs: Some(linked_dirs.iter().map(|d| d.to_string_lossy().to_string()).collect()),
             disable_thinking: Some(disable_thinking),
+            disable_plan_mode: Some(disable_plan_mode),
         };
 
         // Take the handle out of the Mutex, send the command (async), then put it back.
@@ -719,6 +732,7 @@ pub async fn send_followup_message(
         env_vars: None,
         additional_dirs: None,
         disable_thinking: None,
+        disable_plan_mode: None,
     };
 
     let mut handle = {
@@ -853,8 +867,9 @@ mod tests {
     fn test_activate_agent_new() {
         let mut agents = HashMap::new();
         let id = Uuid::new_v4();
+        let db: Mutex<Option<crate::db::Database>> = Mutex::new(None);
 
-        let session = activate_agent(&mut agents, id);
+        let session = activate_agent(&mut agents, id, &db);
         assert!(session.is_none()); // new agent has no session
         assert_eq!(agents.get(&id).unwrap().status, AgentStatus::Running);
         assert!(agents.get(&id).unwrap().started_at.is_some());
@@ -869,7 +884,8 @@ mod tests {
         agent.status = AgentStatus::Idle;
         agents.insert(id, agent);
 
-        let session = activate_agent(&mut agents, id);
+        let db: Mutex<Option<crate::db::Database>> = Mutex::new(None);
+        let session = activate_agent(&mut agents, id, &db);
         assert_eq!(session, Some("sess-123".to_string()));
         assert_eq!(agents.get(&id).unwrap().status, AgentStatus::Running);
     }
@@ -1012,7 +1028,8 @@ mod tests {
         agent.status = AgentStatus::Error("previous crash".to_string());
         agents.insert(id, agent);
 
-        activate_agent(&mut agents, id);
+        let db: Mutex<Option<crate::db::Database>> = Mutex::new(None);
+        activate_agent(&mut agents, id, &db);
         assert_eq!(agents.get(&id).unwrap().status, AgentStatus::Running);
     }
 
@@ -1025,7 +1042,8 @@ mod tests {
         agent.status = AgentStatus::Idle;
         agents.insert(id, agent);
 
-        let session = activate_agent(&mut agents, id);
+        let db: Mutex<Option<crate::db::Database>> = Mutex::new(None);
+        let session = activate_agent(&mut agents, id, &db);
         assert_eq!(session, Some("my-session".to_string()));
         // session_id should still be there after activation
         assert_eq!(

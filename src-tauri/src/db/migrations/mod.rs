@@ -255,5 +255,40 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
     )
     .map_err(|e| AppError::DbError(e.to_string()))?;
 
+    // Remove FK constraint on chat_messages.workspace_id — this column stores both
+    // workspace IDs and repo IDs (for repo-mode chat), so the FK is incorrect.
+    // SQLite doesn't support DROP CONSTRAINT, so we recreate the table.
+    // The migration is idempotent: it checks if the FK still exists before running.
+    let has_fk: bool = conn
+        .query_row(
+            "SELECT COUNT(*) > 0 FROM pragma_foreign_key_list('chat_messages') WHERE \"table\" = 'workspaces'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(false);
+
+    if has_fk {
+        conn.execute_batch(
+            "
+            BEGIN;
+            CREATE TABLE chat_messages_new (
+                id TEXT UNIQUE,
+                workspace_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                display_text TEXT,
+                metadata TEXT
+            );
+            INSERT INTO chat_messages_new SELECT id, workspace_id, role, content, timestamp, display_text, metadata FROM chat_messages;
+            DROP TABLE chat_messages;
+            ALTER TABLE chat_messages_new RENAME TO chat_messages;
+            CREATE INDEX idx_chat_messages_workspace ON chat_messages(workspace_id);
+            COMMIT;
+            ",
+        )
+        .map_err(|e| AppError::DbError(e.to_string()))?;
+    }
+
     Ok(())
 }

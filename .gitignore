@@ -37,6 +37,7 @@ src-tauri/target/
 
 # Git worktrees
 .worktrees/
+.claude/worktrees/
 
 # Coverage & mutation testing
 coverage/

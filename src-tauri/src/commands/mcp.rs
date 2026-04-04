@@ -168,6 +168,28 @@ pub async fn update_app_settings(
 }
 
 #[tauri::command]
+pub async fn get_last_active_context(
+    state: State<'_, AppState>,
+) -> Result<(Option<String>, Option<String>), AppError> {
+    let db = state.db.lock().unwrap();
+    db.as_ref()
+        .ok_or_else(|| AppError::DbError("DB not initialized".into()))?
+        .get_last_active_context()
+}
+
+#[tauri::command]
+pub async fn save_last_active_context(
+    state: State<'_, AppState>,
+    workspace_id: Option<String>,
+    repo_id: Option<String>,
+) -> Result<(), AppError> {
+    let db = state.db.lock().unwrap();
+    db.as_ref()
+        .ok_or_else(|| AppError::DbError("DB not initialized".into()))?
+        .save_last_active_context(workspace_id.as_deref(), repo_id.as_deref())
+}
+
+#[tauri::command]
 pub async fn detect_cursorrules(
     state: State<'_, AppState>,
     repo_id: String,

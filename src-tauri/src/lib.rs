@@ -192,6 +192,8 @@ pub fn run() {
             commands::mcp::import_cursor_config,
             commands::mcp::get_app_settings,
             commands::mcp::update_app_settings,
+            commands::mcp::get_last_active_context,
+            commands::mcp::save_last_active_context,
             commands::mcp::detect_cursorrules,
             commands::mcp::import_cursorrules,
             // LSP Plugin commands

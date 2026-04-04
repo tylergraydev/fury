@@ -537,7 +537,7 @@ describe("RepoSettingsPanel", () => {
       expect(mockGetRepoSettings).toHaveBeenCalled();
     });
 
-    const worktreeInput = screen.getByPlaceholderText("Default: .worktrees/ (inside repo)");
+    const worktreeInput = screen.getByPlaceholderText("Default: .claude/worktrees/ (inside repo)");
     fireEvent.change(worktreeInput, { target: { value: "/custom/path" } });
     expect(worktreeInput).toHaveValue("/custom/path");
 
@@ -562,11 +562,11 @@ describe("RepoSettingsPanel", () => {
     });
     render(<RepoSettingsPanel repoId="r1" repoName="My Repo" onClose={vi.fn()} />);
     await waitFor(() => {
-      const worktreeInput = screen.getByPlaceholderText("Default: .worktrees/ (inside repo)");
+      const worktreeInput = screen.getByPlaceholderText("Default: .claude/worktrees/ (inside repo)");
       expect(worktreeInput).toHaveValue("/existing/path");
     });
 
-    const worktreeInput = screen.getByPlaceholderText("Default: .worktrees/ (inside repo)");
+    const worktreeInput = screen.getByPlaceholderText("Default: .claude/worktrees/ (inside repo)");
     fireEvent.change(worktreeInput, { target: { value: "" } });
 
     fireEvent.click(screen.getByText("Save"));
