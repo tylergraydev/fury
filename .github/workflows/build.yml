@@ -31,6 +31,8 @@ jobs:
         run: npx eslint src/
       - name: Run frontend tests
         run: npm test
+      - name: Lint Rust
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
       - name: Run Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
 

@@ -10,6 +10,9 @@ npx eslint src/
 echo "=== Pre-commit: frontend tests ==="
 npm test
 
+echo "=== Pre-commit: Rust lint ==="
+cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
 echo "=== Pre-commit: Rust tests ==="
 cargo test --manifest-path src-tauri/Cargo.toml
 
