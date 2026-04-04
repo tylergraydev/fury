@@ -25,6 +25,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: npm ci
+      - name: Check specta bindings are up-to-date
+        run: |
+          cargo test --manifest-path src-tauri/Cargo.toml export_specta_bindings -- --include-ignored
+          git diff --exit-code src/lib/tauri/bindings.generated.ts || {
+            echo "::error::bindings.generated.ts is out of date. Run: cd src-tauri && cargo test export_specta_bindings"
+            exit 1
+          }
       - name: Type-check frontend
         run: npx tsc --noEmit
       - name: Lint frontend

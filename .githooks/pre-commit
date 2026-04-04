@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+echo "=== Pre-commit: check specta bindings ==="
+cargo test --manifest-path src-tauri/Cargo.toml export_specta_bindings -- --include-ignored
+if ! git diff --quiet src/lib/tauri/bindings.generated.ts; then
+  echo "ERROR: bindings.generated.ts is out of date. Stage the regenerated file."
+  exit 1
+fi
+
 echo "=== Pre-commit: type-check frontend ==="
 npx tsc --noEmit
 
