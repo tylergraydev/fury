@@ -8,7 +8,7 @@ export type SidecarCommand =
       sessionId?: string;
       model?: string;
       systemPrompt?: string;
-      permissionMode: "default" | "acceptEdits" | "bypassPermissions";
+      permissionMode: "default" | "plan" | "acceptEdits" | "bypassPermissions";
       allowedTools?: string[];
       disallowedTools?: string[];
       envVars?: Record<string, string>;
