@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "=== Pre-commit: type-check frontend ==="
+npx tsc --noEmit
+
+echo "=== Pre-commit: lint frontend ==="
+npx eslint src/
+
+echo "=== Pre-commit: frontend tests ==="
+npm test
+
+echo "=== Pre-commit: Rust tests ==="
+cargo test --manifest-path src-tauri/Cargo.toml
+
+echo "=== All checks passed ==="
