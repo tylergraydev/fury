@@ -90,6 +90,7 @@ pub(crate) fn script_exit_event(kind: &ScriptKind, id: &Uuid) -> String {
 }
 
 /// Persist repo settings to DB, verifying the repo exists first.
+#[cfg(test)]
 pub(crate) fn update_repo_settings_inner(
     state: &AppState,
     repo_id: &Uuid,
@@ -111,6 +112,7 @@ pub(crate) fn update_repo_settings_inner(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn run_script(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -131,8 +133,19 @@ pub async fn run_script(
         (ws.worktree_path.clone(), ws.repo_id)
     };
 
-    // Resolve settings
-    let settings = resolve_settings(&state, &repo_id)?;
+    // Resolve settings (DB portion via with_db)
+    let repo_id_clone = repo_id;
+    let db_settings = state.with_db(move |db| db.get_repo_settings(&repo_id_clone)).await
+        .unwrap_or_else(|_| RepoSettings::default());
+
+    let repo_path = {
+        let repos = state.repositories.read().unwrap();
+        let repo = repos.get(&repo_id).ok_or(AppError::RepoNotFound(repo_id))?;
+        repo.path.clone()
+    };
+
+    let cj = fury_json::load_fury_json(&repo_path).unwrap_or(None);
+    let settings = fury_json::merge_settings(&db_settings, cj.as_ref());
 
     // Get the script body for the requested kind
     let script_body = get_script_body(&settings, &kind).ok_or_else(|| {
@@ -204,6 +217,7 @@ pub async fn run_script(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn stop_script(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -225,6 +239,7 @@ pub async fn stop_script(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn run_repo_script(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -236,14 +251,19 @@ pub async fn run_repo_script(
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
     let kind = ScriptKind::from_str(&script_kind)?;
 
-    // Resolve settings and repo path
-    let settings = resolve_settings(&state, &id)?;
+    // Resolve settings (DB portion via with_db) and repo path
+    let id_clone = id;
+    let db_settings = state.with_db(move |db| db.get_repo_settings(&id_clone)).await
+        .unwrap_or_else(|_| RepoSettings::default());
 
     let repo_path = {
         let repos = state.repositories.read().unwrap();
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
     };
+
+    let cj = fury_json::load_fury_json(&repo_path).unwrap_or(None);
+    let settings = fury_json::merge_settings(&db_settings, cj.as_ref());
 
     let script_body = get_script_body(&settings, &kind).ok_or_else(|| {
         AppError::ScriptError(format!("No {} script configured", kind.as_str()))
@@ -305,6 +325,7 @@ pub async fn run_repo_script(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn stop_repo_script(
     state: State<'_, AppState>,
     repo_id: String,
@@ -326,6 +347,7 @@ pub async fn stop_repo_script(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_repo_settings(
     state: State<'_, AppState>,
     repo_id: String,
@@ -334,10 +356,23 @@ pub async fn get_repo_settings(
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
-    resolve_settings(&state, &id)
+    // Resolve settings: DB portion via with_db
+    let id_clone = id;
+    let db_settings = state.with_db(move |db| db.get_repo_settings(&id_clone)).await
+        .unwrap_or_else(|_| RepoSettings::default());
+
+    let repo_path = {
+        let repos = state.repositories.read().unwrap();
+        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+        repo.path.clone()
+    };
+
+    let cj = fury_json::load_fury_json(&repo_path).unwrap_or(None);
+    Ok(fury_json::merge_settings(&db_settings, cj.as_ref()))
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn update_repo_settings(
     state: State<'_, AppState>,
     repo_id: String,
@@ -347,7 +382,21 @@ pub async fn update_repo_settings(
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
-    update_repo_settings_inner(&state, &id, &settings)
+    // Verify repo exists
+    {
+        let repos = state.repositories.read().unwrap();
+        if !repos.contains_key(&id) {
+            return Err(AppError::RepoNotFound(id));
+        }
+    }
+
+    // Persist to DB via with_db (if DB not available, silently skip)
+    let _ = state.with_db(move |db| {
+        db.upsert_repo_settings(&id, &settings)?;
+        Ok(())
+    }).await;
+
+    Ok(())
 }
 
 #[cfg(test)]

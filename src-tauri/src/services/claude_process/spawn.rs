@@ -14,6 +14,59 @@ use crate::services::perf_server::SharedPerfMetrics;
 use crate::state::app_state::PersistentAgentHandle;
 
 use crate::services::utils::safe_truncate;
+
+// ─── Extracted pure types for testability ────────────────────────────
+
+/// Ring buffer that keeps the most recent N stderr lines.
+pub(crate) struct StderrRingBuffer {
+    buffer: VecDeque<String>,
+    max_lines: usize,
+}
+
+impl StderrRingBuffer {
+    pub fn new(max_lines: usize) -> Self {
+        Self {
+            buffer: VecDeque::with_capacity(max_lines),
+            max_lines,
+        }
+    }
+
+    pub fn push(&mut self, line: String) {
+        if self.buffer.len() >= self.max_lines {
+            self.buffer.pop_front();
+        }
+        self.buffer.push_back(line);
+    }
+
+    pub fn as_vecdeque(&self) -> &VecDeque<String> {
+        &self.buffer
+    }
+
+    pub fn len(&self) -> usize {
+        self.buffer.len()
+    }
+
+    pub fn drain_all(&mut self) -> Vec<String> {
+        self.buffer.drain(..).collect()
+    }
+}
+
+/// Transition an agent to Idle on stream EOF.
+/// Returns the previous status if a transition occurred, or None.
+pub(crate) fn transition_agent_on_eof(
+    agents: &mut HashMap<Uuid, AgentInfo>,
+    workspace_id: Uuid,
+) -> Option<AgentStatus> {
+    if let Some(agent) = agents.get_mut(&workspace_id) {
+        let prev = agent.status.clone();
+        if prev == AgentStatus::Running || prev == AgentStatus::Stopping {
+            agent.status = AgentStatus::Idle;
+            agent.pid = None;
+            return Some(prev);
+        }
+    }
+    None
+}
 use super::setup::{build_command, build_common_args, find_claude_binary};
 use super::stream::{
     enrich_error_from_stderr, is_known_skippable_line, log_stream_event, parse_stream_line,
@@ -88,7 +141,7 @@ pub async fn spawn_and_stream(
     #[cfg(windows)]
     cmd.creation_flags(0x08000200); // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
 
-    let mut child = cmd.spawn().map_err(|e| {
+    let mut child = cmd.kill_on_drop(true).spawn().map_err(|e| {
         AppError::AgentError(format!("Failed to spawn Claude Code: {}", e))
     })?;
 
@@ -165,24 +218,14 @@ pub async fn spawn_and_stream(
             }
         }
 
-        // EOF — process exited; ensure status transitions away from Running
+        // EOF — process exited; transition to Idle from any active state (Running or Stopping)
         log_stream_event(&perf_metrics_stdout, ws_id, "eof", None);
-        let should_emit = {
+        let prev_status = {
             let mut lock = agents.lock().unwrap_or_else(|e| e.into_inner());
-            if let Some(agent) = lock.get_mut(&ws_id) {
-                if agent.status == AgentStatus::Running {
-                    agent.status = AgentStatus::Idle;
-                    agent.pid = None;
-                    true
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
+            transition_agent_on_eof(&mut lock, ws_id)
         };
-        if should_emit {
-            log_stream_event(&perf_metrics_stdout, ws_id, "status_changed", Some("Running -> Idle (eof)".to_string()));
+        if let Some(prev) = prev_status {
+            log_stream_event(&perf_metrics_stdout, ws_id, "status_changed", Some(format!("{:?} -> Idle (eof)", prev)));
             let _ = app_handle_stdout.emit(
                 &format!("agent-status:{}", ws_id),
                 &AgentStatusEvent {
@@ -286,7 +329,7 @@ pub async fn spawn_persistent(
     #[cfg(windows)]
     cmd.creation_flags(0x08000200); // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
 
-    let mut child = cmd.spawn().map_err(|e| {
+    let mut child = cmd.kill_on_drop(true).spawn().map_err(|e| {
         AppError::AgentError(format!("Failed to spawn persistent Claude Code: {}", e))
     })?;
 
@@ -387,22 +430,12 @@ pub async fn spawn_persistent(
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .remove(&ws_id);
-        let should_emit = {
+        let prev_status = {
             let mut lock = agents_stdout.lock().unwrap_or_else(|e| e.into_inner());
-            if let Some(agent) = lock.get_mut(&ws_id) {
-                if agent.status == AgentStatus::Running {
-                    agent.status = AgentStatus::Idle;
-                    agent.pid = None;
-                    true
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
+            transition_agent_on_eof(&mut lock, ws_id)
         };
-        if should_emit {
-            log_stream_event(&perf_metrics_stdout, ws_id, "status_changed", Some("Running -> Idle (eof)".to_string()));
+        if let Some(prev) = prev_status {
+            log_stream_event(&perf_metrics_stdout, ws_id, "status_changed", Some(format!("{:?} -> Idle (eof)", prev)));
             let _ = app_handle_stdout.emit(
                 &format!("agent-status:{}", ws_id),
                 &AgentStatusEvent {
@@ -436,4 +469,136 @@ pub async fn spawn_persistent(
     });
 
     Ok((child, stdin))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ─── StderrRingBuffer tests ──────────────────────────────────────
+
+    #[test]
+    fn test_stderr_buffer_push_within_limit() {
+        let mut buf = StderrRingBuffer::new(20);
+        for i in 0..5 {
+            buf.push(format!("line {}", i));
+        }
+        assert_eq!(buf.len(), 5);
+    }
+
+    #[test]
+    fn test_stderr_buffer_evicts_oldest() {
+        let mut buf = StderrRingBuffer::new(3);
+        buf.push("a".into());
+        buf.push("b".into());
+        buf.push("c".into());
+        buf.push("d".into());
+        assert_eq!(buf.len(), 3);
+        let items: Vec<_> = buf.as_vecdeque().iter().cloned().collect();
+        assert_eq!(items, vec!["b", "c", "d"]);
+    }
+
+    #[test]
+    fn test_stderr_buffer_exact_capacity() {
+        let mut buf = StderrRingBuffer::new(3);
+        buf.push("a".into());
+        buf.push("b".into());
+        buf.push("c".into());
+        assert_eq!(buf.len(), 3);
+        let items: Vec<_> = buf.as_vecdeque().iter().cloned().collect();
+        assert_eq!(items, vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn test_stderr_buffer_empty() {
+        let buf = StderrRingBuffer::new(20);
+        assert_eq!(buf.len(), 0);
+    }
+
+    #[test]
+    fn test_stderr_buffer_drain_clears() {
+        let mut buf = StderrRingBuffer::new(10);
+        buf.push("x".into());
+        buf.push("y".into());
+        let drained = buf.drain_all();
+        assert_eq!(drained, vec!["x", "y"]);
+        assert_eq!(buf.len(), 0);
+    }
+
+    #[test]
+    fn test_stderr_buffer_single_line_capacity() {
+        let mut buf = StderrRingBuffer::new(1);
+        buf.push("first".into());
+        buf.push("second".into());
+        assert_eq!(buf.len(), 1);
+        assert_eq!(buf.as_vecdeque()[0], "second");
+    }
+
+    // ─── transition_agent_on_eof tests ───────────────────────────────
+
+    #[test]
+    fn test_eof_transitions_running_to_idle() {
+        let ws_id = Uuid::new_v4();
+        let mut agents = HashMap::new();
+        let mut info = AgentInfo::new(ws_id);
+        info.status = AgentStatus::Running;
+        info.pid = Some(12345);
+        agents.insert(ws_id, info);
+
+        let prev = transition_agent_on_eof(&mut agents, ws_id);
+        assert_eq!(prev, Some(AgentStatus::Running));
+        assert_eq!(agents[&ws_id].status, AgentStatus::Idle);
+        assert!(agents[&ws_id].pid.is_none());
+    }
+
+    #[test]
+    fn test_eof_transitions_stopping_to_idle() {
+        let ws_id = Uuid::new_v4();
+        let mut agents = HashMap::new();
+        let mut info = AgentInfo::new(ws_id);
+        info.status = AgentStatus::Stopping;
+        agents.insert(ws_id, info);
+
+        let prev = transition_agent_on_eof(&mut agents, ws_id);
+        assert_eq!(prev, Some(AgentStatus::Stopping));
+        assert_eq!(agents[&ws_id].status, AgentStatus::Idle);
+    }
+
+    #[test]
+    fn test_eof_no_transition_from_idle() {
+        let ws_id = Uuid::new_v4();
+        let mut agents = HashMap::new();
+        let mut info = AgentInfo::new(ws_id);
+        info.status = AgentStatus::Idle;
+        agents.insert(ws_id, info);
+
+        let prev = transition_agent_on_eof(&mut agents, ws_id);
+        assert!(prev.is_none());
+        assert_eq!(agents[&ws_id].status, AgentStatus::Idle);
+    }
+
+    #[test]
+    fn test_eof_no_transition_when_agent_missing() {
+        let ws_id = Uuid::new_v4();
+        let mut agents = HashMap::new();
+        let prev = transition_agent_on_eof(&mut agents, ws_id);
+        assert!(prev.is_none());
+    }
+
+    // ─── write_message tests ─────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_write_message_success() {
+        // Create a real child process with a piped stdin to test write_message
+        let mut child = tokio::process::Command::new("cat")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let stdin = child.stdin.as_mut().unwrap();
+        // write_message takes &mut ChildStdin specifically, so test with real process
+        let result = write_message(stdin, "hello world").await;
+        assert!(result.is_ok());
+        let _ = child.kill().await;
+    }
 }

@@ -121,6 +121,7 @@ pub(crate) fn resolve_repo_path_for_detection(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn start_container(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -186,6 +187,7 @@ pub async fn start_container(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn stop_container(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -222,6 +224,7 @@ pub async fn stop_container(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn rebuild_container(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -251,6 +254,7 @@ pub async fn rebuild_container(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_container_status(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -261,6 +265,7 @@ pub async fn get_container_status(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn update_devcontainer_config(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -279,15 +284,16 @@ pub async fn update_devcontainer_config(
     }
 
     // Now persist to db (workspaces lock is dropped)
-    let db_guard = state.db.lock().unwrap();
-    if let Some(db) = db_guard.as_ref() {
+    state.with_db(move |db| {
         db.update_workspace_devcontainer_config(&ws_id, Some(&config))?;
-    }
+        Ok(())
+    }).await?;
 
     Ok(())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn detect_devcontainer(
     state: State<'_, AppState>,
     repo_id: String,

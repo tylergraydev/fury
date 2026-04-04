@@ -76,6 +76,7 @@ pub(crate) fn compute_mcp_registration_action(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_mcp_servers(scope: Option<String>) -> Result<Vec<McpServer>, AppError> {
     let mcp_scope = parse_mcp_scope(scope.as_deref());
     tokio::task::spawn_blocking(move || mcp_svc::list_mcp_servers(&mcp_scope))
@@ -84,6 +85,7 @@ pub async fn list_mcp_servers(scope: Option<String>) -> Result<Vec<McpServer>, A
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn add_mcp_server(request: AddMcpRequest) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
         mcp_svc::add_mcp_server(
@@ -99,6 +101,7 @@ pub async fn add_mcp_server(request: AddMcpRequest) -> Result<(), AppError> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn remove_mcp_server(request: RemoveMcpRequest) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
         mcp_svc::remove_mcp_server(&request.name, &request.scope)
@@ -108,6 +111,7 @@ pub async fn remove_mcp_server(request: RemoveMcpRequest) -> Result<(), AppError
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn detect_cursor_config() -> Result<bool, AppError> {
     tokio::task::spawn_blocking(|| Ok(cursor_migration::detect_cursor_config().is_some()))
         .await
@@ -115,6 +119,7 @@ pub async fn detect_cursor_config() -> Result<bool, AppError> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn import_cursor_config() -> Result<CursorMigrationResult, AppError> {
     tokio::task::spawn_blocking(cursor_migration::import_cursor_mcp_servers)
         .await
@@ -122,12 +127,14 @@ pub async fn import_cursor_config() -> Result<CursorMigrationResult, AppError> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_app_settings(state: State<'_, AppState>) -> Result<AppSettings, AppError> {
     let settings = state.settings.read().unwrap().clone();
     Ok(settings)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn update_app_settings(
     state: State<'_, AppState>,
     settings: AppSettings,
@@ -135,9 +142,11 @@ pub async fn update_app_settings(
     let old_settings = state.settings.read().unwrap().clone();
 
     // Persist to database
-    let db_guard = state.db.lock().unwrap();
-    update_app_settings_inner(db_guard.as_ref(), &old_settings, &settings)?;
-    drop(db_guard);
+    let old_settings_clone = old_settings.clone();
+    let settings_clone = settings.clone();
+    state.with_db(move |db| {
+        update_app_settings_inner(Some(db), &old_settings_clone, &settings_clone)
+    }).await?;
 
     // Update in-memory state
     {
@@ -168,6 +177,7 @@ pub async fn update_app_settings(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_last_active_context(
     state: State<'_, AppState>,
 ) -> Result<(Option<String>, Option<String>), AppError> {
@@ -178,6 +188,7 @@ pub async fn get_last_active_context(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn save_last_active_context(
     state: State<'_, AppState>,
     workspace_id: Option<String>,
@@ -190,6 +201,7 @@ pub async fn save_last_active_context(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn detect_cursorrules(
     state: State<'_, AppState>,
     repo_id: String,
@@ -204,6 +216,7 @@ pub async fn detect_cursorrules(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn import_cursorrules(
     state: State<'_, AppState>,
     repo_id: String,

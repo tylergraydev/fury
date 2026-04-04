@@ -65,6 +65,7 @@ pub(crate) fn resolve_test_config(state: &AppState, repo_id: &Uuid) -> Result<Te
 
 /// Resolve a config suitable for running tests: needs both framework and test_command.
 /// Falls back to auto-detection if DB config is incomplete.
+#[cfg(test)]
 pub(crate) fn resolve_runnable_test_config(state: &AppState, repo_id: &Uuid) -> Result<TestRunnerConfig, AppError> {
     let db_config = get_db_test_config(state, repo_id)?;
 
@@ -153,6 +154,7 @@ pub(crate) fn test_watch_event(context_id: &str) -> String {
 }
 
 /// List test history from DB, with a default limit of 20.
+#[cfg(test)]
 pub(crate) fn list_test_history_inner(
     state: &AppState,
     repo_id: &Uuid,
@@ -166,6 +168,7 @@ pub(crate) fn list_test_history_inner(
 }
 
 /// Save test runner config to DB after verifying repo exists.
+#[cfg(test)]
 pub(crate) fn save_test_config_inner(
     state: &AppState,
     repo_id: &Uuid,
@@ -187,6 +190,7 @@ pub(crate) fn save_test_config_inner(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn detect_test_framework(
     state: State<'_, AppState>,
     repo_id: String,
@@ -212,6 +216,7 @@ pub async fn detect_test_framework(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_test_runner_config(
     state: State<'_, AppState>,
     repo_id: String,
@@ -220,8 +225,12 @@ pub async fn get_test_runner_config(
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
-    // Read DB config before spawn_blocking (db is not Arc)
-    let db_config = get_db_test_config(&state, &id)?;
+    // Read DB config via with_db
+    let db_config = match state.with_db(move |db| db.get_test_runner_config(&id)).await {
+        Ok(config) => config,
+        Err(AppError::DbError(_)) => TestRunnerConfig::default(),
+        Err(e) => return Err(e),
+    };
 
     // If DB has a config with a framework, use it
     if db_config.framework.is_some() {
@@ -250,6 +259,7 @@ pub async fn get_test_runner_config(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn save_test_runner_config(
     state: State<'_, AppState>,
     repo_id: String,
@@ -259,10 +269,25 @@ pub async fn save_test_runner_config(
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
-    save_test_config_inner(&state, &id, &config)
+    // Verify repo exists
+    {
+        let repos = state.repositories.read().unwrap();
+        if !repos.contains_key(&id) {
+            return Err(AppError::RepoNotFound(id));
+        }
+    }
+
+    // Persist to DB via with_db (if DB not available, silently skip)
+    let _ = state.with_db(move |db| {
+        db.save_test_runner_config(&id, &config)?;
+        Ok(())
+    }).await;
+
+    Ok(())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn run_tests(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -277,8 +302,35 @@ pub async fn run_tests(
     // Resolve working directory and repo ID based on context type
     let (working_dir, repo_id) = resolve_context(&state, &ctx_id, &context_type)?;
 
-    // Get test runner config
-    let config = resolve_runnable_test_config(&state, &repo_id)?;
+    // Get test runner config (DB portion via with_db)
+    let repo_id_for_db = repo_id;
+    let db_config = match state.with_db(move |db| db.get_test_runner_config(&repo_id_for_db)).await {
+        Ok(c) => c,
+        Err(AppError::DbError(_)) => TestRunnerConfig::default(),
+        Err(e) => return Err(e),
+    };
+
+    let config = if db_config.framework.is_some() && db_config.test_command.is_some() {
+        db_config
+    } else {
+        // Auto-detect
+        let repo_path = {
+            let repos = state.repositories.read().unwrap();
+            repos
+                .get(&repo_id)
+                .ok_or(AppError::RepoNotFound(repo_id))?
+                .path
+                .clone()
+        };
+        match test_runner::detect_framework(&repo_path) {
+            Some(fw) => {
+                let mut detected = test_runner::default_commands(&fw);
+                merge_config_with_detected(&db_config, &mut detected);
+                detected
+            }
+            None => db_config,
+        }
+    };
 
     let framework = config
         .framework
@@ -375,6 +427,7 @@ pub async fn run_tests(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn stop_tests(
     state: State<'_, AppState>,
     context_id: String,
@@ -399,6 +452,7 @@ pub async fn stop_tests(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn start_test_watch(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -444,6 +498,7 @@ pub async fn start_test_watch(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn stop_test_watch(
     state: State<'_, AppState>,
     context_id: String,
@@ -456,6 +511,7 @@ pub async fn stop_test_watch(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_test_history(
     state: State<'_, AppState>,
     repo_id: String,
@@ -465,10 +521,16 @@ pub async fn list_test_history(
         .parse()
         .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
 
-    list_test_history_inner(&state, &id, limit)
+    let effective_limit = limit.unwrap_or(20);
+    match state.with_db(move |db| db.list_test_runs(&id, effective_limit)).await {
+        Ok(records) => Ok(records),
+        Err(AppError::DbError(_)) => Ok(vec![]),
+        Err(e) => Err(e),
+    }
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn run_coverage(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -482,15 +544,15 @@ pub async fn run_coverage(
     // Resolve working directory and repo ID
     let (working_dir, repo_id) = resolve_context(&state, &ctx_id, &context_type)?;
 
-    // Get coverage command from config or use default
-    let (coverage_cmd, framework) = {
-        let db = state.db.lock().unwrap();
-        let db_config = match db.as_ref() {
-            Some(db) => db.get_test_runner_config(&repo_id)?,
-            None => TestRunnerConfig::default(),
-        };
-        drop(db);
+    // Get coverage command from config or use default (DB via with_db)
+    let repo_id_for_db = repo_id;
+    let db_config = match state.with_db(move |db| db.get_test_runner_config(&repo_id_for_db)).await {
+        Ok(c) => c,
+        Err(AppError::DbError(_)) => TestRunnerConfig::default(),
+        Err(e) => return Err(e),
+    };
 
+    let (coverage_cmd, framework) = {
         let fw = db_config
             .framework
             .clone()
@@ -504,6 +566,7 @@ pub async fn run_coverage(
 
         let cmd = db_config
             .coverage_command
+            .clone()
             .or_else(|| test_runner::default_coverage_command(&fw));
 
         (cmd, fw)
@@ -513,18 +576,11 @@ pub async fn run_coverage(
         AppError::ScriptError("No coverage command configured for this framework".to_string())
     })?;
 
-    // Resolve effective working directory
-    let effective_dir = {
-        let db = state.db.lock().unwrap();
-        let wd = db
-            .as_ref()
-            .and_then(|d| d.get_test_runner_config(&repo_id).ok())
-            .and_then(|c| c.working_dir);
-        if let Some(ref wd) = wd {
-            working_dir.join(wd)
-        } else {
-            working_dir.clone()
-        }
+    // Resolve effective working directory (reuse db_config already fetched)
+    let effective_dir = if let Some(ref wd) = db_config.working_dir {
+        working_dir.join(wd)
+    } else {
+        working_dir.clone()
     };
 
     // Build env vars

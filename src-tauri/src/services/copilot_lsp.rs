@@ -20,7 +20,7 @@ pub struct CopilotLspHandle {
     pub child_pid: Option<u32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CopilotCompletion {
     pub insert_text: String,
@@ -28,19 +28,19 @@ pub struct CopilotCompletion {
     pub command: Option<Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct CopilotRange {
     pub start: CopilotPosition,
     pub end: CopilotPosition,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct CopilotPosition {
     pub line: u32,
     pub character: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CopilotSignInResult {
     pub status: String,
@@ -50,7 +50,7 @@ pub struct CopilotSignInResult {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct CopilotAuthStatus {
     pub status: String,
     pub user: Option<String>,

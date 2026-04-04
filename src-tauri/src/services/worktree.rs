@@ -299,6 +299,73 @@ mod tests {
         let branch = detect_default_branch(Path::new("/nonexistent/path"));
         assert_eq!(branch, "main"); // Fallback
     }
+
+    #[test]
+    fn test_sanitize_name_unicode() {
+        let result = sanitize_name("feature-日本語-test");
+        assert!(result.contains("feature-"));
+        assert!(result.contains("-test"));
+        // Unicode alphanumerics are kept by is_alphanumeric
+        assert!(result.contains('日'));
+    }
+
+    #[test]
+    fn test_create_worktree_sanitized_name() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let worktree_base = _dir.path().join("worktrees-san");
+        let result = create_worktree(&path, "feat-special", "feat/special@v1", &worktree_base, None);
+        assert!(result.is_ok());
+        let wt_path = result.unwrap();
+        // Path should use sanitized name (slashes and @ replaced)
+        let name = wt_path.file_name().unwrap().to_string_lossy();
+        assert!(!name.contains('/'));
+        assert!(!name.contains('@'));
+    }
+
+    #[test]
+    fn test_remove_then_recreate_same_branch() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let worktree_base = _dir.path().join("worktrees-rc");
+        let wt = create_worktree(&path, "reuse-me", "ws-reuse", &worktree_base, None).unwrap();
+        remove_worktree(&path, &wt).unwrap();
+        // Should be able to create again with the same branch
+        let result = create_worktree(&path, "reuse-me", "ws-reuse-2", &worktree_base, None);
+        assert!(result.is_ok(), "recreate failed: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_detect_default_branch_master() {
+        let dir = tempfile::tempdir().expect("Failed to create temp dir");
+        let path = dir.path().to_path_buf();
+        std::process::Command::new("git")
+            .args(["init", "--initial-branch=master"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::fs::write(path.join("README.md"), "# Test\n").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        let branch = detect_default_branch(&path);
+        assert_eq!(branch, "master");
+    }
 }
 
 /// Detect the default branch of a repository.

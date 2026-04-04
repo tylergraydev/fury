@@ -21,25 +21,15 @@ pub(crate) fn get_usage_data_inner(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_usage_data(
     state: State<'_, AppState>,
     workspace_id: Option<String>,
     since: Option<String>,
 ) -> Result<Vec<UsageDataPoint>, AppError> {
-    let data = {
-        let db_lock = state
-            .db
-            .lock()
-            .map_err(|_| AppError::DbError("Failed to acquire database lock".into()))?;
-        let db = db_lock
-            .as_ref()
-            .ok_or(AppError::DbError("DB not initialized".into()))?;
-        get_usage_data_inner(db, workspace_id, since)?
-    };
-
-    tokio::task::spawn_blocking(move || Ok(data))
+    state
+        .with_db(move |db| get_usage_data_inner(db, workspace_id, since))
         .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[cfg(test)]

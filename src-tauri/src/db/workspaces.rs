@@ -58,8 +58,22 @@ impl Database {
                 let status_str: String = row.get(5)?;
                 let error_msg: Option<String> = row.get(11)?;
                 Ok(Workspace {
-                    id: row.get::<_, String>(0)?.parse::<Uuid>().unwrap_or_default(),
-                    repo_id: row.get::<_, String>(1)?.parse::<Uuid>().unwrap_or_default(),
+                    id: row
+                        .get::<_, String>(0)?
+                        .parse::<Uuid>()
+                        .map_err(|_| rusqlite::Error::FromSqlConversionFailure(
+                            0,
+                            rusqlite::types::Type::Text,
+                            "invalid workspace UUID".into(),
+                        ))?,
+                    repo_id: row
+                        .get::<_, String>(1)?
+                        .parse::<Uuid>()
+                        .map_err(|_| rusqlite::Error::FromSqlConversionFailure(
+                            1,
+                            rusqlite::types::Type::Text,
+                            "invalid repo UUID".into(),
+                        ))?,
                     name: row.get(2)?,
                     branch: row.get(3)?,
                     worktree_path: PathBuf::from(row.get::<_, String>(4)?),
@@ -98,8 +112,22 @@ impl Database {
                 let status_str: String = row.get(5)?;
                 let error_msg: Option<String> = row.get(11)?;
                 Ok(Workspace {
-                    id: row.get::<_, String>(0)?.parse::<Uuid>().unwrap_or_default(),
-                    repo_id: row.get::<_, String>(1)?.parse::<Uuid>().unwrap_or_default(),
+                    id: row
+                        .get::<_, String>(0)?
+                        .parse::<Uuid>()
+                        .map_err(|_| rusqlite::Error::FromSqlConversionFailure(
+                            0,
+                            rusqlite::types::Type::Text,
+                            "invalid workspace UUID".into(),
+                        ))?,
+                    repo_id: row
+                        .get::<_, String>(1)?
+                        .parse::<Uuid>()
+                        .map_err(|_| rusqlite::Error::FromSqlConversionFailure(
+                            1,
+                            rusqlite::types::Type::Text,
+                            "invalid repo UUID".into(),
+                        ))?,
                     name: row.get(2)?,
                     branch: row.get(3)?,
                     worktree_path: PathBuf::from(row.get::<_, String>(4)?),

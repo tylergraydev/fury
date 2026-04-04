@@ -77,47 +77,34 @@ pub(crate) fn delete_prompt_inner(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn create_prompt(
     state: State<'_, AppState>,
     request: CreatePromptRequest,
 ) -> Result<Prompt, AppError> {
-    let db_lock = state.db.lock().unwrap();
-    let db = db_lock
-        .as_ref()
-        .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
-    create_prompt_inner(db, request)
+    state.with_db(move |db| create_prompt_inner(db, request)).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_prompts(state: State<'_, AppState>) -> Result<Vec<Prompt>, AppError> {
-    let db_lock = state.db.lock().unwrap();
-    if let Some(db) = db_lock.as_ref() {
-        list_prompts_inner(db)
-    } else {
-        Ok(vec![])
-    }
+    Ok(state.with_db(list_prompts_inner).await.unwrap_or_else(|_| vec![]))
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn update_prompt(
     state: State<'_, AppState>,
     prompt_id: String,
     request: UpdatePromptRequest,
 ) -> Result<Prompt, AppError> {
-    let db_lock = state.db.lock().unwrap();
-    let db = db_lock
-        .as_ref()
-        .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
-    update_prompt_inner(db, prompt_id, request)
+    state.with_db(move |db| update_prompt_inner(db, prompt_id, request)).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_prompt(state: State<'_, AppState>, prompt_id: String) -> Result<(), AppError> {
-    let db_lock = state.db.lock().unwrap();
-    let db = db_lock
-        .as_ref()
-        .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
-    delete_prompt_inner(db, prompt_id)
+    state.with_db(move |db| delete_prompt_inner(db, prompt_id)).await
 }
 
 #[cfg(test)]

@@ -11,6 +11,7 @@ use crate::state::AppState;
 use tauri::State;
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_pr_reviews(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -44,6 +45,7 @@ pub async fn get_pr_reviews(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_pr_review_comments(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -82,6 +84,7 @@ pub async fn get_pr_review_comments(
 
 /// Fetches PR info, checks, reviews, and comments.
 #[tauri::command]
+#[specta::specta]
 pub async fn get_pr_full_data(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -162,6 +165,7 @@ pub async fn get_pr_full_data(
 
 /// Fetches reviews and comments.
 #[tauri::command]
+#[specta::specta]
 pub async fn get_reviews_and_comments(
     state: State<'_, AppState>,
     workspace_id: String,

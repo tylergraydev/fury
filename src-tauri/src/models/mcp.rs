@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum McpScope {
     #[default]
@@ -18,7 +18,7 @@ impl McpScope {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct McpServer {
     pub name: String,
@@ -28,7 +28,7 @@ pub struct McpServer {
     pub scope: McpScope,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AddMcpRequest {
     pub name: String,
@@ -38,14 +38,14 @@ pub struct AddMcpRequest {
     pub scope: McpScope,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoveMcpRequest {
     pub name: String,
     pub scope: McpScope,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CursorMigrationResult {
     pub mcp_servers_found: usize,
@@ -53,7 +53,7 @@ pub struct CursorMigrationResult {
     pub rules_found: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CursorRulesImportResult {
     pub rules_found: bool,
@@ -62,7 +62,7 @@ pub struct CursorRulesImportResult {
     pub claude_md_path: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum IndexingState {
     NotIndexed,
@@ -71,7 +71,7 @@ pub enum IndexingState {
     Error,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexingStatus {
     pub repo_id: String,

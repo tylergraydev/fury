@@ -19,13 +19,20 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: npm ci
       - name: Type-check frontend
         run: npx tsc --noEmit
       - name: Lint frontend
         run: npx eslint src/
-      - name: Run tests
+      - name: Run frontend tests
         run: npm test
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
 
   e2e:
     needs: check

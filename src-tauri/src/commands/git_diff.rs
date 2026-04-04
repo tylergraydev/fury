@@ -6,7 +6,7 @@ use crate::state::AppState;
 use tauri::State;
 use uuid::Uuid;
 
-#[derive(serde::Serialize, Debug, Clone, PartialEq)]
+#[derive(serde::Serialize, Debug, Clone, PartialEq, specta::Type)]
 pub struct GitLogEntry {
     pub hash: String,
     pub full_hash: String,
@@ -41,6 +41,7 @@ pub(crate) fn parse_git_log_output(raw: &str) -> Vec<GitLogEntry> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_git_log(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -84,6 +85,7 @@ pub async fn get_git_log(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_diff(state: State<'_, AppState>, workspace_id: String) -> Result<DiffResult, AppError> {
     let ws_id: Uuid = workspace_id
         .parse()
@@ -113,6 +115,7 @@ pub async fn get_diff(state: State<'_, AppState>, workspace_id: String) -> Resul
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_file_diff(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -146,6 +149,7 @@ pub async fn get_file_diff(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_repo_diff(state: State<'_, AppState>, repo_id: String) -> Result<DiffResult, AppError> {
     let id: Uuid = repo_id
         .parse()
@@ -166,6 +170,7 @@ pub async fn get_repo_diff(state: State<'_, AppState>, repo_id: String) -> Resul
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_repo_file_diff(
     state: State<'_, AppState>,
     repo_id: String,
@@ -190,6 +195,7 @@ pub async fn get_repo_file_diff(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_file_patch(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -225,6 +231,7 @@ pub async fn get_file_patch(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_repo_file_patch(
     state: State<'_, AppState>,
     repo_id: String,

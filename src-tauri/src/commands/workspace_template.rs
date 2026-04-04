@@ -108,76 +108,48 @@ pub(crate) fn delete_workspace_template_inner(
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
+#[specta::specta]
 pub async fn create_workspace_template(
     state: State<'_, AppState>,
     request: CreateWorkspaceTemplateRequest,
 ) -> Result<WorkspaceTemplate, AppError> {
-    let template = {
-        let db = state.db.lock().unwrap();
-        let db = db
-            .as_ref()
-            .ok_or(AppError::DbError("DB not initialized".into()))?;
-        create_workspace_template_inner(db, request)?
-    };
-
-    tokio::task::spawn_blocking(move || Ok(template))
+    state
+        .with_db(move |db| create_workspace_template_inner(db, request))
         .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_workspace_templates(
     state: State<'_, AppState>,
     repo_id: String,
 ) -> Result<Vec<WorkspaceTemplate>, AppError> {
-    let templates = {
-        let db = state.db.lock().unwrap();
-        let db = db
-            .as_ref()
-            .ok_or(AppError::DbError("DB not initialized".into()))?;
-        list_workspace_templates_inner(db, &repo_id)?
-    };
-
-    tokio::task::spawn_blocking(move || Ok(templates))
+    state
+        .with_db(move |db| list_workspace_templates_inner(db, &repo_id))
         .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn update_workspace_template(
     state: State<'_, AppState>,
     template_id: String,
     request: UpdateWorkspaceTemplateRequest,
 ) -> Result<WorkspaceTemplate, AppError> {
-    let template = {
-        let db = state.db.lock().unwrap();
-        let db = db
-            .as_ref()
-            .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
-        update_workspace_template_inner(db, &template_id, request)?
-    };
-
-    tokio::task::spawn_blocking(move || Ok(template))
+    state
+        .with_db(move |db| update_workspace_template_inner(db, &template_id, request))
         .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_workspace_template(
     state: State<'_, AppState>,
     template_id: String,
 ) -> Result<(), AppError> {
-    {
-        let db = state.db.lock().unwrap();
-        let db = db
-            .as_ref()
-            .ok_or(AppError::DbError("DB not initialized".into()))?;
-        delete_workspace_template_inner(db, &template_id)?;
-    }
-
-    tokio::task::spawn_blocking(move || Ok(()))
+    state
+        .with_db(move |db| delete_workspace_template_inner(db, &template_id))
         .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 // ---------------------------------------------------------------------------

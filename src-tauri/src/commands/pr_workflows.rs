@@ -8,6 +8,7 @@ use crate::state::AppState;
 use tauri::State;
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_workflow_runs(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -34,6 +35,7 @@ pub async fn get_workflow_runs(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_run_jobs(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -61,6 +63,7 @@ pub async fn get_run_jobs(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_run_logs(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -88,6 +91,7 @@ pub async fn get_run_logs(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn rerun_workflow(
     state: State<'_, AppState>,
     workspace_id: String,

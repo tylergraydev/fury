@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, specta::Type)]
 pub enum AgentStatus {
     #[default]
     Idle,
@@ -11,7 +11,7 @@ pub enum AgentStatus {
     Error(String),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentInfo {
     pub workspace_id: Uuid,
@@ -33,7 +33,7 @@ impl AgentInfo {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SendMessageRequest {
     /// Either workspace_id or repo_id must be provided.
@@ -112,7 +112,7 @@ pub enum ContentBlockEvent {
 
 /// Lightweight event emitted to the frontend via Tauri events.
 /// We re-serialize from the raw stream to a simpler shape.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum FrontendStreamEvent {
     System {
@@ -165,7 +165,7 @@ pub enum FrontendStreamEvent {
 }
 
 /// Agent status change event emitted to frontend.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentStatusEvent {
     pub workspace_id: Uuid,

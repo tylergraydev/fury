@@ -104,6 +104,7 @@ pub(crate) fn list_indexing_statuses_inner(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn index_repository(
     state: State<'_, AppState>,
     repo_id: String,
@@ -133,6 +134,7 @@ pub async fn index_repository(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_indexing_status(
     state: State<'_, AppState>,
     repo_id: String,
@@ -144,6 +146,7 @@ pub async fn get_indexing_status(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_indexing_statuses(
     state: State<'_, AppState>,
 ) -> Result<Vec<IndexingStatus>, AppError> {

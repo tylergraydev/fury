@@ -59,6 +59,9 @@ pub enum AppError {
 
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
+
+    #[error("Internal error: {0}")]
+    InternalError(String),
 }
 
 // Tauri commands require the error to implement Serialize
@@ -68,6 +71,16 @@ impl Serialize for AppError {
         S: serde::Serializer,
     {
         serializer.serialize_str(&self.to_string())
+    }
+}
+
+// specta: AppError serializes as a plain string, so tell specta it's a String in TypeScript
+impl specta::Type for AppError {
+    fn inline(
+        type_map: &mut specta::TypeMap,
+        generics: specta::Generics,
+    ) -> specta::datatype::DataType {
+        String::inline(type_map, generics)
     }
 }
 

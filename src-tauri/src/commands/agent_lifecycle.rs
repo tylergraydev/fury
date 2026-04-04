@@ -9,6 +9,7 @@ use crate::state::AppState;
 use tauri::{Emitter, State};
 
 #[tauri::command]
+#[specta::specta]
 pub async fn stop_agent(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -126,25 +127,22 @@ pub async fn stop_agent(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_agent_status(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<AgentInfo, AppError> {
     let id = parse_agent_workspace_id(&workspace_id)?;
 
-    let agents = Arc::clone(&state.agents);
-    tokio::task::spawn_blocking(move || {
-        let agents_lock = agents.lock().unwrap();
-        Ok(agents_lock
-            .get(&id)
-            .cloned()
-            .unwrap_or_else(|| AgentInfo::new(id)))
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    let agents_lock = state.agents.lock().unwrap_or_else(|e| e.into_inner());
+    Ok(agents_lock
+        .get(&id)
+        .cloned()
+        .unwrap_or_else(|| AgentInfo::new(id)))
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn clear_session(
     state: State<'_, AppState>,
     workspace_id: String,

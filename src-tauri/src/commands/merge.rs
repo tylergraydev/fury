@@ -106,6 +106,7 @@ pub(crate) fn resolve_linked_branch(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_branch_status(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -119,6 +120,7 @@ pub async fn get_branch_status(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn fetch_upstream(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -130,6 +132,7 @@ pub async fn fetch_upstream(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn pull_rebase(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -141,6 +144,7 @@ pub async fn pull_rebase(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn pull_merge(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -152,6 +156,7 @@ pub async fn pull_merge(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_conflicted_files(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -163,6 +168,7 @@ pub async fn get_conflicted_files(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_conflict_content(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -177,6 +183,7 @@ pub async fn get_conflict_content(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn resolve_conflict(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -192,6 +199,7 @@ pub async fn resolve_conflict(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn abort_merge_cmd(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -203,6 +211,7 @@ pub async fn abort_merge_cmd(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn continue_merge(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -214,6 +223,7 @@ pub async fn continue_merge(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn cross_worktree_diff(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -237,6 +247,7 @@ pub async fn cross_worktree_diff(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_cross_worktree_file_diff(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -261,6 +272,7 @@ pub async fn get_cross_worktree_file_diff(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn push_workspace(
     state: State<'_, AppState>,
     workspace_id: String,

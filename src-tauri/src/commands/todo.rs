@@ -91,123 +91,60 @@ pub(crate) fn get_todo_summary_inner(
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
+#[specta::specta]
 pub async fn add_todo(
     state: State<'_, AppState>,
     request: CreateTodoRequest,
 ) -> Result<TodoItem, AppError> {
-    let todo = {
-        let db_lock = state.db.lock().unwrap();
-        let db = db_lock
-            .as_ref()
-            .ok_or(AppError::DbError("DB not initialized".into()))?;
-        add_todo_inner(db, request)?
-    };
-
-    tokio::task::spawn_blocking(move || Ok(todo))
-        .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    state.with_db(move |db| add_todo_inner(db, request)).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn update_todo(
     state: State<'_, AppState>,
     request: UpdateTodoRequest,
 ) -> Result<(), AppError> {
-    {
-        let db_lock = state.db.lock().unwrap();
-        let db = db_lock
-            .as_ref()
-            .ok_or(AppError::DbError("DB not initialized".into()))?;
-        update_todo_inner(db, request)?;
-    }
-
-    tokio::task::spawn_blocking(move || Ok(()))
-        .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    state.with_db(move |db| update_todo_inner(db, request)).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_todo(state: State<'_, AppState>, todo_id: String) -> Result<(), AppError> {
-    {
-        let db_lock = state.db.lock().unwrap();
-        let db = db_lock
-            .as_ref()
-            .ok_or(AppError::DbError("DB not initialized".into()))?;
-        delete_todo_inner(db, &todo_id)?;
-    }
-
-    tokio::task::spawn_blocking(move || Ok(()))
-        .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    state.with_db(move |db| delete_todo_inner(db, &todo_id)).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_todos(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<TodoItem>, AppError> {
-    let todos = {
-        let db_lock = state.db.lock().unwrap();
-        let db = db_lock
-            .as_ref()
-            .ok_or(AppError::DbError("DB not initialized".into()))?;
-        list_todos_inner(db, &workspace_id)?
-    };
-
-    tokio::task::spawn_blocking(move || Ok(todos))
-        .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    state.with_db(move |db| list_todos_inner(db, &workspace_id)).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn toggle_todo(state: State<'_, AppState>, todo_id: String) -> Result<bool, AppError> {
-    let result = {
-        let db_lock = state.db.lock().unwrap();
-        let db = db_lock
-            .as_ref()
-            .ok_or(AppError::DbError("DB not initialized".into()))?;
-        toggle_todo_inner(db, &todo_id)?
-    };
-
-    tokio::task::spawn_blocking(move || Ok(result))
-        .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    state.with_db(move |db| toggle_todo_inner(db, &todo_id)).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn reorder_todos(
     state: State<'_, AppState>,
     request: ReorderTodosRequest,
 ) -> Result<(), AppError> {
-    {
-        let db_lock = state.db.lock().unwrap();
-        let db = db_lock
-            .as_ref()
-            .ok_or(AppError::DbError("DB not initialized".into()))?;
-        reorder_todos_inner(db, request)?;
-    }
-
-    tokio::task::spawn_blocking(move || Ok(()))
-        .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    state.with_db(move |db| reorder_todos_inner(db, request)).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_todo_summary(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<TodoSummary, AppError> {
-    let summary = {
-        let db_lock = state.db.lock().unwrap();
-        let db = db_lock
-            .as_ref()
-            .ok_or(AppError::DbError("DB not initialized".into()))?;
-        get_todo_summary_inner(db, &workspace_id)?
-    };
-
-    tokio::task::spawn_blocking(move || Ok(summary))
-        .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    state.with_db(move |db| get_todo_summary_inner(db, &workspace_id)).await
 }
 
 // ---------------------------------------------------------------------------

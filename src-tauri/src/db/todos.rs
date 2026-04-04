@@ -81,12 +81,15 @@ impl Database {
     }
 
     pub fn reorder_todos(&self, workspace_id: &Uuid, todo_ids: &[Uuid]) -> Result<(), AppError> {
+        let tx = self.conn.unchecked_transaction()?;
+        let ws_str = workspace_id.to_string();
         for (index, id) in todo_ids.iter().enumerate() {
-            self.conn.execute(
+            tx.execute(
                 "UPDATE todos SET sort_order = ?1 WHERE id = ?2 AND workspace_id = ?3",
-                rusqlite::params![index as i32, id.to_string(), workspace_id.to_string()],
+                rusqlite::params![index as i32, id.to_string(), ws_str],
             )?;
         }
+        tx.commit()?;
         Ok(())
     }
 

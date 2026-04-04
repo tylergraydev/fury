@@ -104,64 +104,48 @@ pub(crate) fn toggle_bookmark_inner(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn create_bookmark(
     state: State<'_, AppState>,
     request: CreateBookmarkRequest,
 ) -> Result<FileBookmark, AppError> {
-    let db_lock = state.db.lock().unwrap();
-    let db = db_lock
-        .as_ref()
-        .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
-    create_bookmark_inner(db, request)
+    state.with_db(move |db| create_bookmark_inner(db, request)).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_bookmarks(
     state: State<'_, AppState>,
     repo_id: String,
 ) -> Result<Vec<FileBookmark>, AppError> {
-    let db_lock = state.db.lock().unwrap();
-    if let Some(db) = db_lock.as_ref() {
-        list_bookmarks_inner(db, repo_id)
-    } else {
-        Ok(vec![])
-    }
+    state.with_db(move |db| list_bookmarks_inner(db, repo_id)).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn update_bookmark(
     state: State<'_, AppState>,
     bookmark_id: String,
     request: UpdateBookmarkRequest,
 ) -> Result<FileBookmark, AppError> {
-    let db_lock = state.db.lock().unwrap();
-    let db = db_lock
-        .as_ref()
-        .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
-    update_bookmark_inner(db, bookmark_id, request)
+    state.with_db(move |db| update_bookmark_inner(db, bookmark_id, request)).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_bookmark(state: State<'_, AppState>, bookmark_id: String) -> Result<(), AppError> {
-    let db_lock = state.db.lock().unwrap();
-    let db = db_lock
-        .as_ref()
-        .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
-    delete_bookmark_inner(db, bookmark_id)
+    state.with_db(move |db| delete_bookmark_inner(db, bookmark_id)).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn toggle_bookmark(
     state: State<'_, AppState>,
     repo_id: String,
     file_path: String,
     line_number: u32,
 ) -> Result<Option<FileBookmark>, AppError> {
-    let db_lock = state.db.lock().unwrap();
-    let db = db_lock
-        .as_ref()
-        .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
-    toggle_bookmark_inner(db, repo_id, file_path, line_number)
+    state.with_db(move |db| toggle_bookmark_inner(db, repo_id, file_path, line_number)).await
 }
 
 #[cfg(test)]

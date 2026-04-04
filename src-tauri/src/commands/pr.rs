@@ -260,6 +260,7 @@ pub(crate) fn count_failing_checks(checks: &[PrCheck]) -> usize {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn create_pr(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -342,6 +343,7 @@ pub async fn create_pr(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_pr_info(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -397,6 +399,7 @@ pub async fn get_pr_info(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_pr_checks(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -431,6 +434,7 @@ pub async fn get_pr_checks(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn push_changes(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -517,6 +521,7 @@ pub async fn push_changes(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn fix_failing_checks(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -555,6 +560,7 @@ pub async fn fix_failing_checks(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn merge_pr(
     app: tauri::AppHandle,
     state: State<'_, AppState>,

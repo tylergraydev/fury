@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum TestFramework {
     Vitest,
@@ -13,7 +13,7 @@ pub enum TestFramework {
     Custom,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TestRunnerConfig {
     pub framework: Option<TestFramework>,
@@ -23,7 +23,7 @@ pub struct TestRunnerConfig {
     pub coverage_command: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum TestStatus {
     Passed,
@@ -33,7 +33,7 @@ pub enum TestStatus {
     Pending,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TestResult {
     pub name: String,
@@ -43,7 +43,7 @@ pub struct TestResult {
     pub failure_message: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TestSuite {
     pub name: String,
@@ -52,7 +52,7 @@ pub struct TestSuite {
     pub duration_ms: Option<f64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TestRunSummary {
     pub total: usize,
@@ -63,7 +63,7 @@ pub struct TestRunSummary {
     pub suites: Vec<TestSuite>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase", tag = "type")]
 #[allow(dead_code)]
 pub enum TestRunEvent {
@@ -79,7 +79,7 @@ pub enum TestRunEvent {
     CoverageResult { report: CoverageReport },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FileCoverage {
     pub file: String,
@@ -88,7 +88,7 @@ pub struct FileCoverage {
     pub uncovered_lines: Vec<u32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CoverageReport {
     pub files: Vec<FileCoverage>,
@@ -96,7 +96,7 @@ pub struct CoverageReport {
     pub total_branches_pct: f32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TestRunRecord {
     pub id: String,

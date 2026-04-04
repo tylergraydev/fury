@@ -95,7 +95,7 @@ pub fn start_sidecar(
         .env_remove("CLAUDE_CODE_ENTRYPOINT")
         .env_remove("CLAUDE_AGENT_SDK_VERSION");
 
-    let mut child = cmd.spawn().map_err(|e| {
+    let mut child = cmd.kill_on_drop(true).spawn().map_err(|e| {
         AppError::AgentError(format!("Failed to start sidecar: {}", e))
     })?;
 
@@ -187,9 +187,9 @@ pub(crate) fn is_result_event(raw: &serde_json::Value) -> bool {
 /// Process a single NDJSON line from the sidecar stdout.
 /// Extracts the `id` field to determine the workspace, then parses
 /// the event and emits it to the frontend.
-fn handle_sidecar_line(
+pub(crate) fn handle_sidecar_line<R: tauri::Runtime>(
     line: &str,
-    app: &AppHandle,
+    app: &tauri::AppHandle<R>,
     agents: &Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
     pending_permissions: &Arc<Mutex<HashMap<Uuid, FrontendStreamEvent>>>,
     db: &Arc<Mutex<Option<Database>>>,
@@ -422,5 +422,131 @@ mod tests {
     fn test_is_result_event_false_for_stream_event() {
         let raw: serde_json::Value = serde_json::json!({"type": "stream_event", "id": "abc"});
         assert!(!is_result_event(&raw));
+    }
+
+    // ─── handle_sidecar_line tests ───────────────────────────────────
+
+    fn setup_sidecar_test() -> (
+        tauri::AppHandle<tauri::test::MockRuntime>,
+        Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
+        Arc<Mutex<HashMap<Uuid, FrontendStreamEvent>>>,
+    ) {
+        let app = crate::test_helpers::mock_app_with_state();
+        let handle = app.handle().clone();
+        let agents = Arc::new(Mutex::new(HashMap::new()));
+        let pending = Arc::new(Mutex::new(HashMap::new()));
+        // Leak app to keep handle alive (test only)
+        std::mem::forget(app);
+        (handle, agents, pending)
+    }
+
+    #[test]
+    fn test_handle_sidecar_line_invalid_json() {
+        let (handle, agents, pending) = setup_sidecar_test();
+        let result = handle_sidecar_line("not json", &handle, &agents, &pending);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid JSON"));
+    }
+
+    #[test]
+    fn test_handle_sidecar_line_missing_id() {
+        let (handle, agents, pending) = setup_sidecar_test();
+        let result =
+            handle_sidecar_line(r#"{"type":"system"}"#, &handle, &agents, &pending);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Missing 'id'"));
+    }
+
+    #[test]
+    fn test_handle_sidecar_line_result_transitions_to_idle() {
+        let (handle, agents, pending) = setup_sidecar_test();
+        let ws_id = Uuid::new_v4();
+
+        // Set agent as Running
+        {
+            let mut lock = agents.lock().unwrap();
+            let mut info = AgentInfo::new(ws_id);
+            info.status = AgentStatus::Running;
+            lock.insert(ws_id, info);
+        }
+
+        let line = format!(
+            r#"{{"id":"{}","type":"result","result":"done","is_error":false}}"#,
+            ws_id
+        );
+        let result = handle_sidecar_line(&line, &handle, &agents, &pending);
+        assert!(result.is_ok());
+
+        let lock = agents.lock().unwrap();
+        assert_eq!(lock[&ws_id].status, AgentStatus::Idle);
+    }
+
+    #[test]
+    fn test_handle_sidecar_line_permission_request_stored() {
+        let (handle, agents, pending) = setup_sidecar_test();
+        let ws_id = Uuid::new_v4();
+        agents.lock().unwrap().insert(ws_id, AgentInfo::new(ws_id));
+
+        // parse_stream_line expects type "input_request" with a "tool" object
+        let line = format!(
+            r#"{{"id":"{}","type":"input_request","tool":{{"name":"bash","input":{{"command":"ls"}}}}}}"#,
+            ws_id
+        );
+        let result = handle_sidecar_line(&line, &handle, &agents, &pending);
+        assert!(result.is_ok());
+        assert!(pending.lock().unwrap().contains_key(&ws_id));
+    }
+
+    #[test]
+    fn test_handle_sidecar_line_result_clears_permission() {
+        let (handle, agents, pending) = setup_sidecar_test();
+        let ws_id = Uuid::new_v4();
+        agents.lock().unwrap().insert(ws_id, AgentInfo::new(ws_id));
+
+        // Insert a pending permission
+        pending.lock().unwrap().insert(
+            ws_id,
+            FrontendStreamEvent::PermissionRequest {
+                tool_name: "Write".into(),
+                input: serde_json::json!({}),
+                suggestions: None,
+            },
+        );
+
+        let line = format!(
+            r#"{{"id":"{}","type":"result","result":"ok","is_error":false}}"#,
+            ws_id
+        );
+        let result = handle_sidecar_line(&line, &handle, &agents, &pending);
+        assert!(result.is_ok());
+        assert!(!pending.lock().unwrap().contains_key(&ws_id));
+    }
+
+    #[test]
+    fn test_handle_sidecar_line_captures_session_id() {
+        let (handle, agents, pending) = setup_sidecar_test();
+        let ws_id = Uuid::new_v4();
+        agents.lock().unwrap().insert(ws_id, AgentInfo::new(ws_id));
+
+        let line = format!(
+            r#"{{"id":"{}","type":"system","session_id":"sess-abc123"}}"#,
+            ws_id
+        );
+        let result = handle_sidecar_line(&line, &handle, &agents, &pending);
+        assert!(result.is_ok());
+
+        let lock = agents.lock().unwrap();
+        assert_eq!(lock[&ws_id].session_id.as_deref(), Some("sess-abc123"));
+    }
+
+    #[test]
+    fn test_handle_sidecar_line_unknown_event_no_crash() {
+        let (handle, agents, pending) = setup_sidecar_test();
+        let ws_id = Uuid::new_v4();
+
+        // Unknown type — parse_stream_line returns empty vec, but handle_sidecar_line shouldn't crash
+        let line = format!(r#"{{"id":"{}","type":"unknown_thing","data":"foo"}}"#, ws_id);
+        let result = handle_sidecar_line(&line, &handle, &agents, &pending);
+        assert!(result.is_ok());
     }
 }

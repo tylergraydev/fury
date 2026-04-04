@@ -180,6 +180,7 @@ fn maybe_auto_index(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn add_repository(
     state: State<'_, AppState>,
     path: String,
@@ -224,12 +225,8 @@ pub async fn add_repository(
     let repo = build_repository(path.clone(), name, default_branch, current_branch, provider, remote_url);
 
     // Persist to database
-    {
-        let db = state.db.lock().unwrap();
-        if let Some(db) = db.as_ref() {
-            db.insert_repository(&repo)?;
-        }
-    }
+    let repo_clone = repo.clone();
+    let _ = state.with_db(move |db| { db.insert_repository(&repo_clone)?; Ok(()) }).await;
 
     // Add to in-memory state
     state
@@ -249,36 +246,34 @@ pub async fn add_repository(
 
     // Auto-detect devcontainer.json — pre-populate repo settings if found
     if let Some(dc_path) = crate::services::devcontainer::detect_devcontainer_json(&path) {
-        let db = state.db.lock().unwrap();
-        if let Some(db) = db.as_ref() {
-            let mut settings = db.get_repo_settings(&repo.id).unwrap_or_default();
+        let repo_id = repo.id;
+        let _ = state.with_db(move |db| {
+            let mut settings = db.get_repo_settings(&repo_id).unwrap_or_default();
             if settings.devcontainer.is_none() {
                 settings.devcontainer = Some(crate::models::devcontainer::DevContainerConfig {
                     enabled: false,
                     devcontainer_path: Some(dc_path),
                     ..Default::default()
                 });
-                let _ = db.upsert_repo_settings(&repo.id, &settings);
+                let _ = db.upsert_repo_settings(&repo_id, &settings);
             }
-        }
+            Ok(())
+        }).await;
     }
 
     Ok(repo)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn remove_repository(
     state: State<'_, AppState>,
     repo_id: String,
 ) -> Result<(), AppError> {
     let id = parse_repo_id(&repo_id)?;
 
-    {
-        let db = state.db.lock().unwrap();
-        if let Some(db) = db.as_ref() {
-            db.delete_repository(&id)?;
-        }
-    }
+    let id_clone = id;
+    let _ = state.with_db(move |db| { db.delete_repository(&id_clone)?; Ok(()) }).await;
 
     state.repositories.write().unwrap().remove(&id);
 
@@ -286,6 +281,7 @@ pub async fn remove_repository(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_repositories(state: State<'_, AppState>) -> Result<Vec<Repository>, AppError> {
     // Clone repos out of the lock FIRST, then release before git I/O.
     let mut repos: Vec<Repository> = {
@@ -293,23 +289,21 @@ pub async fn list_repositories(state: State<'_, AppState>) -> Result<Vec<Reposit
         guard.values().cloned().collect()
     };
 
-    // Detect current branch for each repo in parallel using spawn_blocking.
-    let handles: Vec<_> = repos
-        .iter()
-        .map(|r| {
-            let path = r.path.clone();
-            tokio::task::spawn_blocking(move || detect_current_branch(&path))
-        })
-        .collect();
-
-    for (repo, handle) in repos.iter_mut().zip(handles) {
-        repo.current_branch = handle.await.unwrap_or_default();
-    }
+    // Detect current branch for all repos in a single blocking task.
+    let repos = tokio::task::spawn_blocking(move || {
+        for repo in &mut repos {
+            repo.current_branch = detect_current_branch(&repo.path);
+        }
+        repos
+    })
+    .await
+    .map_err(|e| AppError::InternalError(format!("task failed: {e}")))?;
 
     Ok(repos)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_branches(
     state: State<'_, AppState>,
     repo_id: String,
@@ -378,6 +372,7 @@ fn register_repository(state: &State<'_, AppState>, path: PathBuf) -> Result<Rep
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn clone_repository(
     state: State<'_, AppState>,
     url: String,
@@ -409,6 +404,7 @@ pub async fn clone_repository(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn init_repository(
     state: State<'_, AppState>,
     path: String,
