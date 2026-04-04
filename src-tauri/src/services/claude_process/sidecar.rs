@@ -430,36 +430,38 @@ mod tests {
         tauri::AppHandle<tauri::test::MockRuntime>,
         Arc<Mutex<HashMap<Uuid, AgentInfo>>>,
         Arc<Mutex<HashMap<Uuid, FrontendStreamEvent>>>,
+        Arc<Mutex<Option<Database>>>,
     ) {
         let app = crate::test_helpers::mock_app_with_state();
         let handle = app.handle().clone();
         let agents = Arc::new(Mutex::new(HashMap::new()));
         let pending = Arc::new(Mutex::new(HashMap::new()));
+        let db = Arc::new(Mutex::new(None));
         // Leak app to keep handle alive (test only)
         std::mem::forget(app);
-        (handle, agents, pending)
+        (handle, agents, pending, db)
     }
 
     #[test]
     fn test_handle_sidecar_line_invalid_json() {
-        let (handle, agents, pending) = setup_sidecar_test();
-        let result = handle_sidecar_line("not json", &handle, &agents, &pending);
+        let (handle, agents, pending, db) = setup_sidecar_test();
+        let result = handle_sidecar_line("not json", &handle, &agents, &pending, &db);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Invalid JSON"));
     }
 
     #[test]
     fn test_handle_sidecar_line_missing_id() {
-        let (handle, agents, pending) = setup_sidecar_test();
+        let (handle, agents, pending, db) = setup_sidecar_test();
         let result =
-            handle_sidecar_line(r#"{"type":"system"}"#, &handle, &agents, &pending);
+            handle_sidecar_line(r#"{"type":"system"}"#, &handle, &agents, &pending, &db);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Missing 'id'"));
     }
 
     #[test]
     fn test_handle_sidecar_line_result_transitions_to_idle() {
-        let (handle, agents, pending) = setup_sidecar_test();
+        let (handle, agents, pending, db) = setup_sidecar_test();
         let ws_id = Uuid::new_v4();
 
         // Set agent as Running
@@ -474,7 +476,7 @@ mod tests {
             r#"{{"id":"{}","type":"result","result":"done","is_error":false}}"#,
             ws_id
         );
-        let result = handle_sidecar_line(&line, &handle, &agents, &pending);
+        let result = handle_sidecar_line(&line, &handle, &agents, &pending, &db);
         assert!(result.is_ok());
 
         let lock = agents.lock().unwrap();
@@ -483,7 +485,7 @@ mod tests {
 
     #[test]
     fn test_handle_sidecar_line_permission_request_stored() {
-        let (handle, agents, pending) = setup_sidecar_test();
+        let (handle, agents, pending, db) = setup_sidecar_test();
         let ws_id = Uuid::new_v4();
         agents.lock().unwrap().insert(ws_id, AgentInfo::new(ws_id));
 
@@ -492,14 +494,14 @@ mod tests {
             r#"{{"id":"{}","type":"input_request","tool":{{"name":"bash","input":{{"command":"ls"}}}}}}"#,
             ws_id
         );
-        let result = handle_sidecar_line(&line, &handle, &agents, &pending);
+        let result = handle_sidecar_line(&line, &handle, &agents, &pending, &db);
         assert!(result.is_ok());
         assert!(pending.lock().unwrap().contains_key(&ws_id));
     }
 
     #[test]
     fn test_handle_sidecar_line_result_clears_permission() {
-        let (handle, agents, pending) = setup_sidecar_test();
+        let (handle, agents, pending, db) = setup_sidecar_test();
         let ws_id = Uuid::new_v4();
         agents.lock().unwrap().insert(ws_id, AgentInfo::new(ws_id));
 
@@ -517,14 +519,14 @@ mod tests {
             r#"{{"id":"{}","type":"result","result":"ok","is_error":false}}"#,
             ws_id
         );
-        let result = handle_sidecar_line(&line, &handle, &agents, &pending);
+        let result = handle_sidecar_line(&line, &handle, &agents, &pending, &db);
         assert!(result.is_ok());
         assert!(!pending.lock().unwrap().contains_key(&ws_id));
     }
 
     #[test]
     fn test_handle_sidecar_line_captures_session_id() {
-        let (handle, agents, pending) = setup_sidecar_test();
+        let (handle, agents, pending, db) = setup_sidecar_test();
         let ws_id = Uuid::new_v4();
         agents.lock().unwrap().insert(ws_id, AgentInfo::new(ws_id));
 
@@ -532,7 +534,7 @@ mod tests {
             r#"{{"id":"{}","type":"system","session_id":"sess-abc123"}}"#,
             ws_id
         );
-        let result = handle_sidecar_line(&line, &handle, &agents, &pending);
+        let result = handle_sidecar_line(&line, &handle, &agents, &pending, &db);
         assert!(result.is_ok());
 
         let lock = agents.lock().unwrap();
@@ -541,12 +543,12 @@ mod tests {
 
     #[test]
     fn test_handle_sidecar_line_unknown_event_no_crash() {
-        let (handle, agents, pending) = setup_sidecar_test();
+        let (handle, agents, pending, db) = setup_sidecar_test();
         let ws_id = Uuid::new_v4();
 
         // Unknown type — parse_stream_line returns empty vec, but handle_sidecar_line shouldn't crash
         let line = format!(r#"{{"id":"{}","type":"unknown_thing","data":"foo"}}"#, ws_id);
-        let result = handle_sidecar_line(&line, &handle, &agents, &pending);
+        let result = handle_sidecar_line(&line, &handle, &agents, &pending, &db);
         assert!(result.is_ok());
     }
 }

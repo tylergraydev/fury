@@ -572,7 +572,7 @@ mod tests {
             *next += 1;
         }
         {
-            let mut next = handle.next_id.lock().await;
+            let next = handle.next_id.lock().await;
             assert_eq!(*next, 2);
         }
 
@@ -622,7 +622,7 @@ mod tests {
     async fn test_read_lsp_message_valid() {
         let input = b"Content-Length: 14\r\n\r\n{\"test\":\"ok\"}x";
         // Create a fake ChildStdout via pipe
-        let (mut writer, reader) = tokio::io::duplex(1024);
+        let (mut writer, _reader) = tokio::io::duplex(1024);
         writer
             .write_all(&input[..input.len() - 1]) // exclude trailing 'x'
             .await
