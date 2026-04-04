@@ -1133,6 +1133,22 @@ async updateAppSettings(settings: AppSettings) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async getLastActiveContext() : Promise<Result<[string | null, string | null], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_last_active_context") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async saveLastActiveContext(workspaceId: string | null, repoId: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_last_active_context", { workspaceId, repoId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async detectCursorrules(repoId: string) : Promise<Result<boolean, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("detect_cursorrules", { repoId }) };
@@ -1539,7 +1555,12 @@ async applyDevcontainerConfig(workspaceId: string, configJson: string, commitToR
 
 export type AddMcpRequest = { name: string; command: string; args: string[]; env: Partial<{ [key in string]: string }>; scope: McpScope }
 export type AgentExecMode = "host" | "container"
-export type AgentInfo = { workspaceId: string; sessionId: string | null; status: AgentStatus; startedAt: string | null; pid: number | null }
+export type AgentInfo = { workspaceId: string; sessionId: string | null; status: AgentStatus; startedAt: string | null; pid: number | null; 
+/**
+ * Tracks whether plan mode was disabled for this agent session.
+ * `false` means plan mode is ON (send "plan"), `true` means plan mode is OFF (send "default").
+ */
+disablePlanMode: boolean }
 export type AgentStatus = "Idle" | "Running" | "Stopping" | { Error: string }
 export type AgentTurnPayload = { workspaceId: string; durationMs: number; durationApiMs: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number; totalCostUsd: number; numTurns: number; timestamp: number }
 export type AgentType = "claude_code" | "codex_cli"
