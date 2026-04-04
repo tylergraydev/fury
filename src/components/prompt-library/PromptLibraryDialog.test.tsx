@@ -710,9 +710,9 @@ describe("PromptLibraryDialog", () => {
         expect(mockCreatePrompt).toHaveBeenCalledWith({
           name: "minimal",
           content: "just content",
-          description: undefined,
-          category: undefined,
-          tags: undefined,
+          description: null,
+          category: null,
+          tags: null,
         });
       });
     });
@@ -795,8 +795,8 @@ describe("PromptLibraryDialog", () => {
         expect(mockUpdatePrompt).toHaveBeenCalledWith("prompt-1", {
           name: "code-review",
           content: "Review {{file}} for issues",
-          description: undefined,
-          category: undefined,
+          description: null,
+          category: null,
           tags: [],
         });
       });

@@ -199,7 +199,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
     if (!text) return;
     // Remove trailing system (error) messages before retrying
     useChatStore.getState().removeTrailingSystemMessages(contextId);
-    useChatStore.getState().addUserMessage(contextId, text, lastUserMsg.displayText);
+    useChatStore.getState().addUserMessage(contextId, text, lastUserMsg.displayText ?? undefined);
     // Auto-scroll to bottom on retry
     messageListHandleRef.current?.scrollToBottom();
     /* v8 ignore start */

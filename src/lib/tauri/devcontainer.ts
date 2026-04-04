@@ -1,5 +1,5 @@
 import { instrumentedInvoke as invoke } from "../ipcInstrumentation";
-import type { ContainerState, DevContainerConfig } from "./types";
+import type { ContainerState, DevContainerConfig } from "./bindings.generated";
 
 // Dev Container commands
 export async function startContainer(

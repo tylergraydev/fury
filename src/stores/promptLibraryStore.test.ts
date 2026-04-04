@@ -69,13 +69,16 @@ describe("promptLibraryStore - createPrompt", () => {
 
     const result = await usePromptLibraryStore
       .getState()
-      .createPrompt({ name: "new-prompt", content: "Hello" });
+      .createPrompt({ name: "new-prompt", content: "Hello", description: null, category: null, tags: null });
 
     expect(result).toEqual(prompt);
     expect(usePromptLibraryStore.getState().prompts).toEqual([prompt]);
     expect(createPrompt).toHaveBeenCalledWith({
       name: "new-prompt",
       content: "Hello",
+      description: null,
+      category: null,
+      tags: null,
     });
   });
 
@@ -87,7 +90,7 @@ describe("promptLibraryStore - createPrompt", () => {
     await expect(
       usePromptLibraryStore
         .getState()
-        .createPrompt({ name: "dup", content: "x" }),
+        .createPrompt({ name: "dup", content: "x", description: null, category: null, tags: null }),
     ).rejects.toThrow("duplicate name");
 
     expect(usePromptLibraryStore.getState().error).toBe(
@@ -106,7 +109,7 @@ describe("promptLibraryStore - updatePrompt", () => {
 
     await usePromptLibraryStore
       .getState()
-      .updatePrompt("prompt-1", { name: "renamed" });
+      .updatePrompt("prompt-1", { name: "renamed", content: null, description: null, category: null, tags: null });
 
     expect(usePromptLibraryStore.getState().prompts[0].name).toBe(
       "renamed",
@@ -114,6 +117,10 @@ describe("promptLibraryStore - updatePrompt", () => {
     expect(usePromptLibraryStore.getState().prompts[1].name).toBe("other");
     expect(updatePrompt).toHaveBeenCalledWith("prompt-1", {
       name: "renamed",
+      content: null,
+      description: null,
+      category: null,
+      tags: null,
     });
   });
 
@@ -125,7 +132,7 @@ describe("promptLibraryStore - updatePrompt", () => {
     await expect(
       usePromptLibraryStore
         .getState()
-        .updatePrompt("prompt-1", { name: "x" }),
+        .updatePrompt("prompt-1", { name: "x", content: null, description: null, category: null, tags: null }),
     ).rejects.toThrow("not found");
 
     expect(usePromptLibraryStore.getState().error).toBe(

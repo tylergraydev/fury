@@ -1,5 +1,5 @@
 import { instrumentedInvoke as invoke } from "../ipcInstrumentation";
-import type { DiffResult, FileDiffContent, FilePatchPreview, Checkpoint } from "./types";
+import type { DiffResult, FileDiffContent, FilePatchPreview, Checkpoint } from "./bindings.generated";
 
 // Checkpoint commands
 export async function listCheckpoints(

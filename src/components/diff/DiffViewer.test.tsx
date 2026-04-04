@@ -95,13 +95,13 @@ describe("DiffViewer", () => {
           files: [
             {
               path: "src/app.ts",
-              status: "Modified",
+              status: "modified",
               additions: 10,
               deletions: 0,
             },
             {
               path: "src/new.ts",
-              status: "Added",
+              status: "added",
               additions: 20,
               deletions: 0,
             },
@@ -124,7 +124,7 @@ describe("DiffViewer", () => {
           files: [
             {
               path: "src/app.ts",
-              status: "Modified",
+              status: "modified",
               additions: 1,
               deletions: 0,
             },
@@ -145,7 +145,7 @@ describe("DiffViewer", () => {
           files: [
             {
               path: "src/app.ts",
-              status: "Modified",
+              status: "modified",
               additions: 1,
               deletions: 0,
             },
@@ -167,25 +167,25 @@ describe("DiffViewer", () => {
           files: [
             {
               path: "src/mod.ts",
-              status: "Modified",
+              status: "modified",
               additions: 1,
               deletions: 1,
             },
             {
               path: "src/new.ts",
-              status: "Added",
+              status: "added",
               additions: 5,
               deletions: 0,
             },
             {
               path: "src/old.ts",
-              status: "Deleted",
+              status: "deleted",
               additions: 0,
               deletions: 10,
             },
             {
               path: "src/unknown.ts",
-              status: "Untracked",
+              status: "untracked",
               additions: 3,
               deletions: 0,
             },
@@ -211,7 +211,7 @@ describe("DiffViewer", () => {
           files: [
             {
               path: "src/app.ts",
-              status: "Modified",
+              status: "modified",
               additions: 1,
               deletions: 0,
             },
@@ -234,7 +234,7 @@ describe("DiffViewer", () => {
           files: [
             {
               path: "src/app.ts",
-              status: "Modified",
+              status: "modified",
               additions: 1,
               deletions: 0,
             },
@@ -261,7 +261,7 @@ describe("DiffViewer", () => {
           files: [
             {
               path: "src/renamed.ts",
-              status: { Renamed: { from: "src/old.ts" } },
+              status: { renamed: { from: "src/old.ts" } },
               additions: 0,
               deletions: 0,
             },
@@ -303,7 +303,7 @@ describe("DiffViewer", () => {
           files: [
             {
               path: "src/app.ts",
-              status: "Modified",
+              status: "modified",
               additions: 1,
               deletions: 0,
             },
@@ -335,7 +335,7 @@ describe("DiffViewer", () => {
           files: [
             {
               path: "src/app.ts",
-              status: "Modified",
+              status: "modified",
               additions: 1,
               deletions: 0,
             },
@@ -359,6 +359,7 @@ describe("DiffViewer", () => {
           sessionId: "s1",
           status: "Idle",
           startedAt: null,
+          pid: null,
         },
       },
     });
@@ -374,7 +375,7 @@ describe("DiffViewer", () => {
           files: [
             {
               path: "src/app.ts",
-              status: "Modified",
+              status: "modified",
               additions: 1,
               deletions: 1,
             },
@@ -395,7 +396,7 @@ describe("DiffViewer", () => {
           files: [
             {
               path: "src/app.ts",
-              status: "Modified",
+              status: "modified",
               additions: 7,
               deletions: 4,
             },

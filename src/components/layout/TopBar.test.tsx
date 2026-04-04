@@ -64,6 +64,7 @@ describe("TopBar", () => {
           sessionId: "s1",
           status: "Running",
           startedAt: null,
+          pid: null,
         },
       },
     });
@@ -80,6 +81,7 @@ describe("TopBar", () => {
           sessionId: "s1",
           status: { Error: "something broke" },
           startedAt: null,
+          pid: null,
         },
       },
     });
@@ -115,6 +117,7 @@ describe("TopBar", () => {
           sessionId: "s1",
           status: "Running",
           startedAt: null,
+          pid: null,
         },
       },
     });

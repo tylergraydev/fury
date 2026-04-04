@@ -95,9 +95,10 @@ describe("chatStore - subscribe", () => {
         "ws-1": [
           {
             id: "m1",
+            workspaceId: "ws-1",
             role: "user",
             content: [{ type: "text", text: "hi" }],
-            timestamp: 1000,
+            timestamp: "2024-01-01T00:00:00Z",
           },
         ],
       },
@@ -158,9 +159,10 @@ describe("chatStore - addUserMessage", () => {
         "ws-1": [
           {
             id: "m1",
+            workspaceId: "ws-1",
             role: "user",
             content: [{ type: "text", text: "first" }],
-            timestamp: 1000,
+            timestamp: "2024-01-01T00:00:00Z",
           },
         ],
       },
@@ -179,9 +181,10 @@ describe("chatStore - clearMessages", () => {
         "ws-1": [
           {
             id: "m1",
+            workspaceId: "ws-1",
             role: "user",
             content: [{ type: "text", text: "hi" }],
-            timestamp: 1000,
+            timestamp: "2024-01-01T00:00:00Z",
           },
         ],
       },
@@ -202,9 +205,10 @@ describe("chatStore - getters", () => {
     const msgs = [
       {
         id: "m1",
+        workspaceId: "ws-1",
         role: "user" as const,
         content: [{ type: "text" as const, text: "hi" }],
-        timestamp: 1000,
+        timestamp: "2024-01-01T00:00:00Z",
       },
     ];
     useChatStore.setState({ messages: { "ws-1": msgs } });
@@ -270,21 +274,24 @@ describe("chatStore - removeTrailingSystemMessages", () => {
         "ws-1": [
           {
             id: "m1",
+            workspaceId: "ws-1",
             role: "user",
             content: [{ type: "text", text: "hi" }],
-            timestamp: 1000,
+            timestamp: "2024-01-01T00:00:00Z",
           },
           {
             id: "m2",
+            workspaceId: "ws-1",
             role: "system",
             content: [{ type: "text", text: "sys" }],
-            timestamp: 2000,
+            timestamp: "2024-01-01T00:00:00Z",
           },
           {
             id: "m3",
+            workspaceId: "ws-1",
             role: "system",
             content: [{ type: "text", text: "sys2" }],
-            timestamp: 3000,
+            timestamp: "2024-01-01T00:00:00Z",
           },
         ],
       },
@@ -303,9 +310,10 @@ describe("chatStore - removeTrailingSystemMessages", () => {
         "ws-1": [
           {
             id: "m1",
+            workspaceId: "ws-1",
             role: "user",
             content: [{ type: "text", text: "hi" }],
-            timestamp: 1000,
+            timestamp: "2024-01-01T00:00:00Z",
           },
         ],
       },
@@ -1133,9 +1141,9 @@ describe("chatStore - getPlanContent", () => {
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "user", content: [{ type: "text", text: "plan?" }], timestamp: 1000 },
-          { id: "m2", role: "assistant", content: [{ type: "text", text: "Step 1" }], timestamp: 2000 },
-          { id: "m3", role: "assistant", content: [{ type: "text", text: "Step 2" }], timestamp: 3000 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "plan?" }], timestamp: "2024-01-01T00:00:00Z" },
+          { id: "m2", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "Step 1" }], timestamp: "2024-01-01T00:00:00Z" },
+          { id: "m3", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "Step 2" }], timestamp: "2024-01-01T00:00:00Z" },
         ],
       },
     });
@@ -1147,9 +1155,9 @@ describe("chatStore - getPlanContent", () => {
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "assistant", content: [{ type: "text", text: "Early" }], timestamp: 1000 },
-          { id: "m2", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 2000 },
-          { id: "m3", role: "assistant", content: [{ type: "text", text: "Later" }], timestamp: 3000 },
+          { id: "m1", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "Early" }], timestamp: "2024-01-01T00:00:00Z" },
+          { id: "m2", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: "2024-01-01T00:00:00Z" },
+          { id: "m3", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "Later" }], timestamp: "2024-01-01T00:00:00Z" },
         ],
       },
     });
@@ -1167,13 +1175,14 @@ describe("chatStore - getPlanContent", () => {
         "ws-1": [
           {
             id: "m1",
+            workspaceId: "ws-1",
             role: "assistant",
             content: [
               { type: "toolUse", id: "t1", name: "read", input: {} },
               { type: "text", text: "   " },
               { type: "text", text: "Real content" },
             ],
-            timestamp: 1000,
+            timestamp: "2024-01-01T00:00:00Z",
           },
         ],
       },
@@ -1469,7 +1478,7 @@ describe("chatStore - result event branch coverage for ?? fallbacks", () => {
 describe("chatStore - clearMessages clears sessionStats", () => {
   it("removes sessionStats for the workspace", () => {
     useChatStore.setState({
-      messages: { "ws-1": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1000 }] },
+      messages: { "ws-1": [{ id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: "2024-01-01T00:00:00Z" }] },
       sessionStats: {
         "ws-1": { totalCostUsd: 0.1, totalInputTokens: 100, totalOutputTokens: 50, numTurns: 1 },
         "ws-2": { totalCostUsd: 0.2, totalInputTokens: 200, totalOutputTokens: 100, numTurns: 2 },
@@ -1592,7 +1601,7 @@ describe("chatStore - handleStreamEvent result clears state correctly", () => {
   it("attaches metadata to last assistant message on result", () => {
     // Add an assistant message first
     useChatStore.setState({
-      messages: { "ws-1": [{ id: "m1", role: "assistant", content: [{ type: "text", text: "hello" }], timestamp: 1000 }] },
+      messages: { "ws-1": [{ id: "m1", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "hello" }], timestamp: "2024-01-01T00:00:00Z" }] },
     });
     handleEvent({ payload: {
       type: "result", isError: false, result: null, sessionId: "s1",
@@ -1638,7 +1647,7 @@ describe("chatStore - handleStreamEvent result clears state correctly", () => {
 
   it("persists message on result when no metadata but assistant message exists", () => {
     useChatStore.setState({
-      messages: { "ws-1": [{ id: "m1", role: "assistant", content: [{ type: "text", text: "response" }], timestamp: 1000 }] },
+      messages: { "ws-1": [{ id: "m1", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "response" }], timestamp: "2024-01-01T00:00:00Z" }] },
     });
     handleEvent({ payload: { type: "result", isError: false, result: null, sessionId: null } });
     // saveChatMessage should have been called to persist the assistant message
@@ -1648,7 +1657,7 @@ describe("chatStore - handleStreamEvent result clears state correctly", () => {
   it("does not persist when result has no metadata and no assistant message", () => {
     vi.mocked(saveChatMessage).mockClear();
     useChatStore.setState({
-      messages: { "ws-1": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1000 }] },
+      messages: { "ws-1": [{ id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: "2024-01-01T00:00:00Z" }] },
     });
     handleEvent({ payload: { type: "result", isError: false, result: null, sessionId: null } });
     // No assistant message to persist — saveChatMessage should NOT be called for the result persist path
@@ -1672,7 +1681,7 @@ describe("chatStore - handleStreamEvent result clears state correctly", () => {
   it("result with no metadata and last msg is user does not persist", () => {
     vi.mocked(saveChatMessage).mockClear();
     useChatStore.setState({
-      messages: { "ws-1": [{ id: "u1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1000 }] },
+      messages: { "ws-1": [{ id: "u1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: "2024-01-01T00:00:00Z" }] },
     });
     handleEvent({ payload: { type: "result", isError: false, result: null, sessionId: null } });
     // No assistant message to persist — saveChatMessage should not be called for persist path
@@ -1833,9 +1842,9 @@ describe("chatStore - getPlanContent", () => {
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "user", content: [{ type: "text", text: "plan this" }], timestamp: 1 },
-          { id: "m2", role: "assistant", content: [{ type: "text", text: "Step 1" }], timestamp: 2 },
-          { id: "m3", role: "assistant", content: [{ type: "text", text: "Step 2" }], timestamp: 3 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "plan this" }], timestamp: "2024-01-01T00:00:00Z" },
+          { id: "m2", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "Step 1" }], timestamp: "2024-01-01T00:00:00Z" },
+          { id: "m3", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "Step 2" }], timestamp: "2024-01-01T00:00:00Z" },
         ],
       },
     });
@@ -1971,7 +1980,7 @@ describe("chatStore - subscribe token timing edge cases", () => {
 
     await useChatStore.getState().subscribe("ws-clr-token");
     useChatStore.setState({
-      messages: { "ws-clr-token": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1 }] },
+      messages: { "ws-clr-token": [{ id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: "2024-01-01T00:00:00Z" }] },
     });
 
     useChatStore.getState().clearMessages("ws-clr-token");
@@ -1993,7 +2002,7 @@ describe("chatStore - subscribe token timing edge cases", () => {
 
     await useChatStore.getState().subscribe("ws-resub");
     useChatStore.setState({
-      messages: { "ws-resub": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1 }] },
+      messages: { "ws-resub": [{ id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: "2024-01-01T00:00:00Z" }] },
     });
 
     useChatStore.getState().clearMessages("ws-resub");
@@ -2023,7 +2032,7 @@ describe("chatStore - handleStreamEvent result with non-assistant last msg", () 
 
   it("result with metadata when last msg is user does not set metadata on it", () => {
     useChatStore.setState({
-      messages: { "ws-1": [{ id: "u1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1 }] },
+      messages: { "ws-1": [{ id: "u1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: "2024-01-01T00:00:00Z" }] },
     });
     handleEvent({ payload: {
       type: "result", isError: false, result: null, sessionId: null,
@@ -2134,7 +2143,7 @@ describe("chatStore - clearMessages token cancellation L215", () => {
 
     await useChatStore.getState().subscribe("ws-clr215");
     useChatStore.setState({
-      messages: { "ws-clr215": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1 }] },
+      messages: { "ws-clr215": [{ id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: "2024-01-01T00:00:00Z" }] },
     });
 
     // Clear messages — should set token.cancelled = true
@@ -2160,7 +2169,7 @@ describe("chatStore - clearMessages re-subscribe chain L239", () => {
 
     await useChatStore.getState().subscribe("ws-resub239");
     useChatStore.setState({
-      messages: { "ws-resub239": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1 }] },
+      messages: { "ws-resub239": [{ id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: "2024-01-01T00:00:00Z" }] },
     });
 
     useChatStore.getState().clearMessages("ws-resub239");
@@ -2430,7 +2439,7 @@ describe("chatStore - clearMessages cancellation string", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(clearChatMessages).mockRejectedValue(new Error("clear failed"));
     useChatStore.setState({
-      messages: { "ws-1": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1000 }] },
+      messages: { "ws-1": [{ id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: "2024-01-01T00:00:00Z" }] },
     });
     useChatStore.getState().clearMessages("ws-1");
     // Wait for async clearChatMessages to reject
@@ -2528,7 +2537,7 @@ describe("chatStore - clearMessages cancels tokens and tears down", () => {
   it("tears down subscription on clearMessages", () => {
     const unsub = vi.fn();
     useChatStore.setState({
-      messages: { "ws-1": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1000 }] },
+      messages: { "ws-1": [{ id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: "2024-01-01T00:00:00Z" }] },
       subscriptions: { "ws-1": unsub },
     });
     vi.mocked(clearChatMessages).mockResolvedValue(undefined);
@@ -2541,7 +2550,7 @@ describe("chatStore - clearMessages cancels tokens and tears down", () => {
 
   it("clears messages array for workspace", () => {
     useChatStore.setState({
-      messages: { "ws-1": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1000 }] },
+      messages: { "ws-1": [{ id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: "2024-01-01T00:00:00Z" }] },
     });
     vi.mocked(clearChatMessages).mockResolvedValue(undefined);
 
@@ -2914,7 +2923,7 @@ describe("chatStore - subscribe cancellation tokens", () => {
 
     await useChatStore.getState().subscribe("ws-clear-token");
     useChatStore.setState({
-      messages: { "ws-clear-token": [{ id: "m1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1 }] },
+      messages: { "ws-clear-token": [{ id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "hi" }], timestamp: "2024-01-01T00:00:00Z" }] },
     });
     useChatStore.getState().clearMessages("ws-clear-token");
 

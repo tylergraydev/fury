@@ -1,5 +1,5 @@
 import { instrumentedInvoke as invoke } from "../ipcInstrumentation";
-import type { Repository } from "./types";
+import type { Repository } from "./bindings.generated";
 
 // Repository commands
 export async function addRepository(path: string): Promise<Repository> {
@@ -51,8 +51,8 @@ export async function updateSparseDirs(
 export async function getGitLog(
   workspaceId: string,
   maxCount?: number,
-): Promise<import("./types").GitLogEntry[]> {
-  return invoke<import("./types").GitLogEntry[]>("get_git_log", { workspaceId, maxCount });
+): Promise<import("./bindings.generated").GitLogEntry[]> {
+  return invoke<import("./bindings.generated").GitLogEntry[]>("get_git_log", { workspaceId, maxCount });
 }
 
 // Repo-scoped file listing

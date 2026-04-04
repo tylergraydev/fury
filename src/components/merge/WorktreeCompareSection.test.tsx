@@ -119,8 +119,8 @@ describe("WorktreeCompareSection", () => {
       comparisonDiff: {
         "ws-1": {
           files: [
-            { path: "src/app.ts", status: "Modified", additions: 5, deletions: 2 },
-            { path: "src/index.ts", status: "Added", additions: 10, deletions: 0 },
+            { path: "src/app.ts", status: "modified", additions: 5, deletions: 2 },
+            { path: "src/index.ts", status: "added", additions: 10, deletions: 0 },
           ],
           totalAdditions: 15,
           totalDeletions: 2,
@@ -159,7 +159,7 @@ describe("WorktreeCompareSection", () => {
       comparisonDiff: {
         "ws-1": {
           files: [
-            { path: "src/app.ts", status: "Modified", additions: 5, deletions: 2 },
+            { path: "src/app.ts", status: "modified", additions: 5, deletions: 2 },
           ],
           totalAdditions: 15,
           totalDeletions: 3,
@@ -181,9 +181,9 @@ describe("WorktreeCompareSection", () => {
       comparisonDiff: {
         "ws-1": {
           files: [
-            { path: "a.ts", status: "Deleted", additions: 0, deletions: 5 },
-            { path: "b.ts", status: "Untracked", additions: 3, deletions: 0 },
-            { path: "c.ts", status: { Renamed: { from: "old.ts" } }, additions: 0, deletions: 0 },
+            { path: "a.ts", status: "deleted", additions: 0, deletions: 5 },
+            { path: "b.ts", status: "untracked", additions: 3, deletions: 0 },
+            { path: "c.ts", status: { renamed: { from: "old.ts" } }, additions: 0, deletions: 0 },
             { path: "d.ts", status: "SomethingElse" as any, additions: 0, deletions: 0 },
           ],
           totalAdditions: 3,
@@ -208,7 +208,7 @@ describe("WorktreeCompareSection", () => {
       comparisonDiff: {
         "ws-1": {
           files: [
-            { path: "src/app.ts", status: "Modified", additions: 5, deletions: 2 },
+            { path: "src/app.ts", status: "modified", additions: 5, deletions: 2 },
           ],
           totalAdditions: 5,
           totalDeletions: 2,
@@ -231,7 +231,7 @@ describe("WorktreeCompareSection", () => {
       comparisonDiff: {
         "ws-1": {
           files: [
-            { path: "src/app.ts", status: "Modified", additions: 5, deletions: 2 },
+            { path: "src/app.ts", status: "modified", additions: 5, deletions: 2 },
           ],
           totalAdditions: 5,
           totalDeletions: 2,
@@ -260,7 +260,7 @@ describe("WorktreeCompareSection", () => {
       comparisonDiff: {
         "ws-1": {
           files: [
-            { path: "src/app.ts", status: "Modified", additions: 5, deletions: 2 },
+            { path: "src/app.ts", status: "modified", additions: 5, deletions: 2 },
           ],
           totalAdditions: 5,
           totalDeletions: 2,
@@ -332,7 +332,7 @@ describe("WorktreeCompareSection", () => {
       comparisonDiff: {
         "ws-1": {
           files: [
-            { path: "src/app.ts", status: "Modified", additions: 8, deletions: 3 },
+            { path: "src/app.ts", status: "modified", additions: 8, deletions: 3 },
           ],
           totalAdditions: 99,
           totalDeletions: 88,
@@ -353,7 +353,7 @@ describe("WorktreeCompareSection", () => {
       comparisonDiff: {
         "ws-1": {
           files: [
-            { path: "src/app.ts", status: "Modified", additions: 5, deletions: 2 },
+            { path: "src/app.ts", status: "modified", additions: 5, deletions: 2 },
           ],
           totalAdditions: 5,
           totalDeletions: 2,
@@ -375,8 +375,8 @@ describe("WorktreeCompareSection", () => {
       comparisonDiff: {
         "ws-1": {
           files: [
-            { path: "a.ts", status: "Modified", additions: 1, deletions: 0 },
-            { path: "b.ts", status: "Added", additions: 2, deletions: 0 },
+            { path: "a.ts", status: "modified", additions: 1, deletions: 0 },
+            { path: "b.ts", status: "added", additions: 2, deletions: 0 },
           ],
           totalAdditions: 3,
           totalDeletions: 0,

@@ -57,10 +57,12 @@ pub enum ContentBlock {
         input: serde_json::Value,
     },
     ToolResult {
+        #[serde(rename = "toolUseId")]
         tool_use_id: String,
         content: String,
     },
     Image {
+        #[serde(rename = "mediaType")]
         media_type: String,
         data: String,
     },

@@ -40,8 +40,8 @@ beforeEach(() => {
 });
 
 describe("DiffHoverPreview", () => {
-  const file = { path: "src/app.ts", status: "Modified" as const, additions: 5, deletions: 2 };
-  const untrackedFile = { path: "src/new.ts", status: "Untracked" as const, additions: 10, deletions: 0 };
+  const file = { path: "src/app.ts", status: "modified" as const, additions: 5, deletions: 2 };
+  const untrackedFile = { path: "src/new.ts", status: "untracked" as const, additions: 10, deletions: 0 };
 
   it("returns null when anchorEl is null", () => {
     const { container } = render(

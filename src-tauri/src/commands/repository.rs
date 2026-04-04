@@ -226,7 +226,7 @@ pub async fn add_repository(
 
     // Persist to database
     let repo_clone = repo.clone();
-    let _ = state.with_db(move |db| { db.insert_repository(&repo_clone)?; Ok(()) }).await;
+    state.with_db(move |db| { db.insert_repository(&repo_clone)?; Ok(()) }).await?;
 
     // Add to in-memory state
     state
@@ -273,7 +273,7 @@ pub async fn remove_repository(
     let id = parse_repo_id(&repo_id)?;
 
     let id_clone = id;
-    let _ = state.with_db(move |db| { db.delete_repository(&id_clone)?; Ok(()) }).await;
+    state.with_db(move |db| { db.delete_repository(&id_clone)?; Ok(()) }).await?;
 
     state.repositories.write().unwrap().remove(&id);
 

@@ -107,7 +107,7 @@ export function HistoryView() {
         .join("\n");
       items.push({
         kind: "chat",
-        timestamp: msg.timestamp,
+        timestamp: new Date(msg.timestamp).getTime(),
         data: {
           messageId: msg.id,
           role: msg.role as "user" | "assistant",

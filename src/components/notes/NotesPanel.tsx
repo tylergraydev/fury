@@ -214,7 +214,7 @@ function TodoList({
           onToggle={() => useTodoStore.getState().toggleTodo(workspaceId, todo.id)}
           onDelete={() => useTodoStore.getState().deleteTodo(workspaceId, todo.id)}
           onEdit={(text) =>
-            useTodoStore.getState().updateTodo({ id: todo.id, workspaceId, text })
+            useTodoStore.getState().updateTodo({ id: todo.id, workspaceId, text, completed: null })
           }
           onDragStart={() => handleDragStart(index)}
           onDragOver={(e) => handleDragOver(e, index)}

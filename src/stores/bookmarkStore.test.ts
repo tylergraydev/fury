@@ -134,6 +134,8 @@ describe("bookmarkStore - addBookmark", () => {
       repoId: "repo-1",
       filePath: "src/index.ts",
       lineNumber: 10,
+      note: null,
+      color: null,
     });
 
     expect(result).toEqual(bm);
@@ -149,6 +151,8 @@ describe("bookmarkStore - addBookmark", () => {
         repoId: "repo-1",
         filePath: "src/index.ts",
         lineNumber: 10,
+        note: null,
+        color: null,
       }),
     ).rejects.toThrow("db error");
 
@@ -164,9 +168,11 @@ describe("bookmarkStore - editBookmark", () => {
 
     await useBookmarkStore.getState().editBookmark("repo-1", "bm-1", {
       note: "edited",
+      color: null,
+      lineNumber: null,
     });
 
-    expect(updateBookmark).toHaveBeenCalledWith("bm-1", { note: "edited" });
+    expect(updateBookmark).toHaveBeenCalledWith("bm-1", { note: "edited", color: null, lineNumber: null });
     expect(useBookmarkStore.getState().bookmarks["repo-1"]).toEqual([updated]);
   });
 
@@ -174,7 +180,7 @@ describe("bookmarkStore - editBookmark", () => {
     vi.mocked(updateBookmark).mockRejectedValue(new Error("not found"));
 
     await expect(
-      useBookmarkStore.getState().editBookmark("repo-1", "bm-1", { note: "x" }),
+      useBookmarkStore.getState().editBookmark("repo-1", "bm-1", { note: "x", color: null, lineNumber: null }),
     ).rejects.toThrow("not found");
 
     expect(useBookmarkStore.getState().error["repo-1"]).toBe("Error: not found");

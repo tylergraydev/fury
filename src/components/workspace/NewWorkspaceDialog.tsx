@@ -250,6 +250,8 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
               baseBranch: selectedPr!.baseBranch,
               autoCommit,
               fetchRemoteBranch: true,
+              sparseDirs: null,
+              devcontainerConfig: null,
             }
           : {
               repoId: selectedRepoId,
@@ -257,7 +259,9 @@ export function NewWorkspaceDialog({ repoId, repoName, onClose }: Props) {
               branchName: worktreeName.trim(),
               baseBranch: baseBranch.trim(),
               autoCommit,
-              sparseDirs: selectedTemplate?.sparseDirs ?? undefined,
+              sparseDirs: selectedTemplate?.sparseDirs ?? null,
+              fetchRemoteBranch: null,
+              devcontainerConfig: null,
             },
       );
       if (taskDescription.trim()) {

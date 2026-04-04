@@ -359,7 +359,7 @@ pub async fn create_workspace(
 
     // Persist to database
     let ws_clone = workspace.clone();
-    let _ = state.with_db(move |db| { db.insert_workspace(&ws_clone)?; Ok(()) }).await;
+    state.with_db(move |db| { db.insert_workspace(&ws_clone)?; Ok(()) }).await?;
 
     // Add to in-memory state
     state
@@ -500,7 +500,7 @@ pub async fn archive_workspace(
 
     // Persist
     let id_clone = id;
-    let _ = state.with_db(move |db| { db.update_workspace_status(&id_clone, &WorkspaceStatus::Archived)?; Ok(()) }).await;
+    state.with_db(move |db| { db.update_workspace_status(&id_clone, &WorkspaceStatus::Archived)?; Ok(()) }).await?;
 
     // Stop any running container
     {
@@ -597,7 +597,7 @@ pub async fn delete_workspace(
 
     // Remove from DB and state
     let id_clone = id;
-    let _ = state.with_db(move |db| { db.delete_workspace(&id_clone)?; Ok(()) }).await;
+    state.with_db(move |db| { db.delete_workspace(&id_clone)?; Ok(()) }).await?;
     state.workspaces.write().unwrap().remove(&id);
 
     Ok(())
@@ -660,7 +660,7 @@ pub async fn restore_workspace(
 
     // Persist to DB
     let id_clone = id;
-    let _ = state.with_db(move |db| { db.update_workspace_status(&id_clone, &WorkspaceStatus::Active)?; Ok(()) }).await;
+    state.with_db(move |db| { db.update_workspace_status(&id_clone, &WorkspaceStatus::Active)?; Ok(()) }).await?;
 
     let info = WorkspaceInfo::from(&ws);
 

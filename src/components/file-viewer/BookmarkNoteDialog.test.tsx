@@ -148,7 +148,7 @@ describe("BookmarkNoteDialog", () => {
       repoId: "repo-1",
       filePath: "src/index.ts",
       lineNumber: 10,
-      note: undefined,
+      note: null,
       color: "blue",
     });
   });
@@ -172,6 +172,7 @@ describe("BookmarkNoteDialog", () => {
     expect(editBookmark).toHaveBeenCalledWith("repo-1", "bm-1", {
       note: "old",
       color: "blue",
+      lineNumber: 10,
     });
   });
 
@@ -267,7 +268,7 @@ describe("BookmarkNoteDialog", () => {
     await user.click(screen.getByText("Save"));
 
     expect(addBookmark).toHaveBeenCalledWith(
-      expect.objectContaining({ note: undefined }),
+      expect.objectContaining({ note: null }),
     );
   });
 });

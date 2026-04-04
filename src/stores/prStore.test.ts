@@ -443,6 +443,7 @@ describe("prStore - createPr", () => {
       workspaceId: "ws-1",
       title: "Test PR",
       body: "body",
+      draft: null,
     });
 
     expect(result).toEqual(info);
@@ -461,6 +462,7 @@ describe("prStore - createPr", () => {
         workspaceId: "ws-1",
         title: "Test",
         body: "body",
+        draft: null,
       }),
     ).rejects.toThrow("create fail");
 

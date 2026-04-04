@@ -7,6 +7,7 @@ use tauri::State;
 use uuid::Uuid;
 
 #[derive(serde::Serialize, Debug, Clone, PartialEq, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct GitLogEntry {
     pub hash: String,
     pub full_hash: String,

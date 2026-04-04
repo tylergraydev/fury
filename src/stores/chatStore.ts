@@ -159,7 +159,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                 [workspaceId]: {
                   toolName: event.toolName,
                   input: event.input,
-                  suggestions: event.suggestions,
+                  suggestions: (event.suggestions as unknown[] | undefined) ?? undefined,
                 },
               },
             }));
@@ -201,9 +201,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   addUserMessage: (workspaceId: string, text: string, displayText?: string) => {
     const msg: ChatMessage = {
       id: crypto.randomUUID(),
+      workspaceId,
       role: "user",
       content: [{ type: "text", text }],
-      timestamp: Date.now(),
+      timestamp: new Date().toISOString(),
       ...(displayText ? { displayText } : {}),
     };
     set((state) => ({
@@ -431,9 +432,10 @@ function handleStreamEvent(
 
         const msg: ChatMessage = {
           id: crypto.randomUUID(),
+          workspaceId,
           role: "system",
           content: [{ type: "text", text: event.message }],
-          timestamp: Date.now(),
+          timestamp: new Date().toISOString(),
         };
         set((state) => ({
           messages: {
@@ -531,7 +533,7 @@ function handleStreamEvent(
       set((state) => ({
         permissionRequest: {
           ...state.permissionRequest,
-          [workspaceId]: { toolName: event.toolName, input: event.input, suggestions: event.suggestions },
+          [workspaceId]: { toolName: event.toolName, input: event.input, suggestions: (event.suggestions as unknown[] | undefined) ?? undefined },
         },
       }));
       break;
@@ -652,9 +654,10 @@ function handleStreamEvent(
           : "An unknown error occurred. The agent process exited unexpectedly. Please retry.";
         const msg: ChatMessage = {
           id: crypto.randomUUID(),
+          workspaceId,
           role: "system",
           content: [{ type: "text", text: friendly }],
-          timestamp: Date.now(),
+          timestamp: new Date().toISOString(),
         };
         set((state) => ({
           messages: {
@@ -684,9 +687,10 @@ function finalizeStreamingText(
   if (text) {
     const msg: ChatMessage = {
       id: crypto.randomUUID(),
+      workspaceId,
       role: "assistant",
       content: [{ type: "text", text }],
-      timestamp: Date.now(),
+      timestamp: new Date().toISOString(),
     };
     set((state) => ({
       messages: {
@@ -727,9 +731,10 @@ function appendContentBlock(
     } else {
       const msg: ChatMessage = {
         id: crypto.randomUUID(),
+        workspaceId,
         role: "assistant",
         content: [block],
-        timestamp: Date.now(),
+        timestamp: new Date().toISOString(),
       };
       msgToPersist = msg;
       return {

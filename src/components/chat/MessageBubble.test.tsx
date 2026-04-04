@@ -65,9 +65,10 @@ vi.mock("../../lib/format", () => ({
 function makeMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {
     id: "msg-1",
+    workspaceId: "ws-1",
     role: "user",
     content: [{ type: "text", text: "Hello world" }],
-    timestamp: Date.now(),
+    timestamp: new Date().toISOString(),
     ...overrides,
   };
 }

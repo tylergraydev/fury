@@ -98,8 +98,8 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
             t.id === request.id
               ? {
                   ...t,
-                  ...(request.text !== undefined ? { text: request.text } : {}),
-                  ...(request.completed !== undefined
+                  ...(request.text != null ? { text: request.text } : {}),
+                  ...(request.completed != null
                     ? { completed: request.completed }
                     : {}),
                 }

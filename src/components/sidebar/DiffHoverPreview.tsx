@@ -13,7 +13,7 @@ const DEBOUNCE_MS = 300;
 const MAX_VISIBLE_LINES = 20;
 
 function isUntracked(status: FileStatus): boolean {
-  return status === "Untracked";
+  return status === "untracked";
 }
 
 type LineType = "add" | "del" | "context" | "header";

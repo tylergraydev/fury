@@ -100,9 +100,11 @@ describe("agentStore - sendMessage", () => {
     await useAgentStore.getState().sendMessage("ws-1", "hello");
     expect(sendMessageCmd).toHaveBeenCalledWith({
       workspaceId: "ws-1",
+      repoId: null,
       message: "hello",
-      disableThinking: undefined,
-      disablePlanMode: undefined,
+      model: null,
+      disableThinking: null,
+      disablePlanMode: null,
     });
   });
 
@@ -111,9 +113,11 @@ describe("agentStore - sendMessage", () => {
     await useAgentStore.getState().sendMessage("repo-1", "hello", "repo");
     expect(sendMessageCmd).toHaveBeenCalledWith({
       repoId: "repo-1",
+      workspaceId: null,
       message: "hello",
-      disableThinking: undefined,
-      disablePlanMode: undefined,
+      model: null,
+      disableThinking: null,
+      disablePlanMode: null,
     });
   });
 
@@ -122,6 +126,7 @@ describe("agentStore - sendMessage", () => {
     await useAgentStore.getState().sendMessage("ws-1", "hello", "workspace", "opus", true, true);
     expect(sendMessageCmd).toHaveBeenCalledWith({
       workspaceId: "ws-1",
+      repoId: null,
       message: "hello",
       model: "opus",
       disableThinking: true,
@@ -172,8 +177,8 @@ describe("agentStore - broadcastMessage", () => {
       "build the feature",
     );
     expect(sendMessageCmd).toHaveBeenCalledTimes(2);
-    expect(sendMessageCmd).toHaveBeenCalledWith({ workspaceId: "ws-1", message: "build the feature" });
-    expect(sendMessageCmd).toHaveBeenCalledWith({ workspaceId: "ws-2", message: "build the feature" });
+    expect(sendMessageCmd).toHaveBeenCalledWith({ workspaceId: "ws-1", repoId: null, message: "build the feature", model: null, disableThinking: null, disablePlanMode: null });
+    expect(sendMessageCmd).toHaveBeenCalledWith({ workspaceId: "ws-2", repoId: null, message: "build the feature", model: null, disableThinking: null, disablePlanMode: null });
     expect(result.succeeded).toEqual(["ws-1", "ws-2"]);
     expect(result.failed).toEqual([]);
   });
@@ -197,8 +202,11 @@ describe("agentStore - broadcastMessage", () => {
     await useAgentStore.getState().broadcastMessage(["ws-1"], "hello", "opus");
     expect(sendMessageCmd).toHaveBeenCalledWith({
       workspaceId: "ws-1",
+      repoId: null,
       message: "hello",
       model: "opus",
+      disableThinking: null,
+      disablePlanMode: null,
     });
   });
 });
@@ -418,11 +426,11 @@ describe("agentStore - sendMessage error handling", () => {
     );
   });
 
-  it("passes undefined model when not provided", async () => {
+  it("passes null model when not provided", async () => {
     vi.mocked(sendMessageCmd).mockResolvedValue(undefined);
     await useAgentStore.getState().sendMessage("ws-1", "hello", "workspace");
     expect(sendMessageCmd).toHaveBeenCalledWith(
-      expect.objectContaining({ model: undefined }),
+      expect.objectContaining({ model: null }),
     );
   });
 });
@@ -510,11 +518,11 @@ describe("agentStore - error message content", () => {
     );
   });
 
-  it("model || undefined converts empty string to undefined", async () => {
+  it("model ?? null converts empty string to empty string (falsy but not nullish)", async () => {
     vi.mocked(sendMessageCmd).mockResolvedValue(undefined);
     await useAgentStore.getState().sendMessage("ws-1", "hi", "workspace", "");
     expect(sendMessageCmd).toHaveBeenCalledWith(
-      expect.objectContaining({ model: undefined }),
+      expect.objectContaining({ model: "" }),
     );
   });
 

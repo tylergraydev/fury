@@ -83,8 +83,8 @@ describe("ChangesPanel", () => {
       diffResults: {
         "ws-1": {
           files: [
-            { path: "src/app.ts", status: "Modified", additions: 10, deletions: 3 },
-            { path: "src/new.ts", status: "Added", additions: 20, deletions: 0 },
+            { path: "src/app.ts", status: "modified", additions: 10, deletions: 3 },
+            { path: "src/new.ts", status: "added", additions: 20, deletions: 0 },
           ],
           totalAdditions: 30,
           totalDeletions: 3,
@@ -100,7 +100,7 @@ describe("ChangesPanel", () => {
       diffResults: {
         "ws-1": {
           files: [
-            { path: "src/components/app.ts", status: "Modified", additions: 5, deletions: 2 },
+            { path: "src/components/app.ts", status: "modified", additions: 5, deletions: 2 },
           ],
           totalAdditions: 5,
           totalDeletions: 2,
@@ -116,8 +116,8 @@ describe("ChangesPanel", () => {
       diffResults: {
         "ws-1": {
           files: [
-            { path: "src/mod.ts", status: "Modified", additions: 1, deletions: 1 },
-            { path: "src/new.ts", status: "Added", additions: 5, deletions: 0 },
+            { path: "src/mod.ts", status: "modified", additions: 1, deletions: 1 },
+            { path: "src/new.ts", status: "added", additions: 5, deletions: 0 },
           ],
           totalAdditions: 6,
           totalDeletions: 1,
@@ -134,7 +134,7 @@ describe("ChangesPanel", () => {
       diffResults: {
         "ws-1": {
           files: [
-            { path: "src/app.ts", status: "Modified", additions: 1, deletions: 0 },
+            { path: "src/app.ts", status: "modified", additions: 1, deletions: 0 },
           ],
           totalAdditions: 1,
           totalDeletions: 0,
@@ -150,7 +150,7 @@ describe("ChangesPanel", () => {
       diffResults: {
         "ws-1": {
           files: [
-            { path: "src/only.ts", status: "Modified", additions: 7, deletions: 0 },
+            { path: "src/only.ts", status: "modified", additions: 7, deletions: 0 },
           ],
           totalAdditions: 7,
           totalDeletions: 0,
@@ -175,7 +175,7 @@ describe("ChangesPanel", () => {
     // Start with agent Running
     useAgentStore.setState({
       agents: {
-        "ws-1": { workspaceId: "ws-1", sessionId: "s1", status: "Running", startedAt: null },
+        "ws-1": { workspaceId: "ws-1", sessionId: "s1", status: "Running", startedAt: null, pid: null },
       },
     });
     const { rerender } = render(<ChangesPanel context={wsContext} />);
@@ -183,7 +183,7 @@ describe("ChangesPanel", () => {
     // Transition to Idle
     useAgentStore.setState({
       agents: {
-        "ws-1": { workspaceId: "ws-1", sessionId: "s1", status: "Idle", startedAt: null },
+        "ws-1": { workspaceId: "ws-1", sessionId: "s1", status: "Idle", startedAt: null, pid: null },
       },
     });
     rerender(<ChangesPanel context={wsContext} />);
@@ -194,7 +194,7 @@ describe("ChangesPanel", () => {
     // Start with agent Running
     useAgentStore.setState({
       agents: {
-        "repo-1": { workspaceId: "repo-1", sessionId: "s1", status: "Running", startedAt: null },
+        "repo-1": { workspaceId: "repo-1", sessionId: "s1", status: "Running", startedAt: null, pid: null },
       },
     });
     const { rerender } = render(<ChangesPanel context={repoContext} />);
@@ -202,7 +202,7 @@ describe("ChangesPanel", () => {
     // Transition to Idle
     useAgentStore.setState({
       agents: {
-        "repo-1": { workspaceId: "repo-1", sessionId: "s1", status: "Idle", startedAt: null },
+        "repo-1": { workspaceId: "repo-1", sessionId: "s1", status: "Idle", startedAt: null, pid: null },
       },
     });
     rerender(<ChangesPanel context={repoContext} />);
@@ -214,7 +214,7 @@ describe("ChangesPanel", () => {
       diffResults: {
         "ws-1": {
           files: [
-            { path: "src/app.ts", status: "Modified", additions: 1, deletions: 0 },
+            { path: "src/app.ts", status: "modified", additions: 1, deletions: 0 },
           ],
           totalAdditions: 1,
           totalDeletions: 0,
@@ -231,7 +231,7 @@ describe("ChangesPanel", () => {
       diffResults: {
         "repo-1": {
           files: [
-            { path: "src/app.ts", status: "Modified", additions: 1, deletions: 0 },
+            { path: "src/app.ts", status: "modified", additions: 1, deletions: 0 },
           ],
           totalAdditions: 1,
           totalDeletions: 0,
@@ -248,7 +248,7 @@ describe("ChangesPanel", () => {
       diffResults: {
         "ws-1": {
           files: [
-            { path: "src/app.ts", status: "Modified", additions: 1, deletions: 0 },
+            { path: "src/app.ts", status: "modified", additions: 1, deletions: 0 },
           ],
           totalAdditions: 1,
           totalDeletions: 0,
@@ -265,7 +265,7 @@ describe("ChangesPanel", () => {
       diffResults: {
         "repo-1": {
           files: [
-            { path: "src/app.ts", status: "Modified", additions: 1, deletions: 0 },
+            { path: "src/app.ts", status: "modified", additions: 1, deletions: 0 },
           ],
           totalAdditions: 1,
           totalDeletions: 0,
@@ -282,8 +282,8 @@ describe("ChangesPanel", () => {
       diffResults: {
         "ws-1": {
           files: [
-            { path: "src/del.ts", status: "Deleted", additions: 0, deletions: 5 },
-            { path: "src/untrack.ts", status: "Untracked", additions: 3, deletions: 0 },
+            { path: "src/del.ts", status: "deleted", additions: 0, deletions: 5 },
+            { path: "src/untrack.ts", status: "untracked", additions: 3, deletions: 0 },
           ],
           totalAdditions: 3,
           totalDeletions: 5,
@@ -300,7 +300,7 @@ describe("ChangesPanel", () => {
       diffResults: {
         "ws-1": {
           files: [
-            { path: "src/renamed.ts", status: { Renamed: { from: "src/old.ts" } }, additions: 0, deletions: 0 },
+            { path: "src/renamed.ts", status: { renamed: { from: "src/old.ts" } }, additions: 0, deletions: 0 },
           ],
           totalAdditions: 0,
           totalDeletions: 0,
@@ -340,7 +340,7 @@ describe("ChangesPanel", () => {
       diffResults: {
         "ws-1": {
           files: [
-            { path: "src/app.ts", status: "Modified", additions: 1, deletions: 0 },
+            { path: "src/app.ts", status: "modified", additions: 1, deletions: 0 },
           ],
           totalAdditions: 1,
           totalDeletions: 0,
@@ -358,7 +358,7 @@ describe("ChangesPanel", () => {
       diffResults: {
         "ws-1": {
           files: [
-            { path: "src/app.ts", status: "Modified", additions: 8, deletions: 4 },
+            { path: "src/app.ts", status: "modified", additions: 8, deletions: 4 },
           ],
           totalAdditions: 99,
           totalDeletions: 88,
@@ -375,7 +375,7 @@ describe("ChangesPanel", () => {
       diffResults: {
         "ws-1": {
           files: [
-            { path: "src/app.ts", status: "Modified", additions: 1, deletions: 0 },
+            { path: "src/app.ts", status: "modified", additions: 1, deletions: 0 },
           ],
           totalAdditions: 1,
           totalDeletions: 0,
@@ -393,7 +393,7 @@ describe("ChangesPanel", () => {
       diffResults: {
         "ws-1": {
           files: [
-            { path: "src/app.ts", status: "Modified", additions: 5, deletions: 2 },
+            { path: "src/app.ts", status: "modified", additions: 5, deletions: 2 },
           ],
           totalAdditions: 5,
           totalDeletions: 2,
@@ -608,7 +608,7 @@ describe("PrStatusBar", () => {
     } as any);
 
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null, pid: null } },
       sendMessage: vi.fn().mockResolvedValue(undefined),
     } as any);
 
@@ -649,6 +649,7 @@ describe("PrStatusBar", () => {
       workspaceId: "ws-1",
       title: "feature",
       body: "",
+      draft: null,
     });
     expect(mockSetRightSidebarTab).toHaveBeenCalledWith("checks");
   });
@@ -762,7 +763,7 @@ describe("PrStatusBar", () => {
     const mockAddUserMessage = vi.fn();
 
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null, pid: null } },
       sendMessage: mockSendMessage,
     } as any);
     useChatStore.setState({ addUserMessage: mockAddUserMessage } as any);
@@ -793,7 +794,7 @@ describe("PrStatusBar", () => {
 
   it("handleFix is a no-op when agent is running", async () => {
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Running", startedAt: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Running", startedAt: null, pid: null } },
     } as any);
 
     usePrStore.setState({
@@ -852,7 +853,7 @@ describe("PrStatusBar", () => {
     const mockSendMessage = vi.fn().mockResolvedValue(undefined);
     const mockAddUserMessage = vi.fn();
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null, pid: null } },
       sendMessage: mockSendMessage,
     } as any);
     useChatStore.setState({ addUserMessage: mockAddUserMessage } as any);
@@ -896,7 +897,7 @@ describe("PrStatusBar", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     mockGetFixMessage.mockRejectedValue(new Error("fix failed"));
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null, pid: null } },
       sendMessage: vi.fn().mockResolvedValue(undefined),
     } as any);
     usePrStore.setState({

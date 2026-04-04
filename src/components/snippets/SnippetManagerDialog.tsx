@@ -130,18 +130,20 @@ export function SnippetManagerDialog({ onClose, onInsert }: Props) {
         const request: UpdateSnippetRequest = {
           title: editorTitle.trim(),
           content: editorContent.trim(),
-          language: editorLanguage.trim() || undefined,
-          description: editorDescription.trim() || undefined,
+          language: editorLanguage.trim() || null,
+          description: editorDescription.trim() || null,
           tags,
+          source: null,
         };
         await updateSnippet(editingSnippet.id, request);
       } else {
         const request: CreateSnippetRequest = {
           title: editorTitle.trim(),
           content: editorContent.trim(),
-          language: editorLanguage.trim() || undefined,
-          description: editorDescription.trim() || undefined,
-          tags: tags.length > 0 ? tags : undefined,
+          language: editorLanguage.trim() || null,
+          description: editorDescription.trim() || null,
+          tags: tags.length > 0 ? tags : null,
+          source: null,
         };
         await createSnippet(request);
       }

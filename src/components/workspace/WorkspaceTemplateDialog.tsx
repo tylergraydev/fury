@@ -35,7 +35,7 @@ export function WorkspaceTemplateDialog({ repoId, onClose }: Props) {
         setRunScript(s.runScript ?? "");
         setArchiveScript(s.archiveScript ?? "");
         setRunScriptMode(s.runScriptMode);
-        setEnvVars(s.envVars);
+        setEnvVars((s.envVars ?? {}) as Record<string, string>);
       })
       .catch(() => {});
   }, [repoId]);
@@ -47,18 +47,18 @@ export function WorkspaceTemplateDialog({ repoId, onClose }: Props) {
       await createTemplate({
         repoId,
         name: name.trim(),
-        description: description.trim() || undefined,
-        setupScript: setupScript.trim() || undefined,
-        runScript: runScript.trim() || undefined,
-        archiveScript: archiveScript.trim() || undefined,
+        description: description.trim() || null,
+        setupScript: setupScript.trim() || null,
+        runScript: runScript.trim() || null,
+        archiveScript: archiveScript.trim() || null,
         runScriptMode,
-        envVars: Object.keys(envVars).length > 0 ? envVars : undefined,
+        envVars: Object.keys(envVars).length > 0 ? envVars : null,
         sparseDirs: sparseDirs.trim()
           ? sparseDirs
               .split(",")
               .map((d) => d.trim())
               .filter(Boolean)
-          : undefined,
+          : null,
         autoCommit,
       });
       onClose();
