@@ -9,6 +9,6 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     css: false,
     restoreMocks: true,
-    exclude: ["e2e/**", "node_modules/**", ".worktrees/**", "**/sidecar/**"],
+    exclude: ["e2e/**", "node_modules/**", ".worktrees/**", ".claude/**", "**/sidecar/**"],
   },
 });
