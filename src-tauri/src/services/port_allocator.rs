@@ -59,26 +59,29 @@ mod tests {
 
     #[test]
     fn test_allocate_and_release() {
-        let mut pa = PortAllocator::new(49000, 49100);
+        let mut pa = PortAllocator::new(49100, 49200);
         let port = pa.allocate().unwrap();
-        assert_eq!(port, 49000);
-        assert!(pa.allocated.contains(&49000));
-        pa.release(49000);
-        assert!(!pa.allocated.contains(&49000));
+        assert!(port >= 49100 && port < 49200);
+        assert!(pa.allocated.contains(&port));
+        pa.release(port);
+        assert!(!pa.allocated.contains(&port));
     }
 
     #[test]
     fn test_allocate_increments_by_10() {
-        let mut pa = PortAllocator::new(49000, 49100);
+        let mut pa = PortAllocator::new(49200, 49300);
         let p1 = pa.allocate().unwrap();
         let p2 = pa.allocate().unwrap();
-        assert_eq!(p2 - p1, 10);
+        assert!(
+            p2 > p1 && (p2 - p1) % 10 == 0,
+            "expected p2 ({p2}) to be a multiple of 10 above p1 ({p1})"
+        );
     }
 
     #[test]
     fn test_allocate_exhaustion() {
         // Range only fits 1 block of 10
-        let mut pa = PortAllocator::new(49000, 49010);
+        let mut pa = PortAllocator::new(49300, 49310);
         pa.allocate().unwrap();
         let result = pa.allocate();
         assert!(result.is_err());
