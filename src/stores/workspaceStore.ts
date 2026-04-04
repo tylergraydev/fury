@@ -169,11 +169,21 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   },
 
   setActive: (id: string | null) => {
+    if (import.meta.env.DEV) {
+      if (id) sessionStorage.setItem("fury:activeWorkspaceId", id);
+      else sessionStorage.removeItem("fury:activeWorkspaceId");
+      sessionStorage.removeItem("fury:activeRepoId");
+    }
     set({ activeWorkspaceId: id, activeRepoId: null });
     _persistActiveContext(id, null);
   },
 
   setActiveRepo: (id: string | null) => {
+    if (import.meta.env.DEV) {
+      if (id) sessionStorage.setItem("fury:activeRepoId", id);
+      else sessionStorage.removeItem("fury:activeRepoId");
+      sessionStorage.removeItem("fury:activeWorkspaceId");
+    }
     set({ activeRepoId: id, activeWorkspaceId: null });
     _persistActiveContext(null, id);
   },
