@@ -125,7 +125,7 @@ pub async fn spawn_script(
     #[cfg(windows)]
     cmd.creation_flags(0x08000200); // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
 
-    let mut child = cmd.spawn().map_err(|e| {
+    let mut child = cmd.kill_on_drop(true).spawn().map_err(|e| {
         AppError::ScriptError(format!("Failed to spawn {} script: {}", kind.as_str(), e))
     })?;
 
@@ -394,7 +394,7 @@ pub async fn spawn_script_in_container(
     #[cfg(windows)]
     cmd.creation_flags(0x08000200);
 
-    let mut child = cmd.spawn().map_err(|e| {
+    let mut child = cmd.kill_on_drop(true).spawn().map_err(|e| {
         AppError::ScriptError(format!(
             "Failed to spawn {} script in container: {}",
             kind.as_str(),

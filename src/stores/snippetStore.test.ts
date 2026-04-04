@@ -69,13 +69,17 @@ describe("snippetStore - createSnippet", () => {
 
     const result = await useSnippetStore
       .getState()
-      .createSnippet({ title: "new snippet", content: "code here" });
+      .createSnippet({ title: "new snippet", content: "code here", language: null, description: null, tags: null, source: null });
 
     expect(result).toEqual(snippet);
     expect(useSnippetStore.getState().snippets).toEqual([snippet]);
     expect(createSnippet).toHaveBeenCalledWith({
       title: "new snippet",
       content: "code here",
+      language: null,
+      description: null,
+      tags: null,
+      source: null,
     });
   });
 
@@ -85,7 +89,7 @@ describe("snippetStore - createSnippet", () => {
     await expect(
       useSnippetStore
         .getState()
-        .createSnippet({ title: "x", content: "y" }),
+        .createSnippet({ title: "x", content: "y", language: null, description: null, tags: null, source: null }),
     ).rejects.toThrow("db error");
 
     expect(useSnippetStore.getState().error).toBe("Error: db error");
@@ -102,12 +106,17 @@ describe("snippetStore - updateSnippet", () => {
 
     await useSnippetStore
       .getState()
-      .updateSnippet("snippet-1", { title: "renamed" });
+      .updateSnippet("snippet-1", { title: "renamed", content: null, language: null, description: null, tags: null, source: null });
 
     expect(useSnippetStore.getState().snippets[0].title).toBe("renamed");
     expect(useSnippetStore.getState().snippets[1].title).toBe("other");
     expect(updateSnippet).toHaveBeenCalledWith("snippet-1", {
       title: "renamed",
+      content: null,
+      language: null,
+      description: null,
+      tags: null,
+      source: null,
     });
   });
 
@@ -119,7 +128,7 @@ describe("snippetStore - updateSnippet", () => {
     await expect(
       useSnippetStore
         .getState()
-        .updateSnippet("snippet-1", { title: "x" }),
+        .updateSnippet("snippet-1", { title: "x", content: null, language: null, description: null, tags: null, source: null }),
     ).rejects.toThrow("not found");
 
     expect(useSnippetStore.getState().error).toBe("Error: not found");

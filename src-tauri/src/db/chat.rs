@@ -91,7 +91,8 @@ impl Database {
         query: &str,
         workspace_id: Option<&Uuid>,
     ) -> Result<Vec<ChatMessageSearchResult>, AppError> {
-        let pattern = format!("%{}%", query);
+        let escaped_query = query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+        let pattern = format!("%{}%", escaped_query);
         let (sql, params): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(ws_id) =
             workspace_id
         {
@@ -100,7 +101,7 @@ impl Database {
                  FROM chat_messages cm
                  JOIN workspaces w ON cm.workspace_id = w.id
                  WHERE cm.workspace_id = ?1
-                   AND (cm.content LIKE ?2 OR cm.display_text LIKE ?2)
+                   AND (cm.content LIKE ?2 ESCAPE '\\' OR cm.display_text LIKE ?2 ESCAPE '\\')
                  ORDER BY cm.timestamp DESC
                  LIMIT 50",
                 vec![
@@ -113,7 +114,7 @@ impl Database {
                 "SELECT cm.id, cm.workspace_id, w.name, cm.role, cm.content, cm.display_text, cm.timestamp
                  FROM chat_messages cm
                  JOIN workspaces w ON cm.workspace_id = w.id
-                 WHERE cm.content LIKE ?1 OR cm.display_text LIKE ?1
+                 WHERE cm.content LIKE ?1 ESCAPE '\\' OR cm.display_text LIKE ?1 ESCAPE '\\'
                  ORDER BY cm.timestamp DESC
                  LIMIT 50",
                 vec![Box::new(pattern.clone()) as Box<dyn rusqlite::types::ToSql>],

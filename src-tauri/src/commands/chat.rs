@@ -60,64 +60,40 @@ pub(crate) fn search_chat_messages_inner(
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
+#[specta::specta]
 pub async fn save_chat_message(
     state: State<'_, AppState>,
     message: ChatMessage,
 ) -> Result<(), AppError> {
-    let db_lock = state
-        .db
-        .lock()
-        .map_err(|_| AppError::DbError("Failed to acquire database lock".into()))?;
-    let db = db_lock
-        .as_ref()
-        .ok_or(AppError::DbError("DB not initialized".into()))?;
-    save_chat_message_inner(db, &message)
+    state.with_db(move |db| save_chat_message_inner(db, &message)).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_chat_messages(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<ChatMessage>, AppError> {
-    let db_lock = state
-        .db
-        .lock()
-        .map_err(|_| AppError::DbError("Failed to acquire database lock".into()))?;
-    let db = db_lock
-        .as_ref()
-        .ok_or(AppError::DbError("DB not initialized".into()))?;
-    list_chat_messages_inner(db, &workspace_id)
+    state.with_db(move |db| list_chat_messages_inner(db, &workspace_id)).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn clear_chat_messages(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<(), AppError> {
-    let db_lock = state
-        .db
-        .lock()
-        .map_err(|_| AppError::DbError("Failed to acquire database lock".into()))?;
-    let db = db_lock
-        .as_ref()
-        .ok_or(AppError::DbError("DB not initialized".into()))?;
-    clear_chat_messages_inner(db, &workspace_id)
+    state.with_db(move |db| clear_chat_messages_inner(db, &workspace_id)).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn search_chat_messages(
     state: State<'_, AppState>,
     query: String,
     workspace_id: Option<String>,
 ) -> Result<Vec<ChatMessageSearchResult>, AppError> {
-    let db_lock = state
-        .db
-        .lock()
-        .map_err(|_| AppError::DbError("Failed to acquire database lock".into()))?;
-    let db = db_lock
-        .as_ref()
-        .ok_or(AppError::DbError("DB not initialized".into()))?;
-    search_chat_messages_inner(db, &query, workspace_id.as_deref())
+    state.with_db(move |db| search_chat_messages_inner(db, &query, workspace_id.as_deref())).await
 }
 
 // ---------------------------------------------------------------------------

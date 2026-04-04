@@ -100,6 +100,7 @@ pub(crate) fn resolve_repo_terminal_info(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn create_terminal(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -158,6 +159,7 @@ pub async fn create_terminal(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn write_terminal(
     state: State<'_, AppState>,
     terminal_id: String,
@@ -190,6 +192,7 @@ pub async fn write_terminal(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn resize_terminal(
     state: State<'_, AppState>,
     terminal_id: String,
@@ -222,6 +225,7 @@ pub async fn resize_terminal(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn close_terminal(
     state: State<'_, AppState>,
     terminal_id: String,
@@ -242,6 +246,7 @@ pub async fn close_terminal(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn create_repo_terminal(
     app: tauri::AppHandle,
     state: State<'_, AppState>,

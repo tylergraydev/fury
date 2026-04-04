@@ -69,6 +69,29 @@ pub struct AppState {
 }
 
 impl AppState {
+    /// Run a closure with a database reference on the blocking thread pool.
+    ///
+    /// This prevents SQLite operations from blocking the async event loop,
+    /// which would freeze the UI.
+    pub async fn with_db<F, R>(&self, f: F) -> Result<R, crate::error::AppError>
+    where
+        F: FnOnce(&Database) -> Result<R, crate::error::AppError> + Send + 'static,
+        R: Send + 'static,
+    {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || {
+            let db_lock = db
+                .lock()
+                .map_err(|_| crate::error::AppError::DbError("Failed to acquire database lock".into()))?;
+            let db = db_lock
+                .as_ref()
+                .ok_or(crate::error::AppError::DbError("DB not initialized".into()))?;
+            f(db)
+        })
+        .await
+        .map_err(|e| crate::error::AppError::InternalError(format!("task failed: {e}")))?
+    }
+
     pub fn new() -> Self {
         Self {
             repositories: RwLock::new(HashMap::new()),
@@ -171,5 +194,62 @@ mod tests {
             .insert(ws_id, AgentInfo::new(ws_id));
         // Original should see the insert
         assert_eq!(state.agents.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_with_db_returns_result() {
+        let state = AppState::new();
+        let db = crate::db::Database::init_in_memory().unwrap();
+        *state.db.lock().unwrap() = Some(db);
+        let result = state.with_db(|_db| Ok(42)).await;
+        assert_eq!(result.unwrap(), 42);
+    }
+
+    #[tokio::test]
+    async fn test_with_db_no_db_initialized() {
+        let state = AppState::new();
+        let result = state.with_db(|_db| Ok(())).await;
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("DB not initialized"), "got: {}", err);
+    }
+
+    #[tokio::test]
+    async fn test_with_db_propagates_closure_error() {
+        let state = AppState::new();
+        let db = crate::db::Database::init_in_memory().unwrap();
+        *state.db.lock().unwrap() = Some(db);
+        let result: Result<(), _> = state
+            .with_db(|_db| Err(crate::error::AppError::DbError("boom".into())))
+            .await;
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("boom"), "got: {}", err);
+    }
+
+    #[tokio::test]
+    async fn test_with_db_concurrent_reads() {
+        let state = Arc::new(AppState::new());
+        let db = crate::db::Database::init_in_memory().unwrap();
+        *state.db.lock().unwrap() = Some(db);
+
+        let mut handles = vec![];
+        for i in 0..10 {
+            let s = Arc::clone(&state);
+            handles.push(tokio::spawn(async move {
+                s.with_db(move |_db| Ok(i)).await
+            }));
+        }
+        for h in handles {
+            assert!(h.await.unwrap().is_ok());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_with_db_sequential_calls_dont_deadlock() {
+        let state = AppState::new();
+        let db = crate::db::Database::init_in_memory().unwrap();
+        *state.db.lock().unwrap() = Some(db);
+        let a = state.with_db(|_db| Ok(1)).await.unwrap();
+        let b = state.with_db(|_db| Ok(2)).await.unwrap();
+        assert_eq!(a + b, 3);
     }
 }

@@ -15,15 +15,15 @@ interface Props {
 
 function conflictTypeLabel(ct: ConflictType): string {
   switch (ct) {
-    case "BothModified":
+    case "bothModified":
       return "Both Modified";
-    case "DeletedByUs":
+    case "deletedByUs":
       return "Deleted by Us";
-    case "DeletedByThem":
+    case "deletedByThem":
       return "Deleted by Them";
-    case "AddedByBoth":
+    case "addedByBoth":
       return "Added by Both";
-    case "BothDeleted":
+    case "bothDeleted":
       return "Both Deleted";
     default:
       return "Unknown";

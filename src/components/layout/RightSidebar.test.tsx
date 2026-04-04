@@ -194,8 +194,8 @@ describe("RightSidebar", () => {
       diffResults: {
         "ws-1": {
           files: [
-            { path: "a.ts", status: "Modified", additions: 1, deletions: 0 },
-            { path: "b.ts", status: "Added", additions: 2, deletions: 0 },
+            { path: "a.ts", status: "modified", additions: 1, deletions: 0 },
+            { path: "b.ts", status: "added", additions: 2, deletions: 0 },
           ],
           totalAdditions: 3,
           totalDeletions: 0,

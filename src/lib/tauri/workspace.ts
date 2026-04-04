@@ -1,5 +1,5 @@
 import { instrumentedInvoke as invoke } from "../ipcInstrumentation";
-import type { CreateWorkspaceRequest, WorkspaceInfo, ExportOptions } from "./types";
+import type { CreateWorkspaceRequest, WorkspaceInfo, ExportOptions } from "./bindings.generated";
 
 // Workspace commands
 export async function createWorkspace(
@@ -102,11 +102,11 @@ export async function exportWorkspace(
 }
 
 // Todo commands
-export async function addTodo(request: import("./types").CreateTodoRequest): Promise<import("./types").TodoItem> {
-  return invoke<import("./types").TodoItem>("add_todo", { request });
+export async function addTodo(request: import("./bindings.generated").CreateTodoRequest): Promise<import("./bindings.generated").TodoItem> {
+  return invoke<import("./bindings.generated").TodoItem>("add_todo", { request });
 }
 
-export async function updateTodo(request: import("./types").UpdateTodoRequest): Promise<void> {
+export async function updateTodo(request: import("./bindings.generated").UpdateTodoRequest): Promise<void> {
   return invoke("update_todo", { request });
 }
 
@@ -114,8 +114,8 @@ export async function deleteTodo(todoId: string): Promise<void> {
   return invoke("delete_todo", { todoId });
 }
 
-export async function listTodos(workspaceId: string): Promise<import("./types").TodoItem[]> {
-  return invoke<import("./types").TodoItem[]>("list_todos", { workspaceId });
+export async function listTodos(workspaceId: string): Promise<import("./bindings.generated").TodoItem[]> {
+  return invoke<import("./bindings.generated").TodoItem[]>("list_todos", { workspaceId });
 }
 
 export async function toggleTodo(todoId: string): Promise<boolean> {
@@ -123,13 +123,13 @@ export async function toggleTodo(todoId: string): Promise<boolean> {
 }
 
 export async function reorderTodos(
-  request: import("./types").ReorderTodosRequest,
+  request: import("./bindings.generated").ReorderTodosRequest,
 ): Promise<void> {
   return invoke("reorder_todos", { request });
 }
 
 export async function getTodoSummary(
   workspaceId: string,
-): Promise<import("./types").TodoSummary> {
-  return invoke<import("./types").TodoSummary>("get_todo_summary", { workspaceId });
+): Promise<import("./bindings.generated").TodoSummary> {
+  return invoke<import("./bindings.generated").TodoSummary>("get_todo_summary", { workspaceId });
 }

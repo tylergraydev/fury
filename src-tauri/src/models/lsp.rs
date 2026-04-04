@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// A catalog entry for a known official LSP plugin.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LspCatalogEntry {
     pub plugin_name: String,
@@ -12,7 +12,7 @@ pub struct LspCatalogEntry {
 }
 
 /// An installed LSP plugin with runtime status.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LspPlugin {
     pub name: String,
@@ -23,14 +23,14 @@ pub struct LspPlugin {
     pub install_hint: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct InstallLspPluginRequest {
     pub plugin_name: String,
     pub scope: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct UninstallLspPluginRequest {
     pub plugin_name: String,
@@ -38,7 +38,7 @@ pub struct UninstallLspPluginRequest {
 }
 
 /// A suggestion for an LSP plugin based on workspace file analysis.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LspSuggestion {
     pub plugin_name: String,

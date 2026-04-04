@@ -61,6 +61,7 @@ pub(crate) fn resolve_workspace_repo_context(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn containerize_repo(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -94,21 +95,24 @@ pub async fn containerize_repo(
     };
 
     // Check for per-repo provider override
-    let repo_provider_env_vars = {
+    let repo_id = {
         let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
-        let repo_id = ws.repo_id;
-        drop(workspaces);
-
-        let db_guard = state.db.lock().unwrap();
-        db_guard
-            .as_ref()
-            .and_then(|db| db.get_repo_settings(&repo_id).ok())
-            .and_then(|s| s.provider_override)
-            .map(|p| p.env_vars)
+        ws.repo_id
     };
+
+    let repo_provider_env_vars = state
+        .with_db(move |db| {
+            Ok(db
+                .get_repo_settings(&repo_id)
+                .ok()
+                .and_then(|s| s.provider_override)
+                .map(|p| p.env_vars))
+        })
+        .await
+        .unwrap_or(None);
 
     let final_env_vars = repo_provider_env_vars.unwrap_or(provider_env_vars);
 
@@ -192,6 +196,7 @@ pub async fn containerize_repo(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn apply_devcontainer_config(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -290,19 +295,18 @@ pub async fn apply_devcontainer_config(
         ws.devcontainer_config = Some(config.clone());
     }
 
-    // Persist to DB (db lock, scoped)
-    {
-        let db_guard = state.db.lock().unwrap();
-        if let Some(db) = db_guard.as_ref() {
+    // Persist to DB
+    let _ = state
+        .with_db(move |db| {
             db.update_workspace_devcontainer_config(&ws_id, Some(&config))
                 .map_err(|e| {
                     AppError::ContainerError(format!(
                         "Failed to persist devcontainer config: {}",
                         e
                     ))
-                })?;
-        }
-    }
+                })
+        })
+        .await;
 
     Ok(())
 }

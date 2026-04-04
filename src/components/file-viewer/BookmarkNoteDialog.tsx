@@ -36,13 +36,14 @@ export function BookmarkNoteDialog() {
       await store.editBookmark(editing.repoId, editing.existing.id, {
         note,
         color,
+        lineNumber: editing.lineNumber,
       });
     } else {
       await store.addBookmark({
         repoId: editing.repoId,
         filePath: editing.filePath,
         lineNumber: editing.lineNumber,
-        note: note || undefined,
+        note: note || null,
         color,
       });
     }

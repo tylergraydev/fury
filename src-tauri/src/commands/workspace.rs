@@ -252,6 +252,7 @@ pub(crate) fn resolve_worktree_base(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn create_workspace(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -357,12 +358,8 @@ pub async fn create_workspace(
     let ws_worktree_path = workspace.worktree_path.clone();
 
     // Persist to database
-    {
-        let db = state.db.lock().unwrap();
-        if let Some(db) = db.as_ref() {
-            db.insert_workspace(&workspace)?;
-        }
-    }
+    let ws_clone = workspace.clone();
+    state.with_db(move |db| { db.insert_workspace(&ws_clone)?; Ok(()) }).await?;
 
     // Add to in-memory state
     state
@@ -388,6 +385,7 @@ pub async fn create_workspace(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_workspaces(state: State<'_, AppState>) -> Result<Vec<WorkspaceInfo>, AppError> {
     let result = {
         let workspaces = state.workspaces.read().unwrap();
@@ -483,6 +481,7 @@ pub(crate) async fn cleanup_workspace_resources(state: &AppState, id: Uuid) {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn archive_workspace(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -500,12 +499,8 @@ pub async fn archive_workspace(
     };
 
     // Persist
-    {
-        let db = state.db.lock().unwrap();
-        if let Some(db) = db.as_ref() {
-            db.update_workspace_status(&id, &WorkspaceStatus::Archived)?;
-        }
-    }
+    let id_clone = id;
+    state.with_db(move |db| { db.update_workspace_status(&id_clone, &WorkspaceStatus::Archived)?; Ok(()) }).await?;
 
     // Stop any running container
     {
@@ -552,6 +547,7 @@ pub async fn archive_workspace(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_workspace(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -600,37 +596,28 @@ pub async fn delete_workspace(
     }
 
     // Remove from DB and state
-    {
-        let db = state.db.lock().unwrap();
-        if let Some(db) = db.as_ref() {
-            db.delete_workspace(&id)?;
-        }
-    }
+    let id_clone = id;
+    state.with_db(move |db| { db.delete_workspace(&id_clone)?; Ok(()) }).await?;
     state.workspaces.write().unwrap().remove(&id);
 
     Ok(())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_archived_workspaces(
     state: State<'_, AppState>,
 ) -> Result<Vec<WorkspaceInfo>, AppError> {
-    let result = {
-        let db = state.db.lock().unwrap();
-        if let Some(db) = db.as_ref() {
-            let workspaces = db.list_archived_workspaces()?;
-            workspaces.iter().map(WorkspaceInfo::from).collect()
-        } else {
-            vec![]
-        }
-    };
+    let result = state.with_db(move |db| {
+        let workspaces = db.list_archived_workspaces()?;
+        Ok(workspaces.iter().map(WorkspaceInfo::from).collect())
+    }).await?;
 
-    tokio::task::spawn_blocking(move || Ok(result))
-        .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    Ok(result)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn restore_workspace(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -639,17 +626,13 @@ pub async fn restore_workspace(
     let id = parse_workspace_id(&workspace_id)?;
 
     // Load from DB (archived workspaces are not in memory)
-    let mut ws = {
-        let db = state.db.lock().unwrap();
-        let db = db
-            .as_ref()
-            .ok_or_else(|| AppError::DbError("No database".to_string()))?;
+    let mut ws = state.with_db(move |db| {
         let archived = db.list_archived_workspaces()?;
         archived
             .into_iter()
             .find(|w| w.id == id)
-            .ok_or(AppError::WorkspaceNotFound(id))?
-    };
+            .ok_or(AppError::WorkspaceNotFound(id))
+    }).await?;
 
     // Validate worktree and ensure .context directory (blocking filesystem ops)
     let wt_path = ws.worktree_path.clone();
@@ -676,12 +659,8 @@ pub async fn restore_workspace(
     ws.archived_at = None;
 
     // Persist to DB
-    {
-        let db = state.db.lock().unwrap();
-        if let Some(db) = db.as_ref() {
-            db.update_workspace_status(&id, &WorkspaceStatus::Active)?;
-        }
-    }
+    let id_clone = id;
+    state.with_db(move |db| { db.update_workspace_status(&id_clone, &WorkspaceStatus::Active)?; Ok(()) }).await?;
 
     let info = WorkspaceInfo::from(&ws);
 

@@ -153,9 +153,9 @@
   const DIFFS = {
     "ws-auth": {
       files: [
-        { path: "src/middleware/auth.ts", status: "Added", additions: 45, deletions: 0 },
-        { path: "src/routes/index.ts", status: "Modified", additions: 12, deletions: 3 },
-        { path: "src/lib/auth.ts", status: "Modified", additions: 8, deletions: 2 },
+        { path: "src/middleware/auth.ts", status: "added", additions: 45, deletions: 0 },
+        { path: "src/routes/index.ts", status: "modified", additions: 12, deletions: 3 },
+        { path: "src/lib/auth.ts", status: "modified", additions: 8, deletions: 2 },
       ],
       totalAdditions: 65,
       totalDeletions: 5,

@@ -8,7 +8,7 @@ use crate::state::AppState;
 use tauri::State;
 use uuid::Uuid;
 
-#[derive(serde::Serialize, Debug, Clone, PartialEq)]
+#[derive(serde::Serialize, Debug, Clone, PartialEq, specta::Type)]
 pub struct FileContent {
     pub content: String,
     pub language: String,
@@ -42,14 +42,14 @@ pub(crate) fn build_ls_tree_args(depth: u32) -> Vec<&'static str> {
 
 // --- Type definition loading for Monaco language services ---
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TypeDefFile {
     pub file_path: String,
     pub content: String,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TypeDefinitions {
     pub tsconfig: Option<String>,
@@ -104,6 +104,7 @@ fn collect_dts_files(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_repo_directories(
     state: State<'_, AppState>,
     repo_id: String,
@@ -150,6 +151,7 @@ pub async fn list_repo_directories(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_workspace_files(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -194,6 +196,7 @@ pub async fn list_workspace_files(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_repo_files(
     state: State<'_, AppState>,
     repo_id: String,
@@ -236,6 +239,7 @@ pub async fn list_repo_files(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn read_workspace_file(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -270,6 +274,7 @@ pub async fn read_workspace_file(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn read_repo_file(
     state: State<'_, AppState>,
     repo_id: String,
@@ -302,6 +307,7 @@ pub async fn read_repo_file(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn load_type_definitions(
     state: State<'_, AppState>,
     workspace_id: Option<String>,

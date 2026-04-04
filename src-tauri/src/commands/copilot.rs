@@ -6,13 +6,13 @@ use crate::error::AppError;
 use crate::services::copilot_lsp::{self, CopilotCompletion, CopilotLspHandle, CopilotSignInResult};
 use crate::state::AppState;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CompletionResult {
     pub items: Vec<CopilotCompletion>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DocSyncEvent {
     pub uri: String,
@@ -21,7 +21,7 @@ pub struct DocSyncEvent {
     pub text: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DocChangeEvent {
     pub uri: String,
@@ -143,6 +143,7 @@ pub(crate) fn parse_completion_items(result: &Value) -> Vec<CopilotCompletion> {
 
 /// Start the Copilot Language Server.
 #[tauri::command]
+#[specta::specta]
 pub async fn start_copilot(
     state: State<'_, AppState>,
     root_uri: String,
@@ -180,6 +181,7 @@ pub async fn start_copilot(
 
 /// Stop the Copilot Language Server.
 #[tauri::command]
+#[specta::specta]
 pub async fn stop_copilot(state: State<'_, AppState>) -> Result<(), AppError> {
     let taken = {
         let mut guard = state.copilot.lock()
@@ -196,6 +198,7 @@ pub async fn stop_copilot(state: State<'_, AppState>) -> Result<(), AppError> {
 
 /// Trigger GitHub OAuth device flow sign-in.
 #[tauri::command]
+#[specta::specta]
 pub async fn copilot_sign_in(
     state: State<'_, AppState>,
 ) -> Result<CopilotSignInResult, AppError> {
@@ -213,6 +216,7 @@ pub async fn copilot_sign_in(
 
 /// Check Copilot authentication status.
 #[tauri::command]
+#[specta::specta]
 pub async fn copilot_check_status(
     state: State<'_, AppState>,
 ) -> Result<Value, AppError> {
@@ -230,6 +234,7 @@ pub async fn copilot_check_status(
 
 /// Notify Copilot LS that a document was opened.
 #[tauri::command]
+#[specta::specta]
 pub async fn copilot_did_open(
     state: State<'_, AppState>,
     event: DocSyncEvent,
@@ -241,6 +246,7 @@ pub async fn copilot_did_open(
 
 /// Notify Copilot LS that a document changed.
 #[tauri::command]
+#[specta::specta]
 pub async fn copilot_did_change(
     state: State<'_, AppState>,
     event: DocChangeEvent,
@@ -252,6 +258,7 @@ pub async fn copilot_did_change(
 
 /// Notify Copilot LS that a document was closed.
 #[tauri::command]
+#[specta::specta]
 pub async fn copilot_did_close(
     state: State<'_, AppState>,
     uri: String,
@@ -263,6 +270,7 @@ pub async fn copilot_did_close(
 
 /// Request inline completions at a given position.
 #[tauri::command]
+#[specta::specta]
 pub async fn copilot_complete(
     state: State<'_, AppState>,
     uri: String,

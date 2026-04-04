@@ -6,7 +6,7 @@ import type {
   ConflictContent,
   StashEntry,
   StashDetail,
-} from "./types";
+} from "./bindings.generated";
 
 // Merge/branch commands
 export async function getBranchStatus(

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 pub enum WorkspaceStatus {
     Creating,
     Active,
@@ -33,7 +33,7 @@ impl WorkspaceStatus {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Workspace {
     pub id: Uuid,
@@ -53,7 +53,7 @@ pub struct Workspace {
     pub devcontainer_config: Option<DevContainerConfig>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateWorkspaceRequest {
     pub repo_id: Uuid,
@@ -66,7 +66,7 @@ pub struct CreateWorkspaceRequest {
     pub devcontainer_config: Option<DevContainerConfig>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceInfo {
     pub id: Uuid,

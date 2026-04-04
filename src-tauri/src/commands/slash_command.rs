@@ -43,6 +43,7 @@ pub(crate) fn get_slash_command_content_inner(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_slash_commands(
     state: State<'_, AppState>,
     context_id: String,
@@ -56,6 +57,7 @@ pub async fn list_slash_commands(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_slash_command_content(
     state: State<'_, AppState>,
     workspace_id: String,

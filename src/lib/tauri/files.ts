@@ -1,5 +1,5 @@
 import { instrumentedInvoke as invoke } from "../ipcInstrumentation";
-import type { FileContent, TypeDefinitions, WriteFileResult } from "./types";
+import type { FileContent, TypeDefinitions, WriteFileResult } from "./bindings.generated";
 
 // File content reading
 export async function readWorkspaceFile(

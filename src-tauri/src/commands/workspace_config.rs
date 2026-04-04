@@ -10,6 +10,7 @@ use super::workspace::{
 };
 
 #[tauri::command]
+#[specta::specta]
 pub async fn update_sparse_dirs(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -46,17 +47,18 @@ pub async fn update_sparse_dirs(
     };
 
     // Persist to database
-    {
-        let db = state.db.lock().unwrap();
-        if let Some(db) = db.as_ref() {
+    state
+        .with_db(move |db| {
             db.update_workspace_sparse_dirs(&id, &sparse_dirs)?;
-        }
-    }
+            Ok(())
+        })
+        .await?;
 
     Ok(())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn update_workspace_notes(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -71,19 +73,16 @@ pub async fn update_workspace_notes(
     }
 
     // Persist
-    {
-        let db = state.db.lock().unwrap();
-        if let Some(db) = db.as_ref() {
+    state
+        .with_db(move |db| {
             db.update_workspace_notes(&id, &notes)?;
-        }
-    }
-
-    tokio::task::spawn_blocking(move || Ok(()))
+            Ok(())
+        })
         .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn rename_workspace(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -98,19 +97,16 @@ pub async fn rename_workspace(
     }
 
     // Persist
-    {
-        let db = state.db.lock().unwrap();
-        if let Some(db) = db.as_ref() {
+    state
+        .with_db(move |db| {
             db.update_workspace_name(&id, &name)?;
-        }
-    }
-
-    tokio::task::spawn_blocking(move || Ok(()))
+            Ok(())
+        })
         .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn set_workspace_pinned(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -125,16 +121,12 @@ pub async fn set_workspace_pinned(
     }
 
     // Persist
-    {
-        let db = state.db.lock().unwrap();
-        if let Some(db) = db.as_ref() {
+    state
+        .with_db(move |db| {
             db.update_workspace_pinned(&id, pinned)?;
-        }
-    }
-
-    tokio::task::spawn_blocking(move || Ok(()))
+            Ok(())
+        })
         .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[cfg(test)]

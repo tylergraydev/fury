@@ -8,7 +8,7 @@ use base64::Engine;
 use tauri::State;
 use uuid::Uuid;
 
-#[derive(serde::Serialize, Debug, Clone, PartialEq)]
+#[derive(serde::Serialize, Debug, Clone, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WriteFileResult {
     pub content: String,
@@ -126,6 +126,7 @@ fn try_format_file(file_path: &std::path::Path, working_dir: &std::path::Path) -
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn write_workspace_file(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -175,6 +176,7 @@ pub async fn write_workspace_file(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn write_repo_file(
     state: State<'_, AppState>,
     repo_id: String,
@@ -224,6 +226,7 @@ pub async fn write_repo_file(
 /// Read an arbitrary file and return its contents as a base64 data URL.
 /// Used for displaying dropped image previews in the chat UI.
 #[tauri::command]
+#[specta::specta]
 pub async fn read_file_base64(
     state: State<'_, AppState>,
     file_path: String,
@@ -306,6 +309,7 @@ pub async fn read_file_base64(
 /// Save base64-encoded image data to a temporary file and return the absolute path.
 /// Used for clipboard paste support in the chat composer.
 #[tauri::command]
+#[specta::specta]
 pub async fn save_clipboard_image(data: String, mime_type: String) -> Result<String, AppError> {
     tokio::task::spawn_blocking(move || {
         let ext = extension_for_mime(&mime_type);

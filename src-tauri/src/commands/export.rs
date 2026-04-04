@@ -75,6 +75,7 @@ pub(crate) fn build_export(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn export_workspace(
     state: State<'_, AppState>,
     options: ExportOptions,
@@ -90,22 +91,12 @@ pub async fn export_workspace(
             .ok_or(AppError::WorkspaceNotFound(ws_id))?
     };
 
-    // Extract data from DB
-    let bundle = {
-        let db_lock = state.db.lock().unwrap();
-        let db = db_lock
-            .as_ref()
-            .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
-        build_export(&ws, db, &options)?
-    };
-
-    // Serialize off the main thread
-    tokio::task::spawn_blocking(move || {
+    // Extract data from DB and serialize
+    state.with_db(move |db| {
+        let bundle = build_export(&ws, db, &options)?;
         let json = serde_json::to_string_pretty(&bundle)?;
         Ok(json)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    }).await
 }
 
 #[cfg(test)]

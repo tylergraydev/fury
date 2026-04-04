@@ -4,10 +4,9 @@ use crate::services::perf_server::{
 };
 use crate::state::AppState;
 use serde::Deserialize;
-use std::sync::Arc;
 use tauri::State;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct IpcMetricPayload {
     pub command: String,
@@ -17,14 +16,14 @@ pub struct IpcMetricPayload {
     pub timestamp: f64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FrameMetricPayload {
     pub duration_ms: f64,
     pub timestamp: f64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentTurnPayload {
     pub workspace_id: String,
@@ -39,7 +38,7 @@ pub struct AgentTurnPayload {
     pub timestamp: f64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct StreamEventPayload {
     pub workspace_id: String,
@@ -144,84 +143,60 @@ pub(crate) fn get_perf_status_inner(perf: &PerfMetrics) -> Result<bool, AppError
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn push_ipc_metrics(
     state: State<'_, AppState>,
     metrics: Vec<IpcMetricPayload>,
 ) -> Result<(), AppError> {
-    let perf_metrics = Arc::clone(&state.perf_metrics);
-    tokio::task::spawn_blocking(move || {
-        let mut lock = perf_metrics.lock().unwrap();
-        push_ipc_metrics_inner(&mut lock, metrics)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    let mut lock = state.perf_metrics.lock().unwrap_or_else(|e| e.into_inner());
+    push_ipc_metrics_inner(&mut lock, metrics)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn push_frame_metrics(
     state: State<'_, AppState>,
     metrics: Vec<FrameMetricPayload>,
 ) -> Result<(), AppError> {
-    let perf_metrics = Arc::clone(&state.perf_metrics);
-    tokio::task::spawn_blocking(move || {
-        let mut lock = perf_metrics.lock().unwrap();
-        push_frame_metrics_inner(&mut lock, metrics)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    let mut lock = state.perf_metrics.lock().unwrap_or_else(|e| e.into_inner());
+    push_frame_metrics_inner(&mut lock, metrics)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn push_stream_events(
     state: State<'_, AppState>,
     events: Vec<StreamEventPayload>,
 ) -> Result<(), AppError> {
-    let perf_metrics = Arc::clone(&state.perf_metrics);
-    tokio::task::spawn_blocking(move || {
-        let mut lock = perf_metrics.lock().unwrap();
-        push_stream_events_inner(&mut lock, events)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    let mut lock = state.perf_metrics.lock().unwrap_or_else(|e| e.into_inner());
+    push_stream_events_inner(&mut lock, events)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn push_agent_turn_metric(
     state: State<'_, AppState>,
     metric: AgentTurnPayload,
 ) -> Result<(), AppError> {
-    let perf_metrics = Arc::clone(&state.perf_metrics);
-    tokio::task::spawn_blocking(move || {
-        let mut lock = perf_metrics.lock().unwrap();
-        push_agent_turn_metric_inner(&mut lock, metric)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    let mut lock = state.perf_metrics.lock().unwrap_or_else(|e| e.into_inner());
+    push_agent_turn_metric_inner(&mut lock, metric)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn toggle_perf_monitor(
     state: State<'_, AppState>,
     enabled: bool,
 ) -> Result<bool, AppError> {
-    let perf_metrics = Arc::clone(&state.perf_metrics);
-    tokio::task::spawn_blocking(move || {
-        let mut lock = perf_metrics.lock().unwrap();
-        toggle_perf_monitor_inner(&mut lock, enabled)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    let mut lock = state.perf_metrics.lock().unwrap_or_else(|e| e.into_inner());
+    toggle_perf_monitor_inner(&mut lock, enabled)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_perf_status(state: State<'_, AppState>) -> Result<bool, AppError> {
-    let perf_metrics = Arc::clone(&state.perf_metrics);
-    tokio::task::spawn_blocking(move || {
-        let lock = perf_metrics.lock().unwrap();
-        get_perf_status_inner(&lock)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    let lock = state.perf_metrics.lock().unwrap_or_else(|e| e.into_inner());
+    get_perf_status_inner(&lock)
 }
 
 #[cfg(test)]

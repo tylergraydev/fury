@@ -112,7 +112,7 @@ vi.mock("../../lib/tauri", () => ({
   listChatMessages: vi.fn().mockResolvedValue([]),
   saveChatMessage: vi.fn().mockResolvedValue(undefined),
   clearChatMessages: vi.fn().mockResolvedValue(undefined),
-  getAgentStatus: vi.fn().mockResolvedValue({ workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null }),
+  getAgentStatus: vi.fn().mockResolvedValue({ workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null }),
   sendMessage: vi.fn().mockResolvedValue(undefined),
   stopAgent: vi.fn().mockResolvedValue(undefined),
   listCheckpoints: vi.fn().mockResolvedValue([]),
@@ -160,8 +160,8 @@ describe("ChatPanel", () => {
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "user", content: [{ type: "text", text: "Hi" }], timestamp: 1 },
-          { id: "m2", role: "assistant", content: [{ type: "text", text: "Hello" }], timestamp: 2 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "Hi" }], timestamp: "2024-01-01T00:00:01Z" },
+          { id: "m2", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "Hello" }], timestamp: "2024-01-01T00:00:02Z" },
         ],
       },
     });
@@ -179,7 +179,7 @@ describe("ChatPanel", () => {
 
   it("passes agent status from agent store", () => {
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null, pid: null } },
     });
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     expect(screen.getByTestId("agent-status")).toHaveTextContent("Running");
@@ -263,16 +263,16 @@ describe("ChatPanel", () => {
     const addUserMessageSpy = vi.fn();
     const removeTrailingSpy = vi.fn();
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null } },
       subscriptions: {},
       sendMessage: sendMessageSpy,
     });
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "user", content: [{ type: "text", text: "Hello" }], timestamp: 1 },
-          { id: "m2", role: "assistant", content: [{ type: "text", text: "Hi back" }], timestamp: 2 },
-          { id: "m3", role: "system", content: [{ type: "text", text: "Error occurred" }], timestamp: 3 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "Hello" }], timestamp: "2024-01-01T00:00:01Z" },
+          { id: "m2", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "Hi back" }], timestamp: "2024-01-01T00:00:02Z" },
+          { id: "m3", workspaceId: "ws-1", role: "system", content: [{ type: "text", text: "Error occurred" }], timestamp: "2024-01-01T00:00:03Z" },
         ],
       },
       streamingText: {},
@@ -291,7 +291,7 @@ describe("ChatPanel", () => {
   it("handleRetry does nothing when agent is Running", async () => {
     const sendMessageSpy = vi.fn().mockResolvedValue(undefined);
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null, pid: null } },
       subscriptions: {},
       sendMessage: sendMessageSpy,
       subscribe: vi.fn(),
@@ -301,7 +301,7 @@ describe("ChatPanel", () => {
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "user", content: [{ type: "text", text: "Hello" }], timestamp: 1 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "Hello" }], timestamp: "2024-01-01T00:00:01Z" },
         ],
       },
       streamingText: {},
@@ -318,7 +318,7 @@ describe("ChatPanel", () => {
   it("handleRetry does nothing when agent is Stopping", async () => {
     const sendMessageSpy = vi.fn().mockResolvedValue(undefined);
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Stopping", sessionId: null, startedAt: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Stopping", sessionId: null, startedAt: null, pid: null } },
       subscriptions: {},
       sendMessage: sendMessageSpy,
       subscribe: vi.fn(),
@@ -328,7 +328,7 @@ describe("ChatPanel", () => {
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "user", content: [{ type: "text", text: "Hello" }], timestamp: 1 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "Hello" }], timestamp: "2024-01-01T00:00:01Z" },
         ],
       },
       streamingText: {},
@@ -345,14 +345,14 @@ describe("ChatPanel", () => {
   it("handleRetry does nothing when there are no user messages", async () => {
     const sendMessageSpy = vi.fn().mockResolvedValue(undefined);
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null } },
       subscriptions: {},
       sendMessage: sendMessageSpy,
     });
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "assistant", content: [{ type: "text", text: "Hello" }], timestamp: 1 },
+          { id: "m1", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "Hello" }], timestamp: "2024-01-01T00:00:01Z" },
         ],
       },
       streamingText: {},
@@ -367,14 +367,14 @@ describe("ChatPanel", () => {
   it("handleRetry does nothing when last user message has no text content", async () => {
     const sendMessageSpy = vi.fn().mockResolvedValue(undefined);
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null } },
       subscriptions: {},
       sendMessage: sendMessageSpy,
     });
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "user", content: [{ type: "toolUse", id: "t1", name: "test", input: {} }], timestamp: 1 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "toolUse", id: "t1", name: "test", input: {} }], timestamp: "2024-01-01T00:00:01Z" },
         ],
       },
       streamingText: {},
@@ -390,14 +390,14 @@ describe("ChatPanel", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const sendMessageSpy = vi.fn().mockRejectedValue(new Error("retry failed"));
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null } },
       subscriptions: {},
       sendMessage: sendMessageSpy,
     });
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "user", content: [{ type: "text", text: "Hello" }], timestamp: 1 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "Hello" }], timestamp: "2024-01-01T00:00:01Z" },
         ],
       },
       streamingText: {},
@@ -416,7 +416,7 @@ describe("ChatPanel", () => {
 
   it("passes agent status to Composer", () => {
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null, pid: null } },
     });
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     expect(screen.getByTestId("composer-agent-status")).toHaveTextContent("Running");
@@ -446,14 +446,14 @@ describe("ChatPanel", () => {
   it("handleRetry sends with repo contextType", async () => {
     const sendMessageSpy = vi.fn().mockResolvedValue(undefined);
     useAgentStore.setState({
-      agents: { "repo-1": { workspaceId: "repo-1", status: "Idle", sessionId: null, startedAt: null } },
+      agents: { "repo-1": { workspaceId: "repo-1", status: "Idle", sessionId: null, startedAt: null, pid: null } },
       subscriptions: {},
       sendMessage: sendMessageSpy,
     });
     useChatStore.setState({
       messages: {
         "repo-1": [
-          { id: "m1", role: "user", content: [{ type: "text", text: "Fix it" }], timestamp: 1 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "Fix it" }], timestamp: "2024-01-01T00:00:01Z" },
         ],
       },
       streamingText: {},
@@ -473,10 +473,10 @@ describe("ChatPanel", () => {
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "user", content: [{ type: "text", text: "Hello" }], timestamp: 1 },
-          { id: "m2", role: "assistant", content: [{ type: "text", text: "Hi" }], timestamp: 2 },
-          { id: "m3", role: "user", content: [{ type: "text", text: "How are you" }], timestamp: 3 },
-          { id: "m4", role: "assistant", content: [{ type: "text", text: "Good" }], timestamp: 4 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "Hello" }], timestamp: "2024-01-01T00:00:01Z" },
+          { id: "m2", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "Hi" }], timestamp: "2024-01-01T00:00:02Z" },
+          { id: "m3", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "How are you" }], timestamp: "2024-01-01T00:00:03Z" },
+          { id: "m4", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "Good" }], timestamp: "2024-01-01T00:00:04Z" },
         ],
       },
     });
@@ -488,12 +488,12 @@ describe("ChatPanel", () => {
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "user", content: [{ type: "text", text: "Hello" }], timestamp: 1 },
-          { id: "m2", role: "assistant", content: [{ type: "text", text: "Hi" }], timestamp: 2 },
-          { id: "m3", role: "user", content: [{ type: "text", text: "How" }], timestamp: 3 },
-          { id: "m4", role: "assistant", content: [{ type: "text", text: "Good" }], timestamp: 4 },
-          { id: "m5", role: "user", content: [{ type: "text", text: "Thanks" }], timestamp: 5 },
-          { id: "m6", role: "assistant", content: [{ type: "text", text: "Welcome" }], timestamp: 6 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "Hello" }], timestamp: "2024-01-01T00:00:01Z" },
+          { id: "m2", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "Hi" }], timestamp: "2024-01-01T00:00:02Z" },
+          { id: "m3", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "How" }], timestamp: "2024-01-01T00:00:03Z" },
+          { id: "m4", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "Good" }], timestamp: "2024-01-01T00:00:04Z" },
+          { id: "m5", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "Thanks" }], timestamp: "2024-01-01T00:00:05Z" },
+          { id: "m6", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "Welcome" }], timestamp: "2024-01-01T00:00:06Z" },
         ],
       },
     });
@@ -505,9 +505,9 @@ describe("ChatPanel", () => {
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "user", content: [{ type: "text", text: "A" }], timestamp: 1 },
-          { id: "m2", role: "user", content: [{ type: "text", text: "B" }], timestamp: 2 },
-          { id: "m3", role: "user", content: [{ type: "text", text: "C" }], timestamp: 3 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "A" }], timestamp: "2024-01-01T00:00:01Z" },
+          { id: "m2", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "B" }], timestamp: "2024-01-01T00:00:02Z" },
+          { id: "m3", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "C" }], timestamp: "2024-01-01T00:00:03Z" },
         ],
       },
     });
@@ -527,9 +527,9 @@ describe("ChatPanel", () => {
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "user", content: [{ type: "text", text: "A" }], timestamp: 1 },
-          { id: "m2", role: "user", content: [{ type: "text", text: "B" }], timestamp: 2 },
-          { id: "m3", role: "user", content: [{ type: "text", text: "C" }], timestamp: 3 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "A" }], timestamp: "2024-01-01T00:00:01Z" },
+          { id: "m2", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "B" }], timestamp: "2024-01-01T00:00:02Z" },
+          { id: "m3", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "C" }], timestamp: "2024-01-01T00:00:03Z" },
         ],
       },
     });
@@ -547,9 +547,9 @@ describe("ChatPanel", () => {
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "user", content: [{ type: "text", text: "A" }], timestamp: 1 },
-          { id: "m2", role: "user", content: [{ type: "text", text: "B" }], timestamp: 2 },
-          { id: "m3", role: "user", content: [{ type: "text", text: "C" }], timestamp: 3 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "A" }], timestamp: "2024-01-01T00:00:01Z" },
+          { id: "m2", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "B" }], timestamp: "2024-01-01T00:00:02Z" },
+          { id: "m3", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "C" }], timestamp: "2024-01-01T00:00:03Z" },
         ],
       },
     });
@@ -575,9 +575,9 @@ describe("ChatPanel", () => {
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "user", content: [{ type: "text", text: "A" }], timestamp: 1 },
-          { id: "m2", role: "user", content: [{ type: "text", text: "B" }], timestamp: 2 },
-          { id: "m3", role: "user", content: [{ type: "text", text: "C" }], timestamp: 3 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "A" }], timestamp: "2024-01-01T00:00:01Z" },
+          { id: "m2", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "B" }], timestamp: "2024-01-01T00:00:02Z" },
+          { id: "m3", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "C" }], timestamp: "2024-01-01T00:00:03Z" },
         ],
       },
     });
@@ -816,7 +816,7 @@ describe("ChatPanel", () => {
       clearPermissionRequest: clearPermSpy,
     });
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null } },
     });
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     expect(clearPermSpy).toHaveBeenCalledWith("ws-1");
@@ -832,7 +832,7 @@ describe("ChatPanel", () => {
       clearPermissionRequest: clearPermSpy,
     });
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null, pid: null } },
     });
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     expect(clearPermSpy).not.toHaveBeenCalled();
@@ -900,9 +900,9 @@ describe("ChatPanel", () => {
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "user", content: [{ type: "text", text: "A" }], timestamp: 1 },
-          { id: "m2", role: "user", content: [{ type: "text", text: "B" }], timestamp: 2 },
-          { id: "m3", role: "user", content: [{ type: "text", text: "C" }], timestamp: 3 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "A" }], timestamp: "2024-01-01T00:00:01Z" },
+          { id: "m2", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "B" }], timestamp: "2024-01-01T00:00:02Z" },
+          { id: "m3", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "C" }], timestamp: "2024-01-01T00:00:03Z" },
         ],
       },
     });
@@ -922,9 +922,9 @@ describe("ChatPanel", () => {
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "user", content: [{ type: "text", text: "A" }], timestamp: 1 },
-          { id: "m2", role: "user", content: [{ type: "text", text: "B" }], timestamp: 2 },
-          { id: "m3", role: "user", content: [{ type: "text", text: "C" }], timestamp: 3 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "A" }], timestamp: "2024-01-01T00:00:01Z" },
+          { id: "m2", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "B" }], timestamp: "2024-01-01T00:00:02Z" },
+          { id: "m3", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "C" }], timestamp: "2024-01-01T00:00:03Z" },
         ],
       },
     });
@@ -943,9 +943,9 @@ describe("ChatPanel", () => {
     useChatStore.setState({
       messages: {
         "ws-1": [
-          { id: "m1", role: "user", content: [{ type: "text", text: "A" }], timestamp: 1 },
-          { id: "m2", role: "user", content: [{ type: "text", text: "B" }], timestamp: 2 },
-          { id: "m3", role: "user", content: [{ type: "text", text: "C" }], timestamp: 3 },
+          { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "A" }], timestamp: "2024-01-01T00:00:01Z" },
+          { id: "m2", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "B" }], timestamp: "2024-01-01T00:00:02Z" },
+          { id: "m3", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "C" }], timestamp: "2024-01-01T00:00:03Z" },
         ],
       },
     });

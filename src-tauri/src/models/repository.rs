@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::models::settings::ProviderConfig;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum GitProvider {
     #[default]
@@ -32,7 +32,7 @@ impl GitProvider {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Repository {
     pub id: Uuid,
@@ -48,7 +48,7 @@ pub struct Repository {
     pub remote_url: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RepoSettings {
     pub setup_script: Option<String>,
@@ -63,7 +63,7 @@ pub struct RepoSettings {
     pub devcontainer: Option<DevContainerConfig>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum RunScriptMode {
     Concurrent,
@@ -71,7 +71,7 @@ pub enum RunScriptMode {
     Nonconcurrent,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FuryJson {
     #[serde(default)]
@@ -80,7 +80,7 @@ pub struct FuryJson {
     pub run_script_mode: Option<RunScriptMode>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FuryScripts {
     pub setup: Option<String>,

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PrInfo {
     pub workspace_id: Uuid,
@@ -27,7 +27,7 @@ impl PrInfo {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PrCheck {
     pub name: String,
@@ -37,7 +37,7 @@ pub struct PrCheck {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CreatePrRequest {
     pub workspace_id: Uuid,
@@ -46,7 +46,7 @@ pub struct CreatePrRequest {
     pub draft: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MergeResult {
     pub success: bool,
@@ -54,7 +54,7 @@ pub struct MergeResult {
     pub merge_method: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PrComment {
     pub id: u64,
@@ -65,7 +65,7 @@ pub struct PrComment {
     pub line: Option<u32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PrReview {
     pub id: u64,
@@ -75,7 +75,7 @@ pub struct PrReview {
     pub submitted_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PrFullData {
     pub info: PrInfo,
@@ -83,14 +83,14 @@ pub struct PrFullData {
     pub review_comments: Vec<PrComment>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewsAndComments {
     pub reviews: Vec<PrReview>,
     pub review_comments: Vec<PrComment>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PrListItem {
     pub number: u32,
@@ -102,7 +102,7 @@ pub struct PrListItem {
     pub url: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PrDetail {
     pub number: u32,
@@ -114,7 +114,7 @@ pub struct PrDetail {
     pub url: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct IssueListItem {
     pub number: u32,
@@ -124,7 +124,7 @@ pub struct IssueListItem {
     pub labels: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct IssueDetail {
     pub number: u32,
@@ -134,7 +134,7 @@ pub struct IssueDetail {
     pub labels: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkflowRun {
     pub id: u64,
@@ -146,7 +146,7 @@ pub struct WorkflowRun {
     pub created_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkflowJob {
     pub id: u64,
@@ -156,7 +156,7 @@ pub struct WorkflowJob {
     pub steps: Vec<WorkflowStep>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkflowStep {
     pub name: String,
@@ -164,7 +164,7 @@ pub struct WorkflowStep {
     pub conclusion: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RunLogsResult {
     pub logs: String,
@@ -172,7 +172,7 @@ pub struct RunLogsResult {
     pub task_logs: Option<Vec<TaskLog>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskLog {
     pub task_name: String,

@@ -244,6 +244,7 @@ fn reset_agent_on_error(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn send_message(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -351,37 +352,44 @@ pub async fn send_message(
         activate_agent(&mut agents, context_id, &state.db)
     };
 
-    // Create checkpoint before sending message (workspace mode only)
+    // Create checkpoint before sending message (workspace mode only).
+    // Runs in a background task to avoid blocking the agent message send.
     if request.workspace_id.is_some() {
         let session_id_str = session_id.clone().unwrap_or_default();
-        let turn_index = {
-            let db = state.db.lock().unwrap();
-            db.as_ref()
-                .map(|db| db.get_next_turn_index(&context_id).unwrap_or(0))
-                .unwrap_or(0)
-        };
+        let checkpoint_db = Arc::clone(&state.db);
+        let checkpoint_dir = working_dir.clone();
+        let checkpoint_msg = request.message.clone();
+        let checkpoint_app = app.clone();
+        tokio::task::spawn_blocking(move || {
+            let turn_index = {
+                let db = checkpoint_db.lock().unwrap_or_else(|e| e.into_inner());
+                db.as_ref()
+                    .map(|db| db.get_next_turn_index(&context_id).unwrap_or(0))
+                    .unwrap_or(0)
+            };
 
-        match crate::services::checkpoint::create_checkpoint(
-            &working_dir,
-            context_id,
-            &session_id_str,
-            turn_index,
-            &request.message,
-        ) {
-            Ok(checkpoint) => {
-                let db = state.db.lock().unwrap();
-                if let Some(db) = db.as_ref() {
-                    let _ = db.insert_checkpoint(&checkpoint);
+            match crate::services::checkpoint::create_checkpoint(
+                &checkpoint_dir,
+                context_id,
+                &session_id_str,
+                turn_index,
+                &checkpoint_msg,
+            ) {
+                Ok(checkpoint) => {
+                    let db = checkpoint_db.lock().unwrap_or_else(|e| e.into_inner());
+                    if let Some(db) = db.as_ref() {
+                        let _ = db.insert_checkpoint(&checkpoint);
+                    }
+                    let _ = checkpoint_app.emit(
+                        &format!("checkpoint-created:{}", context_id),
+                        &checkpoint,
+                    );
                 }
-                let _ = app.emit(
-                    &format!("checkpoint-created:{}", context_id),
-                    &checkpoint,
-                );
+                Err(e) => {
+                    eprintln!("[checkpoint] Failed to create checkpoint: {}", e);
+                }
             }
-            Err(e) => {
-                eprintln!("[checkpoint] Failed to create checkpoint: {}", e);
-            }
-        }
+        });
     }
 
     // Emit status change
@@ -397,15 +405,10 @@ pub async fn send_message(
     // Get link IDs from db first, then drop the db lock before acquiring workspaces lock
     // to respect lock ordering (workspaces before db)
     let linked_dirs = if request.workspace_id.is_some() {
-        let link_ids = {
-            let db = state.db.lock().unwrap();
-            if let Some(db) = db.as_ref() {
-                db.get_workspace_links(&context_id).unwrap_or_default()
-            } else {
-                vec![]
-            }
-        };
-        // Now get workspace data (db lock is dropped)
+        let link_ids = state
+            .with_db(move |db| Ok(db.get_workspace_links(&context_id).unwrap_or_default()))
+            .await
+            .unwrap_or_default();
         if !link_ids.is_empty() {
             let workspaces = state.workspaces.read().unwrap();
             link_ids
@@ -566,7 +569,11 @@ pub async fn send_message(
             processes.insert(context_id, child);
         }
 
-        // Background task: wait for process exit
+        // Background task: wait for process exit.
+        // The child is removed from agent_processes so we can await it
+        // without holding the lock. If this task is dropped before .wait()
+        // completes, tokio::process::Child::drop will kill the process,
+        // preventing zombies.
         let agents_ref = Arc::clone(&state.agents);
         let processes_ref = Arc::clone(&state.agent_processes);
         let stdins_ref = Arc::clone(&state.agent_stdins);
@@ -626,6 +633,7 @@ pub async fn send_message(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn respond_to_permission(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -679,6 +687,7 @@ pub async fn respond_to_permission(
 /// Return any pending permission request for a workspace.
 /// Called by the frontend on resubscribe (e.g. after HMR) to recover lost UI state.
 #[tauri::command]
+#[specta::specta]
 pub fn get_pending_permission(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -692,6 +701,7 @@ pub fn get_pending_permission(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn send_followup_message(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -1462,5 +1472,103 @@ mod tests {
     #[test]
     fn test_does_not_support_permission_codex() {
         assert!(!supports_permission_response(&AgentType::CodexCli));
+    }
+
+    // ─── resolve_container_exec_context tests ────────────────────────
+
+    #[test]
+    fn test_resolve_container_no_config() {
+        let mut ws = crate::test_helpers::test_workspace(Uuid::new_v4());
+        ws.devcontainer_config = None;
+        let result = resolve_container_exec_context(&ws, "repo", Some("ctr-123".into()));
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_resolve_container_disabled() {
+        let mut ws = crate::test_helpers::test_workspace(Uuid::new_v4());
+        ws.devcontainer_config = Some(crate::models::devcontainer::DevContainerConfig {
+            enabled: false,
+            agent_exec_mode: crate::models::devcontainer::AgentExecMode::Container,
+            ..Default::default()
+        });
+        let result = resolve_container_exec_context(&ws, "repo", Some("ctr-123".into()));
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_resolve_container_host_mode() {
+        let mut ws = crate::test_helpers::test_workspace(Uuid::new_v4());
+        ws.devcontainer_config = Some(crate::models::devcontainer::DevContainerConfig {
+            enabled: true,
+            agent_exec_mode: crate::models::devcontainer::AgentExecMode::Host,
+            ..Default::default()
+        });
+        let result = resolve_container_exec_context(&ws, "repo", Some("ctr-123".into()));
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_resolve_container_no_container_id() {
+        let mut ws = crate::test_helpers::test_workspace(Uuid::new_v4());
+        ws.devcontainer_config = Some(crate::models::devcontainer::DevContainerConfig {
+            enabled: true,
+            agent_exec_mode: crate::models::devcontainer::AgentExecMode::Container,
+            ..Default::default()
+        });
+        let result = resolve_container_exec_context(&ws, "repo", None);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_resolve_container_success() {
+        let mut ws = crate::test_helpers::test_workspace(Uuid::new_v4());
+        ws.devcontainer_config = Some(crate::models::devcontainer::DevContainerConfig {
+            enabled: true,
+            agent_exec_mode: crate::models::devcontainer::AgentExecMode::Container,
+            ..Default::default()
+        });
+        let result = resolve_container_exec_context(&ws, "my-repo", Some("ctr-abc".into()));
+        assert!(result.is_some());
+        let ctx = result.unwrap();
+        assert_eq!(ctx.container_id, "ctr-abc");
+    }
+
+    // ─── should_clear_session_on_cold_error tests ────────────────────
+
+    #[test]
+    fn test_cold_error_clears_session() {
+        assert!(should_clear_session_on_cold_error(false, false, Some(1)));
+    }
+
+    #[test]
+    fn test_warm_error_does_not_clear_session() {
+        // had_content = true means it's not a cold error
+        assert!(!should_clear_session_on_cold_error(true, false, Some(1)));
+    }
+
+    #[test]
+    fn test_sigterm_does_not_clear_session() {
+        // Exit code 143 (SIGTERM) is expected user-initiated stop
+        assert!(!should_clear_session_on_cold_error(false, false, Some(143)));
+    }
+
+    #[test]
+    fn test_success_exit_does_not_clear_session() {
+        assert!(!should_clear_session_on_cold_error(false, true, Some(0)));
+    }
+
+    // ─── can_reuse_persistent_process tests ──────────────────────────
+
+    #[test]
+    fn test_can_reuse_when_flags_match() {
+        assert!(can_reuse_persistent_process(true, false, true, false));
+        assert!(can_reuse_persistent_process(false, false, false, false));
+    }
+
+    #[test]
+    fn test_cannot_reuse_when_flags_differ() {
+        assert!(!can_reuse_persistent_process(true, false, false, false));
+        assert!(!can_reuse_persistent_process(false, true, false, false));
     }
 }

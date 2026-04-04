@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// The permissions section of a Claude settings.json file.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 pub struct ClaudePermissions {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub allow: Vec<String>,
@@ -12,7 +12,7 @@ pub struct ClaudePermissions {
 }
 
 /// Response for get_claude_permissions: returns the current allow/deny lists.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ClaudePermissionsResponse {
     pub permissions: ClaudePermissions,
@@ -51,6 +51,7 @@ fn write_settings(path: &PathBuf, value: &serde_json::Value) -> Result<(), AppEr
 
 /// Read the current Claude permission rules from ~/.claude/settings.json.
 #[tauri::command]
+#[specta::specta]
 pub fn get_claude_permissions() -> Result<ClaudePermissionsResponse, AppError> {
     let path = claude_settings_path();
     let settings = read_settings(&path)?;
@@ -69,6 +70,7 @@ pub fn get_claude_permissions() -> Result<ClaudePermissionsResponse, AppError> {
 /// Add permission rules to ~/.claude/settings.json.
 /// Merges with existing rules (no duplicates).
 #[tauri::command]
+#[specta::specta]
 pub fn add_claude_permissions(rules: Vec<String>) -> Result<ClaudePermissions, AppError> {
     let path = claude_settings_path();
     let mut settings = read_settings(&path)?;
@@ -108,6 +110,7 @@ pub fn add_claude_permissions(rules: Vec<String>) -> Result<ClaudePermissions, A
 
 /// Remove permission rules from ~/.claude/settings.json.
 #[tauri::command]
+#[specta::specta]
 pub fn remove_claude_permissions(rules: Vec<String>) -> Result<ClaudePermissions, AppError> {
     let path = claude_settings_path();
     let mut settings = read_settings(&path)?;

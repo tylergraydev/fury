@@ -17,19 +17,19 @@ interface Props {
 }
 
 function statusLabel(status: FileStatus): string {
-  if (status === "Added") return "A";
-  if (status === "Modified") return "M";
-  if (status === "Deleted") return "D";
-  if (status === "Untracked") return "U";
-  if (typeof status === "object" && "Renamed" in status) return "R";
+  if (status === "added") return "A";
+  if (status === "modified") return "M";
+  if (status === "deleted") return "D";
+  if (status === "untracked") return "U";
+  if (typeof status === "object" && "renamed" in status) return "R";
   return "?";
 }
 
 function statusColor(status: FileStatus): string {
-  if (status === "Added" || status === "Untracked") return "var(--success)";
-  if (status === "Deleted") return "var(--error)";
-  if (status === "Modified") return "var(--accent)";
-  if (typeof status === "object" && "Renamed" in status) return "var(--accent)";
+  if (status === "added" || status === "untracked") return "var(--success)";
+  if (status === "deleted") return "var(--error)";
+  if (status === "modified") return "var(--accent)";
+  if (typeof status === "object" && "renamed" in status) return "var(--accent)";
   return "var(--text-muted)";
 }
 
@@ -81,6 +81,7 @@ function PrStatusBar({ workspaceId }: { workspaceId: string }) {
         workspaceId,
         title,
         body: "",
+        draft: null,
       });
       useUIStore.getState().setRightSidebarTab("checks");
     } catch (e) {

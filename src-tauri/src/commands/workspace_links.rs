@@ -6,6 +6,7 @@ use crate::state::AppState;
 use super::workspace::{parse_workspace_id, validate_link_workspaces};
 
 #[tauri::command]
+#[specta::specta]
 pub async fn link_workspaces(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -20,19 +21,16 @@ pub async fn link_workspaces(
         validate_link_workspaces(&workspaces, ws_id, linked_id)?;
     }
 
-    {
-        let db = state.db.lock().unwrap();
-        if let Some(db) = db.as_ref() {
+    state
+        .with_db(move |db| {
             db.insert_workspace_link(&ws_id, &linked_id)?;
-        }
-    }
-
-    tokio::task::spawn_blocking(move || Ok(()))
+            Ok(())
+        })
         .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn unlink_workspaces(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -41,41 +39,32 @@ pub async fn unlink_workspaces(
     let ws_id = parse_workspace_id(&workspace_id)?;
     let linked_id = parse_workspace_id(&linked_workspace_id)?;
 
-    {
-        let db = state.db.lock().unwrap();
-        if let Some(db) = db.as_ref() {
+    state
+        .with_db(move |db| {
             db.delete_workspace_link(&ws_id, &linked_id)?;
-        }
-    }
-
-    tokio::task::spawn_blocking(move || Ok(()))
+            Ok(())
+        })
         .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_linked_workspaces(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<String>, AppError> {
     let ws_id = parse_workspace_id(&workspace_id)?;
 
-    let result = {
-        let db = state.db.lock().unwrap();
-        if let Some(db) = db.as_ref() {
+    state
+        .with_db(move |db| {
             let ids = db.get_workspace_links(&ws_id)?;
-            ids.into_iter().map(|id| id.to_string()).collect()
-        } else {
-            vec![]
-        }
-    };
-
-    tokio::task::spawn_blocking(move || Ok(result))
+            Ok(ids.into_iter().map(|id| id.to_string()).collect())
+        })
         .await
-        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn start_spotlight(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -108,6 +97,7 @@ pub async fn start_spotlight(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn stop_spotlight(
     state: State<'_, AppState>,
     workspace_id: String,

@@ -132,6 +132,7 @@ describe("todoStore - updateTodo", () => {
       id: "t1",
       workspaceId: "ws-1",
       text: "new",
+      completed: null,
     });
 
     expect(useTodoStore.getState().todos["ws-1"][0].text).toBe("new");
@@ -144,6 +145,7 @@ describe("todoStore - updateTodo", () => {
       id: "t1",
       workspaceId: "ws-unknown",
       text: "new",
+      completed: null,
     });
 
     // Should have empty array since no matching todo was found
@@ -165,6 +167,7 @@ describe("todoStore - updateTodo", () => {
       id: "t1",
       workspaceId: "ws-1",
       text: "updated",
+      completed: null,
     });
 
     expect(useTodoStore.getState().todos["ws-1"][0].text).toBe("updated");
@@ -182,6 +185,7 @@ describe("todoStore - updateTodo", () => {
     await useTodoStore.getState().updateTodo({
       id: "t1",
       workspaceId: "ws-1",
+      text: null,
       completed: true,
     });
 
@@ -199,6 +203,7 @@ describe("todoStore - updateTodo", () => {
         id: "t1",
         workspaceId: "ws-1",
         text: "new",
+        completed: null,
       }),
     ).rejects.toThrow("update fail");
 

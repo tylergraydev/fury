@@ -8,9 +8,10 @@ import type { ChatMessage } from "../../lib/tauri";
 function makeTurn(text: string, id?: string, displayText?: string): Turn {
   const msg: ChatMessage = {
     id: id ?? crypto.randomUUID(),
+    workspaceId: "ws-1",
     role: "user",
     content: [{ type: "text", text }],
-    timestamp: Date.now(),
+    timestamp: new Date().toISOString(),
     ...(displayText ? { displayText } : {}),
   };
   return { userMessage: msg, responses: [] };
@@ -57,9 +58,10 @@ describe("ChatTOC", () => {
   it("shows (empty) for turns with no text content", () => {
     const msg: ChatMessage = {
       id: "empty-1",
+      workspaceId: "ws-1",
       role: "user",
       content: [],
-      timestamp: Date.now(),
+      timestamp: new Date().toISOString(),
     };
     const turns: Turn[] = [{ userMessage: msg, responses: [] }];
     render(<ChatTOC turns={turns} onClose={vi.fn()} />);
@@ -129,12 +131,13 @@ describe("ChatTOC", () => {
   it("filters out non-text content blocks from preview", () => {
     const msg: ChatMessage = {
       id: "mixed-1",
+      workspaceId: "ws-1",
       role: "user",
       content: [
         { type: "text", text: "Run tests" },
         { type: "toolUse", id: "t1", name: "bash", input: {} },
       ],
-      timestamp: Date.now(),
+      timestamp: new Date().toISOString(),
     };
     const turns: Turn[] = [{ userMessage: msg, responses: [] }];
     render(<ChatTOC turns={turns} onClose={vi.fn()} />);

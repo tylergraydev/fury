@@ -20,7 +20,7 @@ import type {
   UnlinkIssueRequest,
   WorkspaceIssue,
   UsageDataPoint,
-} from "./types";
+} from "./bindings.generated";
 
 // PR commands
 export async function createPr(request: CreatePrRequest): Promise<PrInfo> {

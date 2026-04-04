@@ -12,7 +12,7 @@ import type {
   Snippet,
   CreateSnippetRequest,
   UpdateSnippetRequest,
-} from "./types";
+} from "./bindings.generated";
 
 // Workspace template commands
 export async function createWorkspaceTemplate(

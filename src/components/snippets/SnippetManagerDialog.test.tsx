@@ -487,6 +487,7 @@ describe("SnippetManagerDialog", () => {
       language: "javascript",
       description: "A test snippet",
       tags: ["test", "demo"],
+      source: null,
     });
     // Should go back to library view
     expect(screen.getByText("Snippet Manager")).toBeInTheDocument();
@@ -515,9 +516,10 @@ describe("SnippetManagerDialog", () => {
     expect(mockCreateSnippet).toHaveBeenCalledWith({
       title: "minimal",
       content: "code here",
-      language: undefined,
-      description: undefined,
-      tags: undefined,
+      language: null,
+      description: null,
+      tags: null,
+      source: null,
     });
   });
 
@@ -547,6 +549,7 @@ describe("SnippetManagerDialog", () => {
       language: "typescript",
       description: "Typed fetch wrapper",
       tags: ["http"],
+      source: null,
     });
     expect(screen.getByText("Snippet Manager")).toBeInTheDocument();
   });
@@ -748,9 +751,10 @@ describe("SnippetManagerDialog", () => {
     expect(mockUpdateSnippet).toHaveBeenCalledWith("snippet-1", {
       title: "fetch helper",
       content: "async function fetchJSON(url: string) { ... }",
-      language: undefined,
-      description: undefined,
+      language: null,
+      description: null,
       tags: [],
+      source: null,
     });
   });
 

@@ -68,9 +68,10 @@ vi.mock("./MessageBubble", () => ({
 function makeMsg(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {
     id: "msg-1",
+    workspaceId: "ws-1",
     role: "user",
     content: [{ type: "text" as const, text: "hello" }],
-    timestamp: Date.now(),
+    timestamp: new Date().toISOString(),
     ...overrides,
   };
 }

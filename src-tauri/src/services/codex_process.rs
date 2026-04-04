@@ -175,7 +175,7 @@ pub async fn spawn_and_stream(
     #[cfg(windows)]
     cmd.creation_flags(0x08000200); // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
 
-    let mut child = cmd.spawn().map_err(|e| {
+    let mut child = cmd.kill_on_drop(true).spawn().map_err(|e| {
         AppError::AgentError(format!("Failed to spawn Codex CLI: {}", e))
     })?;
 

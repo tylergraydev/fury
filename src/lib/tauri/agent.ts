@@ -1,5 +1,5 @@
 import { instrumentedInvoke as invoke } from "../ipcInstrumentation";
-import type { SendMessageRequest, AgentInfo, FrontendStreamEvent } from "./types";
+import type { SendMessageRequest, AgentInfo, FrontendStreamEvent } from "./bindings.generated";
 
 // Agent commands
 export async function sendMessage(request: SendMessageRequest): Promise<void> {

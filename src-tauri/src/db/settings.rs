@@ -58,12 +58,13 @@ impl Database {
             .as_ref()
             .map(|c| serde_json::to_string(c).unwrap_or_default());
         // Use INSERT OR IGNORE + UPDATE to avoid nuking columns managed by other writers
-        // (e.g. test_runner columns on the same table).
-        self.conn.execute(
+        // (e.g. test_runner columns on the same table). Wrapped in a transaction for atomicity.
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
             "INSERT OR IGNORE INTO repository_settings (repo_id) VALUES (?1)",
             rusqlite::params![repo_id.to_string()],
         )?;
-        self.conn.execute(
+        tx.execute(
             "UPDATE repository_settings SET setup_script = ?2, run_script = ?3, archive_script = ?4, run_script_mode = ?5, env_vars = ?6, worktree_base_path = ?7, provider_override = ?8, devcontainer_config = ?9 WHERE repo_id = ?1",
             rusqlite::params![
                 repo_id.to_string(),
@@ -77,6 +78,7 @@ impl Database {
                 devcontainer_json,
             ],
         )?;
+        tx.commit()?;
         Ok(())
     }
 
@@ -113,12 +115,14 @@ impl Database {
             let json = serde_json::to_string(f).unwrap_or_default();
             json.trim_matches('"').to_string()
         });
-        // Ensure a row exists in repository_settings before updating
-        self.conn.execute(
+        // Ensure a row exists in repository_settings before updating.
+        // Wrapped in a transaction for atomicity.
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
             "INSERT OR IGNORE INTO repository_settings (repo_id) VALUES (?1)",
             rusqlite::params![repo_id.to_string()],
         )?;
-        self.conn.execute(
+        tx.execute(
             "UPDATE repository_settings SET test_framework = ?2, test_command = ?3, test_file_command = ?4, test_working_dir = ?5, coverage_command = ?6 WHERE repo_id = ?1",
             rusqlite::params![
                 repo_id.to_string(),
@@ -129,6 +133,7 @@ impl Database {
                 config.coverage_command,
             ],
         )?;
+        tx.commit()?;
         Ok(())
     }
 

@@ -1,5 +1,5 @@
 import { instrumentedInvoke as invoke } from "../ipcInstrumentation";
-import type { TestRunnerConfig, TestRunRecord } from "./types";
+import type { TestRunnerConfig, TestRunRecord } from "./bindings.generated";
 
 // Test runner commands
 export async function detectTestFramework(

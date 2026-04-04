@@ -23,9 +23,14 @@ impl Database {
         let db_path = data_dir.join("fury.db");
         let conn = Connection::open(&db_path).map_err(|e| AppError::DbError(e.to_string()))?;
 
-        // Enable WAL mode for better concurrent access
-        conn.execute_batch("PRAGMA journal_mode=WAL;")
-            .map_err(|e| AppError::DbError(e.to_string()))?;
+        // SQLite configuration for reliability and performance
+        conn.execute_batch(
+            "PRAGMA journal_mode=WAL;
+             PRAGMA busy_timeout=5000;
+             PRAGMA synchronous=NORMAL;
+             PRAGMA foreign_keys=ON;",
+        )
+        .map_err(|e| AppError::DbError(e.to_string()))?;
 
         let db = Self { conn };
         db.run_migrations()?;

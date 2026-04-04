@@ -92,7 +92,7 @@ describe("activityLogListeners", () => {
       useChatStore.setState({
         messages: {
           "ws-1": [
-            { id: "m1", role: "user", content: [{ type: "text", text: "hello world" }], timestamp: Date.now() },
+            { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "hello world" }], timestamp: new Date().toISOString() },
           ],
         },
       });
@@ -111,7 +111,7 @@ describe("activityLogListeners", () => {
       useChatStore.setState({
         messages: {
           "ws-1": [
-            { id: "m1", role: "assistant", content: [{ type: "text", text: "I can help" }], timestamp: Date.now() },
+            { id: "m1", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "I can help" }], timestamp: new Date().toISOString() },
           ],
         },
       });
@@ -129,7 +129,7 @@ describe("activityLogListeners", () => {
       useChatStore.setState({
         messages: {
           "ws-1": [
-            { id: "m1", role: "system", content: [{ type: "text", text: "system msg" }], timestamp: Date.now() },
+            { id: "m1", workspaceId: "ws-1", role: "system", content: [{ type: "text", text: "system msg" }], timestamp: new Date().toISOString() },
           ],
         },
       });
@@ -145,7 +145,7 @@ describe("activityLogListeners", () => {
       useChatStore.setState({
         messages: {
           "ws-1": [
-            { id: "m1", role: "user", content: [{ type: "text", text: longText }], timestamp: Date.now() },
+            { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: longText }], timestamp: new Date().toISOString() },
           ],
         },
       });
@@ -162,7 +162,7 @@ describe("activityLogListeners", () => {
       useChatStore.setState({
         messages: {
           "ws-1": [
-            { id: "m1", role: "assistant", content: [{ type: "toolUse", id: "t1", name: "read", input: {} }], timestamp: Date.now() },
+            { id: "m1", workspaceId: "ws-1", role: "assistant", content: [{ type: "toolUse", id: "t1", name: "read", input: {} }], timestamp: new Date().toISOString() },
           ],
         },
       });
@@ -178,7 +178,7 @@ describe("activityLogListeners", () => {
       useChatStore.setState({
         messages: {
           "ws-1": [
-            { id: "m1", role: "user", content: [{ type: "text", text: "first" }], timestamp: Date.now() },
+            { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "first" }], timestamp: new Date().toISOString() },
           ],
         },
       });
@@ -189,8 +189,8 @@ describe("activityLogListeners", () => {
       useChatStore.setState({
         messages: {
           "ws-1": [
-            { id: "m1", role: "user", content: [{ type: "text", text: "first" }], timestamp: Date.now() },
-            { id: "m2", role: "assistant", content: [{ type: "text", text: "second" }], timestamp: Date.now() },
+            { id: "m1", workspaceId: "ws-1", role: "user", content: [{ type: "text", text: "first" }], timestamp: new Date().toISOString() },
+            { id: "m2", workspaceId: "ws-1", role: "assistant", content: [{ type: "text", text: "second" }], timestamp: new Date().toISOString() },
           ],
         },
       });

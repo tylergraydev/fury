@@ -10,11 +10,13 @@ pub(crate) fn get_lsp_catalog_inner() -> Vec<LspCatalogEntry> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_lsp_catalog() -> Result<Vec<LspCatalogEntry>, AppError> {
     Ok(get_lsp_catalog_inner())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_lsp_plugins() -> Result<Vec<LspPlugin>, AppError> {
     tokio::task::spawn_blocking(lsp_svc::list_installed_lsp_plugins)
         .await
@@ -22,6 +24,7 @@ pub async fn list_lsp_plugins() -> Result<Vec<LspPlugin>, AppError> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn install_lsp_plugin(request: InstallLspPluginRequest) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || lsp_svc::install_lsp_plugin(&request))
         .await
@@ -29,6 +32,7 @@ pub async fn install_lsp_plugin(request: InstallLspPluginRequest) -> Result<(), 
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn uninstall_lsp_plugin(request: UninstallLspPluginRequest) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || lsp_svc::uninstall_lsp_plugin(&request))
         .await
@@ -36,6 +40,7 @@ pub async fn uninstall_lsp_plugin(request: UninstallLspPluginRequest) -> Result<
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn detect_lsp_suggestions(repo_path: String) -> Result<Vec<LspSuggestion>, AppError> {
     tokio::task::spawn_blocking(move || lsp_svc::detect_lsp_suggestions(&repo_path))
         .await

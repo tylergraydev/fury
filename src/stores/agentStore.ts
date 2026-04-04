@@ -126,8 +126,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
       const request =
         contextType === "workspace"
-          ? { workspaceId: contextId, message, model: model || undefined, disableThinking, disablePlanMode }
-          : { repoId: contextId, message, model: model || undefined, disableThinking, disablePlanMode };
+          ? { workspaceId: contextId, repoId: null, message, model: model ?? null, disableThinking: disableThinking ?? null, disablePlanMode: disablePlanMode ?? null }
+          : { repoId: contextId, workspaceId: null, message, model: model ?? null, disableThinking: disableThinking ?? null, disablePlanMode: disablePlanMode ?? null };
       await sendMessageCmd(request);
     } catch (e) {
       console.error(`[agentStore] Failed to send message:`, e);
@@ -144,7 +144,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     const failed: { workspaceId: string; error: string }[] = [];
     const results = await Promise.allSettled(
       workspaceIds.map((id) =>
-        sendMessageCmd({ workspaceId: id, message, model: model || undefined }),
+        sendMessageCmd({ workspaceId: id, repoId: null, message, model: model ?? null, disableThinking: null, disablePlanMode: null }),
       ),
     );
     results.forEach((result, i) => {

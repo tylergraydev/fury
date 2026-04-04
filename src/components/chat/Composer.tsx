@@ -600,7 +600,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
                 <span
                   className="ml-auto text-[10px]"
                   style={{
-                    color: cmd.source === "built-in" || cmd.source === "plugin" ? "var(--accent)" : "var(--text-muted)",
+                    color: (cmd.source as string) === "built-in" || cmd.source === "plugin" ? "var(--accent)" : "var(--text-muted)",
                   }}
                 >
                   {cmd.source}

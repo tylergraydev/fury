@@ -143,7 +143,7 @@ describe("mergeStore - pullRebase", () => {
       hasConflicts: true,
       conflictedFiles: ["file.ts"],
     };
-    const conflicts = [{ path: "file.ts", conflictType: "BothModified" }];
+    const conflicts = [{ path: "file.ts", conflictType: "bothModified" }];
     vi.mocked(pullRebase).mockResolvedValue(result as any);
     vi.mocked(getConflictedFiles).mockResolvedValue(conflicts as any);
 
@@ -190,7 +190,7 @@ describe("mergeStore - pullMerge", () => {
     };
     vi.mocked(pullMerge).mockResolvedValue(result as any);
     vi.mocked(getConflictedFiles).mockResolvedValue([
-      { path: "a.ts", conflictType: "BothModified" },
+      { path: "a.ts", conflictType: "bothModified" },
     ] as any);
 
     await useMergeStore.getState().pullMerge("ws-1");
@@ -310,7 +310,7 @@ describe("mergeStore - loadConflictedFiles inflight dedup", () => {
 
 describe("mergeStore - conflicts", () => {
   it("loadConflictedFiles stores files", async () => {
-    const files = [{ path: "a.ts", conflictType: "BothModified" }];
+    const files = [{ path: "a.ts", conflictType: "bothModified" }];
     vi.mocked(getConflictedFiles).mockResolvedValue(files as any);
 
     await useMergeStore.getState().loadConflictedFiles("ws-1");
@@ -358,8 +358,8 @@ describe("mergeStore - conflicts", () => {
     useMergeStore.setState({
       conflictedFiles: {
         "ws-1": [
-          { path: "a.ts", conflictType: "BothModified" },
-          { path: "b.ts", conflictType: "BothModified" },
+          { path: "a.ts", conflictType: "bothModified" },
+          { path: "b.ts", conflictType: "bothModified" },
         ] as any,
       },
     });
@@ -396,7 +396,7 @@ describe("mergeStore - abortMerge", () => {
   it("clears conflicts and refreshes status", async () => {
     useMergeStore.setState({
       conflictedFiles: {
-        "ws-1": [{ path: "a.ts", conflictType: "BothModified" }] as any,
+        "ws-1": [{ path: "a.ts", conflictType: "bothModified" }] as any,
       },
       selectedConflictFile: { "ws-1": "a.ts" },
     });
@@ -491,7 +491,7 @@ describe("mergeStore - syncBranch", () => {
       hasConflicts: true,
       conflictedFiles: ["file.ts"],
     };
-    const conflicts = [{ path: "file.ts", conflictType: "BothModified" }];
+    const conflicts = [{ path: "file.ts", conflictType: "bothModified" }];
     vi.mocked(fetchUpstream).mockResolvedValue(undefined);
     vi.mocked(pullRebase).mockResolvedValue(pullResult as any);
     vi.mocked(getConflictedFiles).mockResolvedValue(conflicts as any);

@@ -5,7 +5,7 @@ import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useUIStore } from "../stores/uiStore";
 import { useAgentStore } from "../stores/agentStore";
 
-export interface BuiltinCommand extends SlashCommand {
+export interface BuiltinCommand extends Omit<SlashCommand, "source"> {
   source: "built-in";
   action?: () => void;
 }

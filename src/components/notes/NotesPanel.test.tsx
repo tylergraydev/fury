@@ -243,6 +243,7 @@ describe("NotesPanel", () => {
       id: "t1",
       workspaceId: "ws-1",
       text: "Updated text",
+      completed: null,
     });
   });
 
@@ -267,6 +268,7 @@ describe("NotesPanel", () => {
       id: "t1",
       workspaceId: "ws-1",
       text: "Changed",
+      completed: null,
     });
   });
 

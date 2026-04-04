@@ -56,6 +56,7 @@ pub(crate) fn get_workspace_issues_inner(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn search_linear_issues(
     state: State<'_, AppState>,
     query: String,
@@ -66,6 +67,7 @@ pub async fn search_linear_issues(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn link_issue_to_workspace(
     state: State<'_, AppState>,
     request: LinkIssueRequest,
@@ -82,42 +84,38 @@ pub async fn link_issue_to_workspace(
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
     }
 
-    let db_guard = state.db.lock().unwrap();
-    let db = db_guard
-        .as_ref()
-        .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
-    link_issue_inner(
-        db,
-        &request.workspace_id,
-        &request.issue_id,
-        &request.identifier,
-        &request.title,
-        &request.url,
-    )
+    state.with_db(move |db| {
+        link_issue_inner(
+            db,
+            &request.workspace_id,
+            &request.issue_id,
+            &request.identifier,
+            &request.title,
+            &request.url,
+        )
+    }).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn unlink_issue_from_workspace(
     state: State<'_, AppState>,
     request: UnlinkIssueRequest,
 ) -> Result<(), AppError> {
-    let db_guard = state.db.lock().unwrap();
-    let db = db_guard
-        .as_ref()
-        .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
-    unlink_issue_inner(db, &request.workspace_id, &request.issue_id)
+    state.with_db(move |db| {
+        unlink_issue_inner(db, &request.workspace_id, &request.issue_id)
+    }).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_workspace_issues(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<WorkspaceIssue>, AppError> {
-    let db_guard = state.db.lock().unwrap();
-    let db = db_guard
-        .as_ref()
-        .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
-    get_workspace_issues_inner(db, &workspace_id)
+    state.with_db(move |db| {
+        get_workspace_issues_inner(db, &workspace_id)
+    }).await
 }
 
 #[cfg(test)]

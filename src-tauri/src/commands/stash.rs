@@ -64,6 +64,7 @@ pub(crate) fn show_stash_inner(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_stashes(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -76,6 +77,7 @@ pub async fn list_stashes(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn create_stash(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -93,6 +95,7 @@ pub async fn create_stash(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn apply_stash(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -106,6 +109,7 @@ pub async fn apply_stash(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn pop_stash(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -119,6 +123,7 @@ pub async fn pop_stash(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn drop_stash(
     state: State<'_, AppState>,
     workspace_id: String,
@@ -132,6 +137,7 @@ pub async fn drop_stash(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn show_stash(
     state: State<'_, AppState>,
     workspace_id: String,

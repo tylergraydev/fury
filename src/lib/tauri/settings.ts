@@ -13,7 +13,7 @@ import type {
   CursorRulesImportResult,
   IndexingStatus,
   SlashCommand,
-} from "./types";
+} from "./bindings.generated";
 
 // LSP Plugin commands
 export async function getLspCatalog(): Promise<LspCatalogEntry[]> {

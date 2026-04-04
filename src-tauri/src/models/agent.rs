@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, specta::Type)]
 pub enum AgentStatus {
     #[default]
     Idle,
@@ -11,7 +11,7 @@ pub enum AgentStatus {
     Error(String),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentInfo {
     pub workspace_id: Uuid,
@@ -37,7 +37,7 @@ impl AgentInfo {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SendMessageRequest {
     /// Either workspace_id or repo_id must be provided.
@@ -116,10 +116,11 @@ pub enum ContentBlockEvent {
 
 /// Lightweight event emitted to the frontend via Tauri events.
 /// We re-serialize from the raw stream to a simpler shape.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum FrontendStreamEvent {
     System {
+        #[serde(rename = "sessionId")]
         session_id: Option<String>,
         message: Option<String>,
     },
@@ -132,35 +133,40 @@ pub enum FrontendStreamEvent {
         input: serde_json::Value,
     },
     ToolResult {
+        #[serde(rename = "toolUseId")]
         tool_use_id: String,
         content: String,
     },
     AssistantImage {
+        #[serde(rename = "mediaType")]
         media_type: String,
         data: String,
     },
     Result {
+        #[serde(rename = "isError")]
         is_error: bool,
         result: Option<String>,
+        #[serde(rename = "sessionId")]
         session_id: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "durationMs", skip_serializing_if = "Option::is_none")]
         duration_ms: Option<u64>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "durationApiMs", skip_serializing_if = "Option::is_none")]
         duration_api_ms: Option<u64>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "totalCostUsd", skip_serializing_if = "Option::is_none")]
         total_cost_usd: Option<f64>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "numTurns", skip_serializing_if = "Option::is_none")]
         num_turns: Option<u32>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "inputTokens", skip_serializing_if = "Option::is_none")]
         input_tokens: Option<u64>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "outputTokens", skip_serializing_if = "Option::is_none")]
         output_tokens: Option<u64>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "cacheReadTokens", skip_serializing_if = "Option::is_none")]
         cache_read_tokens: Option<u64>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "cacheCreationTokens", skip_serializing_if = "Option::is_none")]
         cache_creation_tokens: Option<u64>,
     },
     PermissionRequest {
+        #[serde(rename = "toolName")]
         tool_name: String,
         input: serde_json::Value,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -169,7 +175,7 @@ pub enum FrontendStreamEvent {
 }
 
 /// Agent status change event emitted to frontend.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentStatusEvent {
     pub workspace_id: Uuid,

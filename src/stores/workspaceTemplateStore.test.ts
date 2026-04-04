@@ -75,13 +75,21 @@ describe("workspaceTemplateStore - createTemplate", () => {
 
     const result = await useWorkspaceTemplateStore
       .getState()
-      .createTemplate({ repoId: "repo-1", name: "new-template" });
+      .createTemplate({ repoId: "repo-1", name: "new-template", description: null, setupScript: null, runScript: null, archiveScript: null, runScriptMode: null, envVars: null, sparseDirs: null, autoCommit: null });
 
     expect(result).toEqual(template);
     expect(useWorkspaceTemplateStore.getState().templates).toEqual([template]);
     expect(createWorkspaceTemplate).toHaveBeenCalledWith({
       repoId: "repo-1",
       name: "new-template",
+      description: null,
+      setupScript: null,
+      runScript: null,
+      archiveScript: null,
+      runScriptMode: null,
+      envVars: null,
+      sparseDirs: null,
+      autoCommit: null,
     });
   });
 
@@ -93,7 +101,7 @@ describe("workspaceTemplateStore - createTemplate", () => {
     await expect(
       useWorkspaceTemplateStore
         .getState()
-        .createTemplate({ repoId: "repo-1", name: "dup" }),
+        .createTemplate({ repoId: "repo-1", name: "dup", description: null, setupScript: null, runScript: null, archiveScript: null, runScriptMode: null, envVars: null, sparseDirs: null, autoCommit: null }),
     ).rejects.toThrow("duplicate name");
 
     expect(useWorkspaceTemplateStore.getState().error).toBe(
@@ -111,13 +119,21 @@ describe("workspaceTemplateStore - updateTemplate", () => {
 
     await useWorkspaceTemplateStore
       .getState()
-      .updateTemplate("tmpl-1", { name: "renamed" });
+      .updateTemplate("tmpl-1", { name: "renamed", description: null, setupScript: null, runScript: null, archiveScript: null, runScriptMode: null, envVars: null, sparseDirs: null, autoCommit: null });
 
     expect(useWorkspaceTemplateStore.getState().templates[0].name).toBe(
       "renamed",
     );
     expect(updateWorkspaceTemplate).toHaveBeenCalledWith("tmpl-1", {
       name: "renamed",
+      description: null,
+      setupScript: null,
+      runScript: null,
+      archiveScript: null,
+      runScriptMode: null,
+      envVars: null,
+      sparseDirs: null,
+      autoCommit: null,
     });
   });
 
@@ -130,7 +146,7 @@ describe("workspaceTemplateStore - updateTemplate", () => {
 
     await useWorkspaceTemplateStore
       .getState()
-      .updateTemplate("tmpl-1", { name: "renamed" });
+      .updateTemplate("tmpl-1", { name: "renamed", description: null, setupScript: null, runScript: null, archiveScript: null, runScriptMode: null, envVars: null, sparseDirs: null, autoCommit: null });
 
     const templates = useWorkspaceTemplateStore.getState().templates;
     expect(templates[0].name).toBe("renamed");
@@ -147,7 +163,7 @@ describe("workspaceTemplateStore - updateTemplate", () => {
     await expect(
       useWorkspaceTemplateStore
         .getState()
-        .updateTemplate("tmpl-1", { name: "x" }),
+        .updateTemplate("tmpl-1", { name: "x", description: null, setupScript: null, runScript: null, archiveScript: null, runScriptMode: null, envVars: null, sparseDirs: null, autoCommit: null }),
     ).rejects.toThrow("not found");
 
     expect(useWorkspaceTemplateStore.getState().error).toBe(

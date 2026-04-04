@@ -119,8 +119,8 @@ export function PromptLibraryDialog({
         const request: UpdatePromptRequest = {
           name: editorName.trim(),
           content: editorContent.trim(),
-          description: editorDescription.trim() || undefined,
-          category: editorCategory.trim() || undefined,
+          description: editorDescription.trim() || null,
+          category: editorCategory.trim() || null,
           tags,
         };
         await updatePrompt(editingPrompt.id, request);
@@ -128,9 +128,9 @@ export function PromptLibraryDialog({
         const request: CreatePromptRequest = {
           name: editorName.trim(),
           content: editorContent.trim(),
-          description: editorDescription.trim() || undefined,
-          category: editorCategory.trim() || undefined,
-          tags: tags.length > 0 ? tags : undefined,
+          description: editorDescription.trim() || null,
+          category: editorCategory.trim() || null,
+          tags: tags.length > 0 ? tags : null,
         };
         await createPrompt(request);
       }

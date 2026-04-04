@@ -235,9 +235,10 @@ describe("toPersisted", () => {
   it("converts a ChatMessage to PersistedChatMessage with ISO timestamp", () => {
     const msg: ChatMessage = {
       id: "msg-1",
+      workspaceId: "ws-1",
       role: "user",
       content: [{ type: "text", text: "Hello" }],
-      timestamp: 1704067200000, // 2024-01-01T00:00:00.000Z
+      timestamp: "2024-01-01T00:00:00.000Z",
     };
     const result = toPersisted(msg, "ws-1");
     expect(result).toEqual({
@@ -252,13 +253,14 @@ describe("toPersisted", () => {
   it("preserves all content block types", () => {
     const msg: ChatMessage = {
       id: "msg-2",
+      workspaceId: "ws-2",
       role: "assistant",
       content: [
         { type: "text", text: "Let me help" },
         { type: "toolUse", id: "tu-1", name: "read", input: { path: "/foo" } },
         { type: "toolResult", toolUseId: "tu-1", content: "file contents" },
       ],
-      timestamp: 1704067200000,
+      timestamp: "2024-01-01T00:00:00.000Z",
     };
     const result = toPersisted(msg, "ws-2");
     expect(result.content).toHaveLength(3);
@@ -280,13 +282,14 @@ describe("fromPersisted", () => {
     const result = fromPersisted(persisted);
     expect(result).toEqual({
       id: "msg-1",
+      workspaceId: "ws-1",
       role: "assistant",
       content: [{ type: "text", text: "Hi there" }],
-      timestamp: 1704067200000,
+      timestamp: "2024-01-01T00:00:00.000Z",
     });
   });
 
-  it("does not include workspaceId in the result", () => {
+  it("includes workspaceId in the result", () => {
     const persisted: PersistedChatMessage = {
       id: "msg-1",
       workspaceId: "ws-1",
@@ -295,7 +298,7 @@ describe("fromPersisted", () => {
       timestamp: "2024-01-01T00:00:00.000Z",
     };
     const result = fromPersisted(persisted);
-    expect(result).not.toHaveProperty("workspaceId");
+    expect(result).toHaveProperty("workspaceId", "ws-1");
   });
 });
 
@@ -303,9 +306,10 @@ describe("toPersisted/fromPersisted round-trip", () => {
   it("round-trips a message preserving all data", () => {
     const original: ChatMessage = {
       id: "msg-rt",
+      workspaceId: "ws-rt",
       role: "system",
       content: [{ type: "text", text: "System message" }],
-      timestamp: 1704153600000, // 2024-01-02T00:00:00.000Z
+      timestamp: "2024-01-02T00:00:00.000Z",
     };
     const persisted = toPersisted(original, "ws-rt");
     const restored = fromPersisted(persisted);
@@ -315,6 +319,7 @@ describe("toPersisted/fromPersisted round-trip", () => {
   it("round-trips with complex content blocks", () => {
     const original: ChatMessage = {
       id: "msg-complex",
+      workspaceId: "ws-complex",
       role: "assistant",
       content: [
         { type: "text", text: "Working on it" },
@@ -322,7 +327,7 @@ describe("toPersisted/fromPersisted round-trip", () => {
         { type: "toolResult", toolUseId: "tu-1", content: "file1.ts\nfile2.ts" },
         { type: "text", text: "Done!" },
       ],
-      timestamp: 1704240000000,
+      timestamp: "2024-01-03T00:00:00.000Z",
     };
     const persisted = toPersisted(original, "ws-complex");
     const restored = fromPersisted(persisted);
@@ -381,7 +386,7 @@ describe("Repository commands", () => {
 
 describe("Workspace commands", () => {
   it("createWorkspace calls invoke with create_workspace", async () => {
-    const request = { repoId: "r1", workspaceName: "ws", branchName: "feature" };
+    const request = { repoId: "r1", workspaceName: "ws", branchName: "feature", sparseDirs: null, baseBranch: null, autoCommit: null, fetchRemoteBranch: null, devcontainerConfig: null };
     const ws = { id: "w1", repoId: "r1", name: "ws", branch: "feature", status: "Active" as const, portBase: 3000, autoCommit: false, createdAt: "2024-01-01", archivedAt: null };
     (invoke as any).mockResolvedValueOnce(ws);
     const result = await createWorkspace(request);
@@ -439,7 +444,7 @@ describe("Chat persistence commands", () => {
 
 describe("Agent commands", () => {
   it("sendMessage calls invoke with send_message", async () => {
-    const request = { workspaceId: "w1", message: "hello" };
+    const request = { workspaceId: "w1", repoId: null, message: "hello", model: null, disableThinking: null, disablePlanMode: null };
     await sendMessage(request);
     expect(invoke).toHaveBeenCalledWith("send_message", { request });
   });
@@ -815,7 +820,7 @@ describe("Todo commands", () => {
   });
 
   it("updateTodo calls invoke with update_todo", async () => {
-    const request = { id: "t1", workspaceId: "w1", text: "Updated text" };
+    const request = { id: "t1", workspaceId: "w1", text: "Updated text", completed: null };
     await updateTodo(request);
     expect(invoke).toHaveBeenCalledWith("update_todo", { request });
   });
@@ -1148,7 +1153,7 @@ describe("Merge/branch commands", () => {
   });
 
   it("getConflictedFiles calls invoke with get_conflicted_files", async () => {
-    const files = [{ path: "src/main.ts", conflictType: "BothModified" as const }];
+    const files = [{ path: "src/main.ts", conflictType: "bothModified" as const }];
     (invoke as any).mockResolvedValueOnce(files);
     const result = await getConflictedFiles("w1");
     expect(invoke).toHaveBeenCalledWith("get_conflicted_files", { workspaceId: "w1" });
@@ -1457,9 +1462,10 @@ describe("toPersisted/fromPersisted with optional fields", () => {
   it("toPersisted includes displayText when present", () => {
     const msg: ChatMessage = {
       id: "msg-dt",
+      workspaceId: "ws-1",
       role: "assistant",
       content: [{ type: "text", text: "hi" }],
-      timestamp: 1704067200000,
+      timestamp: "2024-01-01T00:00:00.000Z",
       displayText: "Hello!",
     };
     const result = toPersisted(msg, "ws-1");
@@ -1469,9 +1475,10 @@ describe("toPersisted/fromPersisted with optional fields", () => {
   it("toPersisted omits displayText when not present", () => {
     const msg: ChatMessage = {
       id: "msg-nd",
+      workspaceId: "ws-1",
       role: "user",
       content: [{ type: "text", text: "hi" }],
-      timestamp: 1704067200000,
+      timestamp: "2024-01-01T00:00:00.000Z",
     };
     const result = toPersisted(msg, "ws-1");
     expect(result).not.toHaveProperty("displayText");
@@ -1480,9 +1487,10 @@ describe("toPersisted/fromPersisted with optional fields", () => {
   it("toPersisted includes metadata when present", () => {
     const msg: ChatMessage = {
       id: "msg-m",
+      workspaceId: "ws-1",
       role: "assistant",
       content: [{ type: "text", text: "done" }],
-      timestamp: 1704067200000,
+      timestamp: "2024-01-01T00:00:00.000Z",
       metadata: { totalCostUsd: 0.01, inputTokens: 100, outputTokens: 50 },
     };
     const result = toPersisted(msg, "ws-1");
@@ -1619,7 +1627,7 @@ describe("LSP commands", () => {
 
 describe("Workspace template commands", () => {
   it("createWorkspaceTemplate calls invoke with create_workspace_template", async () => {
-    const request = { repoId: "r1", name: "template1" };
+    const request = { repoId: "r1", name: "template1", description: null, setupScript: null, runScript: null, archiveScript: null, runScriptMode: null, envVars: null, sparseDirs: null, autoCommit: null };
     const template = { id: "t1", repoId: "r1", name: "template1", description: null, setupScript: null, runScript: null, archiveScript: null, runScriptMode: "parallel", envVars: {}, sparseDirs: null, autoCommit: false, createdAt: "2024-01-01", updatedAt: "2024-01-01" };
     (invoke as any).mockResolvedValueOnce(template);
     const result = await createWorkspaceTemplate(request);
@@ -1636,7 +1644,7 @@ describe("Workspace template commands", () => {
   });
 
   it("updateWorkspaceTemplate calls invoke with update_workspace_template", async () => {
-    const request = { name: "updated" };
+    const request = { name: "updated", description: null, setupScript: null, runScript: null, archiveScript: null, runScriptMode: null, envVars: null, sparseDirs: null, autoCommit: null };
     const template = { id: "t1", name: "updated" };
     (invoke as any).mockResolvedValueOnce(template);
     const result = await updateWorkspaceTemplate("t1", request);
@@ -1654,7 +1662,7 @@ describe("Workspace template commands", () => {
 
 describe("File bookmark commands", () => {
   it("createBookmark calls invoke with create_bookmark", async () => {
-    const request = { repoId: "r1", filePath: "src/main.ts", lineNumber: 10 };
+    const request = { repoId: "r1", filePath: "src/main.ts", lineNumber: 10, note: null, color: null };
     const bookmark = { id: "b1", ...request, note: null, color: null, createdAt: "2024-01-01", updatedAt: "2024-01-01" };
     (invoke as any).mockResolvedValueOnce(bookmark);
     const result = await createBookmark(request);
@@ -1671,7 +1679,7 @@ describe("File bookmark commands", () => {
   });
 
   it("updateBookmark calls invoke with update_bookmark", async () => {
-    const request = { note: "updated note" };
+    const request = { note: "updated note", color: null, lineNumber: null };
     const bookmark = { id: "b1", note: "updated note" };
     (invoke as any).mockResolvedValueOnce(bookmark);
     const result = await updateBookmark("b1", request);
@@ -1704,7 +1712,7 @@ describe("File bookmark commands", () => {
 
 describe("Prompt library commands", () => {
   it("createPrompt calls invoke with create_prompt", async () => {
-    const request = { name: "My Prompt", content: "Do something" };
+    const request = { name: "My Prompt", content: "Do something", description: null, category: null, tags: null };
     const prompt = { id: "p1", name: "My Prompt", content: "Do something", description: null, category: null, tags: [], sortOrder: 0, createdAt: "2024-01-01", updatedAt: "2024-01-01" };
     (invoke as any).mockResolvedValueOnce(prompt);
     const result = await createPrompt(request);
@@ -1721,7 +1729,7 @@ describe("Prompt library commands", () => {
   });
 
   it("updatePrompt calls invoke with update_prompt", async () => {
-    const request = { name: "Updated" };
+    const request = { name: "Updated", content: null, description: null, category: null, tags: null };
     const prompt = { id: "p1", name: "Updated" };
     (invoke as any).mockResolvedValueOnce(prompt);
     const result = await updatePrompt("p1", request);
@@ -1739,7 +1747,7 @@ describe("Prompt library commands", () => {
 
 describe("Snippet manager commands", () => {
   it("createSnippet calls invoke with create_snippet", async () => {
-    const request = { title: "My Snippet", content: "code here" };
+    const request = { title: "My Snippet", content: "code here", language: null, description: null, tags: null, source: null };
     const snippet = { id: "s1", title: "My Snippet", content: "code here", language: null, description: null, tags: [], source: null, createdAt: "2024-01-01", updatedAt: "2024-01-01" };
     (invoke as any).mockResolvedValueOnce(snippet);
     const result = await createSnippet(request);
@@ -1756,7 +1764,7 @@ describe("Snippet manager commands", () => {
   });
 
   it("updateSnippet calls invoke with update_snippet", async () => {
-    const request = { title: "Updated" };
+    const request = { title: "Updated", content: null, language: null, description: null, tags: null, source: null };
     const snippet = { id: "s1", title: "Updated" };
     (invoke as any).mockResolvedValueOnce(snippet);
     const result = await updateSnippet("s1", request);

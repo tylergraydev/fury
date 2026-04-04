@@ -68,8 +68,8 @@ describe("ConflictSection", () => {
     useMergeStore.setState({
       conflictedFiles: {
         "ws-1": [
-          { path: "src/file1.ts", conflictType: "BothModified" },
-          { path: "src/file2.ts", conflictType: "DeletedByUs" },
+          { path: "src/file1.ts", conflictType: "bothModified" },
+          { path: "src/file2.ts", conflictType: "deletedByUs" },
         ],
       },
     });
@@ -81,7 +81,7 @@ describe("ConflictSection", () => {
     useMergeStore.setState({
       conflictedFiles: {
         "ws-1": [
-          { path: "src/file1.ts", conflictType: "BothModified" },
+          { path: "src/file1.ts", conflictType: "bothModified" },
         ],
       },
     });
@@ -93,7 +93,7 @@ describe("ConflictSection", () => {
     useMergeStore.setState({
       conflictedFiles: {
         "ws-1": [
-          { path: "src/file1.ts", conflictType: "BothModified" },
+          { path: "src/file1.ts", conflictType: "bothModified" },
         ],
       },
     });
@@ -106,7 +106,7 @@ describe("ConflictSection", () => {
     useMergeStore.setState({
       conflictedFiles: {
         "ws-1": [
-          { path: "src/file1.ts", conflictType: "BothModified" },
+          { path: "src/file1.ts", conflictType: "bothModified" },
         ],
       },
     });
@@ -118,7 +118,7 @@ describe("ConflictSection", () => {
     useMergeStore.setState({
       conflictedFiles: {
         "ws-1": [
-          { path: "src/file1.ts", conflictType: "BothModified" },
+          { path: "src/file1.ts", conflictType: "bothModified" },
         ],
       },
     });
@@ -130,7 +130,7 @@ describe("ConflictSection", () => {
     useMergeStore.setState({
       conflictedFiles: {
         "ws-1": [
-          { path: "src/file1.ts", conflictType: "BothModified" },
+          { path: "src/file1.ts", conflictType: "bothModified" },
         ],
       },
       error: { "ws-1": "Merge failed" },
@@ -143,11 +143,11 @@ describe("ConflictSection", () => {
     useMergeStore.setState({
       conflictedFiles: {
         "ws-1": [
-          { path: "file1.ts", conflictType: "BothModified" },
-          { path: "file2.ts", conflictType: "DeletedByUs" },
-          { path: "file3.ts", conflictType: "DeletedByThem" },
-          { path: "file4.ts", conflictType: "AddedByBoth" },
-          { path: "file5.ts", conflictType: "BothDeleted" },
+          { path: "file1.ts", conflictType: "bothModified" },
+          { path: "file2.ts", conflictType: "deletedByUs" },
+          { path: "file3.ts", conflictType: "deletedByThem" },
+          { path: "file4.ts", conflictType: "addedByBoth" },
+          { path: "file5.ts", conflictType: "bothDeleted" },
           { path: "file6.ts", conflictType: "UnknownType" as any },
         ],
       },
@@ -166,7 +166,7 @@ describe("ConflictSection", () => {
     useMergeStore.setState({
       conflictedFiles: {
         "ws-1": [
-          { path: "src/file1.ts", conflictType: "BothModified" },
+          { path: "src/file1.ts", conflictType: "bothModified" },
         ],
       },
       loadConflictContent: mockLoadConflictContent,
@@ -181,7 +181,7 @@ describe("ConflictSection", () => {
     useMergeStore.setState({
       conflictedFiles: {
         "ws-1": [
-          { path: "src/file1.ts", conflictType: "BothModified" },
+          { path: "src/file1.ts", conflictType: "bothModified" },
         ],
       },
       abortMerge: mockAbortMerge,
@@ -208,7 +208,7 @@ describe("ConflictSection", () => {
     useMergeStore.setState({
       conflictedFiles: {
         "ws-1": [
-          { path: "src/file1.ts", conflictType: "BothModified" },
+          { path: "src/file1.ts", conflictType: "bothModified" },
         ],
       },
       selectedConflictFile: { "ws-1": "src/file1.ts" },
@@ -231,7 +231,7 @@ describe("ConflictSection", () => {
     useMergeStore.setState({
       conflictedFiles: {
         "ws-1": [
-          { path: "src/file1.ts", conflictType: "BothModified" },
+          { path: "src/file1.ts", conflictType: "bothModified" },
         ],
       },
       selectedConflictFile: { "ws-1": "src/file1.ts" },
@@ -246,7 +246,7 @@ describe("ConflictSection", () => {
     useMergeStore.setState({ loadConflictedFiles: mockLoadConflictedFiles });
     useAgentStore.setState({
       agents: {
-        "ws-1": { workspaceId: "ws-1", sessionId: "s1", status: "Idle", startedAt: null },
+        "ws-1": { workspaceId: "ws-1", sessionId: "s1", status: "Idle", startedAt: null, pid: null },
       },
     });
     render(<ConflictSection workspaceId="ws-1" />);
@@ -257,7 +257,7 @@ describe("ConflictSection", () => {
     useMergeStore.setState({
       conflictedFiles: {
         "ws-1": [
-          { path: "src/file1.ts", conflictType: "BothModified" },
+          { path: "src/file1.ts", conflictType: "bothModified" },
         ],
       },
     });

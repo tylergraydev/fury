@@ -285,6 +285,9 @@ describe("NewWorkspaceDialog", () => {
         branchName: "my-feature",
         baseBranch: "main",
         autoCommit: true,
+        sparseDirs: null,
+        fetchRemoteBranch: null,
+        devcontainerConfig: null,
       });
     });
     await waitFor(() => {

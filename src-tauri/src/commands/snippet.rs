@@ -80,47 +80,34 @@ pub(crate) fn delete_snippet_inner(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn create_snippet(
     state: State<'_, AppState>,
     request: CreateSnippetRequest,
 ) -> Result<Snippet, AppError> {
-    let db_lock = state.db.lock().unwrap();
-    let db = db_lock
-        .as_ref()
-        .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
-    create_snippet_inner(db, request)
+    state.with_db(move |db| create_snippet_inner(db, request)).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_snippets(state: State<'_, AppState>) -> Result<Vec<Snippet>, AppError> {
-    let db_lock = state.db.lock().unwrap();
-    if let Some(db) = db_lock.as_ref() {
-        list_snippets_inner(db)
-    } else {
-        Ok(vec![])
-    }
+    Ok(state.with_db(list_snippets_inner).await.unwrap_or_else(|_| vec![]))
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn update_snippet(
     state: State<'_, AppState>,
     snippet_id: String,
     request: UpdateSnippetRequest,
 ) -> Result<Snippet, AppError> {
-    let db_lock = state.db.lock().unwrap();
-    let db = db_lock
-        .as_ref()
-        .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
-    update_snippet_inner(db, snippet_id, request)
+    state.with_db(move |db| update_snippet_inner(db, snippet_id, request)).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_snippet(state: State<'_, AppState>, snippet_id: String) -> Result<(), AppError> {
-    let db_lock = state.db.lock().unwrap();
-    let db = db_lock
-        .as_ref()
-        .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
-    delete_snippet_inner(db, snippet_id)
+    state.with_db(move |db| delete_snippet_inner(db, snippet_id)).await
 }
 
 #[cfg(test)]

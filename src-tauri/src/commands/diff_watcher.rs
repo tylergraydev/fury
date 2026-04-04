@@ -4,6 +4,7 @@ use tauri::State;
 use uuid::Uuid;
 
 #[tauri::command]
+#[specta::specta]
 pub async fn start_diff_watcher(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -50,6 +51,7 @@ pub async fn start_diff_watcher(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn stop_diff_watcher(
     state: State<'_, AppState>,
     context_id: String,

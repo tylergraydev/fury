@@ -69,7 +69,7 @@ export function WorkflowRunRow({
       const result = await getRunLogs(workspaceId, run.id, failedOnly);
       setLogsResult(result);
     } catch (e) {
-      setLogsResult({ logs: `Failed to load logs: ${String(e)}`, truncated: false });
+      setLogsResult({ logs: `Failed to load logs: ${String(e)}`, truncated: false, taskLogs: null });
     } finally {
       setLogsLoading(false);
     }

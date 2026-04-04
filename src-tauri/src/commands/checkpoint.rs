@@ -57,19 +57,20 @@ pub(crate) fn validate_revert(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_checkpoints(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<Checkpoint>, AppError> {
-    let db = state.db.lock().unwrap();
-    if let Some(db) = db.as_ref() {
-        list_checkpoints_inner(db, &workspace_id)
-    } else {
-        Ok(vec![])
+    match state.with_db(move |db| list_checkpoints_inner(db, &workspace_id)).await {
+        Ok(checkpoints) => Ok(checkpoints),
+        Err(AppError::DbError(_)) => Ok(vec![]),
+        Err(e) => Err(e),
     }
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn revert_to_checkpoint(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -81,15 +82,13 @@ pub async fn revert_to_checkpoint(
         .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
 
     // Validate using inner function
-    let (checkpoint, worktree_path) = {
-        let db_lock = state.db.lock().unwrap();
-        let db = db_lock
-            .as_ref()
-            .ok_or_else(|| AppError::DbError("Database not initialized".to_string()))?;
-        let agents = state.agents.lock().unwrap();
-        let workspaces = state.workspaces.read().unwrap();
-        validate_revert(db, &agents, &workspaces, &workspace_id, &checkpoint_id)?
-    };
+    let agents = state.agents.lock().unwrap().clone();
+    let workspaces = state.workspaces.read().unwrap().clone();
+    let ws_id_str = workspace_id.clone();
+    let cp_id_str = checkpoint_id.clone();
+    let (checkpoint, worktree_path) = state.with_db(move |db| {
+        validate_revert(db, &agents, &workspaces, &ws_id_str, &cp_id_str)
+    }).await?;
 
     let tree_sha = checkpoint.tree_sha.clone();
     let turn_index = checkpoint.turn_index;
@@ -106,12 +105,10 @@ pub async fn revert_to_checkpoint(
     .map_err(|e| AppError::GitError(format!("task failed: {}", e)))??;
 
     // Delete later checkpoints from DB
-    {
-        let db = state.db.lock().unwrap();
-        if let Some(db) = db.as_ref() {
-            let _ = db.delete_checkpoints_after(&ws_id, turn_index);
-        }
-    }
+    let _ = state.with_db(move |db| {
+        let _ = db.delete_checkpoints_after(&ws_id, turn_index);
+        Ok(())
+    }).await;
 
     // Clear agent session so next message starts fresh
     {

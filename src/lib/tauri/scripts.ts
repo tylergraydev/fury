@@ -1,5 +1,6 @@
 import { instrumentedInvoke as invoke } from "../ipcInstrumentation";
-import type { ScriptKind, RepoSettings } from "./types";
+import type { RepoSettings } from "./bindings.generated";
+import type { ScriptKind } from "./types";
 
 // Script commands
 export async function runScript(

@@ -5,6 +5,8 @@ import { usePromptLibraryStore } from "../stores/promptLibraryStore";
 import { BUILTIN_COMMANDS, type BuiltinCommand } from "../lib/builtinCommands";
 import { extractVariables, isAutoFillVariable, substituteVariables } from "../lib/promptVariables";
 
+type AnyCommand = SlashCommand | BuiltinCommand;
+
 const EMPTY_COMMANDS: SlashCommand[] = [];
 
 export function useSlashCommandAutocomplete(
@@ -27,7 +29,7 @@ export function useSlashCommandAutocomplete(
     s.discoveredSkills[contextId] ?? EMPTY_COMMANDS,
   );
   const libraryPrompts = usePromptLibraryStore((s) => s.prompts);
-  const promptCommands: SlashCommand[] = useMemo(() => {
+  const promptCommands: BuiltinCommand[] = useMemo(() => {
     return libraryPrompts.map((p) => ({
       name: `prompt:${p.name}`,
       source: "built-in" as const,
@@ -38,7 +40,7 @@ export function useSlashCommandAutocomplete(
     }));
   }, [libraryPrompts]);
 
-  const allCommands: SlashCommand[] = useMemo(() => {
+  const allCommands: AnyCommand[] = useMemo(() => {
     const knownNames = new Set(fileCommands.map((c) => c.name));
     const uniqueSkills = discoveredSkills.filter((s) => !knownNames.has(s.name));
     return [...BUILTIN_COMMANDS, ...promptCommands, ...fileCommands, ...uniqueSkills];
@@ -55,7 +57,7 @@ export function useSlashCommandAutocomplete(
   textRef.current = getText;
 
   const selectSlashCommand = useCallback(
-    (cmd: SlashCommand) => {
+    (cmd: AnyCommand) => {
       const text = textRef.current();
       const ta = textareaRef.current;
       /* v8 ignore next -- @preserve */

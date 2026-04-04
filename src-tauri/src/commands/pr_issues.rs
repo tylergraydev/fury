@@ -8,6 +8,7 @@ use crate::state::AppState;
 use tauri::State;
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_repo_prs(
     state: State<'_, AppState>,
     repo_id: String,
@@ -32,6 +33,7 @@ pub async fn list_repo_prs(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_repo_issues(
     state: State<'_, AppState>,
     repo_id: String,
@@ -51,6 +53,7 @@ pub async fn list_repo_issues(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_pr_details(
     state: State<'_, AppState>,
     repo_id: String,
@@ -73,6 +76,7 @@ pub async fn get_pr_details(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_issue_details(
     state: State<'_, AppState>,
     repo_id: String,
