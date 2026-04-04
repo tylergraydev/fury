@@ -2858,9 +2858,7 @@ describe("chatStore - subscribe cancellation tokens", () => {
   });
 
   it("second subscribe cancels first token but both complete", async () => {
-    let _loadCount = 0;
     vi.mocked(listChatMessages).mockImplementation(async () => {
-      _loadCount++;
       return [];
     });
     vi.mocked(listen).mockResolvedValue(() => {});
