@@ -421,7 +421,7 @@ pub async fn send_message(
         settings.system_prompt_additions.clone()
     };
 
-    let (disable_thinking, _disable_plan_mode) = extract_toggle_flags(&request);
+    let (disable_thinking, disable_plan_mode) = extract_toggle_flags(&request);
 
     // Validate working directory exists before spawning
     if let Err(e) = validate_working_dir(&working_dir) {
