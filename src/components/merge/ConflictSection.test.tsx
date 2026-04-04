@@ -246,7 +246,7 @@ describe("ConflictSection", () => {
     useMergeStore.setState({ loadConflictedFiles: mockLoadConflictedFiles });
     useAgentStore.setState({
       agents: {
-        "ws-1": { workspaceId: "ws-1", sessionId: "s1", status: "Idle", startedAt: null, pid: null },
+        "ws-1": { workspaceId: "ws-1", sessionId: "s1", status: "Idle", startedAt: null, pid: null, disablePlanMode: false },
       },
     });
     render(<ConflictSection workspaceId="ws-1" />);

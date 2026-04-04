@@ -112,7 +112,7 @@ vi.mock("../../lib/tauri", () => ({
   listChatMessages: vi.fn().mockResolvedValue([]),
   saveChatMessage: vi.fn().mockResolvedValue(undefined),
   clearChatMessages: vi.fn().mockResolvedValue(undefined),
-  getAgentStatus: vi.fn().mockResolvedValue({ workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null }),
+  getAgentStatus: vi.fn().mockResolvedValue({ workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null, disablePlanMode: false }),
   sendMessage: vi.fn().mockResolvedValue(undefined),
   stopAgent: vi.fn().mockResolvedValue(undefined),
   listCheckpoints: vi.fn().mockResolvedValue([]),
@@ -179,7 +179,7 @@ describe("ChatPanel", () => {
 
   it("passes agent status from agent store", () => {
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null, pid: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null, pid: null, disablePlanMode: false } },
     });
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     expect(screen.getByTestId("agent-status")).toHaveTextContent("Running");
@@ -263,7 +263,7 @@ describe("ChatPanel", () => {
     const addUserMessageSpy = vi.fn();
     const removeTrailingSpy = vi.fn();
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null, disablePlanMode: false } },
       subscriptions: {},
       sendMessage: sendMessageSpy,
     });
@@ -291,7 +291,7 @@ describe("ChatPanel", () => {
   it("handleRetry does nothing when agent is Running", async () => {
     const sendMessageSpy = vi.fn().mockResolvedValue(undefined);
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null, pid: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null, pid: null, disablePlanMode: false } },
       subscriptions: {},
       sendMessage: sendMessageSpy,
       subscribe: vi.fn(),
@@ -318,7 +318,7 @@ describe("ChatPanel", () => {
   it("handleRetry does nothing when agent is Stopping", async () => {
     const sendMessageSpy = vi.fn().mockResolvedValue(undefined);
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Stopping", sessionId: null, startedAt: null, pid: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Stopping", sessionId: null, startedAt: null, pid: null, disablePlanMode: false } },
       subscriptions: {},
       sendMessage: sendMessageSpy,
       subscribe: vi.fn(),
@@ -345,7 +345,7 @@ describe("ChatPanel", () => {
   it("handleRetry does nothing when there are no user messages", async () => {
     const sendMessageSpy = vi.fn().mockResolvedValue(undefined);
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null, disablePlanMode: false } },
       subscriptions: {},
       sendMessage: sendMessageSpy,
     });
@@ -367,7 +367,7 @@ describe("ChatPanel", () => {
   it("handleRetry does nothing when last user message has no text content", async () => {
     const sendMessageSpy = vi.fn().mockResolvedValue(undefined);
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null, disablePlanMode: false } },
       subscriptions: {},
       sendMessage: sendMessageSpy,
     });
@@ -390,7 +390,7 @@ describe("ChatPanel", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const sendMessageSpy = vi.fn().mockRejectedValue(new Error("retry failed"));
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null, disablePlanMode: false } },
       subscriptions: {},
       sendMessage: sendMessageSpy,
     });
@@ -416,7 +416,7 @@ describe("ChatPanel", () => {
 
   it("passes agent status to Composer", () => {
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null, pid: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null, pid: null, disablePlanMode: false } },
     });
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     expect(screen.getByTestId("composer-agent-status")).toHaveTextContent("Running");
@@ -446,7 +446,7 @@ describe("ChatPanel", () => {
   it("handleRetry sends with repo contextType", async () => {
     const sendMessageSpy = vi.fn().mockResolvedValue(undefined);
     useAgentStore.setState({
-      agents: { "repo-1": { workspaceId: "repo-1", status: "Idle", sessionId: null, startedAt: null, pid: null } },
+      agents: { "repo-1": { workspaceId: "repo-1", status: "Idle", sessionId: null, startedAt: null, pid: null, disablePlanMode: false } },
       subscriptions: {},
       sendMessage: sendMessageSpy,
     });
@@ -816,7 +816,7 @@ describe("ChatPanel", () => {
       clearPermissionRequest: clearPermSpy,
     });
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Idle", sessionId: null, startedAt: null, pid: null, disablePlanMode: false } },
     });
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     expect(clearPermSpy).toHaveBeenCalledWith("ws-1");
@@ -832,7 +832,7 @@ describe("ChatPanel", () => {
       clearPermissionRequest: clearPermSpy,
     });
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null, pid: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", status: "Running", sessionId: null, startedAt: null, pid: null, disablePlanMode: false } },
     });
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     expect(clearPermSpy).not.toHaveBeenCalled();

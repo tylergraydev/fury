@@ -175,7 +175,7 @@ describe("ChangesPanel", () => {
     // Start with agent Running
     useAgentStore.setState({
       agents: {
-        "ws-1": { workspaceId: "ws-1", sessionId: "s1", status: "Running", startedAt: null, pid: null },
+        "ws-1": { workspaceId: "ws-1", sessionId: "s1", status: "Running", startedAt: null, pid: null, disablePlanMode: false },
       },
     });
     const { rerender } = render(<ChangesPanel context={wsContext} />);
@@ -183,7 +183,7 @@ describe("ChangesPanel", () => {
     // Transition to Idle
     useAgentStore.setState({
       agents: {
-        "ws-1": { workspaceId: "ws-1", sessionId: "s1", status: "Idle", startedAt: null, pid: null },
+        "ws-1": { workspaceId: "ws-1", sessionId: "s1", status: "Idle", startedAt: null, pid: null, disablePlanMode: false },
       },
     });
     rerender(<ChangesPanel context={wsContext} />);
@@ -194,7 +194,7 @@ describe("ChangesPanel", () => {
     // Start with agent Running
     useAgentStore.setState({
       agents: {
-        "repo-1": { workspaceId: "repo-1", sessionId: "s1", status: "Running", startedAt: null, pid: null },
+        "repo-1": { workspaceId: "repo-1", sessionId: "s1", status: "Running", startedAt: null, pid: null, disablePlanMode: false },
       },
     });
     const { rerender } = render(<ChangesPanel context={repoContext} />);
@@ -202,7 +202,7 @@ describe("ChangesPanel", () => {
     // Transition to Idle
     useAgentStore.setState({
       agents: {
-        "repo-1": { workspaceId: "repo-1", sessionId: "s1", status: "Idle", startedAt: null, pid: null },
+        "repo-1": { workspaceId: "repo-1", sessionId: "s1", status: "Idle", startedAt: null, pid: null, disablePlanMode: false },
       },
     });
     rerender(<ChangesPanel context={repoContext} />);
@@ -608,7 +608,7 @@ describe("PrStatusBar", () => {
     } as any);
 
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null, pid: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null, pid: null, disablePlanMode: false } },
       sendMessage: vi.fn().mockResolvedValue(undefined),
     } as any);
 
@@ -763,7 +763,7 @@ describe("PrStatusBar", () => {
     const mockAddUserMessage = vi.fn();
 
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null, pid: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null, pid: null, disablePlanMode: false } },
       sendMessage: mockSendMessage,
     } as any);
     useChatStore.setState({ addUserMessage: mockAddUserMessage } as any);
@@ -794,7 +794,7 @@ describe("PrStatusBar", () => {
 
   it("handleFix is a no-op when agent is running", async () => {
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Running", startedAt: null, pid: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Running", startedAt: null, pid: null, disablePlanMode: false } },
     } as any);
 
     usePrStore.setState({
@@ -853,7 +853,7 @@ describe("PrStatusBar", () => {
     const mockSendMessage = vi.fn().mockResolvedValue(undefined);
     const mockAddUserMessage = vi.fn();
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null, pid: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null, pid: null, disablePlanMode: false } },
       sendMessage: mockSendMessage,
     } as any);
     useChatStore.setState({ addUserMessage: mockAddUserMessage } as any);
@@ -897,7 +897,7 @@ describe("PrStatusBar", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     mockGetFixMessage.mockRejectedValue(new Error("fix failed"));
     useAgentStore.setState({
-      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null, pid: null } },
+      agents: { "ws-1": { workspaceId: "ws-1", sessionId: null, status: "Idle", startedAt: null, pid: null, disablePlanMode: false } },
       sendMessage: vi.fn().mockResolvedValue(undefined),
     } as any);
     usePrStore.setState({

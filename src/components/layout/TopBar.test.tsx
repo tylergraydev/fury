@@ -65,6 +65,7 @@ describe("TopBar", () => {
           status: "Running",
           startedAt: null,
           pid: null,
+          disablePlanMode: false,
         },
       },
     });
@@ -82,6 +83,7 @@ describe("TopBar", () => {
           status: { Error: "something broke" },
           startedAt: null,
           pid: null,
+          disablePlanMode: false,
         },
       },
     });
@@ -118,6 +120,7 @@ describe("TopBar", () => {
           status: "Running",
           startedAt: null,
           pid: null,
+          disablePlanMode: false,
         },
       },
     });

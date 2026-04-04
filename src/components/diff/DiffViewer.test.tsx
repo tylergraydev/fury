@@ -360,6 +360,7 @@ describe("DiffViewer", () => {
           status: "Idle",
           startedAt: null,
           pid: null,
+          disablePlanMode: false,
         },
       },
     });
