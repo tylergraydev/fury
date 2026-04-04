@@ -79,7 +79,7 @@ export function CopilotTab() {
       await open(uri);
     } catch {
       /* v8 ignore start -- fallback when Tauri shell plugin unavailable */
-      window.open(uri, "_blank");
+      globalThis.window?.open(uri, "_blank");
       /* v8 ignore stop */
     }
   };
