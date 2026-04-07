@@ -8,7 +8,7 @@ use uuid::Uuid;
 impl Database {
     pub fn get_repo_settings(&self, repo_id: &Uuid) -> Result<RepoSettings, AppError> {
         let mut stmt = self.conn.prepare(
-            "SELECT setup_script, run_script, archive_script, run_script_mode, env_vars, worktree_base_path, provider_override, devcontainer_config
+            "SELECT setup_script, run_script, archive_script, run_script_mode, env_vars, worktree_base_path, provider_override, devcontainer_config, browser_url
              FROM repository_settings WHERE repo_id = ?1",
         )?;
         let result = stmt.query_row(rusqlite::params![repo_id.to_string()], |row| {
@@ -29,6 +29,7 @@ impl Database {
                 devcontainer: row
                     .get::<_, Option<String>>(7)?
                     .and_then(|s| serde_json::from_str(&s).ok()),
+                browser_url: row.get(8)?,
             })
         });
         match result {
@@ -65,7 +66,7 @@ impl Database {
             rusqlite::params![repo_id.to_string()],
         )?;
         tx.execute(
-            "UPDATE repository_settings SET setup_script = ?2, run_script = ?3, archive_script = ?4, run_script_mode = ?5, env_vars = ?6, worktree_base_path = ?7, provider_override = ?8, devcontainer_config = ?9 WHERE repo_id = ?1",
+            "UPDATE repository_settings SET setup_script = ?2, run_script = ?3, archive_script = ?4, run_script_mode = ?5, env_vars = ?6, worktree_base_path = ?7, provider_override = ?8, devcontainer_config = ?9, browser_url = ?10 WHERE repo_id = ?1",
             rusqlite::params![
                 repo_id.to_string(),
                 settings.setup_script,
@@ -76,6 +77,7 @@ impl Database {
                 settings.worktree_base_path,
                 provider_json,
                 devcontainer_json,
+                settings.browser_url,
             ],
         )?;
         tx.commit()?;
@@ -269,6 +271,15 @@ impl Database {
         self.conn.execute(
             "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?1, ?2)",
             rusqlite::params![key, session_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn clear_session_id(&self, context_id: &str) -> Result<(), AppError> {
+        let key = format!("session:{}", context_id);
+        self.conn.execute(
+            "DELETE FROM app_settings WHERE key = ?1",
+            rusqlite::params![key],
         )?;
         Ok(())
     }
@@ -492,5 +503,35 @@ mod tests {
         db.insert_repository(&repo).unwrap();
         let runs = db.list_test_runs(&repo.id, 10).unwrap();
         assert!(runs.is_empty());
+    }
+
+    // ─── session_id tests ─────────────────────────────────────────────
+
+    #[test]
+    fn test_save_and_get_session_id() {
+        let db = test_db();
+        db.save_session_id("ctx-1", "sess-abc").unwrap();
+        assert_eq!(db.get_session_id("ctx-1").unwrap(), Some("sess-abc".into()));
+    }
+
+    #[test]
+    fn test_get_session_id_missing() {
+        let db = test_db();
+        assert_eq!(db.get_session_id("nonexistent").unwrap(), None);
+    }
+
+    #[test]
+    fn test_clear_session_id() {
+        let db = test_db();
+        db.save_session_id("ctx-1", "sess-abc").unwrap();
+        db.clear_session_id("ctx-1").unwrap();
+        assert_eq!(db.get_session_id("ctx-1").unwrap(), None);
+    }
+
+    #[test]
+    fn test_clear_session_id_nonexistent() {
+        let db = test_db();
+        // Should not error when clearing a session that doesn't exist
+        db.clear_session_id("nonexistent").unwrap();
     }
 }

@@ -19,6 +19,7 @@ import { BookmarksPanel } from "../sidebar/BookmarksPanel";
 import { TerminalPanel } from "../terminal/TerminalPanel";
 import { RunPanel } from "../terminal/RunPanel";
 import { SetupPanel } from "../terminal/SetupPanel";
+import { AgentActivityPanel } from "../activity/AgentActivityPanel";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
 import { useMergeStore } from "../../stores/mergeStore";
@@ -47,6 +48,7 @@ const BOTTOM_TABS: { key: BottomTab; label: string }[] = [
   { key: "setup", label: "Setup" },
   { key: "run", label: "Run" },
   { key: "terminal", label: "Terminal" },
+  { key: "activity", label: "Activity" },
 ];
 
 function SyncButton({ contextId }: { contextId: string }) {
@@ -365,6 +367,9 @@ export function RightSidebar({ context }: Props) {
                   )}
                   {bottomTab === "run" && (
                     <RunPanel context={context} />
+                  )}
+                  {bottomTab === "activity" && (
+                    <AgentActivityPanel context={context} />
                   )}
                 </ErrorBoundary>
               </div>

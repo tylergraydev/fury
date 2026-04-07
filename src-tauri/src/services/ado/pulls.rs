@@ -1,7 +1,9 @@
 use uuid::Uuid;
 
 use crate::error::AppError;
-use crate::models::pr::{MergeResult, PrCheck, PrComment, PrDetail, PrInfo, PrListItem, PrReview};
+use crate::models::pr::{
+    MergeResult, PrCheck, PrComment, PrDetail, PrInfo, PrListItem, PrReview, ReviewInlineComment,
+};
 
 use super::{ado_err, api_base, client};
 use super::mapping::{
@@ -401,6 +403,96 @@ pub async fn get_pr_detail(
 
     let raw: serde_json::Value = resp.json().await.map_err(ado_err)?;
     Ok(parse_pr_detail(&raw))
+}
+
+/// Create a PR comment thread (inline or top-level) via the Azure DevOps Threads API.
+/// If `file_path` and `line` are provided, creates an inline comment on that file/line.
+/// Otherwise creates a top-level comment thread.
+#[allow(clippy::too_many_arguments)]
+pub async fn create_pr_thread(
+    pat: &str,
+    org: &str,
+    project: &str,
+    repo_name: &str,
+    pr_id: u64,
+    body: &str,
+    file_path: Option<&str>,
+    line: Option<u32>,
+) -> Result<(), AppError> {
+    let c = client(pat)?;
+    let url = format!(
+        "{}/git/repositories/{}/pullrequests/{}/threads?api-version=7.1",
+        api_base(org, project),
+        repo_name,
+        pr_id
+    );
+
+    let thread_context = match (file_path, line) {
+        (Some(path), Some(ln)) => Some(serde_json::json!({
+            "filePath": path,
+            "rightFileStart": { "line": ln, "offset": 1 },
+            "rightFileEnd": { "line": ln, "offset": 1 },
+        })),
+        _ => None,
+    };
+
+    let mut payload = serde_json::json!({
+        "comments": [{
+            "parentCommentId": 0,
+            "content": body,
+            "commentType": 1,
+        }],
+        "status": 1, // Active
+    });
+
+    if let Some(ctx) = thread_context {
+        payload["threadContext"] = ctx;
+    }
+
+    let resp = c.post(&url).json(&payload).send().await.map_err(ado_err)?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(ado_err(format!(
+            "Create PR thread failed (HTTP {}): {}",
+            status, text
+        )));
+    }
+
+    Ok(())
+}
+
+/// Submit a batch of review comments as individual ADO threads, plus a top-level summary.
+#[allow(clippy::too_many_arguments)]
+pub async fn submit_pr_review(
+    pat: &str,
+    org: &str,
+    project: &str,
+    repo_name: &str,
+    pr_id: u64,
+    summary: &str,
+    comments: &[ReviewInlineComment],
+) -> Result<(), AppError> {
+    // Post top-level summary thread
+    create_pr_thread(pat, org, project, repo_name, pr_id, summary, None, None).await?;
+
+    // Post inline comments as individual threads
+    for comment in comments {
+        create_pr_thread(
+            pat,
+            org,
+            project,
+            repo_name,
+            pr_id,
+            &comment.body,
+            Some(&comment.path),
+            Some(comment.line),
+        )
+        .await?;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

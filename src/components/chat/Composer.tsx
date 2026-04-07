@@ -1,10 +1,9 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Square, Copy, Check, ShieldCheck, ShieldX, X, Sparkles, Brain, BookOpen, ArrowUp, Plus, Paperclip, CircleDot, Link2, Mic, MicOff, ClipboardCheck, MessageSquare } from "lucide-react";
 import type { AgentStatus } from "../../lib/tauri";
 import type { PermissionRequestInfo, QuestionRequestInfo } from "../../stores/chatStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { useTodoStore } from "../../stores/todoStore";
 import { useSlashCommandStore } from "../../stores/slashCommandStore";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
 import { usePromptLibraryStore } from "../../stores/promptLibraryStore";
@@ -17,6 +16,8 @@ import { ContextUsageIndicator, CONTEXT_WINDOW_TOKENS } from "./ContextUsageIndi
 import { FileChipIcon } from "./FileChipIcon";
 import { useFileDropHandler } from "../../hooks/useFileDropHandler";
 import { useSlashCommandAutocomplete } from "../../hooks/useSlashCommandAutocomplete";
+import { useAtMentionAutocomplete } from "../../hooks/useAtMentionAutocomplete";
+import { AtMentionMenu } from "./AtMentionMenu";
 import { BUILTIN_COMMANDS, type BuiltinCommand } from "../../lib/builtinCommands";
 
 const CLAUDE_MODEL_OPTIONS = [
@@ -34,14 +35,6 @@ const CODEX_MODEL_OPTIONS = [
   { value: "gpt-4.1", label: "GPT-4.1", displayName: "GPT-4.1" },
 ] as const;
 
-const EMPTY_FILES: string[] = [];
-
-interface AtMenuItem {
-  label: string;
-  description: string;
-  value: string;
-}
-
 interface Props {
   contextId: string;
   contextType: "workspace" | "repo";
@@ -55,6 +48,7 @@ interface Props {
   onRespondToPermission?: (approved: boolean, updatedPermissions?: unknown[], decisionClassification?: string) => void;
   questionRequest?: QuestionRequestInfo | null;
   onAnswerQuestion?: (answer: string) => void;
+  onCancelQuestion?: () => void;
   thinkingEnabled: boolean;
   onThinkingEnabledChange: (enabled: boolean) => void;
   planEnabled: boolean;
@@ -63,7 +57,7 @@ interface Props {
   onLinkIssue?: () => void;
 }
 
-export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan, permissionRequest, onRespondToPermission, questionRequest, onAnswerQuestion, thinkingEnabled, onThinkingEnabledChange, planEnabled, onPlanEnabledChange, onLinkWorkspaces, onLinkIssue }: Props) {
+export function Composer({ contextId, contextType, agentStatus, onSend, onStop, isPlanApproval, onApprovePlan, onCopyPlan, permissionRequest, onRespondToPermission, questionRequest, onAnswerQuestion, onCancelQuestion, thinkingEnabled, onThinkingEnabledChange, planEnabled, onPlanEnabledChange, onLinkWorkspaces, onLinkIssue }: Props) {
   const workspaceId = contextType === "workspace" ? contextId : undefined;
   const sessionStats = useChatStore((s) => s.sessionStats[contextId]);
   const agentType = useSettingsStore((s) => s.appSettings?.agentType ?? "claude_code");
@@ -72,11 +66,6 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
   const [text, setText] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // @mention autocomplete state
-  const [showAtMenu, setShowAtMenu] = useState(false);
-  const [atFilter, setAtFilter] = useState("");
-  const [selectedAtIndex, setSelectedAtIndex] = useState(0);
 
   // File drop hook
   const {
@@ -123,6 +112,19 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     setPendingCommandContent,
     openPromptLibrary,
   );
+
+  // @mention autocomplete hook
+  const {
+    showAtMenu,
+    setShowAtMenu,
+    selectedAtIndex,
+    activeCategory,
+    menuItems: atMenuItems,
+    selectItem: selectAtItem,
+    handleAtInput,
+    handleAtKeyDown,
+    resolveAllMentions,
+  } = useAtMentionAutocomplete(contextId, contextType, workspaceId, getText, setText, textareaRef);
 
   // Voice input
   const {
@@ -214,25 +216,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     handleAddAttachment();
   }, [handleAddAttachment]);
 
-  // @mention autocomplete items: @todos + file paths
-  const files = useFileTreeStore((s) => s.files[contextId] ?? EMPTY_FILES);
-  const atMenuItems: AtMenuItem[] = useMemo(() => {
-    const items: AtMenuItem[] = [];
-    if (workspaceId && (!atFilter || "todos".startsWith(atFilter.toLowerCase()))) {
-      items.push({ label: "@todos", description: "Insert todo list", value: "@todos" });
-    }
-    const lower = atFilter.toLowerCase();
-    for (const f of files) {
-      if (!atFilter || f.toLowerCase().includes(lower)) {
-        const name = f.split("/").pop()!;
-        items.push({ label: name, description: f, value: f });
-      }
-      if (items.length >= 8) break;
-    }
-    return items;
-  }, [atFilter, files, workspaceId]);
-
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     // Intercept builtin commands (e.g. "/clear") before the canSend guard
     // so they work even while the agent is running.
     if (!pendingCommandContent && text.trim()) {
@@ -256,10 +240,9 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     stopVoice();
     let message = pendingCommandContent ?? text.trim();
 
-    // Expand @todos mention (only for user-typed text, not command content)
-    if (!pendingCommandContent && workspaceId && message.includes("@todos")) {
-      const todosText = useTodoStore.getState().getTodosAsText(workspaceId);
-      message = message.replace(/@todos/g, todosText);
+    // Resolve all @-mention placeholders (@todos, @[Git: ...], file paths, etc.)
+    if (!pendingCommandContent) {
+      message = await resolveAllMentions(message);
     }
 
     // Prepend dropped file paths
@@ -284,57 +267,14 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-  }, [canSend, text, droppedFiles, onSend, workspaceId, selectedModel, pendingCommandName, pendingCommandContent, stopVoice, clearDroppedFiles, setShowSlashMenu]);
-
-  const selectAtItem = useCallback(
-    (item: AtMenuItem) => {
-      const ta = textareaRef.current;
-      /* v8 ignore next -- @preserve */
-      const cursorPos = ta?.selectionStart ?? text.length;
-      const textBeforeCursor = text.substring(0, cursorPos);
-      const textAfterCursor = text.substring(cursorPos);
-      const atIndex = textBeforeCursor.lastIndexOf("@");
-      const before = text.substring(0, atIndex);
-
-      if (item.value === "@todos") {
-        setText(before + "@todos " + textAfterCursor);
-      } else {
-        setText(before + item.value + " " + textAfterCursor);
-      }
-      setShowAtMenu(false);
-    },
-    [text],
-  );
+  }, [canSend, text, droppedFiles, onSend, selectedModel, pendingCommandName, pendingCommandContent, stopVoice, clearDroppedFiles, setShowSlashMenu, setShowAtMenu, resolveAllMentions]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Slash command menu keyboard navigation
     if (handleSlashKeyDown(e)) return;
 
     // @mention menu keyboard navigation
-    if (showAtMenu && atMenuItems.length > 0) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setSelectedAtIndex((prev) =>
-          Math.min(prev + 1, atMenuItems.length - 1),
-        );
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSelectedAtIndex((prev) => Math.max(prev - 1, 0));
-        return;
-      }
-      if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault();
-        selectAtItem(atMenuItems[selectedAtIndex]);
-        return;
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setShowAtMenu(false);
-        return;
-      }
-    }
+    if (handleAtKeyDown(e)) return;
 
     // Cmd+I to link issue
     if (e.key === "i" && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
@@ -432,25 +372,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
     }
 
     // Detect @mention trigger
-    const lastAt = textBeforeCursor.lastIndexOf("@");
-    if (lastAt >= 0) {
-      const afterAt = textBeforeCursor.substring(lastAt + 1);
-      // Only trigger if no spaces in the filter text (file paths don't have spaces)
-      if (!afterAt.includes(" ")) {
-        const charBefore = lastAt > 0 ? textBeforeCursor[lastAt - 1] : " ";
-        if (charBefore === " " || charBefore === "\n" || lastAt === 0) {
-          setShowAtMenu(true);
-          setAtFilter(afterAt);
-          setSelectedAtIndex(0);
-        } else {
-          setShowAtMenu(false);
-        }
-      } else {
-        setShowAtMenu(false);
-      }
-    } else {
-      setShowAtMenu(false);
-    }
+    handleAtInput(textBeforeCursor);
 
     // Auto-resize textarea
     const el = e.target;
@@ -542,6 +464,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
           question={questionRequest.question}
           options={questionRequest.options}
           onAnswer={onAnswerQuestion}
+          onCancel={onCancelQuestion}
         />
       )}
 
@@ -612,38 +535,13 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
 
         {/* @mention autocomplete dropdown */}
         {showAtMenu && atMenuItems.length > 0 && (
-          <div
-            className="absolute bottom-full left-0 z-10 mb-1 w-full max-h-48 overflow-y-auto rounded-lg shadow-lg"
-            style={{
-              backgroundColor: "var(--bg-surface)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            {atMenuItems.map((item, i) => (
-              <button
-                key={item.value}
-                onClick={() => selectAtItem(item)}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs"
-                style={{
-                  backgroundColor:
-                    i === selectedAtIndex
-                      ? "var(--bg-hover)"
-                      : "transparent",
-                  color: "var(--text-primary)",
-                }}
-              >
-                <span style={{ color: "var(--accent)" }}>{item.label}</span>
-                {item.label !== item.description && (
-                  <span
-                    className="truncate"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    {item.description}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
+          <AtMentionMenu
+            items={atMenuItems}
+            selectedIndex={selectedAtIndex}
+            activeCategory={activeCategory}
+            onSelect={selectAtItem}
+            onBack={() => setShowAtMenu(false)}
+          />
         )}
 
         <div

@@ -65,6 +65,19 @@ async createWorkspace(request: CreateWorkspaceRequest) : Promise<Result<Workspac
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Move uncommitted changes from a repo's working tree into a brand-new
+ * workspace (worktree) so the user can iterate, commit, and open a PR from a
+ * dedicated branch. Source repo is left clean afterward.
+ */
+async extractChangesToWorkspace(repoId: string) : Promise<Result<WorkspaceInfo, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("extract_changes_to_workspace", { repoId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async listWorkspaces() : Promise<Result<WorkspaceInfo[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("list_workspaces") };
@@ -185,9 +198,9 @@ async sendMessage(request: SendMessageRequest) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async respondToPermission(workspaceId: string, approved: boolean, updatedPermissions: JsonValue | null, decisionClassification: string | null) : Promise<Result<null, string>> {
+async respondToPermission(workspaceId: string, approved: boolean, updatedPermissions: JsonValue | null, decisionClassification: string | null, updatedInput: JsonValue | null) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("respond_to_permission", { workspaceId, approved, updatedPermissions, decisionClassification }) };
+    return { status: "ok", data: await TAURI_INVOKE("respond_to_permission", { workspaceId, approved, updatedPermissions, decisionClassification, updatedInput }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -360,6 +373,14 @@ async listWorkspaceFiles(workspaceId: string) : Promise<Result<string[], string>
 async listRepoFiles(repoId: string) : Promise<Result<string[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("list_repo_files", { repoId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async initWorkspaceGit(workspaceId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("init_workspace_git", { workspaceId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -725,6 +746,28 @@ async mergePr(workspaceId: string, mergeMethod: string | null) : Promise<Result<
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Fetch the unified diff for the current branch's PR.
+ */
+async getPrDiff(workspaceId: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_pr_diff", { workspaceId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Submit an AI-generated review to the PR's hosting provider.
+ */
+async submitAiReview(request: SubmitReviewRequest) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("submit_ai_review", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getPrReviews(workspaceId: string) : Promise<Result<PrReview[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_pr_reviews", { workspaceId }) };
@@ -1011,9 +1054,31 @@ async copilotDidClose(uri: string) : Promise<Result<null, string>> {
 /**
  * Request inline completions at a given position.
  */
-async copilotComplete(uri: string, line: number, character: number) : Promise<Result<CompletionResult, string>> {
+async copilotComplete(uri: string, line: number, character: number, triggerKind: number) : Promise<Result<CompletionResult, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("copilot_complete", { uri, line, character }) };
+    return { status: "ok", data: await TAURI_INVOKE("copilot_complete", { uri, line, character, triggerKind }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Notify Copilot LS that a completion was accepted.
+ */
+async copilotNotifyAccepted(uuid: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("copilot_notify_accepted", { uuid }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Notify Copilot LS that completions were rejected.
+ */
+async copilotNotifyRejected(uuids: string[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("copilot_notify_rejected", { uuids }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1038,6 +1103,54 @@ async getIndexingStatus(repoId: string) : Promise<Result<IndexingStatus, string>
 async listIndexingStatuses() : Promise<Result<IndexingStatus[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("list_indexing_statuses") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async searchCodebase(repoId: string, query: string, limit: number | null) : Promise<Result<CodeSearchResult[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("search_codebase", { repoId, query, limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async searchSymbols(repoId: string, query: string, limit: number | null) : Promise<Result<CodeSearchResult[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("search_symbols", { repoId, query, limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async startCodebaseIndexing(repoId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("start_codebase_indexing", { repoId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async stopCodebaseIndexing(repoId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stop_codebase_indexing", { repoId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteCodebaseIndex(repoId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_codebase_index", { repoId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getCodebaseIndexStats(repoId: string) : Promise<Result<Partial<{ [key in string]: string }>, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_codebase_index_stats", { repoId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1341,6 +1454,46 @@ async deleteSnippet(snippetId: string) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async createNotepad(request: CreateNotepadRequest) : Promise<Result<Notepad, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_notepad", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async listNotepads() : Promise<Result<Notepad[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_notepads") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getNotepad(notepadId: string) : Promise<Result<Notepad | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_notepad", { notepadId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateNotepad(notepadId: string, request: UpdateNotepadRequest) : Promise<Result<Notepad, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_notepad", { notepadId, request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteNotepad(notepadId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_notepad", { notepadId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async detectTestFramework(repoId: string) : Promise<Result<TestRunnerConfig, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("detect_test_framework", { repoId }) };
@@ -1540,6 +1693,128 @@ async applyDevcontainerConfig(workspaceId: string, configJson: string, commitToR
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async createBrowser(url: string, x: number, y: number, width: number, height: number) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_browser", { url, x, y, width, height }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async navigateBrowser(browserId: string, url: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("navigate_browser", { browserId, url }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateBrowserBounds(browserId: string, x: number, y: number, width: number, height: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_browser_bounds", { browserId, x, y, width, height }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async showBrowser(browserId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("show_browser", { browserId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async hideBrowser(browserId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("hide_browser", { browserId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async closeBrowser(browserId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("close_browser", { browserId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async evalBrowserJs(browserId: string, script: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("eval_browser_js", { browserId, script }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async fetchUrlContent(url: string) : Promise<Result<UrlContent, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("fetch_url_content", { url }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async webSearch(query: string, limit: number | null) : Promise<Result<WebSearchResult[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("web_search", { query, limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async runLint(repoId: string, filePath: string | null) : Promise<Result<LintDiagnostic[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("run_lint", { repoId, filePath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async resolveLibraryId(libraryName: string) : Promise<Result<DocLibrary[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("resolve_library_id", { libraryName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async queryLibraryDocs(libraryId: string, query: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("query_library_docs", { libraryId, query }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Send a one-shot inline edit request to the sidecar.
+ * 
+ * Uses a dedicated `edit_id` (not the workspace UUID) so the sidecar routes
+ * response events to `agent-stream:{edit_id}`, keeping the main agent session
+ * untouched. Tools are disabled and thinking is off for fast, focused edits.
+ */
+async inlineEdit(workspaceId: string, editId: string, filePath: string, language: string, selectedCode: string, fullFileContent: string, instruction: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("inline_edit", { workspaceId, editId, filePath, language, selectedCode, fullFileContent, instruction }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Cancel an in-progress inline edit by sending an interrupt to the sidecar.
+ */
+async cancelInlineEdit(editId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cancel_inline_edit", { editId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -1579,6 +1854,15 @@ export type ClaudePermissions = { allow: string[]; deny: string[] }
  * Response for get_claude_permissions: returns the current allow/deny lists.
  */
 export type ClaudePermissionsResponse = { permissions: ClaudePermissions; settingsPath: string }
+export type CodeSearchResult = { filePath: string; content: string; startLine: number; endLine: number; score: number; 
+/**
+ * Chunk type: "function", "class", "import", "block", "file_header"
+ */
+kind: string; language: string; 
+/**
+ * The symbol name extracted from the AST (e.g. function name, class name).
+ */
+symbolName: string | null }
 export type CompletionResult = { items: CopilotCompletion[] }
 export type ConflictContent = { path: string; base: string; ours: string; theirs: string; merged: string; language: string }
 export type ConflictType = "bothModified" | "deletedByUs" | "deletedByThem" | "addedByBoth" | "bothDeleted" | "unknown"
@@ -1593,6 +1877,7 @@ export type CopilotRange = { start: CopilotPosition; end: CopilotPosition }
 export type CopilotSettings = { enabled: boolean }
 export type CopilotSignInResult = { status: string; userCode: string | null; verificationUri: string | null; user: string | null }
 export type CreateBookmarkRequest = { repoId: string; filePath: string; lineNumber: number; note: string | null; color: string | null }
+export type CreateNotepadRequest = { title: string; content: string; description: string | null; tags: string[] | null }
 export type CreatePrRequest = { workspaceId: string; title: string; body: string; draft: boolean | null }
 export type CreatePromptRequest = { name: string; content: string; description: string | null; category: string | null; tags: string[] | null }
 export type CreateSnippetRequest = { title: string; content: string; language: string | null; description: string | null; tags: string[] | null; source: string | null }
@@ -1605,6 +1890,7 @@ export type CustomTheme = { id: string; name: string; vars: Partial<{ [key in st
 export type DevContainerConfig = { enabled: boolean; backend: ContainerBackend; agentExecMode: AgentExecMode; image: string | null; composeFile: string | null; composeService: string | null; devcontainerPath: string | null; containerWorkspacePath: string | null; extraDockerArgs: string[]; containerEnvVars: Partial<{ [key in string]: string }> }
 export type DiffResult = { files: FileDiff[]; totalAdditions: number; totalDeletions: number }
 export type DocChangeEvent = { uri: string; version: number; text: string }
+export type DocLibrary = { id: string; name: string; version: string | null }
 export type DocSyncEvent = { uri: string; languageId: string; version: number; text: string }
 export type ExperimentalSettings = { spotlightTesting: boolean; agentTeams: boolean; persistentProcesses?: boolean; safeMode?: boolean }
 export type ExportOptions = { workspaceId: string; includeChat: boolean; includeTodos: boolean; includeRepoSettings: boolean; includeEnvVars: boolean; includeBookmarks: boolean; includeSnippets: boolean }
@@ -1632,6 +1918,7 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | Partial
 export type LinearIssue = { id: string; identifier: string; title: string; url: string; stateName: string | null; priority: number | null; teamName: string | null; description: string | null }
 export type LinearSettings = { apiKey: string | null }
 export type LinkIssueRequest = { workspaceId: string; issueId: string; identifier: string; title: string; url: string }
+export type LintDiagnostic = { filePath: string; line: number; column: number; severity: string; message: string; rule: string | null }
 /**
  * A catalog entry for a known official LSP plugin.
  */
@@ -1648,6 +1935,7 @@ export type McpScope = "user" | "project"
 export type McpServer = { name: string; command: string; args: string[]; env: Partial<{ [key in string]: string }>; scope: McpScope }
 export type MergeResult = { success: boolean; message: string; mergeMethod: string }
 export type MessageRole = "user" | "assistant" | "system"
+export type Notepad = { id: string; title: string; content: string; description: string | null; tags: string[]; pinned: boolean; createdAt: string; updatedAt: string }
 export type PrCheck = { name: string; status: string; conclusion: string | null; detailsUrl: string | null; description: string | null }
 export type PrComment = { id: number; author: string; body: string; createdAt: string; path: string | null; line: number | null }
 export type PrDetail = { number: number; title: string; headBranch: string; baseBranch: string; body: string; state: string; url: string }
@@ -1661,13 +1949,14 @@ export type ProviderType = "Anthropic" | "OpenRouter" | "VercelAIGateway" | "Bed
 export type PullResult = { success: boolean; message: string; hasConflicts: boolean; conflictedFiles: string[] }
 export type RemoveMcpRequest = { name: string; scope: McpScope }
 export type ReorderTodosRequest = { workspaceId: string; todoIds: string[] }
-export type RepoSettings = { setupScript: string | null; runScript: string | null; archiveScript: string | null; runScriptMode: RunScriptMode; envVars: Partial<{ [key in string]: string }>; worktreeBasePath: string | null; providerOverride?: ProviderConfig | null; devcontainer?: DevContainerConfig | null }
+export type RepoSettings = { setupScript: string | null; runScript: string | null; archiveScript: string | null; runScriptMode: RunScriptMode; envVars: Partial<{ [key in string]: string }>; worktreeBasePath: string | null; providerOverride?: ProviderConfig | null; devcontainer?: DevContainerConfig | null; browserUrl?: string | null }
 export type Repository = { id: string; name: string; path: string; defaultBranch: string; 
 /**
  * Current checked-out branch, populated at query time.
  */
 currentBranch?: string | null; provider?: GitProvider; remoteUrl?: string | null }
 export type ResponseMetadata = { durationMs?: number | null; durationApiMs?: number | null; totalCostUsd?: number | null; numTurns?: number | null; inputTokens?: number | null; outputTokens?: number | null; cacheReadTokens?: number | null; cacheCreationTokens?: number | null }
+export type ReviewInlineComment = { path: string; line: number; body: string }
 export type ReviewsAndComments = { reviews: PrReview[]; reviewComments: PrComment[] }
 export type RunLogsResult = { logs: string; truncated: boolean; taskLogs: TaskLog[] | null }
 export type RunScriptMode = "concurrent" | "nonconcurrent"
@@ -1695,6 +1984,11 @@ export type StashDetail = { index: number; message: string; files: StashFileStat
 export type StashEntry = { index: number; message: string; branch: string; timestamp: string }
 export type StashFileStat = { path: string; additions: number; deletions: number }
 export type StreamEventPayload = { workspaceId: string; eventType: string; details: string | null; source: string; timestamp: number }
+export type SubmitReviewRequest = { workspaceId: string; body: string; 
+/**
+ * COMMENT | APPROVE | REQUEST_CHANGES
+ */
+event: string; comments: ReviewInlineComment[] }
 export type TaskLog = { taskName: string; jobName: string; logContent: string; status: string; conclusion: string | null }
 export type TestFramework = "vitest" | "jest" | "pytest" | "cargotest" | "gotest" | "custom"
 export type TestRunRecord = { id: string; repoId: string; ranAt: string; total: number; passed: number; failed: number; skipped: number; durationMs: number }
@@ -1706,11 +2000,14 @@ export type TypeDefinitions = { tsconfig: string | null; libs: TypeDefFile[] }
 export type UninstallLspPluginRequest = { pluginName: string; scope: string }
 export type UnlinkIssueRequest = { workspaceId: string; issueId: string }
 export type UpdateBookmarkRequest = { note: string | null; color: string | null; lineNumber: number | null }
+export type UpdateNotepadRequest = { title: string | null; content: string | null; description: string | null; tags: string[] | null; pinned: boolean | null }
 export type UpdatePromptRequest = { name: string | null; content: string | null; description: string | null; category: string | null; tags: string[] | null }
 export type UpdateSnippetRequest = { title: string | null; content: string | null; language: string | null; description: string | null; tags: string[] | null; source: string | null }
 export type UpdateTodoRequest = { id: string; workspaceId: string; text: string | null; completed: boolean | null }
 export type UpdateWorkspaceTemplateRequest = { name: string | null; description: string | null; setupScript: string | null; runScript: string | null; archiveScript: string | null; runScriptMode: string | null; envVars: Partial<{ [key in string]: string }> | null; sparseDirs: string[] | null; autoCommit: boolean | null }
+export type UrlContent = { url: string; title: string | null; content: string; contentType: string }
 export type UsageDataPoint = { workspaceId: string; workspaceName: string; timestamp: string; totalCostUsd: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number; numTurns: number; durationMs: number }
+export type WebSearchResult = { title: string; url: string; snippet: string }
 export type WorkflowJob = { id: number; name: string; status: string; conclusion: string | null; steps: WorkflowStep[] }
 export type WorkflowRun = { id: number; name: string; workflowName: string; status: string; conclusion: string | null; event: string; createdAt: string }
 export type WorkflowStep = { name: string; status: string; conclusion: string | null }

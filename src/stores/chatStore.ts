@@ -14,6 +14,7 @@ import {
   toPersisted,
   fromPersisted,
   getPendingPermission,
+  respondToPermission,
 } from "../lib/tauri";
 import { useSlashCommandStore } from "./slashCommandStore";
 import { pushAgentTurnMetric, pushStreamEvent } from "../lib/ipcInstrumentation";
@@ -29,6 +30,7 @@ export interface QuestionRequestInfo {
   toolUseId: string;
   question: string;
   options?: string[];
+  rawInput?: Record<string, unknown>;
 }
 
 export type ConductorPhase = "idle" | "researching" | "questioning" | "planning";
@@ -46,6 +48,7 @@ interface ChatStore {
   messages: Record<string, ChatMessage[]>;
   streamingText: Record<string, string>;
   planApproval: Record<string, boolean>;
+  planContent: Record<string, string>;
   permissionRequest: Record<string, PermissionRequestInfo | null>;
   questionRequest: Record<string, QuestionRequestInfo | null>;
   conductorPhase: Record<string, ConductorPhase>;
@@ -93,6 +96,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   messages: {},
   streamingText: {},
   planApproval: {},
+  planContent: {},
   permissionRequest: {},
   questionRequest: {},
   conductorPhase: {},
@@ -153,6 +157,26 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       getPendingPermission(workspaceId)
         .then((event) => {
           if (event && event.type === "permissionRequest" && !token.cancelled) {
+            // AskQuestion permissions are shown as QuestionCard, not permission dialog
+            if (normalizeToolName(event.toolName) === "AskQuestion") {
+              const inp = (event.input ?? {}) as Record<string, unknown>;
+              const questions = inp.questions as Array<{
+                question?: string;
+                options?: Array<{ label: string; description?: string } | string>;
+              }> | undefined;
+              const firstQ = questions?.[0];
+              const question = (firstQ?.question ?? inp.question ?? inp.text ?? "") as string;
+              const options = firstQ?.options?.map((o) => (typeof o === "string" ? o : o.label))
+                ?? (inp.options as string[] | undefined);
+              set((state) => ({
+                questionRequest: {
+                  ...state.questionRequest,
+                  [workspaceId]: { toolUseId: "", question, options, rawInput: inp },
+                },
+                conductorPhase: { ...state.conductorPhase, [workspaceId]: "questioning" },
+              }));
+              return;
+            }
             set((state) => ({
               permissionRequest: {
                 ...state.permissionRequest,
@@ -213,6 +237,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         [workspaceId]: [...(state.messages[workspaceId] ?? []), msg],
       },
       planApproval: { ...state.planApproval, [workspaceId]: false },
+      planContent: { ...state.planContent, [workspaceId]: "" },
       permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
       questionRequest: { ...state.questionRequest, [workspaceId]: null },
       conductorPhase: { ...state.conductorPhase, [workspaceId]: "idle" },
@@ -238,6 +263,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         messages: { ...state.messages, [workspaceId]: [] },
         streamingText: { ...state.streamingText, [workspaceId]: "" },
         planApproval: { ...state.planApproval, [workspaceId]: false },
+        planContent: { ...state.planContent, [workspaceId]: "" },
         permissionRequest: { ...state.permissionRequest, [workspaceId]: null },
         questionRequest: { ...state.questionRequest, [workspaceId]: null },
         conductorPhase: { ...state.conductorPhase, [workspaceId]: "idle" },
@@ -272,9 +298,12 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   getPlanContent: (workspaceId: string) => {
+    // Return the extracted plan file content if available
+    const stored = get().planContent[workspaceId];
+    if (stored) return stored;
+    // Fallback: walk backwards to find text content from the last assistant messages
     // Stryker disable next-line ArrayDeclaration: defensive fallback
     const msgs = get().messages[workspaceId] ?? [];
-    // Walk backwards to find text content from the last assistant messages
     const textParts: string[] = [];
     for (let i = msgs.length - 1; i >= 0; i--) {
       const msg = msgs[i];
@@ -487,8 +516,25 @@ function handleStreamEvent(
 
       // Detect plan approval requests
       if (event.name.toLowerCase().includes("exitplanmode")) {
+        // Extract plan file content from the most recent Write tool call to a .md file
+        const msgs = get().messages[workspaceId] ?? [];
+        let extractedPlan = "";
+        for (let i = msgs.length - 1; i >= 0; i--) {
+          const msg = msgs[i];
+          if (msg.role !== "assistant") break;
+          for (const b of msg.content) {
+            if (b.type === "toolUse" && normalizeToolName(b.name) === "Write") {
+              const inp = b.input as Record<string, unknown> | undefined;
+              const filePath = (inp?.file_path ?? "") as string;
+              if (filePath.endsWith(".md") && typeof inp?.content === "string") {
+                extractedPlan = inp.content;
+              }
+            }
+          }
+        }
         set((state) => ({
           planApproval: { ...state.planApproval, [workspaceId]: true },
+          planContent: extractedPlan ? { ...state.planContent, [workspaceId]: extractedPlan } : state.planContent,
           conductorPhase: { ...state.conductorPhase, [workspaceId]: "planning" },
         }));
       }
@@ -496,13 +542,25 @@ function handleStreamEvent(
       // Detect AskQuestion tool calls — surface as question card in Composer
       if (normalized === "AskQuestion") {
         const inp = event.input as Record<string, unknown>;
+        // AskUserQuestionInput uses nested { questions: [{ question, header, options: [{ label, description }] }] }
+        const questions = inp.questions as Array<{
+          question?: string;
+          header?: string;
+          options?: Array<{ label: string; description?: string } | string>;
+        }> | undefined;
+        const firstQ = questions?.[0];
+        const question = (firstQ?.question ?? inp.question ?? inp.text ?? "") as string;
+        const options = firstQ?.options?.map((o) => (typeof o === "string" ? o : o.label))
+          ?? (inp.options as string[] | undefined)
+          ?? (inp.choices as string[] | undefined);
         set((state) => ({
           questionRequest: {
             ...state.questionRequest,
             [workspaceId]: {
               toolUseId: event.id,
-              question: (inp.question ?? inp.text ?? "") as string,
-              options: (inp.options ?? inp.choices) as string[] | undefined,
+              question,
+              options,
+              rawInput: inp,
             },
           },
           conductorPhase: { ...state.conductorPhase, [workspaceId]: "questioning" },
@@ -530,6 +588,15 @@ function handleStreamEvent(
     }
 
     case "permissionRequest": {
+      // AskQuestion permissions are handled by the QuestionCard, not the permission dialog.
+      // The toolUse event (which arrives first) already set questionRequest.
+      if (normalizeToolName(event.toolName) === "AskQuestion") break;
+      // ExitPlanMode is handled by the plan approval bar — auto-approve the
+      // permission so the sidecar unblocks and waits for the user's plan decision.
+      if (event.toolName.toLowerCase().includes("exitplanmode")) {
+        respondToPermission(workspaceId, true).catch(() => {});
+        break;
+      }
       set((state) => ({
         permissionRequest: {
           ...state.permissionRequest,

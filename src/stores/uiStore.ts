@@ -2,9 +2,14 @@ import { create } from "zustand";
 import { applyTheme } from "../lib/themes";
 
 export type RightSidebarTab = "files" | "changes" | "checks" | "bookmarks";
-export type BottomTab = "setup" | "terminal" | "run";
-export type ViewType = "chat" | "settings" | "merge" | "history" | "diff" | "team" | "tests" | "usage" | "activity";
-export type ChatPaneId = "left" | "right";
+export type BottomTab = "setup" | "terminal" | "run" | "activity";
+export type ViewType = "chat" | "settings" | "merge" | "history" | "diff" | "team" | "tests" | "usage" | "activity" | "browser";
+export interface AgentPane {
+  id: string;
+  contextId: string;
+  contextType: "workspace" | "repo";
+  label: string;
+}
 
 export interface ViewTab {
   id: string;
@@ -25,6 +30,7 @@ const VIEW_LABELS: Record<ViewType, string> = {
   tests: "Tests",
   usage: "Usage",
   activity: "Activity",
+  browser: "Browser",
 };
 
 interface UIStore {
@@ -45,13 +51,17 @@ interface UIStore {
   pinViewTab: (tabId: string) => void;
   openChatTab: (contextId: string, label: string, contextType: "workspace" | "repo") => void;
   closeChatTabsForContext: (contextId: string) => void;
-  splitChatActive: boolean;
-  splitChatContextId: string | null;
-  splitChatContextType: "workspace" | "repo" | null;
-  splitChatFocusedPane: ChatPaneId;
-  splitChat: (contextId: string, contextType: "workspace" | "repo") => void;
-  closeSplitChat: () => void;
-  setSplitChatFocusedPane: (pane: ChatPaneId) => void;
+  agentPanes: AgentPane[];
+  focusedPaneIndex: number;
+  addAgentPane: (contextId: string, contextType: "workspace" | "repo", label: string) => void;
+  removeAgentPane: (paneId: string) => void;
+  setFocusedPane: (index: number) => void;
+  updatePaneContext: (paneId: string, contextId: string, contextType: "workspace" | "repo", label: string) => void;
+  closeAllSplitPanes: () => void;
+  removeAgentPanesForContext: (contextId: string) => void;
+  splitBrowserActive: boolean;
+  splitBrowser: () => void;
+  closeSplitBrowser: () => void;
   settingsInitialTab: string | null;
   setSettingsInitialTab: (tab: string | null) => void;
 }
@@ -117,7 +127,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
 
   closeViewTab: (tabId) => {
     if (tabId === "chat") return;
-    const { viewTabs, activeViewTabId, splitChatContextId } = get();
+    const { viewTabs, activeViewTabId } = get();
     const idx = viewTabs.findIndex((t) => t.id === tabId);
     if (idx === -1) return;
     const closedTab = viewTabs[idx];
@@ -127,10 +137,15 @@ export const useUIStore = create<UIStore>((set, get) => ({
       const neighbor = updated[Math.min(idx, updated.length - 1)];
       nextActive = neighbor?.id ?? "chat";
     }
-    const splitUpdates = (closedTab.contextId && closedTab.contextId === splitChatContextId)
-      ? { splitChatActive: false, splitChatContextId: null, splitChatContextType: null, splitChatFocusedPane: "left" as const }
-      : {};
-    set({ viewTabs: updated, activeViewTabId: nextActive, ...splitUpdates });
+    const paneUpdates: Partial<UIStore> = {};
+    if (closedTab.contextId) {
+      const panes = get().agentPanes.filter((p) => p.contextId !== closedTab.contextId);
+      if (panes.length < get().agentPanes.length) {
+        paneUpdates.agentPanes = panes.length > 0 ? panes : get().agentPanes.slice(0, 1);
+        paneUpdates.focusedPaneIndex = 0;
+      }
+    }
+    set({ viewTabs: updated, activeViewTabId: nextActive, ...paneUpdates });
   },
 
   setActiveViewTab: (tabId) => {
@@ -167,40 +182,106 @@ export const useUIStore = create<UIStore>((set, get) => ({
   },
 
   closeChatTabsForContext: (contextId) => {
-    const { viewTabs, activeViewTabId, splitChatContextId } = get();
+    const { viewTabs, activeViewTabId, agentPanes } = get();
     const tabId = `chat-${contextId}`;
     const updated = viewTabs.filter((t) => t.id !== tabId);
     const nextActive = activeViewTabId === tabId ? "chat" : activeViewTabId;
-    const splitUpdates = splitChatContextId === contextId
-      ? { splitChatActive: false, splitChatContextId: null, splitChatContextType: null, splitChatFocusedPane: "left" as const }
-      : {};
-    set({ viewTabs: updated, activeViewTabId: nextActive, ...splitUpdates });
+    const filteredPanes = agentPanes.filter((p) => p.contextId !== contextId);
+    const paneUpdates: Partial<UIStore> = {};
+    if (filteredPanes.length < agentPanes.length) {
+      paneUpdates.agentPanes = filteredPanes.length > 0 ? filteredPanes : agentPanes.slice(0, 1);
+      paneUpdates.focusedPaneIndex = 0;
+    }
+    set({ viewTabs: updated, activeViewTabId: nextActive, ...paneUpdates });
   },
 
-  splitChatActive: false,
-  splitChatContextId: null,
-  splitChatContextType: null,
-  splitChatFocusedPane: "left" as ChatPaneId,
+  agentPanes: [],
+  focusedPaneIndex: 0,
 
-  splitChat: (contextId, contextType) => {
+  addAgentPane: (contextId, contextType, label) => {
+    const { agentPanes } = get();
+    if (agentPanes.length >= 4) return;
+    if (agentPanes.some((p) => p.contextId === contextId)) return;
+    const newPane: AgentPane = {
+      id: crypto.randomUUID(),
+      contextId,
+      contextType,
+      label,
+    };
     set({
-      splitChatActive: true,
-      splitChatContextId: contextId,
-      splitChatContextType: contextType,
-      splitChatFocusedPane: "right",
+      agentPanes: [...agentPanes, newPane],
+      focusedPaneIndex: agentPanes.length,
     });
   },
 
-  closeSplitChat: () => {
+  removeAgentPane: (paneId) => {
+    const { agentPanes, focusedPaneIndex } = get();
+    if (agentPanes.length <= 1) return;
+    const idx = agentPanes.findIndex((p) => p.id === paneId);
+    if (idx === -1) return;
+    const updated = agentPanes.filter((p) => p.id !== paneId);
     set({
-      splitChatActive: false,
-      splitChatContextId: null,
-      splitChatContextType: null,
-      splitChatFocusedPane: "left",
+      agentPanes: updated,
+      focusedPaneIndex: Math.min(focusedPaneIndex, updated.length - 1),
     });
   },
 
-  setSplitChatFocusedPane: (pane) => set({ splitChatFocusedPane: pane }),
+  setFocusedPane: (index) => {
+    const { agentPanes } = get();
+    if (index >= 0 && index < agentPanes.length) {
+      set({ focusedPaneIndex: index });
+    }
+  },
+
+  updatePaneContext: (paneId, contextId, contextType, label) => {
+    set((state) => ({
+      agentPanes: state.agentPanes.map((p) =>
+        p.id === paneId ? { ...p, contextId, contextType, label } : p,
+      ),
+    }));
+  },
+
+  closeAllSplitPanes: () => {
+    const { agentPanes } = get();
+    if (agentPanes.length <= 1) return;
+    set({ agentPanes: agentPanes.slice(0, 1), focusedPaneIndex: 0 });
+  },
+
+  removeAgentPanesForContext: (contextId) => {
+    const { agentPanes } = get();
+    const filtered = agentPanes.filter((p) => p.contextId !== contextId);
+    if (filtered.length === agentPanes.length) return;
+    set({
+      agentPanes: filtered.length > 0 ? filtered : agentPanes.slice(0, 1),
+      focusedPaneIndex: 0,
+    });
+  },
+
+  splitBrowserActive: false,
+
+  splitBrowser: () => {
+    // Ensure browser tab exists
+    const { viewTabs } = get();
+    if (!viewTabs.find((t) => t.id === "browser")) {
+      const newTab: ViewTab = {
+        id: "browser",
+        type: "browser",
+        pinned: true,
+        label: "Browser",
+      };
+      set({
+        viewTabs: [...viewTabs, newTab],
+        activeViewTabId: "chat",
+        splitBrowserActive: true,
+      });
+    } else {
+      set({ activeViewTabId: "chat", splitBrowserActive: true });
+    }
+  },
+
+  closeSplitBrowser: () => {
+    set({ splitBrowserActive: false });
+  },
 
   settingsInitialTab: null,
   setSettingsInitialTab: (tab) => set({ settingsInitialTab: tab }),
@@ -213,6 +294,9 @@ if (import.meta.env.DEV) {
     }
     if (state.activeViewTabId !== prev.activeViewTabId) {
       sessionStorage.setItem("fury:activeViewTabId", state.activeViewTabId);
+    }
+    if (state.agentPanes !== prev.agentPanes) {
+      sessionStorage.setItem("fury:agentPanes", JSON.stringify(state.agentPanes));
     }
   });
 }

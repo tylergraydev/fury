@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::error::AppError;
-use crate::models::pr::{PrComment, PrReview};
+use crate::models::pr::{PrComment, PrReview, ReviewInlineComment};
 use crate::platform;
 
 use super::find_gh_binary;
@@ -213,6 +213,121 @@ pub fn get_pr_review_comments(worktree_path: &Path) -> Result<Vec<PrComment>, Ap
         .map_err(|e| AppError::PrError(format!("Failed to parse review comments: {}", e)))?;
 
     Ok(parse_comments_from_json(&raw))
+}
+
+/// Fetch the unified diff for the current branch's PR.
+pub fn get_pr_diff(worktree_path: &Path) -> Result<String, AppError> {
+    let gh = find_gh_binary()?;
+    let output = platform::command(&gh)
+        .args(["pr", "diff"])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::PrError(format!("Failed to run gh pr diff: {}", e)))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::PrError(format!("gh pr diff failed: {}", stderr)));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+/// Submit a PR review with optional inline comments using the GitHub Reviews API.
+/// `event` must be one of: COMMENT, APPROVE, REQUEST_CHANGES.
+pub fn submit_pr_review(
+    worktree_path: &Path,
+    pr_number: u64,
+    pr_url: &str,
+    body: &str,
+    event: &str,
+    comments: &[ReviewInlineComment],
+) -> Result<(), AppError> {
+    let gh = find_gh_binary()?;
+    let (owner, repo) = parse_owner_repo_from_url(pr_url)?;
+
+    let api_path = format!("repos/{}/{}/pulls/{}/reviews", owner, repo, pr_number);
+
+    let comments_json: Vec<serde_json::Value> = comments
+        .iter()
+        .map(|c| {
+            serde_json::json!({
+                "path": c.path,
+                "line": c.line,
+                "body": c.body,
+            })
+        })
+        .collect();
+
+    let payload = serde_json::json!({
+        "body": body,
+        "event": event,
+        "comments": comments_json,
+    });
+
+    let payload_str = serde_json::to_string(&payload)
+        .map_err(|e| AppError::PrError(format!("Failed to serialize review payload: {}", e)))?;
+
+    let output = platform::command(&gh)
+        .args(["api", &api_path, "--method", "POST", "--input", "-"])
+        .current_dir(worktree_path)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .and_then(|mut child| {
+            use std::io::Write;
+            if let Some(ref mut stdin) = child.stdin {
+                stdin.write_all(payload_str.as_bytes())?;
+            }
+            child.wait_with_output()
+        })
+        .map_err(|e| AppError::PrError(format!("Failed to run gh api: {}", e)))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::PrError(format!(
+            "Failed to submit PR review: {}",
+            stderr
+        )));
+    }
+
+    Ok(())
+}
+
+/// Post a top-level comment on a PR (not an inline review comment).
+pub fn post_pr_comment(
+    worktree_path: &Path,
+    pr_number: u64,
+    pr_url: &str,
+    body: &str,
+) -> Result<(), AppError> {
+    let gh = find_gh_binary()?;
+    let (owner, repo) = parse_owner_repo_from_url(pr_url)?;
+
+    let api_path = format!("repos/{}/{}/issues/{}/comments", owner, repo, pr_number);
+
+    let output = platform::command(&gh)
+        .args([
+            "api",
+            &api_path,
+            "--method",
+            "POST",
+            "-f",
+            &format!("body={}", body),
+        ])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::PrError(format!("Failed to run gh api: {}", e)))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::PrError(format!(
+            "Failed to post PR comment: {}",
+            stderr
+        )));
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

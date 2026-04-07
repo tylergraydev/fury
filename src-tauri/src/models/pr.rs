@@ -182,6 +182,64 @@ pub struct TaskLog {
     pub conclusion: Option<String>,
 }
 
+// --- AI Review types ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewIssueSeverity {
+    Error,
+    Warning,
+    Info,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewIssueCategory {
+    Bug,
+    Security,
+    Performance,
+    Style,
+    Logic,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AiReviewComment {
+    pub path: String,
+    pub line: u32,
+    pub body: String,
+    pub severity: ReviewIssueSeverity,
+    pub category: ReviewIssueCategory,
+    pub suggested_fix: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AiReviewResult {
+    pub summary: String,
+    pub comments: Vec<AiReviewComment>,
+    /// One of: "approve", "request_changes", "comment"
+    pub overall_assessment: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SubmitReviewRequest {
+    pub workspace_id: Uuid,
+    pub body: String,
+    /// COMMENT | APPROVE | REQUEST_CHANGES
+    pub event: String,
+    pub comments: Vec<ReviewInlineComment>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewInlineComment {
+    pub path: String,
+    pub line: u32,
+    pub body: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -214,5 +272,35 @@ mod tests {
         let deserialized: PrListItem = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.number, 42);
         assert_eq!(deserialized.title, "Fix bug");
+    }
+
+    #[test]
+    fn test_ai_review_result_serde_roundtrip() {
+        let result = AiReviewResult {
+            summary: "Found 1 issue".to_string(),
+            comments: vec![AiReviewComment {
+                path: "src/main.rs".to_string(),
+                line: 42,
+                body: "Potential null dereference".to_string(),
+                severity: ReviewIssueSeverity::Error,
+                category: ReviewIssueCategory::Bug,
+                suggested_fix: Some("Add null check".to_string()),
+            }],
+            overall_assessment: "request_changes".to_string(),
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        let deserialized: AiReviewResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.summary, "Found 1 issue");
+        assert_eq!(deserialized.comments.len(), 1);
+        assert_eq!(deserialized.comments[0].line, 42);
+        assert_eq!(deserialized.overall_assessment, "request_changes");
+    }
+
+    #[test]
+    fn test_review_issue_severity_serde() {
+        let error: ReviewIssueSeverity = serde_json::from_str("\"error\"").unwrap();
+        assert!(matches!(error, ReviewIssueSeverity::Error));
+        let warning: ReviewIssueSeverity = serde_json::from_str("\"warning\"").unwrap();
+        assert!(matches!(warning, ReviewIssueSeverity::Warning));
     }
 }

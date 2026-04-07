@@ -130,6 +130,8 @@ pub(crate) fn build_common_args(
     // agent is running in.  The main repo path is available as FURY_ROOT_PATH.
     combined_prompt.push_str("\n\nWhen using the search_code or index_codebase tools from claude-context, always use the FURY_ROOT_PATH environment variable as the path argument, not the current working directory. This ensures code search works correctly across worktrees.");
 
+    combined_prompt.push_str("\n\n## Browser\nFury has a built-in embedded browser panel visible right next to the chat. CRITICAL RULES:\n1. When the user asks to \"open in the browser\", \"preview\", \"show me the app\", or anything browser-related, use the fury-browser MCP tools — NOT chrome-devtools, NOT puppeteer, NOT playwright, NOT any other browser MCP. The fury-browser tools are: browser_open, browser_navigate, browser_click, browser_type, browser_screenshot, browser_console_logs, browser_get_html, browser_evaluate, browser_wait_for.\n2. Do NOT start/run the dev server unless the user explicitly asks you to. If they say \"open my app in the browser\", assume the app is ALREADY running and just call browser_open with the URL.\n3. NEVER use chrome-devtools or similar MCPs for browser interaction — they control an external browser the user cannot see. fury-browser controls the panel right next to this chat.");
+
     args.push("--append-system-prompt".to_string());
     args.push(combined_prompt);
 

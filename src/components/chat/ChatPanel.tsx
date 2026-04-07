@@ -216,7 +216,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
   }, [contextId, contextType, agentStatus, thinkingEnabled, planEnabled]);
 
   const handleApprovePlan = useCallback(async () => {
-    await handleSend("yes");
+    await handleSend("Approved");
   }, [handleSend]);
 
   const handleCopyPlan = useCallback(async () => {
@@ -246,9 +246,30 @@ export function ChatPanel({ contextId, contextType }: Props) {
   }, [contextId, permissionRequest]);
 
   const handleAnswerQuestion = useCallback(async (answer: string) => {
+    const qr = useChatStore.getState().questionRequest[contextId];
+    if (!qr) return;
+    // Build answers map and merge into the original tool input so the SDK
+    // receives the user's answer via updatedInput on the permission response.
+    const answers: Record<string, string> = { [qr.question]: answer };
+    const updatedInput = { ...(qr.rawInput ?? {}), answers };
     useChatStore.getState().clearQuestionRequest(contextId);
-    await handleSend(answer);
-  }, [contextId, handleSend]);
+    try {
+      await respondToPermission(contextId, true, undefined, undefined, updatedInput);
+    } catch (e) {
+      console.error("Failed to answer question:", e);
+    }
+  }, [contextId]);
+
+  const handleCancelQuestion = useCallback(async () => {
+    const qr = useChatStore.getState().questionRequest[contextId];
+    if (!qr) return;
+    useChatStore.getState().clearQuestionRequest(contextId);
+    try {
+      await respondToPermission(contextId, false);
+    } catch (e) {
+      console.error("Failed to cancel question:", e);
+    }
+  }, [contextId]);
 
   return (
     <div className="flex h-full flex-col">
@@ -331,6 +352,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
         onRespondToPermission={handleRespondToPermission}
         questionRequest={questionRequest}
         onAnswerQuestion={handleAnswerQuestion}
+        onCancelQuestion={handleCancelQuestion}
         thinkingEnabled={thinkingEnabled}
         onThinkingEnabledChange={setThinkingEnabled}
         planEnabled={planEnabled}

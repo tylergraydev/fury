@@ -10,7 +10,10 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import {
   notifyDocumentOpened,
   notifyDocumentChanged,
+  speculativeComplete,
+  toFileUri,
 } from "../../lib/copilot";
+import { useInlineEdit } from "./useInlineEdit";
 
 interface Props {
   tab: FileTab;
@@ -31,6 +34,8 @@ export function FileViewerPanel({ tab, repoId }: Props) {
   const decorationsRef =
     useRef<Monaco.editor.IEditorDecorationsCollection | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
+
+  useInlineEdit(editorRef, monacoRef, tab);
 
   const allBookmarks = useBookmarkStore((s) =>
     repoId ? s.bookmarks[repoId] ?? EMPTY_BOOKMARKS : EMPTY_BOOKMARKS,
@@ -54,6 +59,27 @@ export function FileViewerPanel({ tab, repoId }: Props) {
 
       const content = tab.editedContent ?? tab.content ?? "";
       notifyDocumentOpened(tab.filePath, tab.language, content);
+
+      // Partial word acceptance for inline completions (Cmd+Right / Ctrl+Right)
+      editor.addAction({
+        id: "copilot.acceptNextWord",
+        label: "Accept Next Word of Suggestion",
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.RightArrow],
+        precondition: "inlineSuggestionVisible",
+        run: (ed) => ed.trigger("copilot", "editor.action.inlineSuggest.acceptNextWord", {}),
+      });
+
+      // Speculative completion prefetch after substantial edits (edit prediction)
+      editor.onDidChangeModelContent((e) => {
+        for (const change of e.changes) {
+          const insertedLines = change.text.split("\n").length - 1;
+          if (insertedLines >= 1 || change.text.length > 20) {
+            const endLine = change.range.endLineNumber + insertedLines;
+            speculativeComplete(toFileUri(tab.filePath), endLine, 0);
+            break;
+          }
+        }
+      });
 
       // Gutter click handler for toggling bookmarks
       editor.onMouseDown((e) => {
@@ -242,7 +268,7 @@ export function FileViewerPanel({ tab, repoId }: Props) {
         suggest: { showKeywords: true, showSnippets: true },
         parameterHints: { enabled: true },
         fixedOverflowWidgets: true,
-        inlineSuggest: { enabled: true },
+        inlineSuggest: { enabled: true, showToolbar: "onHover", mode: "subwordSmart" },
         automaticLayout: true,
       }}
     />

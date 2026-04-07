@@ -13,6 +13,7 @@ import {
   Clock,
   Home,
   MessageSquare,
+  Globe,
 } from "lucide-react";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -241,7 +242,7 @@ export function Sidebar() {
                           }
                         }}
                         onOpenChatTab={() => {
-                          useUIStore.getState().openChatTab(ws.id, ws.name, "workspace");
+                          useUIStore.getState().addAgentPane(ws.id, "workspace", ws.name);
                         }}
                       />
                     ))}
@@ -313,6 +314,15 @@ export function Sidebar() {
           >
             <Plus className="h-4 w-4" />
             <span>New Chat Worktree</span>
+          </button>
+          <button
+            onClick={() => useUIStore.getState().openViewTab("browser")}
+            className="flex-shrink-0 rounded-lg p-2 text-sm transition-colors hover:bg-[var(--bg-hover)]"
+            style={{ color: "var(--text-muted)" }}
+            title="Browser"
+            aria-label="Browser"
+          >
+            <Globe className="h-4 w-4" />
           </button>
           <button
             onClick={() => useUIStore.getState().openViewTab("settings", true)}

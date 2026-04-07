@@ -5,6 +5,7 @@ import {
   archiveWorkspace,
   createWorkspace,
   deleteWorkspace,
+  extractChangesToWorkspace,
   listWorkspaces,
   listArchivedWorkspaces,
   restoreWorkspace,
@@ -50,6 +51,7 @@ interface WorkspaceStore {
 
   loadWorkspaces: () => Promise<void>;
   createWs: (request: CreateWorkspaceRequest) => Promise<WorkspaceInfo>;
+  extractChangesWs: (repoId: string) => Promise<WorkspaceInfo>;
   archiveWs: (id: string) => Promise<void>;
   deleteWs: (id: string) => Promise<void>;
   setActive: (id: string | null) => void;
@@ -104,6 +106,23 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     set({ error: null });
     try {
       const ws = await createWorkspace(request);
+      set({
+        workspaces: [...get().workspaces, ws],
+        activeWorkspaceId: ws.id,
+        activeRepoId: null,
+      });
+      _persistActiveContext(ws.id, null);
+      return ws;
+    } catch (e) {
+      set({ error: String(e) });
+      throw e;
+    }
+  },
+
+  extractChangesWs: async (repoId: string) => {
+    set({ error: null });
+    try {
+      const ws = await extractChangesToWorkspace(repoId);
       set({
         workspaces: [...get().workspaces, ws],
         activeWorkspaceId: ws.id,

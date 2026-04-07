@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, ChevronDown } from "lucide-react";
+import { ChevronRight, ChevronDown, ClipboardCheck } from "lucide-react";
 import type { AgentStatus, ChatMessage } from "../../lib/tauri";
 import { useChatStore } from "../../stores/chatStore";
 import { MessageBubble } from "./MessageBubble";
@@ -149,6 +149,7 @@ export function MessageList({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [expandedTurns, setExpandedTurns] = useState<Set<string>>(new Set());
   const [isNearBottom, setIsNearBottom] = useState(true);
+  const planContent = useChatStore((s) => contextId ? s.planContent[contextId] : "");
 
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
@@ -274,11 +275,10 @@ export function MessageList({
           if (isExpanded || showAsPlan) {
             // Show all responses (expanded or plan view)
             for (const msg of turn.responses) {
-              const isPlanMsg = showAsPlan && msg.role === "assistant" && msg.content.some((b) => b.type === "text" && b.text.trim().length > 0);
               elements.push(
                 /* v8 ignore start -- ternary branches for highlight and retry are V8 branch artifacts */
               <div key={msg.id} data-message-id={msg.id} className={highlightMessageId === msg.id ? "search-highlight" : ""}>
-                  <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} contextId={contextId} contextType={contextType} isPlanMessage={isPlanMsg} />
+                  <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} contextId={contextId} contextType={contextType} />
                 </div>,
                 /* v8 ignore stop */
               );
@@ -328,14 +328,10 @@ export function MessageList({
               );
             }
           } else {
-            // Determine if this is the plan turn — mark assistant text messages as plan messages
-            const showAsPlan = isPlanApproval && isLastTurn;
-
             for (const msg of turn.responses) {
-              const isPlanMsg = showAsPlan && msg.role === "assistant" && msg.content.some((b) => b.type === "text" && b.text.trim().length > 0);
               elements.push(
                 <div key={msg.id} data-message-id={msg.id} className={highlightMessageId === msg.id ? "search-highlight" : ""}>
-                  <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} contextId={contextId} contextType={contextType} isPlanMessage={isPlanMsg} />
+                  <MessageBubble message={msg} onRetry={msg.role === "system" ? onRetry : undefined} contextId={contextId} contextType={contextType} />
                 </div>,
               );
             }
@@ -344,6 +340,25 @@ export function MessageList({
 
         return <div key={turnId} className="mb-6" data-turn-index={turnIdx}>{elements}</div>;
       })}
+
+      {/* Plan file content card — shown when plan approval is active */}
+      {isPlanApproval && planContent && (
+        <div
+          className="mb-3 rounded-xl p-5 text-[15px]"
+          style={{
+            color: "var(--text-primary)",
+            backgroundColor: "var(--bg-surface)",
+            border: "1px solid color-mix(in srgb, var(--success) 20%, var(--border))",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+          }}
+        >
+          <div className="mb-3 flex items-center gap-2 text-xs font-medium" style={{ color: "var(--success)" }}>
+            <ClipboardCheck className="h-4 w-4" />
+            <span>Implementation Plan</span>
+          </div>
+          <MarkdownContent content={planContent} contextId={contextId} contextType={contextType} />
+        </div>
+      )}
 
       {/* Show streaming text as in-progress assistant message */}
       {streamingText && (

@@ -291,6 +291,11 @@ body,
   background-color: var(--accent-purple);
 }
 
+/* Inline edit diff decorations */
+.inline-edit-inserted {
+  background-color: rgba(74, 222, 128, 0.12);
+}
+
 /* Voice recording indicator pulse */
 @keyframes voice-recording-pulse {
   0%, 100% {

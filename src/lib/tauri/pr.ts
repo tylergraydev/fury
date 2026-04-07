@@ -8,6 +8,7 @@ import type {
   PrComment,
   PrFullData,
   ReviewsAndComments,
+  SubmitReviewRequest,
   WorkflowRun,
   WorkflowJob,
   RunLogsResult,
@@ -74,6 +75,17 @@ export async function getReviewsAndComments(
   return invoke<ReviewsAndComments>("get_reviews_and_comments", {
     workspaceId,
   });
+}
+
+// AI review commands
+export async function getPrDiff(workspaceId: string): Promise<string> {
+  return invoke<string>("get_pr_diff", { workspaceId });
+}
+
+export async function submitAiReview(
+  request: SubmitReviewRequest,
+): Promise<void> {
+  return invoke("submit_ai_review", { request });
 }
 
 // Workflow commands

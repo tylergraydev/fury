@@ -13,3 +13,6 @@ export * from "./merge";
 export * from "./templates";
 export * from "./tests";
 export * from "./devcontainer";
+export * from "./browser";
+export * from "./search";
+export * from "./inlineEdit";

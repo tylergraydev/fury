@@ -15,11 +15,13 @@ const mockModel = {
 };
 const mockEditor = {
   onMouseDown: vi.fn(),
+  onDidChangeModelContent: vi.fn(),
   addAction: vi.fn(),
   revealLineInCenter: vi.fn(),
   setPosition: vi.fn(),
   createDecorationsCollection: vi.fn((..._args: any[]) => ({ clear: mockClear })),
   getModel: vi.fn((): any => mockModel),
+  trigger: vi.fn(),
 };
 const mockMonaco = {
   editor: {
@@ -28,6 +30,8 @@ const mockMonaco = {
   },
   Range: vi.fn(),
   MarkerSeverity: { Error: 8 },
+  KeyMod: { CtrlCmd: 2048 },
+  KeyCode: { RightArrow: 17 },
 };
 vi.mock("@monaco-editor/react", () => ({
   default: ({ value, language, onChange, onMount, beforeMount: _beforeMount }: any) => {
@@ -49,6 +53,8 @@ vi.mock("../../lib/monacoTheme", () => ({
 vi.mock("../../lib/copilot", () => ({
   notifyDocumentOpened: vi.fn(),
   notifyDocumentChanged: vi.fn(),
+  speculativeComplete: vi.fn(),
+  toFileUri: vi.fn((p: string) => `file://${p}`),
 }));
 
 import { FileViewerPanel } from "./FileViewerPanel";
@@ -195,6 +201,55 @@ describe("FileViewerPanel", () => {
     expect(notifyDocumentOpened).toHaveBeenCalledWith("/src/test.ts", "typescript", "");
   });
 
+  // --- onDidChangeModelContent (speculative completion) ---
+
+  it("handleMount registers onDidChangeModelContent for speculative completions", () => {
+    render(<FileViewerPanel tab={baseTab} repoId={null} />);
+    triggerMount();
+    expect(mockEditor.onDidChangeModelContent).toHaveBeenCalledWith(expect.any(Function));
+  });
+
+  it("onDidChangeModelContent fires speculative completion for multi-line insertions", async () => {
+    const { speculativeComplete } = await import("../../lib/copilot");
+    render(<FileViewerPanel tab={baseTab} repoId={null} />);
+    triggerMount();
+
+    const handler = mockEditor.onDidChangeModelContent.mock.calls[0][0];
+    handler({
+      changes: [
+        {
+          text: "function hello() {\n  return 'world';\n}",
+          range: { endLineNumber: 5 },
+        },
+      ],
+    });
+
+    expect(speculativeComplete).toHaveBeenCalledWith(
+      "file:///src/test.ts",
+      7, // endLineNumber (5) + insertedLines (2)
+      0,
+    );
+  });
+
+  it("onDidChangeModelContent does not fire for single character edits", async () => {
+    const { speculativeComplete } = await import("../../lib/copilot");
+    vi.mocked(speculativeComplete).mockClear();
+    render(<FileViewerPanel tab={baseTab} repoId={null} />);
+    triggerMount();
+
+    const handler = mockEditor.onDidChangeModelContent.mock.calls[0][0];
+    handler({
+      changes: [
+        {
+          text: "a",
+          range: { endLineNumber: 5 },
+        },
+      ],
+    });
+
+    expect(speculativeComplete).not.toHaveBeenCalled();
+  });
+
   // --- onMouseDown (gutter click for bookmark toggling) ---
 
   it("onMouseDown toggles bookmark when clicking gutter glyph margin with repoId", () => {
@@ -291,7 +346,7 @@ describe("FileViewerPanel", () => {
     render(<FileViewerPanel tab={baseTab} repoId="repo-1" />);
     triggerMount();
 
-    const addActionCall = mockEditor.addAction.mock.calls[0][0];
+    const addActionCall = mockEditor.addAction.mock.calls.find((c: any) => c[0].id === "bookmark-add-with-note")![0];
     expect(addActionCall.id).toBe("bookmark-add-with-note");
     expect(addActionCall.label).toBe("Add Bookmark with Note...");
 
@@ -318,7 +373,7 @@ describe("FileViewerPanel", () => {
     render(<FileViewerPanel tab={baseTab} repoId={null} />);
     triggerMount();
 
-    const addActionCall = mockEditor.addAction.mock.calls[0][0];
+    const addActionCall = mockEditor.addAction.mock.calls.find((c: any) => c[0].id === "bookmark-add-with-note")![0];
     const mockEd = { getPosition: vi.fn().mockReturnValue({ lineNumber: 10 }) };
     addActionCall.run(mockEd);
 
@@ -335,7 +390,7 @@ describe("FileViewerPanel", () => {
     render(<FileViewerPanel tab={baseTab} repoId="repo-1" />);
     triggerMount();
 
-    const addActionCall = mockEditor.addAction.mock.calls[0][0];
+    const addActionCall = mockEditor.addAction.mock.calls.find((c: any) => c[0].id === "bookmark-add-with-note")![0];
     const mockEd = { getPosition: vi.fn().mockReturnValue(null) };
     addActionCall.run(mockEd);
 
@@ -363,7 +418,7 @@ describe("FileViewerPanel", () => {
     render(<FileViewerPanel tab={baseTab} repoId="repo-1" />);
     triggerMount();
 
-    const addActionCall = mockEditor.addAction.mock.calls[0][0];
+    const addActionCall = mockEditor.addAction.mock.calls.find((c: any) => c[0].id === "bookmark-add-with-note")![0];
     const mockEd = { getPosition: vi.fn().mockReturnValue({ lineNumber: 10 }) };
     addActionCall.run(mockEd);
 

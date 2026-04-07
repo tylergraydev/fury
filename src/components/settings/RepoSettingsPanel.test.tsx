@@ -149,7 +149,7 @@ describe("RepoSettingsPanel", () => {
 
     await waitFor(() => {
       const textareas = screen.getAllByRole("textbox");
-      const setupTextarea = textareas[1] as HTMLTextAreaElement;
+      const setupTextarea = textareas[2] as HTMLTextAreaElement;
       expect(setupTextarea.value).toBe("npm install");
     });
   });

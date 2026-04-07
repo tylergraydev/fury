@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Play } from "lucide-react";
+import { GitBranch, Play } from "lucide-react";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
+import { initWorkspaceGit } from "../../lib/tauri";
 import { getFileIcon, FolderIcon, FolderOpenIcon } from "../icons/FileIcons";
 import type { SidebarContext } from "../../App";
 
@@ -218,6 +219,7 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick, onRunTe
   );
   const loading = useFileTreeStore((s) => s.loading[contextId] ?? false);
   const error = useFileTreeStore((s) => s.error[contextId] ?? null);
+  const [initing, setIniting] = useState(false);
 
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -271,6 +273,37 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick, onRunTe
   }
 
   if (error) {
+    if (error.includes("NOT_A_GIT_REPO") && context.type === "workspace") {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
+          <GitBranch className="h-8 w-8" style={{ color: "var(--text-muted)" }} />
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+            No git repository detected.
+          </p>
+          <button
+            disabled={initing}
+            onClick={async () => {
+              setIniting(true);
+              try {
+                await initWorkspaceGit(contextId);
+                useFileTreeStore.getState().loadFiles(contextId);
+              } catch {
+                setIniting(false);
+              }
+            }}
+            className="rounded-md px-4 py-2 text-sm font-medium"
+            style={{
+              backgroundColor: "var(--accent)",
+              color: "var(--text-on-accent)",
+              opacity: initing ? 0.6 : 1,
+            }}
+          >
+            {initing ? "Initializing…" : "Initialize Git Repository"}
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="p-3 text-sm" style={{ color: "var(--error)" }}>
         {error}

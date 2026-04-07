@@ -5,6 +5,7 @@ import { QuestionCard } from "./QuestionCard";
 vi.mock("lucide-react", () => ({
   MessageCircleQuestion: () => <span data-testid="icon-question" />,
   ArrowUp: () => <span data-testid="icon-arrow-up" />,
+  X: () => <span data-testid="icon-x" />,
 }));
 
 describe("QuestionCard", () => {
@@ -138,5 +139,107 @@ describe("QuestionCard", () => {
     render(<QuestionCard question="Q" onAnswer={mockOnAnswer} />);
     const textarea = screen.getByPlaceholderText("Type a custom answer...");
     expect(document.activeElement).toBe(textarea);
+  });
+
+  it("renders number badges next to each option", () => {
+    render(
+      <QuestionCard
+        question="Pick"
+        options={["First", "Second", "Third"]}
+        onAnswer={mockOnAnswer}
+      />,
+    );
+    expect(screen.getByText("1")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+  });
+
+  it("number key picks the matching option when input is empty", () => {
+    render(
+      <QuestionCard
+        question="Pick"
+        options={["First", "Second", "Third"]}
+        onAnswer={mockOnAnswer}
+      />,
+    );
+    const textarea = screen.getByPlaceholderText(/Type a custom answer/);
+    fireEvent.keyDown(textarea, { key: "2" });
+    expect(mockOnAnswer).toHaveBeenCalledWith("Second");
+  });
+
+  it("number key does not pick option when input has text", () => {
+    render(
+      <QuestionCard
+        question="Pick"
+        options={["First", "Second"]}
+        onAnswer={mockOnAnswer}
+      />,
+    );
+    const textarea = screen.getByPlaceholderText(/Type a custom answer/);
+    fireEvent.change(textarea, { target: { value: "hi" } });
+    fireEvent.keyDown(textarea, { key: "1" });
+    expect(mockOnAnswer).not.toHaveBeenCalled();
+  });
+
+  it("number key out of range does nothing", () => {
+    render(
+      <QuestionCard
+        question="Pick"
+        options={["First", "Second"]}
+        onAnswer={mockOnAnswer}
+      />,
+    );
+    const textarea = screen.getByPlaceholderText(/Type a custom answer/);
+    fireEvent.keyDown(textarea, { key: "5" });
+    expect(mockOnAnswer).not.toHaveBeenCalled();
+  });
+
+  it("placeholder hints at number shortcut when options exist", () => {
+    render(
+      <QuestionCard
+        question="Pick"
+        options={["A", "B", "C"]}
+        onAnswer={mockOnAnswer}
+      />,
+    );
+    expect(
+      screen.getByPlaceholderText("Type a custom answer (or press 1-3)..."),
+    ).toBeInTheDocument();
+  });
+
+  it("renders cancel button when onCancel is provided", () => {
+    const onCancel = vi.fn();
+    render(
+      <QuestionCard question="Q" onAnswer={mockOnAnswer} onCancel={onCancel} />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Cancel question" }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not render cancel button when onCancel is not provided", () => {
+    render(<QuestionCard question="Q" onAnswer={mockOnAnswer} />);
+    expect(
+      screen.queryByRole("button", { name: "Cancel question" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("clicking cancel button calls onCancel", () => {
+    const onCancel = vi.fn();
+    render(
+      <QuestionCard question="Q" onAnswer={mockOnAnswer} onCancel={onCancel} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Cancel question" }));
+    expect(onCancel).toHaveBeenCalled();
+  });
+
+  it("Escape key calls onCancel", () => {
+    const onCancel = vi.fn();
+    render(
+      <QuestionCard question="Q" onAnswer={mockOnAnswer} onCancel={onCancel} />,
+    );
+    const textarea = screen.getByPlaceholderText("Type a custom answer...");
+    fireEvent.keyDown(textarea, { key: "Escape" });
+    expect(onCancel).toHaveBeenCalled();
   });
 });

@@ -34,6 +34,8 @@ export type {
   PrReview,
   PrFullData,
   ReviewsAndComments,
+  SubmitReviewRequest,
+  ReviewInlineComment,
   WorkflowRun,
   WorkflowJob,
   WorkflowStep,

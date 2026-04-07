@@ -23,10 +23,8 @@ beforeEach(() => {
       bottomTab: "setup",
       viewTabs: [{ ...defaultChatTab }],
       activeViewTabId: "chat",
-      splitChatActive: false,
-      splitChatContextId: null,
-      splitChatContextType: null,
-      splitChatFocusedPane: "left",
+      agentPanes: [],
+      focusedPaneIndex: 0,
     },
   );
   vi.clearAllMocks();
@@ -276,73 +274,147 @@ describe("uiStore - workspace chat tabs", () => {
   });
 });
 
-describe("uiStore - split chat", () => {
-  it("has correct split chat defaults", () => {
+describe("uiStore - agent panes", () => {
+  it("has correct agent pane defaults", () => {
     const state = useUIStore.getState();
-    expect(state.splitChatActive).toBe(false);
-    expect(state.splitChatContextId).toBeNull();
-    expect(state.splitChatContextType).toBeNull();
-    expect(state.splitChatFocusedPane).toBe("left");
+    expect(state.agentPanes).toEqual([]);
+    expect(state.focusedPaneIndex).toBe(0);
   });
 
-  it("splitChat activates split and stores context", () => {
-    useUIStore.getState().splitChat("ws-2", "workspace");
+  it("addAgentPane adds a pane and focuses it", () => {
+    useUIStore.setState({ agentPanes: [{ id: "primary", contextId: "ws-1", contextType: "workspace", label: "WS 1" }] });
+    useUIStore.getState().addAgentPane("ws-2", "workspace", "WS 2");
     const state = useUIStore.getState();
-    expect(state.splitChatActive).toBe(true);
-    expect(state.splitChatContextId).toBe("ws-2");
-    expect(state.splitChatContextType).toBe("workspace");
-    expect(state.splitChatFocusedPane).toBe("right");
+    expect(state.agentPanes).toHaveLength(2);
+    expect(state.agentPanes[1].contextId).toBe("ws-2");
+    expect(state.focusedPaneIndex).toBe(1);
   });
 
-  it("closeSplitChat resets split state", () => {
-    useUIStore.getState().splitChat("ws-2", "workspace");
-    useUIStore.getState().closeSplitChat();
+  it("addAgentPane caps at 4 panes", () => {
+    useUIStore.setState({
+      agentPanes: [
+        { id: "p1", contextId: "ws-1", contextType: "workspace", label: "WS 1" },
+        { id: "p2", contextId: "ws-2", contextType: "workspace", label: "WS 2" },
+        { id: "p3", contextId: "ws-3", contextType: "workspace", label: "WS 3" },
+        { id: "p4", contextId: "ws-4", contextType: "workspace", label: "WS 4" },
+      ],
+    });
+    useUIStore.getState().addAgentPane("ws-5", "workspace", "WS 5");
+    expect(useUIStore.getState().agentPanes).toHaveLength(4);
+  });
+
+  it("addAgentPane prevents duplicates", () => {
+    useUIStore.setState({ agentPanes: [{ id: "primary", contextId: "ws-1", contextType: "workspace", label: "WS 1" }] });
+    useUIStore.getState().addAgentPane("ws-1", "workspace", "WS 1");
+    expect(useUIStore.getState().agentPanes).toHaveLength(1);
+  });
+
+  it("removeAgentPane removes the pane and clamps focus", () => {
+    useUIStore.setState({
+      agentPanes: [
+        { id: "p1", contextId: "ws-1", contextType: "workspace", label: "WS 1" },
+        { id: "p2", contextId: "ws-2", contextType: "workspace", label: "WS 2" },
+      ],
+      focusedPaneIndex: 1,
+    });
+    useUIStore.getState().removeAgentPane("p2");
     const state = useUIStore.getState();
-    expect(state.splitChatActive).toBe(false);
-    expect(state.splitChatContextId).toBeNull();
-    expect(state.splitChatContextType).toBeNull();
-    expect(state.splitChatFocusedPane).toBe("left");
+    expect(state.agentPanes).toHaveLength(1);
+    expect(state.focusedPaneIndex).toBe(0);
   });
 
-  it("setSplitChatFocusedPane changes focused pane", () => {
-    useUIStore.getState().splitChat("ws-2", "workspace");
-    useUIStore.getState().setSplitChatFocusedPane("left");
-    expect(useUIStore.getState().splitChatFocusedPane).toBe("left");
+  it("removeAgentPane is a no-op when only one pane exists", () => {
+    useUIStore.setState({ agentPanes: [{ id: "p1", contextId: "ws-1", contextType: "workspace", label: "WS 1" }] });
+    useUIStore.getState().removeAgentPane("p1");
+    expect(useUIStore.getState().agentPanes).toHaveLength(1);
   });
 
-  it("closeChatTabsForContext clears split when split context is removed", () => {
+  it("setFocusedPane changes focused index within bounds", () => {
+    useUIStore.setState({
+      agentPanes: [
+        { id: "p1", contextId: "ws-1", contextType: "workspace", label: "WS 1" },
+        { id: "p2", contextId: "ws-2", contextType: "workspace", label: "WS 2" },
+      ],
+    });
+    useUIStore.getState().setFocusedPane(1);
+    expect(useUIStore.getState().focusedPaneIndex).toBe(1);
+  });
+
+  it("setFocusedPane ignores out-of-bounds index", () => {
+    useUIStore.setState({ agentPanes: [{ id: "p1", contextId: "ws-1", contextType: "workspace", label: "WS 1" }] });
+    useUIStore.getState().setFocusedPane(5);
+    expect(useUIStore.getState().focusedPaneIndex).toBe(0);
+  });
+
+  it("closeAllSplitPanes keeps only the first pane", () => {
+    useUIStore.setState({
+      agentPanes: [
+        { id: "p1", contextId: "ws-1", contextType: "workspace", label: "WS 1" },
+        { id: "p2", contextId: "ws-2", contextType: "workspace", label: "WS 2" },
+        { id: "p3", contextId: "ws-3", contextType: "workspace", label: "WS 3" },
+      ],
+      focusedPaneIndex: 2,
+    });
+    useUIStore.getState().closeAllSplitPanes();
+    const state = useUIStore.getState();
+    expect(state.agentPanes).toHaveLength(1);
+    expect(state.agentPanes[0].contextId).toBe("ws-1");
+    expect(state.focusedPaneIndex).toBe(0);
+  });
+
+  it("updatePaneContext updates a specific pane's context", () => {
+    useUIStore.setState({ agentPanes: [{ id: "p1", contextId: "ws-1", contextType: "workspace", label: "WS 1" }] });
+    useUIStore.getState().updatePaneContext("p1", "ws-99", "repo", "Repo 99");
+    const pane = useUIStore.getState().agentPanes[0];
+    expect(pane.contextId).toBe("ws-99");
+    expect(pane.contextType).toBe("repo");
+    expect(pane.label).toBe("Repo 99");
+  });
+
+  it("removeAgentPanesForContext removes panes matching context", () => {
+    useUIStore.setState({
+      agentPanes: [
+        { id: "p1", contextId: "ws-1", contextType: "workspace", label: "WS 1" },
+        { id: "p2", contextId: "ws-2", contextType: "workspace", label: "WS 2" },
+      ],
+    });
+    useUIStore.getState().removeAgentPanesForContext("ws-2");
+    expect(useUIStore.getState().agentPanes).toHaveLength(1);
+    expect(useUIStore.getState().agentPanes[0].contextId).toBe("ws-1");
+  });
+
+  it("removeAgentPanesForContext preserves at least one pane", () => {
+    useUIStore.setState({
+      agentPanes: [{ id: "p1", contextId: "ws-1", contextType: "workspace", label: "WS 1" }],
+    });
+    useUIStore.getState().removeAgentPanesForContext("ws-1");
+    expect(useUIStore.getState().agentPanes).toHaveLength(1);
+  });
+
+  it("closeChatTabsForContext removes panes for that context", () => {
+    useUIStore.setState({
+      agentPanes: [
+        { id: "p1", contextId: "ws-1", contextType: "workspace", label: "WS 1" },
+        { id: "p2", contextId: "ws-2", contextType: "workspace", label: "WS 2" },
+      ],
+    });
     useUIStore.getState().openChatTab("ws-2", "Workspace B", "workspace");
-    useUIStore.getState().splitChat("ws-2", "workspace");
-    expect(useUIStore.getState().splitChatActive).toBe(true);
     useUIStore.getState().closeChatTabsForContext("ws-2");
-    expect(useUIStore.getState().splitChatActive).toBe(false);
-    expect(useUIStore.getState().splitChatContextId).toBeNull();
+    expect(useUIStore.getState().agentPanes).toHaveLength(1);
+    expect(useUIStore.getState().agentPanes[0].contextId).toBe("ws-1");
   });
 
-  it("closeChatTabsForContext preserves split when different context is removed", () => {
+  it("closeChatTabsForContext preserves panes for different context", () => {
+    useUIStore.setState({
+      agentPanes: [
+        { id: "p1", contextId: "ws-1", contextType: "workspace", label: "WS 1" },
+        { id: "p2", contextId: "ws-2", contextType: "workspace", label: "WS 2" },
+      ],
+    });
     useUIStore.getState().openChatTab("ws-2", "Workspace B", "workspace");
     useUIStore.getState().openChatTab("ws-3", "Workspace C", "workspace");
-    useUIStore.getState().splitChat("ws-2", "workspace");
     useUIStore.getState().closeChatTabsForContext("ws-3");
-    expect(useUIStore.getState().splitChatActive).toBe(true);
-    expect(useUIStore.getState().splitChatContextId).toBe("ws-2");
-  });
-
-  it("closeViewTab clears split when split context tab is closed", () => {
-    useUIStore.getState().openChatTab("ws-2", "Workspace B", "workspace");
-    useUIStore.getState().splitChat("ws-2", "workspace");
-    useUIStore.getState().closeViewTab("chat-ws-2");
-    expect(useUIStore.getState().splitChatActive).toBe(false);
-    expect(useUIStore.getState().splitChatContextId).toBeNull();
-  });
-
-  it("closeViewTab preserves split when unrelated tab is closed", () => {
-    useUIStore.getState().openChatTab("ws-2", "Workspace B", "workspace");
-    useUIStore.getState().openViewTab("merge");
-    useUIStore.getState().splitChat("ws-2", "workspace");
-    useUIStore.getState().closeViewTab("merge");
-    expect(useUIStore.getState().splitChatActive).toBe(true);
-    expect(useUIStore.getState().splitChatContextId).toBe("ws-2");
+    expect(useUIStore.getState().agentPanes).toHaveLength(2);
   });
 });
 

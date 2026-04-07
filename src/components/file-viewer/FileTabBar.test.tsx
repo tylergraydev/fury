@@ -761,8 +761,8 @@ describe("FileTabBar", () => {
       expect(screen.getByTitle("Open in split chat view")).toBeInTheDocument();
     });
 
-    it("clicking split chat button calls splitChat", () => {
-      const splitChat = vi.fn();
+    it("clicking split chat button calls addAgentPane", () => {
+      const addAgentPane = vi.fn();
       const showChat = vi.fn();
       const setActiveViewTab = vi.fn();
       useUIStore.setState({
@@ -771,25 +771,28 @@ describe("FileTabBar", () => {
           { id: "chat-ws-1", type: "chat", label: "My Workspace", pinned: true, contextId: "ws-1", contextType: "workspace" },
         ],
         activeViewTabId: "chat",
-        splitChat,
-        splitChatActive: false,
+        addAgentPane,
+        agentPanes: [],
         setActiveViewTab,
       });
       useFileViewerStore.setState({ showChat });
       render(<FileTabBar />);
       fireEvent.click(screen.getByTitle("Open in split chat view"));
-      expect(splitChat).toHaveBeenCalledWith("ws-1", "workspace");
+      expect(addAgentPane).toHaveBeenCalledWith("ws-1", "workspace", "My Workspace");
       expect(showChat).toHaveBeenCalled();
       expect(setActiveViewTab).toHaveBeenCalledWith("chat");
     });
 
-    it("shows close split chat button when split chat is active", () => {
+    it("shows close split chat button when multiple agent panes exist", () => {
       useUIStore.setState({
         viewTabs: [
           { id: "chat", type: "chat", label: "Chat", pinned: true },
         ],
         activeViewTabId: "chat",
-        splitChatActive: true,
+        agentPanes: [
+          { id: "p1", contextId: "ws-1", contextType: "workspace", label: "WS 1" },
+          { id: "p2", contextId: "ws-2", contextType: "workspace", label: "WS 2" },
+        ],
       });
       render(<FileTabBar />);
       expect(screen.getByTitle("Close split chat view")).toBeInTheDocument();
@@ -861,19 +864,22 @@ describe("FileTabBar", () => {
       expect(screen.queryByTitle("Open in split chat view")).not.toBeInTheDocument();
     });
 
-    it("clicking close split chat button calls closeSplitChat", () => {
-      const closeSplitChat = vi.fn();
+    it("clicking close split chat button calls closeAllSplitPanes", () => {
+      const closeAllSplitPanes = vi.fn();
       useUIStore.setState({
         viewTabs: [
           { id: "chat", type: "chat", label: "Chat", pinned: true },
         ],
         activeViewTabId: "chat",
-        splitChatActive: true,
-        closeSplitChat,
+        agentPanes: [
+          { id: "p1", contextId: "ws-1", contextType: "workspace", label: "WS 1" },
+          { id: "p2", contextId: "ws-2", contextType: "workspace", label: "WS 2" },
+        ],
+        closeAllSplitPanes,
       });
       render(<FileTabBar />);
       fireEvent.click(screen.getByTitle("Close split chat view"));
-      expect(closeSplitChat).toHaveBeenCalled();
+      expect(closeAllSplitPanes).toHaveBeenCalled();
     });
   });
 });

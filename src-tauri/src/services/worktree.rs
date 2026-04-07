@@ -49,23 +49,29 @@ pub fn create_worktree(
             .current_dir(repo_path)
             .output()?
     } else {
-        // Fetch the base branch so the remote-tracking ref is current
-        if let Some(base) = base_branch {
-            let fetch_output = platform::command("git")
-                .args(["fetch", "origin", base])
-                .current_dir(repo_path)
-                .output()?;
+        let has_origin = remote_exists(repo_path, "origin");
 
-            if !fetch_output.status.success() {
-                return Err(AppError::GitError(format!(
-                    "Failed to fetch '{}' from origin: {}",
-                    base,
-                    String::from_utf8_lossy(&fetch_output.stderr).trim()
-                )));
+        // Fetch the base branch so the remote-tracking ref is current.
+        // Skip if there is no origin remote (e.g. local-only repo).
+        if has_origin {
+            if let Some(base) = base_branch {
+                let fetch_output = platform::command("git")
+                    .args(["fetch", "origin", base])
+                    .current_dir(repo_path)
+                    .output()?;
+
+                if !fetch_output.status.success() {
+                    return Err(AppError::GitError(format!(
+                        "Failed to fetch '{}' from origin: {}",
+                        base,
+                        String::from_utf8_lossy(&fetch_output.stderr).trim()
+                    )));
+                }
             }
         }
 
-        // Use the remote-tracking ref as the start point instead of the local branch
+        // Prefer the remote-tracking ref as the start point, falling back to
+        // the local branch when there is no origin remote.
         let mut args = vec![
             "worktree".to_string(),
             "add".to_string(),
@@ -74,7 +80,11 @@ pub fn create_worktree(
             worktree_path.to_string_lossy().to_string(),
         ];
         if let Some(base) = base_branch {
-            args.push(format!("origin/{}", base));
+            if has_origin {
+                args.push(format!("origin/{}", base));
+            } else {
+                args.push(base.to_string());
+            }
         }
         platform::command("git")
             .args(&args)
@@ -89,6 +99,146 @@ pub fn create_worktree(
     }
 
     Ok(worktree_path)
+}
+
+/// Move uncommitted changes from `repo_path` into a fresh worktree on a new branch.
+///
+/// Stashes the working tree (including untracked files), creates a worktree at
+/// the current HEAD on `new_branch`, then pops the stash inside the new worktree.
+/// On any failure after the stash is created, attempts to pop the stash back in
+/// the source repo so the user does not lose work.
+///
+/// Errors if there are no uncommitted changes or if `new_branch` already exists.
+pub fn extract_changes_to_new_worktree(
+    repo_path: &Path,
+    new_branch: &str,
+    workspace_name: &str,
+    worktree_base: &Path,
+) -> Result<PathBuf, AppError> {
+    // Verify there are changes to extract
+    let status_output = platform::command("git")
+        .args(["status", "--porcelain"])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| AppError::GitError(format!("git status failed: {}", e)))?;
+    if status_output.stdout.is_empty() {
+        return Err(AppError::GitError(
+            "No uncommitted changes to extract".to_string(),
+        ));
+    }
+
+    // Stash and `worktree add HEAD` both require at least one commit. Detect this
+    // up front so the user gets a clear message instead of "You do not have the
+    // initial commit yet" from git stash.
+    let head_ok = platform::command("git")
+        .args(["rev-parse", "--verify", "HEAD"])
+        .current_dir(repo_path)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if !head_ok {
+        return Err(AppError::GitError(
+            "This repo has no commits yet. Make an initial commit before extracting changes to a workspace.".to_string(),
+        ));
+    }
+
+    // Reject if branch already exists locally
+    let branch_exists = platform::command("git")
+        .args([
+            "rev-parse",
+            "--verify",
+            &format!("refs/heads/{}", new_branch),
+        ])
+        .current_dir(repo_path)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if branch_exists {
+        return Err(AppError::GitError(format!(
+            "Branch '{}' already exists",
+            new_branch
+        )));
+    }
+
+    std::fs::create_dir_all(worktree_base)?;
+    let safe_name = sanitize_name(workspace_name);
+    let worktree_path = worktree_base.join(&safe_name);
+
+    // Stash everything (including untracked) so the worktree can be created cleanly.
+    let stash_message = format!("fury-extract-{}", uuid::Uuid::new_v4());
+    let stash_output = platform::command("git")
+        .args(["stash", "push", "--include-untracked", "-m", &stash_message])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| AppError::GitError(format!("git stash failed: {}", e)))?;
+    if !stash_output.status.success() {
+        return Err(AppError::GitError(format!(
+            "git stash failed: {}",
+            String::from_utf8_lossy(&stash_output.stderr)
+        )));
+    }
+
+    // From here on, on failure we must try to restore the stash in the source repo.
+    let result = (|| -> Result<PathBuf, AppError> {
+        // Create the worktree at current HEAD on a new branch.
+        let add_output = platform::command("git")
+            .args([
+                "worktree",
+                "add",
+                "-b",
+                new_branch,
+                worktree_path.to_string_lossy().as_ref(),
+                "HEAD",
+            ])
+            .current_dir(repo_path)
+            .output()
+            .map_err(|e| AppError::GitError(format!("git worktree add failed: {}", e)))?;
+        if !add_output.status.success() {
+            return Err(AppError::GitError(format!(
+                "git worktree add failed: {}",
+                String::from_utf8_lossy(&add_output.stderr)
+            )));
+        }
+
+        // Pop the stash inside the new worktree to materialize the changes there.
+        let pop_output = platform::command("git")
+            .args(["stash", "pop"])
+            .current_dir(&worktree_path)
+            .output()
+            .map_err(|e| AppError::GitError(format!("git stash pop failed: {}", e)))?;
+        if !pop_output.status.success() {
+            // Roll back the worktree we just created so the stash stays intact for retry.
+            let _ = platform::command("git")
+                .args([
+                    "worktree",
+                    "remove",
+                    "--force",
+                    worktree_path.to_string_lossy().as_ref(),
+                ])
+                .current_dir(repo_path)
+                .output();
+            let _ = platform::command("git")
+                .args(["branch", "-D", new_branch])
+                .current_dir(repo_path)
+                .output();
+            return Err(AppError::GitError(format!(
+                "git stash pop failed in new worktree: {}",
+                String::from_utf8_lossy(&pop_output.stderr)
+            )));
+        }
+
+        Ok(worktree_path.clone())
+    })();
+
+    if result.is_err() {
+        // Best-effort: pop the stash back into the source repo so the user keeps their work.
+        let _ = platform::command("git")
+            .args(["stash", "pop"])
+            .current_dir(repo_path)
+            .output();
+    }
+
+    result
 }
 
 /// Remove a git worktree.
@@ -278,6 +428,135 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_changes_to_new_worktree_moves_modified_and_untracked() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        // Modify a tracked file
+        std::fs::write(path.join("README.md"), "# Test\n\nmodified\n").unwrap();
+        // Add an untracked file
+        std::fs::write(path.join("new.txt"), "untracked content\n").unwrap();
+
+        // Worktree base must live outside the repo, otherwise it appears as untracked.
+        let outside = tempfile::tempdir().unwrap();
+        let worktree_base = outside.path().join("worktrees-extract");
+        let result = extract_changes_to_new_worktree(
+            &path,
+            "fury/extract-test",
+            "extract-test",
+            &worktree_base,
+        );
+        assert!(result.is_ok(), "extract failed: {:?}", result.err());
+        let wt_path = result.unwrap();
+
+        // Source repo is now clean
+        let status = std::process::Command::new("git")
+            .args(["status", "--porcelain"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        assert!(
+            status.stdout.is_empty(),
+            "source repo should be clean after extract, got: {}",
+            String::from_utf8_lossy(&status.stdout)
+        );
+
+        // New worktree contains both the modified file and the untracked file
+        let readme = std::fs::read_to_string(wt_path.join("README.md")).unwrap();
+        assert!(readme.contains("modified"));
+        let untracked = std::fs::read_to_string(wt_path.join("new.txt")).unwrap();
+        assert_eq!(untracked, "untracked content\n");
+    }
+
+    #[test]
+    fn test_extract_changes_to_new_worktree_no_changes() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let outside = tempfile::tempdir().unwrap();
+        let worktree_base = outside.path().join("worktrees-extract-empty");
+        let result = extract_changes_to_new_worktree(
+            &path,
+            "fury/extract-empty",
+            "extract-empty",
+            &worktree_base,
+        );
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("No uncommitted changes"));
+    }
+
+    #[test]
+    fn test_extract_changes_to_new_worktree_no_initial_commit() {
+        // Create a bare git init with no commits, then add an untracked file.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().to_path_buf();
+        std::process::Command::new("git")
+            .args(["init", "--initial-branch=main"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        std::fs::write(path.join("hello.txt"), "hi\n").unwrap();
+
+        let outside = tempfile::tempdir().unwrap();
+        let worktree_base = outside.path().join("wt");
+        let result = extract_changes_to_new_worktree(
+            &path,
+            "fury/extract-noinit",
+            "extract-noinit",
+            &worktree_base,
+        );
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("no commits"),
+            "expected clear no-commits error, got: {}",
+            msg
+        );
+
+        // Untracked file is still present in the source repo (no stash performed)
+        assert!(path.join("hello.txt").exists());
+    }
+
+    #[test]
+    fn test_extract_changes_to_new_worktree_existing_branch() {
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        std::fs::write(path.join("README.md"), "modified\n").unwrap();
+        std::process::Command::new("git")
+            .args(["branch", "already-here"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+
+        let outside = tempfile::tempdir().unwrap();
+        let worktree_base = outside.path().join("worktrees-extract-dup");
+        let result = extract_changes_to_new_worktree(
+            &path,
+            "already-here",
+            "extract-dup",
+            &worktree_base,
+        );
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("already exists"));
+
+        // Working tree changes are still present (no stash performed)
+        let status = std::process::Command::new("git")
+            .args(["status", "--porcelain"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        assert!(!status.stdout.is_empty());
+    }
+
+    #[test]
     fn test_apply_sparse_checkout_empty_dirs() {
         let (_dir, path) = crate::test_helpers::create_temp_git_repo();
         let worktree_base = _dir.path().join("worktrees-f");
@@ -285,6 +564,35 @@ mod tests {
             create_worktree(&path, "sparse-empty", "sparse-e", &worktree_base, None).unwrap();
         let result = apply_sparse_checkout(&wt_path, &[]);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_worktree_no_origin_with_base_branch() {
+        // A repo with no origin remote should still be able to create a
+        // workspace from a local base branch.
+        let (_dir, path) = crate::test_helpers::create_temp_git_repo();
+        let worktree_base = _dir.path().join("worktrees-no-origin");
+
+        // Sanity: this repo has no remotes.
+        let remotes = std::process::Command::new("git")
+            .args(["remote"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        assert!(remotes.stdout.is_empty(), "expected no remotes");
+
+        let result = create_worktree(
+            &path,
+            "feature-x",
+            "ws-no-origin",
+            &worktree_base,
+            Some("main"),
+        );
+        assert!(
+            result.is_ok(),
+            "expected create_worktree to succeed without origin: {:?}",
+            result.err()
+        );
     }
 
     #[test]
@@ -366,6 +674,16 @@ mod tests {
         let branch = detect_default_branch(&path);
         assert_eq!(branch, "master");
     }
+}
+
+/// Check whether a named git remote is configured for `repo_path`.
+fn remote_exists(repo_path: &Path, remote: &str) -> bool {
+    platform::command("git")
+        .args(["remote", "get-url", remote])
+        .current_dir(repo_path)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
 }
 
 /// Detect the default branch of a repository.

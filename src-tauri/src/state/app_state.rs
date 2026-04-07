@@ -6,6 +6,8 @@ use crate::models::repository::Repository;
 use crate::models::settings::AppSettings;
 use crate::models::workspace::Workspace;
 use crate::services::claude_process::SidecarHandle;
+use crate::services::browser::BrowserWebviews;
+use crate::services::codebase_index::CodebaseIndex;
 use crate::services::copilot_lsp::CopilotLspHandle;
 use crate::services::diff_watcher::DiffWatcherHandle;
 use crate::services::perf_server::PerfMetrics;
@@ -61,11 +63,73 @@ pub struct AppState {
     pub test_watchers: Arc<Mutex<HashMap<String, DiffWatcherHandle>>>,
     /// Dev container runtime state — keyed by workspace UUID
     pub container_states: Arc<Mutex<HashMap<Uuid, ContainerState>>>,
-    /// Claude Agent SDK sidecar process handle (singleton, shared across workspaces)
-    pub agent_sidecar: Arc<Mutex<Option<SidecarHandle>>>,
+    /// Claude Agent SDK sidecar process handle (singleton, shared across workspaces).
+    /// Uses tokio::sync::Mutex so the lock can be held across async send_command calls,
+    /// eliminating the take/use/replace race condition.
+    pub agent_sidecar: Arc<tokio::sync::Mutex<Option<SidecarHandle>>>,
     /// Pending permission requests per workspace — stored so they can be
     /// re-emitted when the frontend resubscribes (e.g. after HMR).
     pub pending_permissions: Arc<Mutex<HashMap<Uuid, FrontendStreamEvent>>>,
+    /// Codebase search indexes — keyed by repo UUID
+    pub codebase_indexes: Arc<Mutex<HashMap<Uuid, CodebaseIndex>>>,
+    /// Browser webviews — keyed by browser session ID
+    pub browser_webviews: BrowserWebviews,
+}
+
+impl Drop for AppState {
+    fn drop(&mut self) {
+        // Kill all agent child processes
+        if let Ok(mut processes) = self.agent_processes.lock() {
+            for (_, mut child) in processes.drain() {
+                let _ = child.start_kill();
+            }
+        }
+
+        // Drop persistent agent handles and stdins
+        if let Ok(mut p) = self.persistent_agents.lock() { p.clear(); }
+        if let Ok(mut s) = self.agent_stdins.lock() { s.clear(); }
+
+        // Kill all running scripts
+        if let Ok(mut pids) = self.script_pids.lock() {
+            for (_, pid) in pids.drain() {
+                let _ = crate::platform::kill_process_group(pid);
+            }
+        }
+
+        // Close all terminal sessions
+        if let Ok(mut sessions) = self.terminal_sessions.lock() {
+            for (_, mut session) in sessions.drain() {
+                let _ = session.child.kill();
+            }
+        }
+
+        // Stop copilot LSP
+        if let Ok(mut copilot) = self.copilot.lock() {
+            if let Some((_, mut child)) = copilot.take() {
+                let _ = child.start_kill();
+            }
+        }
+
+        // Stop sidecar (tokio::sync::Mutex — use try_lock in sync Drop)
+        if let Ok(mut sidecar) = self.agent_sidecar.try_lock() {
+            if let Some(mut handle) = sidecar.take() {
+                let _ = handle.child.start_kill();
+            }
+        }
+
+        // Kill test processes
+        if let Ok(mut processes) = self.test_processes.lock() {
+            for (_, pid) in processes.drain() {
+                let _ = crate::platform::kill_process_group(pid);
+            }
+        }
+
+        // Clean up browser MCP registration
+        let _ = crate::services::mcp::remove_mcp_server(
+            "fury-browser",
+            &crate::models::mcp::McpScope::User,
+        );
+    }
 }
 
 impl AppState {
@@ -113,8 +177,10 @@ impl AppState {
             test_processes: Arc::new(Mutex::new(HashMap::new())),
             test_watchers: Arc::new(Mutex::new(HashMap::new())),
             container_states: Arc::new(Mutex::new(HashMap::new())),
-            agent_sidecar: Arc::new(Mutex::new(None)),
+            agent_sidecar: Arc::new(tokio::sync::Mutex::new(None)),
             pending_permissions: Arc::new(Mutex::new(HashMap::new())),
+            codebase_indexes: Arc::new(Mutex::new(HashMap::new())),
+            browser_webviews: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -143,8 +209,10 @@ mod tests {
         assert!(state.test_processes.lock().unwrap().is_empty());
         assert!(state.test_watchers.lock().unwrap().is_empty());
         assert!(state.container_states.lock().unwrap().is_empty());
-        assert!(state.agent_sidecar.lock().unwrap().is_none());
+        assert!(state.agent_sidecar.try_lock().unwrap().is_none());
         assert!(state.pending_permissions.lock().unwrap().is_empty());
+        assert!(state.codebase_indexes.lock().unwrap().is_empty());
+        assert!(state.browser_webviews.lock().unwrap().is_empty());
     }
 
     #[test]

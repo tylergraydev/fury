@@ -45,8 +45,6 @@ pub enum SidecarCommand {
         additional_dirs: Option<Vec<String>>,
         #[serde(rename = "disableThinking", skip_serializing_if = "Option::is_none")]
         disable_thinking: Option<bool>,
-        #[serde(rename = "disablePlanMode", skip_serializing_if = "Option::is_none")]
-        disable_plan_mode: Option<bool>,
     },
     PermissionResponse {
         id: String,
@@ -55,6 +53,8 @@ pub enum SidecarCommand {
         updated_permissions: Option<serde_json::Value>,
         #[serde(rename = "decisionClassification", skip_serializing_if = "Option::is_none")]
         decision_classification: Option<String>,
+        #[serde(rename = "updatedInput", skip_serializing_if = "Option::is_none")]
+        updated_input: Option<serde_json::Value>,
     },
     Interrupt {
         id: String,
@@ -230,6 +230,24 @@ pub(crate) fn handle_sidecar_line<R: tauri::Runtime>(
         let mut lock = agents.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(agent) = lock.get_mut(&workspace_id) {
             agent.status = AgentStatus::Idle;
+
+            // Cold-error detection: if the result is an error with 0 turns,
+            // the session_id is likely stale (e.g. "No conversation found").
+            // Clear it so the next attempt starts a fresh session.
+            let is_error = raw.get("is_error").and_then(|v| v.as_bool()).unwrap_or(false);
+            let num_turns = raw.get("num_turns").and_then(|v| v.as_u64()).unwrap_or(0);
+            if is_error && num_turns == 0 && agent.session_id.is_some() {
+                eprintln!(
+                    "[sidecar] Cold error for {} — clearing stale session_id",
+                    workspace_id
+                );
+                agent.session_id = None;
+                if let Ok(guard) = db.lock() {
+                    if let Some(database) = guard.as_ref() {
+                        let _ = database.clear_session_id(&workspace_id.to_string());
+                    }
+                }
+            }
         }
         let status_event = lock
             .get(&workspace_id)
@@ -286,7 +304,6 @@ mod tests {
             env_vars: None,
             additional_dirs: None,
             disable_thinking: None,
-            disable_plan_mode: None,
         };
         let json = serde_json::to_string(&cmd).unwrap();
         assert!(json.contains("\"type\":\"query\""));
@@ -311,7 +328,6 @@ mod tests {
             env_vars: None,
             additional_dirs: Some(vec!["/extra".to_string()]),
             disable_thinking: Some(true),
-            disable_plan_mode: None,
         };
         let json = serde_json::to_string(&cmd).unwrap();
         // All fields must use camelCase to match TypeScript protocol
@@ -335,6 +351,7 @@ mod tests {
             approved: true,
             updated_permissions: None,
             decision_classification: None,
+            updated_input: None,
         };
         let json = serde_json::to_string(&cmd).unwrap();
         assert!(json.contains("\"type\":\"permission_response\""));
@@ -550,5 +567,107 @@ mod tests {
         let line = format!(r#"{{"id":"{}","type":"unknown_thing","data":"foo"}}"#, ws_id);
         let result = handle_sidecar_line(&line, &handle, &agents, &pending, &db);
         assert!(result.is_ok());
+    }
+
+    // ─── cold-error session clearing tests ────────────────────────────
+
+    #[test]
+    fn test_cold_error_clears_session_id() {
+        let (handle, agents, pending, db) = setup_sidecar_test();
+        let ws_id = Uuid::new_v4();
+
+        // Agent has a stale session_id and is Running
+        {
+            let mut lock = agents.lock().unwrap();
+            let mut info = AgentInfo::new(ws_id);
+            info.status = AgentStatus::Running;
+            info.session_id = Some("stale-session".into());
+            lock.insert(ws_id, info);
+        }
+
+        // Error result with num_turns=0 (cold error)
+        let line = format!(
+            r#"{{"id":"{}","type":"result","is_error":true,"num_turns":0,"duration_ms":0}}"#,
+            ws_id
+        );
+        let result = handle_sidecar_line(&line, &handle, &agents, &pending, &db);
+        assert!(result.is_ok());
+
+        let lock = agents.lock().unwrap();
+        assert_eq!(lock[&ws_id].status, AgentStatus::Idle);
+        assert!(lock[&ws_id].session_id.is_none(), "Session should be cleared on cold error");
+    }
+
+    #[test]
+    fn test_warm_error_preserves_session_id() {
+        let (handle, agents, pending, db) = setup_sidecar_test();
+        let ws_id = Uuid::new_v4();
+
+        {
+            let mut lock = agents.lock().unwrap();
+            let mut info = AgentInfo::new(ws_id);
+            info.status = AgentStatus::Running;
+            info.session_id = Some("valid-session".into());
+            lock.insert(ws_id, info);
+        }
+
+        // Error result with num_turns=3 (warm error — content was produced)
+        let line = format!(
+            r#"{{"id":"{}","type":"result","is_error":true,"num_turns":3}}"#,
+            ws_id
+        );
+        let result = handle_sidecar_line(&line, &handle, &agents, &pending, &db);
+        assert!(result.is_ok());
+
+        let lock = agents.lock().unwrap();
+        assert_eq!(
+            lock[&ws_id].session_id.as_deref(),
+            Some("valid-session"),
+            "Session should be preserved on warm error"
+        );
+    }
+
+    #[test]
+    fn test_success_result_preserves_session_id() {
+        let (handle, agents, pending, db) = setup_sidecar_test();
+        let ws_id = Uuid::new_v4();
+
+        {
+            let mut lock = agents.lock().unwrap();
+            let mut info = AgentInfo::new(ws_id);
+            info.status = AgentStatus::Running;
+            info.session_id = Some("good-session".into());
+            lock.insert(ws_id, info);
+        }
+
+        let line = format!(
+            r#"{{"id":"{}","type":"result","is_error":false,"num_turns":1,"result":"done"}}"#,
+            ws_id
+        );
+        let result = handle_sidecar_line(&line, &handle, &agents, &pending, &db);
+        assert!(result.is_ok());
+
+        let lock = agents.lock().unwrap();
+        assert_eq!(
+            lock[&ws_id].session_id.as_deref(),
+            Some("good-session"),
+            "Session should be preserved on success"
+        );
+    }
+
+    #[test]
+    fn test_error_event_emitted_as_result() {
+        let (handle, agents, pending, db) = setup_sidecar_test();
+        let ws_id = Uuid::new_v4();
+        agents.lock().unwrap().insert(ws_id, AgentInfo::new(ws_id));
+
+        // Sidecar catch-block error event
+        let line = format!(
+            r#"{{"id":"{}","type":"error","message":"SDK crashed"}}"#,
+            ws_id
+        );
+        let result = handle_sidecar_line(&line, &handle, &agents, &pending, &db);
+        assert!(result.is_ok());
+        // The event should be parsed (not dropped) — verified by parse_stream_line tests
     }
 }

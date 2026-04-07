@@ -70,8 +70,17 @@ async function copilotComplete(
   uri: string,
   line: number,
   character: number,
+  triggerKind: number,
 ): Promise<CompletionResult> {
-  return instrumentedInvoke<CompletionResult>("copilot_complete", { uri, line, character });
+  return instrumentedInvoke<CompletionResult>("copilot_complete", { uri, line, character, triggerKind });
+}
+
+async function copilotNotifyAccepted(uuid: string): Promise<void> {
+  return instrumentedInvoke("copilot_notify_accepted", { uuid });
+}
+
+async function copilotNotifyRejected(uuids: string[]): Promise<void> {
+  return instrumentedInvoke("copilot_notify_rejected", { uuids });
 }
 
 // --- Document tracking ---
@@ -82,8 +91,9 @@ const openDocuments = new Map<
 >();
 
 let providerDisposable: monaco.IDisposable | null = null;
+let acceptCommandDisposable: monaco.IDisposable | null = null;
 
-function toFileUri(filePath: string): string {
+export function toFileUri(filePath: string): string {
   if (filePath.startsWith("file://")) return filePath;
   // Handle Windows drive letter paths (e.g. C:\Users\... -> file:///C:/Users/...)
   const normalized = filePath.replace(/\\/g, "/");
@@ -122,6 +132,7 @@ if (import.meta.hot) {
     changeDebounceTimers.clear();
     openDocuments.clear();
     if (providerDisposable) { providerDisposable.dispose(); providerDisposable = null; }
+    if (acceptCommandDisposable) { acceptCommandDisposable.dispose(); acceptCommandDisposable = null; }
   });
 }
 
@@ -141,6 +152,8 @@ export function notifyDocumentChanged(
       if (!doc) return;
 
       doc.version += 1;
+      // Invalidate completion cache for this document
+      invalidateCompletionCache(uri);
       try {
         await copilotDidChange({ uri, version: doc.version, text: content });
       } catch (e) {
@@ -155,6 +168,7 @@ export async function notifyDocumentClosed(filePath: string): Promise<void> {
   if (!openDocuments.has(uri)) return;
 
   openDocuments.delete(uri);
+  invalidateCompletionCache(uri);
   try {
     await copilotDidClose(uri);
   } catch (e) {
@@ -162,10 +176,163 @@ export async function notifyDocumentClosed(filePath: string): Promise<void> {
   }
 }
 
+// --- Completion cache ---
+
+const CACHE_TTL_MS = 5000;
+
+interface CachedCompletion {
+  result: CompletionResult;
+  timestamp: number;
+}
+
+const completionCache = new Map<string, CachedCompletion>();
+
+function cacheKey(uri: string, line: number, character: number, docVersion: number): string {
+  return `${uri}:${line}:${character}:${docVersion}`;
+}
+
+function getCachedCompletion(key: string): CompletionResult | null {
+  const entry = completionCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+    completionCache.delete(key);
+    return null;
+  }
+  return entry.result;
+}
+
+function setCachedCompletion(key: string, result: CompletionResult): void {
+  completionCache.set(key, { result, timestamp: Date.now() });
+}
+
+function invalidateCompletionCache(uri: string): void {
+  for (const key of completionCache.keys()) {
+    if (key.startsWith(uri)) {
+      completionCache.delete(key);
+    }
+  }
+}
+
+// --- Speculative completion (edit prediction) ---
+
+/**
+ * Fire a speculative completion request and cache the result.
+ * Called after a substantial edit (e.g., accepting a completion) to pre-populate
+ * the cache for the next likely cursor position. Failures are silently ignored.
+ */
+export function speculativeComplete(uri: string, line: number, character: number): void {
+  const doc = openDocuments.get(uri);
+  if (!doc) return;
+
+  const key = cacheKey(uri, line, character, doc.version);
+  // Don't speculate if we already have a cached result
+  if (getCachedCompletion(key)) return;
+
+  copilotComplete(uri, line, character, 1).then(
+    (result) => {
+      // Re-check doc version — it may have changed during the request
+      const currentDoc = openDocuments.get(uri);
+      if (currentDoc && currentDoc.version === doc.version) {
+        setCachedCompletion(key, result);
+      }
+    },
+    () => {
+      // Silently ignore speculative failures
+    },
+  );
+}
+
+// --- Debounced completion requests ---
+
+const COMPLETION_DEBOUNCE_MS = 75;
+
+let pendingCompletionReject: (() => void) | null = null;
+let completionDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function debouncedCopilotComplete(
+  uri: string,
+  line: number,
+  character: number,
+  triggerKind: number,
+  token: monaco.CancellationToken,
+): Promise<CompletionResult> {
+  // Cancel any pending debounced request
+  if (pendingCompletionReject) {
+    pendingCompletionReject();
+    pendingCompletionReject = null;
+  }
+  if (completionDebounceTimer) {
+    clearTimeout(completionDebounceTimer);
+    completionDebounceTimer = null;
+  }
+
+  return new Promise<CompletionResult>((resolve, reject) => {
+    // Allow cancellation from Monaco's token
+    const cancelListener = token.onCancellationRequested(() => {
+      if (completionDebounceTimer) {
+        clearTimeout(completionDebounceTimer);
+        completionDebounceTimer = null;
+      }
+      cancelListener.dispose();
+      reject(new Error("cancelled"));
+    });
+
+    pendingCompletionReject = () => {
+      cancelListener.dispose();
+      reject(new Error("superseded"));
+    };
+
+    completionDebounceTimer = setTimeout(async () => {
+      completionDebounceTimer = null;
+      pendingCompletionReject = null;
+      cancelListener.dispose();
+
+      if (token.isCancellationRequested) {
+        reject(new Error("cancelled"));
+        return;
+      }
+
+      try {
+        const result = await copilotComplete(uri, line, character, triggerKind);
+        resolve(result);
+      } catch (e) {
+        reject(e);
+      }
+    }, COMPLETION_DEBOUNCE_MS);
+  });
+}
+
+// --- Acceptance tracking ---
+
+const ACCEPT_COMMAND_ID = "copilot.completionAccepted";
+
+function extractCompletionUuid(command: unknown): string | null {
+  if (!command || typeof command !== "object") return null;
+  const cmd = command as Record<string, unknown>;
+  // Copilot LSP typically includes a UUID in the command arguments
+  if (Array.isArray(cmd.arguments) && typeof cmd.arguments[0] === "string") {
+    return cmd.arguments[0];
+  }
+  if (typeof cmd.uuid === "string") return cmd.uuid;
+  return null;
+}
+
 // --- Monaco InlineCompletionsProvider ---
 
 export function registerCopilotProvider(): void {
   if (providerDisposable) return;
+
+  // Register a Monaco command that fires when a completion is accepted
+  if (!acceptCommandDisposable) {
+    acceptCommandDisposable = monaco.editor.registerCommand(
+      ACCEPT_COMMAND_ID,
+      (_accessor, uuid: string) => {
+        copilotNotifyAccepted(uuid).catch((e) => {
+          console.warn("[copilot] Failed to notify acceptance:", e);
+        });
+      },
+    );
+  }
 
   providerDisposable = monaco.languages.registerInlineCompletionsProvider(
     { pattern: "**" },
@@ -175,29 +342,32 @@ export function registerCopilotProvider(): void {
         const doc = openDocuments.get(uri);
         if (!doc) return { items: [] };
 
+        if (token.isCancellationRequested) return { items: [] };
+
+        const line = position.lineNumber - 1; // Monaco 1-indexed → LSP 0-indexed
+        const character = position.column - 1;
+
+        // Check cache first
+        const key = cacheKey(uri, line, character, doc.version);
+        const cached = getCachedCompletion(key);
+        if (cached) {
+          return { items: mapCompletionItems(cached) };
+        }
+
         try {
-          const result = await copilotComplete(
-            uri,
-            position.lineNumber - 1, // Monaco 1-indexed → LSP 0-indexed
-            position.column - 1,
-          );
+          const result = await debouncedCopilotComplete(uri, line, character, 1, token);
 
           if (token.isCancellationRequested) return { items: [] };
 
-          return {
-            items: result.items.map((item) => ({
-              insertText: item.insertText,
-              range: item.range
-                ? new monaco.Range(
-                    item.range.start.line + 1,
-                    item.range.start.character + 1,
-                    item.range.end.line + 1,
-                    item.range.end.character + 1,
-                  )
-                : undefined,
-            })),
-          };
+          // Cache the result
+          setCachedCompletion(key, result);
+
+          return { items: mapCompletionItems(result) };
         } catch (e) {
+          // Silently ignore debounce cancellations (superseded/cancelled)
+          if (e instanceof Error && (e.message === "superseded" || e.message === "cancelled")) {
+            return { items: [] };
+          }
           console.warn("[copilot] Inline completion request failed:", e);
           return { items: [] };
         }
@@ -210,14 +380,50 @@ export function registerCopilotProvider(): void {
   );
 }
 
+function mapCompletionItems(result: CompletionResult): monaco.languages.InlineCompletion[] {
+  return result.items.map((item) => {
+    const uuid = extractCompletionUuid(item.command);
+    const mapped: monaco.languages.InlineCompletion = {
+      insertText: item.insertText,
+      range: item.range
+        ? new monaco.Range(
+            item.range.start.line + 1,
+            item.range.start.character + 1,
+            item.range.end.line + 1,
+            item.range.end.character + 1,
+          )
+        : undefined,
+    };
+    // Attach acceptance command if we have a UUID
+    if (uuid) {
+      mapped.command = {
+        id: ACCEPT_COMMAND_ID,
+        title: "Copilot Completion Accepted",
+        arguments: [uuid],
+      };
+    }
+    return mapped;
+  });
+}
+
 export function disposeCopilotProvider(): void {
   if (providerDisposable) {
     providerDisposable.dispose();
     providerDisposable = null;
   }
+  if (acceptCommandDisposable) {
+    acceptCommandDisposable.dispose();
+    acceptCommandDisposable = null;
+  }
+  if (completionDebounceTimer) {
+    clearTimeout(completionDebounceTimer);
+    completionDebounceTimer = null;
+  }
+  pendingCompletionReject = null;
   for (const timer of changeDebounceTimers.values()) {
     clearTimeout(timer);
   }
   changeDebounceTimers.clear();
+  completionCache.clear();
   openDocuments.clear();
 }

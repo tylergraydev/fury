@@ -1,4 +1,7 @@
 pub mod ado;
+pub mod codebase_index;
+pub mod browser;
+pub mod browser_bridge;
 pub mod utils;
 pub mod branch;
 pub mod checkpoint;

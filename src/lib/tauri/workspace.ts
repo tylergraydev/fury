@@ -8,6 +8,12 @@ export async function createWorkspace(
   return invoke<WorkspaceInfo>("create_workspace", { request });
 }
 
+export async function extractChangesToWorkspace(
+  repoId: string,
+): Promise<WorkspaceInfo> {
+  return invoke<WorkspaceInfo>("extract_changes_to_workspace", { repoId });
+}
+
 export async function listWorkspaces(): Promise<WorkspaceInfo[]> {
   return invoke<WorkspaceInfo[]>("list_workspaces");
 }
@@ -25,6 +31,10 @@ export async function listWorkspaceFiles(
   workspaceId: string,
 ): Promise<string[]> {
   return invoke<string[]>("list_workspace_files", { workspaceId });
+}
+
+export async function initWorkspaceGit(workspaceId: string): Promise<void> {
+  return invoke("init_workspace_git", { workspaceId });
 }
 
 // Archived workspace commands

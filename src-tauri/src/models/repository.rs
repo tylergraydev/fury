@@ -61,6 +61,8 @@ pub struct RepoSettings {
     pub provider_override: Option<ProviderConfig>,
     #[serde(default)]
     pub devcontainer: Option<DevContainerConfig>,
+    #[serde(default)]
+    pub browser_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, specta::Type)]

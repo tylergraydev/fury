@@ -37,15 +37,12 @@ pub async fn stop_agent(
                 id: id.to_string(),
             };
 
-            // Take the handle, send the interrupt, put it back
-            let sidecar_result = {
-                let mut guard = state.agent_sidecar.lock().unwrap();
-                guard.take()
-            };
-
-            if let Some(mut handle) = sidecar_result {
-                let _ = claude_process::send_command(&mut handle, &cmd).await;
-                state.agent_sidecar.lock().unwrap().replace(handle);
+            // Hold the tokio Mutex across the async send to avoid the take/replace race
+            {
+                let mut guard = state.agent_sidecar.lock().await;
+                if let Some(handle) = guard.as_mut() {
+                    let _ = claude_process::send_command(handle, &cmd).await;
+                }
             }
 
             // Set status to Idle
@@ -56,6 +53,13 @@ pub async fn stop_agent(
                     agent.pid = None;
                 }
             }
+
+            // Clear any pending permission request so it isn't re-emitted after HMR
+            state
+                .pending_permissions
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .remove(&id);
 
             let _ = app.emit(
                 &format!("agent-status:{}", id),

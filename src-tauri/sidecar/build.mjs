@@ -3,7 +3,7 @@ import * as esbuild from "esbuild";
 const isWatch = process.argv.includes("--watch");
 
 /** @type {import('esbuild').BuildOptions} */
-const buildOptions = {
+const sidecarOptions = {
   entryPoints: ["src/index.ts"],
   bundle: true,
   platform: "node",
@@ -25,10 +25,33 @@ const buildOptions = {
   logLevel: "info",
 };
 
+/** @type {import('esbuild').BuildOptions} */
+const browserMcpOptions = {
+  entryPoints: ["src/fury-browser-mcp.ts"],
+  bundle: true,
+  platform: "node",
+  target: "node20",
+  format: "esm",
+  outfile: "dist/fury-browser-mcp.mjs",
+  sourcemap: true,
+  banner: {
+    js: [
+      '// Fury Browser MCP Server',
+      '// Bundled with esbuild — do not edit directly',
+    ].join("\n"),
+  },
+  external: [],
+  logLevel: "info",
+};
+
 if (isWatch) {
-  const ctx = await esbuild.context(buildOptions);
-  await ctx.watch();
+  const ctx1 = await esbuild.context(sidecarOptions);
+  const ctx2 = await esbuild.context(browserMcpOptions);
+  await Promise.all([ctx1.watch(), ctx2.watch()]);
   console.log("Watching for changes...");
 } else {
-  await esbuild.build(buildOptions);
+  await Promise.all([
+    esbuild.build(sidecarOptions),
+    esbuild.build(browserMcpOptions),
+  ]);
 }

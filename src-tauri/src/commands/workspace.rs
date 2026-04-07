@@ -384,6 +384,112 @@ pub async fn create_workspace(
     Ok(info)
 }
 
+/// Move uncommitted changes from a repo's working tree into a brand-new
+/// workspace (worktree) so the user can iterate, commit, and open a PR from a
+/// dedicated branch. Source repo is left clean afterward.
+#[tauri::command]
+#[specta::specta]
+pub async fn extract_changes_to_workspace(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    repo_id: String,
+) -> Result<WorkspaceInfo, AppError> {
+    let repo_uuid: Uuid = repo_id
+        .parse()
+        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+
+    let repo = {
+        let repos = state.repositories.read().unwrap();
+        repos
+            .get(&repo_uuid)
+            .ok_or(AppError::RepoNotFound(repo_uuid))?
+            .clone()
+    };
+
+    // Allocate ports up front; if extraction fails we drop them with the function.
+    let port_base = state.port_allocator.lock().unwrap().allocate()?;
+
+    let repo_settings = script_cmd::resolve_settings(&state, &repo_uuid)?;
+    let worktree_base = resolve_worktree_base(
+        repo_settings.worktree_base_path.as_deref(),
+        &repo.name,
+        &repo.path,
+    )?;
+
+    // Auto-generate names with a timestamp so each extraction is unique.
+    let ts = chrono::Utc::now().format("%Y%m%d-%H%M%S").to_string();
+    let workspace_name = format!("changes-{}", ts);
+    let branch_name = format!("fury/extract-{}", ts);
+
+    let repo_path = repo.path.clone();
+    let workspace_name_clone = workspace_name.clone();
+    let branch_name_clone = branch_name.clone();
+    let worktree_path = tokio::task::spawn_blocking(move || -> Result<PathBuf, AppError> {
+        let wt_path = worktree::extract_changes_to_new_worktree(
+            &repo_path,
+            &branch_name_clone,
+            &workspace_name_clone,
+            &worktree_base,
+        )?;
+
+        // Mirror create_workspace: ensure .context dir exists for inter-agent collab.
+        let context_dir = wt_path.join(".context");
+        let _ = std::fs::create_dir_all(&context_dir);
+        let _ = std::fs::write(context_dir.join(".gitignore"), "*\n!.gitignore\n");
+
+        Ok(wt_path)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))??;
+
+    let workspace = Workspace {
+        id: Uuid::new_v4(),
+        repo_id: repo_uuid,
+        name: workspace_name,
+        branch: branch_name,
+        worktree_path,
+        status: WorkspaceStatus::Active,
+        port_base,
+        sparse_dirs: None,
+        notes: String::new(),
+        auto_commit: true,
+        pinned: false,
+        created_at: chrono::Utc::now(),
+        archived_at: None,
+        devcontainer_config: None,
+    };
+
+    let info = WorkspaceInfo::from(&workspace);
+    let ws_worktree_path = workspace.worktree_path.clone();
+
+    let ws_clone = workspace.clone();
+    state
+        .with_db(move |db| {
+            db.insert_workspace(&ws_clone)?;
+            Ok(())
+        })
+        .await?;
+
+    state
+        .workspaces
+        .write()
+        .unwrap()
+        .insert(workspace.id, workspace);
+
+    let _ = app.emit("workspace-created", &info);
+
+    fire_and_forget_script(
+        &app,
+        &state,
+        info.id,
+        info.repo_id,
+        ws_worktree_path,
+        ScriptKind::Setup,
+    );
+
+    Ok(info)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn list_workspaces(state: State<'_, AppState>) -> Result<Vec<WorkspaceInfo>, AppError> {

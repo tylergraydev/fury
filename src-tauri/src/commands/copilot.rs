@@ -96,12 +96,12 @@ pub(crate) fn build_did_close_params(uri: &str) -> Value {
 }
 
 /// Build the inline completion request params.
-pub(crate) fn build_completion_params(uri: &str, line: u32, character: u32) -> Value {
+pub(crate) fn build_completion_params(uri: &str, line: u32, character: u32, trigger_kind: u32) -> Value {
     serde_json::json!({
         "textDocument": { "uri": uri },
         "position": { "line": line, "character": character },
         "context": {
-            "triggerKind": 1
+            "triggerKind": trigger_kind
         }
     })
 }
@@ -276,10 +276,11 @@ pub async fn copilot_complete(
     uri: String,
     line: u32,
     character: u32,
+    trigger_kind: u32,
 ) -> Result<CompletionResult, AppError> {
     let handle = get_handle(&state)?;
 
-    let params = build_completion_params(&uri, line, character);
+    let params = build_completion_params(&uri, line, character, trigger_kind);
     let result = copilot_lsp::send_request(
         &handle,
         "textDocument/inlineCompletion",
@@ -289,6 +290,38 @@ pub async fn copilot_complete(
 
     let items = parse_completion_items(&result);
     Ok(CompletionResult { items })
+}
+
+/// Notify Copilot LS that a completion was accepted.
+#[tauri::command]
+#[specta::specta]
+pub async fn copilot_notify_accepted(
+    state: State<'_, AppState>,
+    uuid: String,
+) -> Result<(), AppError> {
+    let handle = get_handle(&state)?;
+    copilot_lsp::send_notification(
+        &handle,
+        "notifyAccepted",
+        serde_json::json!({ "uuid": uuid }),
+    )
+    .await
+}
+
+/// Notify Copilot LS that completions were rejected.
+#[tauri::command]
+#[specta::specta]
+pub async fn copilot_notify_rejected(
+    state: State<'_, AppState>,
+    uuids: Vec<String>,
+) -> Result<(), AppError> {
+    let handle = get_handle(&state)?;
+    copilot_lsp::send_notification(
+        &handle,
+        "notifyRejected",
+        serde_json::json!({ "uuids": uuids }),
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -398,7 +431,7 @@ mod tests {
 
     #[test]
     fn test_build_completion_params() {
-        let params = build_completion_params("file:///test.ts", 10, 5);
+        let params = build_completion_params("file:///test.ts", 10, 5, 1);
         let td = params.get("textDocument").unwrap();
         assert_eq!(td.get("uri").unwrap().as_str().unwrap(), "file:///test.ts");
         let pos = params.get("position").unwrap();
@@ -406,6 +439,13 @@ mod tests {
         assert_eq!(pos.get("character").unwrap().as_u64().unwrap(), 5);
         let ctx = params.get("context").unwrap();
         assert_eq!(ctx.get("triggerKind").unwrap().as_u64().unwrap(), 1);
+    }
+
+    #[test]
+    fn test_build_completion_params_explicit_trigger() {
+        let params = build_completion_params("file:///test.ts", 0, 0, 2);
+        let ctx = params.get("context").unwrap();
+        assert_eq!(ctx.get("triggerKind").unwrap().as_u64().unwrap(), 2);
     }
 
     #[test]
@@ -588,7 +628,7 @@ mod tests {
         let app = mock_app_with_state();
         let state: tauri::State<'_, crate::state::AppState> = app.state();
 
-        let result = copilot_complete(state, "file:///test.ts".to_string(), 0, 0).await;
+        let result = copilot_complete(state, "file:///test.ts".to_string(), 0, 0, 1).await;
         assert!(result.is_err());
         let err = format!("{}", result.unwrap_err());
         assert!(err.contains("not running"));
@@ -620,6 +660,32 @@ mod tests {
         let state: tauri::State<'_, crate::state::AppState> = app.state();
 
         let result = copilot_did_close(state, "file:///test.ts".to_string()).await;
+        assert!(result.is_err());
+        let err = format!("{}", result.unwrap_err());
+        assert!(err.contains("not running"));
+    }
+
+    #[tokio::test]
+    async fn test_copilot_notify_accepted_not_running() {
+        use crate::test_helpers::*;
+        use tauri::Manager;
+        let app = mock_app_with_state();
+        let state: tauri::State<'_, crate::state::AppState> = app.state();
+
+        let result = copilot_notify_accepted(state, "test-uuid".to_string()).await;
+        assert!(result.is_err());
+        let err = format!("{}", result.unwrap_err());
+        assert!(err.contains("not running"));
+    }
+
+    #[tokio::test]
+    async fn test_copilot_notify_rejected_not_running() {
+        use crate::test_helpers::*;
+        use tauri::Manager;
+        let app = mock_app_with_state();
+        let state: tauri::State<'_, crate::state::AppState> = app.state();
+
+        let result = copilot_notify_rejected(state, vec!["uuid-1".to_string()]).await;
         assert!(result.is_err());
         let err = format!("{}", result.unwrap_err());
         assert!(err.contains("not running"));

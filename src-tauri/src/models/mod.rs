@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod codebase_search;
 pub mod bookmark;
 pub mod chat;
 pub mod checkpoint;
@@ -21,3 +22,8 @@ pub mod todo;
 pub mod work_item;
 pub mod workspace;
 pub mod workspace_template;
+pub mod url_content;
+pub mod web_search;
+pub mod diagnostic;
+pub mod docs;
+pub mod notepad;

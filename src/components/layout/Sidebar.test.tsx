@@ -1061,19 +1061,19 @@ describe("Sidebar", () => {
   });
 
   describe("Open chat tab", () => {
-    it("opens chat tab when chat button is clicked on workspace item", () => {
-      const openChatTab = vi.fn();
+    it("opens agent pane when chat button is clicked on workspace item", () => {
+      const addAgentPane = vi.fn();
       useRepositoryStore.setState({ repositories: [makeRepo()] });
       useWorkspaceStore.setState({
         workspaces: [makeWorkspace()],
       });
-      useUIStore.setState({ openChatTab });
+      useUIStore.setState({ addAgentPane });
       render(<Sidebar />);
 
       const chatBtn = screen.getByTitle("Open in new chat tab");
       fireEvent.click(chatBtn);
 
-      expect(openChatTab).toHaveBeenCalledWith("ws-1", "Feature Work", "workspace");
+      expect(addAgentPane).toHaveBeenCalledWith("ws-1", "workspace", "Feature Work");
     });
   });
 

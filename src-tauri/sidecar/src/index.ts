@@ -11,12 +11,9 @@ import type {
 const activeQueries = new Map<string, { abort: () => void }>();
 const pendingPermissions = new Map<
   string,
-  (response: { approved: boolean; updatedPermissions?: unknown[]; decisionClassification?: string }) => void
+  (response: { approved: boolean; updatedPermissions?: unknown[]; decisionClassification?: string; updatedInput?: Record<string, unknown> }) => void
 >();
 
-// Permission response timeout (seconds). If the frontend doesn't respond
-// (e.g. due to HMR reload losing UI state), auto-deny after this period.
-const PERMISSION_TIMEOUT_MS = 120_000;
 
 function emit(event: Record<string, unknown>): void {
   process.stdout.write(JSON.stringify(event) + "\n");
@@ -76,26 +73,12 @@ async function handleQuery(cmd: QueryCommand): Promise<void> {
           input,
           suggestions: callOptions.suggestions,
         });
-        // Block until Rust sends permission_response, with a timeout safety net.
-        // If the frontend reloads (HMR) and loses the permission UI, it will
-        // re-query the backend and re-emit the request. But if that also fails,
-        // auto-deny after the timeout so the agent doesn't hang forever.
-        const response = await new Promise<{ approved: boolean; updatedPermissions?: unknown[]; decisionClassification?: string }>((resolve) => {
+        // Block until Rust sends permission_response.
+        const response = await new Promise<{ approved: boolean; updatedPermissions?: unknown[]; decisionClassification?: string; updatedInput?: Record<string, unknown> }>((resolve) => {
           pendingPermissions.set(id, resolve);
-          setTimeout(() => {
-            if (pendingPermissions.has(id)) {
-              pendingPermissions.delete(id);
-              emit({
-                id,
-                type: "system",
-                message: `Permission request for "${toolName}" timed out after ${PERMISSION_TIMEOUT_MS / 1000}s — auto-denied.`,
-              });
-              resolve({ approved: false });
-            }
-          }, PERMISSION_TIMEOUT_MS);
         });
         if (response.approved) {
-          const result: { behavior: "allow"; updatedPermissions?: unknown[]; decisionClassification?: string } = {
+          const result: { behavior: "allow"; updatedPermissions?: unknown[]; decisionClassification?: string; updatedInput?: Record<string, unknown> } = {
             behavior: "allow" as const,
           };
           if (response.updatedPermissions != null) {
@@ -103,6 +86,9 @@ async function handleQuery(cmd: QueryCommand): Promise<void> {
           }
           if (response.decisionClassification != null) {
             result.decisionClassification = response.decisionClassification;
+          }
+          if (response.updatedInput != null) {
+            result.updatedInput = response.updatedInput;
           }
           return result;
         }
@@ -153,6 +139,7 @@ function handlePermissionResponse(cmd: PermissionResponseCommand): void {
       approved: cmd.approved,
       updatedPermissions: cmd.updatedPermissions,
       decisionClassification: cmd.decisionClassification,
+      updatedInput: cmd.updatedInput,
     });
     pendingPermissions.delete(cmd.id);
   }

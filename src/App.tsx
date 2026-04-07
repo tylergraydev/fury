@@ -12,7 +12,8 @@ import { CommandPalette, type PaletteMode } from "./components/CommandPalette";
 import { LandingPage } from "./components/landing/LandingPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { SplitEditorLayout } from "./components/file-viewer/SplitEditorLayout";
-import { SplitChatLayout } from "./components/chat/SplitChatLayout";
+import { AgentPaneLayout } from "./components/chat/AgentPaneLayout";
+import { SplitBrowserLayout } from "./components/browser/SplitBrowserLayout";
 
 // Lazy-loaded view tabs — only fetched when the user navigates to them
 const HistoryView = lazy(() => import("./components/history/HistoryView").then((m) => ({ default: m.HistoryView })));
@@ -21,6 +22,7 @@ const TeamView = lazy(() => import("./components/team/TeamView").then((m) => ({ 
 const TestRunnerPanel = lazy(() => import("./components/test-runner/TestRunnerPanel").then((m) => ({ default: m.TestRunnerPanel })));
 const UsageDashboard = lazy(() => import("./components/usage/UsageDashboard").then((m) => ({ default: m.UsageDashboard })));
 const ActivityLogView = lazy(() => import("./components/activity-log/ActivityLogView").then((m) => ({ default: m.ActivityLogView })));
+const BrowserPanel = lazy(() => import("./components/browser/BrowserPanel").then((m) => ({ default: m.BrowserPanel })));
 import { useWorkspaceStore } from "./stores/workspaceStore";
 import { useRepositoryStore } from "./stores/repositoryStore";
 import { useUIStore } from "./stores/uiStore";
@@ -40,6 +42,7 @@ import { BookmarkNoteDialog } from "./components/file-viewer/BookmarkNoteDialog"
 import { SnippetManagerDialog } from "./components/snippets/SnippetManagerDialog";
 import { WorkspaceExportDialog } from "./components/workspace/WorkspaceExportDialog";
 import { useNotificationStore } from "./stores/notificationStore";
+import "./stores/browserStore"; // Register browser-open event listener early
 import { initNotificationListeners } from "./lib/notificationListeners";
 import { initActivityLogListeners } from "./lib/activityLogListeners";
 import { initLspSuggestionListener } from "./lib/lspSuggestionListener";
@@ -64,9 +67,8 @@ function MainPanel() {
   const activeFileTab = fileTabs.find((t) => t.id === activeTabId) ?? null;
   const splitActive = useFileViewerStore((s) => s.splitActive);
 
-  const splitChatActive = useUIStore((s) => s.splitChatActive);
-  const splitChatContextId = useUIStore((s) => s.splitChatContextId);
-  const splitChatContextType = useUIStore((s) => s.splitChatContextType);
+  const agentPanes = useUIStore((s) => s.agentPanes);
+  const splitBrowserActive = useUIStore((s) => s.splitBrowserActive);
 
   const activeViewTab = viewTabs.find((t) => t.id === activeViewTabId);
   const viewType = activeViewTab?.type ?? "chat";
@@ -79,19 +81,20 @@ function MainPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      {viewType === "chat" && (
+      {(viewType === "chat" || viewType === "browser") && (
         <div className="flex-1 overflow-hidden">
           {splitActive ? (
             <SplitEditorLayout repoId={repoId} contextId={contextId} contextType={contextType} />
           ) : activeFileTab ? (
             <FileViewerPanel tab={activeFileTab} repoId={repoId} />
-          ) : splitChatActive && splitChatContextId && splitChatContextType ? (
-            <SplitChatLayout
-              leftContextId={contextId}
-              leftContextType={contextType}
-              rightContextId={splitChatContextId}
-              rightContextType={splitChatContextType}
-            />
+          ) : splitBrowserActive ? (
+            <SplitBrowserLayout contextId={contextId} contextType={contextType} repoId={repoId} />
+          ) : agentPanes.length > 1 ? (
+            <AgentPaneLayout panes={agentPanes} />
+          ) : viewType === "browser" ? (
+            <Suspense fallback={<ViewLoadingFallback />}>
+              <BrowserPanel repoId={repoId} />
+            </Suspense>
           ) : (
             <ChatPanel contextId={contextId} contextType={contextType} />
           )}
@@ -371,6 +374,9 @@ function App() {
         break;
       case "view-activity":
         ui.openViewTab("activity");
+        break;
+      case "view-browser":
+        ui.openViewTab("browser");
         break;
       case "toggle-split-editor": {
         const fvs = useFileViewerStore.getState();

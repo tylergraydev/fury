@@ -125,6 +125,15 @@ pub async fn list_repo_directories(
 
     let depth = depth.unwrap_or(1);
     tokio::task::spawn_blocking(move || {
+        // Empty repo (no commits yet) — HEAD is invalid, return empty list
+        let head_check = platform::command("git")
+            .args(["rev-parse", "--verify", "HEAD"])
+            .current_dir(&repo_path)
+            .output()?;
+        if !head_check.status.success() {
+            return Ok(vec![]);
+        }
+
         let args = build_ls_tree_args(depth);
 
         let output = platform::command("git")
@@ -150,6 +159,59 @@ pub async fn list_repo_directories(
     .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
+/// List all files in a git repo: committed files from HEAD + untracked files.
+/// Works even in repos with no commits yet (returns only untracked files).
+fn list_git_files(dir: &Path) -> Result<Vec<String>, AppError> {
+    // Check if this is a git repository
+    let git_check = platform::command("git")
+        .args(["rev-parse", "--git-dir"])
+        .current_dir(dir)
+        .output()?;
+
+    if !git_check.status.success() {
+        return Err(AppError::GitError("NOT_A_GIT_REPO".into()));
+    }
+
+    let mut files = std::collections::BTreeSet::new();
+
+    // If HEAD exists, get committed files
+    let head_check = platform::command("git")
+        .args(["rev-parse", "--verify", "HEAD"])
+        .current_dir(dir)
+        .output()?;
+
+    if head_check.status.success() {
+        let output = platform::command("git")
+            .args(["ls-tree", "-r", "--name-only", "HEAD"])
+            .current_dir(dir)
+            .output()?;
+
+        if output.status.success() {
+            for line in String::from_utf8_lossy(&output.stdout).lines() {
+                if !line.is_empty() {
+                    files.insert(line.to_string());
+                }
+            }
+        }
+    }
+
+    // Also include untracked files (new files not yet committed)
+    let untracked = platform::command("git")
+        .args(["ls-files", "--others", "--exclude-standard"])
+        .current_dir(dir)
+        .output()?;
+
+    if untracked.status.success() {
+        for line in String::from_utf8_lossy(&untracked.stdout).lines() {
+            if !line.is_empty() {
+                files.insert(line.to_string());
+            }
+        }
+    }
+
+    Ok(files.into_iter().collect())
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn list_workspace_files(
@@ -171,28 +233,9 @@ pub async fn list_workspace_files(
         ws.worktree_path.clone()
     };
 
-    tokio::task::spawn_blocking(move || {
-        let output = platform::command("git")
-            .args(["ls-tree", "-r", "--name-only", "HEAD"])
-            .current_dir(&worktree_path)
-            .output()?;
-
-        if !output.status.success() {
-            return Err(AppError::GitError(
-                String::from_utf8_lossy(&output.stderr).to_string(),
-            ));
-        }
-
-        let files = String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .filter(|l| !l.is_empty())
-            .map(String::from)
-            .collect();
-
-        Ok(files)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    tokio::task::spawn_blocking(move || list_git_files(&worktree_path))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
@@ -214,28 +257,9 @@ pub async fn list_repo_files(
         repo.path.clone()
     };
 
-    tokio::task::spawn_blocking(move || {
-        let output = platform::command("git")
-            .args(["ls-tree", "-r", "--name-only", "HEAD"])
-            .current_dir(&repo_path)
-            .output()?;
-
-        if !output.status.success() {
-            return Err(AppError::GitError(
-                String::from_utf8_lossy(&output.stderr).to_string(),
-            ));
-        }
-
-        let files = String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .filter(|l| !l.is_empty())
-            .map(String::from)
-            .collect();
-
-        Ok(files)
-    })
-    .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    tokio::task::spawn_blocking(move || list_git_files(&repo_path))
+        .await
+        .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
 }
 
 #[tauri::command]
@@ -361,6 +385,56 @@ pub async fn load_type_definitions(
         }
 
         Ok(result)
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn init_workspace_git(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<(), AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let worktree_path = {
+        let workspaces = state
+            .workspaces
+            .read()
+            .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
+        let ws = workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        ws.worktree_path.clone()
+    };
+
+    tokio::task::spawn_blocking(move || {
+        let output = platform::command("git")
+            .args(["init"])
+            .current_dir(&worktree_path)
+            .output()?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(AppError::GitError(format!("git init failed: {}", stderr)));
+        }
+
+        // Stage all existing files
+        let _ = platform::command("git")
+            .args(["add", "."])
+            .current_dir(&worktree_path)
+            .output();
+
+        // Create initial commit (--allow-empty so HEAD exists even in empty dirs)
+        let _ = platform::command("git")
+            .args(["commit", "--allow-empty", "-m", "Initial commit"])
+            .current_dir(&worktree_path)
+            .output();
+
+        Ok(())
     })
     .await
     .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?

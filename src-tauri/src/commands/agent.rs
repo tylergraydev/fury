@@ -478,18 +478,8 @@ pub async fn send_message(
     AgentType::ClaudeCode => {
         // Sidecar mode: ensure the singleton sidecar is running, then send a Query command.
         // The sidecar's background reader handles streaming events back to the frontend.
-        {
-            let mut sidecar_guard = state.agent_sidecar.lock().unwrap();
-            if sidecar_guard.is_none() {
-                *sidecar_guard = Some(
-                    claude_process::start_sidecar(&app, Arc::clone(&state.agents), Arc::clone(&state.db))
-                        .inspect_err(|_| {
-                            reset_agent_on_error(&state.agents, &app, context_id);
-                        })?
-                );
-            }
-        }
-
+        // We hold the tokio::sync::Mutex across the async send_command call to prevent
+        // race conditions where concurrent callers find the handle missing.
         let permission_mode = resolve_permission_mode(disable_plan_mode);
 
         let cmd = claude_process::SidecarCommand::Query {
@@ -503,23 +493,23 @@ pub async fn send_message(
             env_vars: Some(env_vars),
             additional_dirs: Some(linked_dirs.iter().map(|d| d.to_string_lossy().to_string()).collect()),
             disable_thinking: Some(disable_thinking),
-            disable_plan_mode: Some(disable_plan_mode),
         };
 
-        // Take the handle out of the Mutex, send the command (async), then put it back.
-        // This avoids holding a std::sync::Mutex across an .await point.
-        let mut handle = {
-            let mut guard = state.agent_sidecar.lock().unwrap();
-            guard.take().ok_or_else(|| {
-                reset_agent_on_error(&state.agents, &app, context_id);
-                AppError::AgentError("Sidecar not running".to_string())
-            })?
-        };
-
-        let result = claude_process::send_command(&mut handle, &cmd).await;
-
-        // Always put handle back
-        state.agent_sidecar.lock().unwrap().replace(handle);
+        let mut guard = state.agent_sidecar.lock().await;
+        if guard.is_none() {
+            *guard = Some(
+                claude_process::start_sidecar(&app, Arc::clone(&state.agents), Arc::clone(&state.db))
+                    .inspect_err(|_| {
+                        reset_agent_on_error(&state.agents, &app, context_id);
+                    })?
+            );
+        }
+        let handle = guard.as_mut().ok_or_else(|| {
+            reset_agent_on_error(&state.agents, &app, context_id);
+            AppError::AgentError("Sidecar not running".to_string())
+        })?;
+        let result = claude_process::send_command(handle, &cmd).await;
+        drop(guard);
 
         result.inspect_err(|_| {
             reset_agent_on_error(&state.agents, &app, context_id);
@@ -640,6 +630,7 @@ pub async fn respond_to_permission(
     approved: bool,
     updated_permissions: Option<serde_json::Value>,
     decision_classification: Option<String>,
+    updated_input: Option<serde_json::Value>,
 ) -> Result<(), AppError> {
     let id = parse_agent_workspace_id(&workspace_id)?;
 
@@ -656,6 +647,7 @@ pub async fn respond_to_permission(
     // Normalize null values to None so they are omitted from the sidecar JSON.
     let updated_permissions = normalize_null_value(updated_permissions);
     let decision_classification = normalize_empty_string(decision_classification);
+    let updated_input = normalize_null_value(updated_input);
 
     // Send a PermissionResponse command to the sidecar
     let cmd = claude_process::SidecarCommand::PermissionResponse {
@@ -663,24 +655,25 @@ pub async fn respond_to_permission(
         approved,
         updated_permissions,
         decision_classification,
+        updated_input,
     };
 
-    let mut handle = {
-        let mut guard = state.agent_sidecar.lock().unwrap();
-        guard.take().ok_or_else(|| {
-            AppError::AgentError("Sidecar not running".to_string())
-        })?
-    };
+    let mut guard = state.agent_sidecar.lock().await;
+    let handle = guard.as_mut().ok_or_else(|| {
+        AppError::AgentError("Sidecar not running".to_string())
+    })?;
+    let result = claude_process::send_command(handle, &cmd).await;
+    drop(guard);
 
-    // Clear the tracked pending permission now that the user has responded
-    state
-        .pending_permissions
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .remove(&id);
+    // Only clear pending permission after successful send
+    if result.is_ok() {
+        state
+            .pending_permissions
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&id);
+    }
 
-    let result = claude_process::send_command(&mut handle, &cmd).await;
-    state.agent_sidecar.lock().unwrap().replace(handle);
     result
 }
 
@@ -703,6 +696,7 @@ pub fn get_pending_permission(
 #[tauri::command]
 #[specta::specta]
 pub async fn send_followup_message(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     workspace_id: String,
     message: String,
@@ -728,6 +722,27 @@ pub async fn send_followup_message(
         ));
     }
 
+    // Bug #3 fix: Concurrent dispatch guard + Bug #2 fix: Set agent to Running
+    {
+        let mut agents = state.agents.lock().unwrap();
+        if let Some(agent) = agents.get_mut(&id) {
+            if should_block_new_message(agent) {
+                return Err(AppError::AgentError(
+                    "Agent is already processing a message".to_string(),
+                ));
+            }
+            agent.status = AgentStatus::Running;
+            agent.started_at = Some(chrono::Utc::now());
+        }
+    }
+    let _ = app.emit(
+        &format!("agent-status:{}", id),
+        &AgentStatusEvent {
+            workspace_id: id,
+            status: AgentStatus::Running,
+        },
+    );
+
     // For Claude Code (SDK), a followup message goes through the sidecar.
     // Retrieve the session_id and plan mode setting to resume the conversation.
     let (session_id, disable_plan_mode) = {
@@ -739,13 +754,46 @@ pub async fn send_followup_message(
         )
     };
 
-    // Look up the workspace's working directory for the query
-    let cwd = {
+    // Bug #4 fix: Look up workspace, repo, and build env vars + system prompt
+    let (cwd, env_vars) = {
         let workspaces = state.workspaces.read().unwrap();
-        workspaces
+        let ws = workspaces
             .get(&id)
+            .ok_or(AppError::WorkspaceNotFound(id))?
+            .clone();
+        let repos = state.repositories.read().unwrap();
+        let repo = repos
+            .get(&ws.repo_id)
+            .ok_or(AppError::RepoNotFound(ws.repo_id))?
+            .clone();
+        let settings = state.settings.read().unwrap().clone();
+        let repo_settings = crate::commands::script::resolve_settings(&state, &repo.id).ok();
+        let provider_override = repo_settings.as_ref().and_then(|s| s.provider_override.as_ref());
+        let env = claude_process::build_env_vars(&ws, &repo, &settings, provider_override);
+        (ws.worktree_path.to_string_lossy().to_string(), env)
+    };
+
+    // Read system prompt from settings
+    let system_prompt = {
+        let settings = state.settings.read().unwrap();
+        settings.system_prompt_additions.clone()
+    };
+
+    // Resolve linked workspace directories
+    let link_ids = state
+        .with_db(move |db| Ok(db.get_workspace_links(&id).unwrap_or_default()))
+        .await
+        .unwrap_or_default();
+    let linked_dirs: Vec<String> = if !link_ids.is_empty() {
+        let workspaces = state.workspaces.read().unwrap();
+        link_ids
+            .iter()
+            .filter_map(|lid| workspaces.get(lid))
             .map(|ws| ws.worktree_path.to_string_lossy().to_string())
-            .unwrap_or_default()
+            .filter(|p| std::path::Path::new(p).exists())
+            .collect()
+    } else {
+        vec![]
     };
 
     let permission_mode = resolve_permission_mode(disable_plan_mode);
@@ -756,24 +804,23 @@ pub async fn send_followup_message(
         cwd,
         session_id,
         model: None,
-        system_prompt: None,
+        system_prompt,
         permission_mode: permission_mode.to_string(),
-        env_vars: None,
-        additional_dirs: None,
+        env_vars: Some(env_vars),
+        additional_dirs: Some(linked_dirs),
         disable_thinking: None,
-        disable_plan_mode: None,
     };
 
-    let mut handle = {
-        let mut guard = state.agent_sidecar.lock().unwrap();
-        guard.take().ok_or_else(|| {
-            AppError::AgentError("Sidecar not running".to_string())
-        })?
-    };
-
-    let result = claude_process::send_command(&mut handle, &cmd).await;
-    state.agent_sidecar.lock().unwrap().replace(handle);
-    result
+    let mut guard = state.agent_sidecar.lock().await;
+    let handle = guard.as_mut().ok_or_else(|| {
+        reset_agent_on_error(&state.agents, &app, id);
+        AppError::AgentError("Sidecar not running".to_string())
+    })?;
+    let result = claude_process::send_command(handle, &cmd).await;
+    drop(guard);
+    result.inspect_err(|_| {
+        reset_agent_on_error(&state.agents, &app, id);
+    })
 }
 
 #[cfg(test)]

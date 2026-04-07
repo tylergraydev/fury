@@ -10,6 +10,8 @@ import { useSlashCommandStore } from "../../stores/slashCommandStore";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
 import { useTodoStore } from "../../stores/todoStore";
 import { usePromptLibraryStore } from "../../stores/promptLibraryStore";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useRepositoryStore } from "../../stores/repositoryStore";
 import { readFileBase64, saveClipboardImage } from "../../lib/tauri";
 
 vi.mock("../../lib/tauri", async (importOriginal) => {
@@ -21,6 +23,19 @@ vi.mock("../../lib/tauri", async (importOriginal) => {
     listPrompts: vi.fn().mockResolvedValue([]),
   };
 });
+
+vi.mock("../../lib/tauri/diff", () => ({
+  getDiff: vi.fn().mockResolvedValue({ files: [], totalAdditions: 0, totalDeletions: 0 }),
+  getRepoDiff: vi.fn().mockResolvedValue({ files: [], totalAdditions: 0, totalDeletions: 0 }),
+}));
+
+vi.mock("../../lib/tauri/repository", () => ({
+  listRepoDirectories: vi.fn().mockResolvedValue(["src", "tests", "docs"]),
+  getGitLog: vi.fn().mockResolvedValue([]),
+  listRepositories: vi.fn().mockResolvedValue([]),
+  listBranches: vi.fn().mockResolvedValue([]),
+  listRepoFiles: vi.fn().mockResolvedValue([]),
+}));
 
 vi.mock("../prompt-library/PromptLibraryDialog", () => ({
   PromptLibraryDialog: ({ onClose, onInsert }: { onClose: () => void; onInsert: (content: string, name: string) => void }) => (
@@ -52,6 +67,18 @@ beforeEach(() => {
     toggleDir: vi.fn(),
   });
   useTodoStore.setState({ todos: {} });
+  useWorkspaceStore.setState({
+    workspaces: [
+      { id: "ws-1", repoId: "repo-1", name: "test-ws", branch: "main", status: "Active", portBase: 3000, autoCommit: false, pinned: false, createdAt: "", archivedAt: null },
+    ],
+    activeWorkspaceId: "ws-1",
+    activeRepoId: "repo-1",
+  });
+  useRepositoryStore.setState({
+    repositories: [
+      { id: "repo-1", name: "test-repo", path: "/tmp/test", defaultBranch: "main", provider: "git_hub", remoteUrl: null },
+    ],
+  });
   usePromptLibraryStore.setState({
     prompts: [],
     loading: false,
@@ -200,7 +227,7 @@ describe("Composer", () => {
     const textarea = screen.getByRole("textbox");
     await user.type(textarea, "Here are @todos please review");
     await user.click(screen.getByTitle("Send message"));
-    expect(onSend).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
     const sentMessage = onSend.mock.calls[0][0];
     expect(sentMessage).toContain("Fix bug");
     expect(sentMessage).toContain("Write tests");
@@ -411,173 +438,162 @@ describe("Composer", () => {
       });
     });
 
-    it("shows @mention menu when typing @", async () => {
+    it("shows category menu when typing @", async () => {
       const user = userEvent.setup();
       render(<Composer {...defaultProps} />);
       await user.type(screen.getByRole("textbox"), "@");
-      expect(screen.getByText("@todos")).toBeInTheDocument();
-      expect(screen.getByText("main.ts")).toBeInTheDocument();
+      expect(screen.getByText("Files")).toBeInTheDocument();
+      expect(screen.getByText("Folders")).toBeInTheDocument();
+      expect(screen.getByText("Git")).toBeInTheDocument();
+      expect(screen.getByText("Todos")).toBeInTheDocument();
     });
 
-    it("filters @mention items as user types", async () => {
+    it("filters categories as user types", async () => {
       const user = userEvent.setup();
       render(<Composer {...defaultProps} />);
-      await user.type(screen.getByRole("textbox"), "@main");
-      expect(screen.getByText("main.ts")).toBeInTheDocument();
-      expect(screen.queryByText("helper.ts")).not.toBeInTheDocument();
+      await user.type(screen.getByRole("textbox"), "@fi");
+      expect(screen.getByText("Files")).toBeInTheDocument();
+      expect(screen.queryByText("Git")).not.toBeInTheDocument();
     });
 
-    it("shows @todos item for workspace context", async () => {
+    it("smart-shortcut to files when filter contains /", async () => {
       const user = userEvent.setup();
       render(<Composer {...defaultProps} />);
-      await user.type(screen.getByRole("textbox"), "@tod");
-      expect(screen.getByText("@todos")).toBeInTheDocument();
+      await user.type(screen.getByRole("textbox"), "@src/");
+      // Should show file items directly (not categories)
+      expect(screen.getByText("main.ts")).toBeInTheDocument();
+      expect(screen.getByText("helper.ts")).toBeInTheDocument();
     });
 
-    it("does not show @todos for repo context", async () => {
-      useFileTreeStore.setState({
-        files: {
-          "repo-1": ["src/main.ts"],
-        },
-        expandedDirs: {},
-        loading: {},
-        error: {},
-      });
-      const user = userEvent.setup();
-      render(<Composer {...defaultProps} contextId="repo-1" contextType="repo" />);
-      await user.type(screen.getByRole("textbox"), "@tod");
-      expect(screen.queryByText("@todos")).not.toBeInTheDocument();
-    });
-
-    it("navigates @mention items with arrow keys", async () => {
+    it("drills into Files category on Enter", async () => {
       const user = userEvent.setup();
       render(<Composer {...defaultProps} />);
       const textarea = screen.getByRole("textbox");
       await user.type(textarea, "@");
-      // Navigate down, up, then select with Enter
+      // First category is Files
+      await user.keyboard("{Enter}");
+      // Now should show file items
+      expect(screen.getByText("main.ts")).toBeInTheDocument();
+    });
+
+    it("selects file item after drilling into Files", async () => {
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      const textarea = screen.getByRole("textbox");
+      await user.type(textarea, "@");
+      await user.keyboard("{Enter}"); // drill into Files
+      await user.keyboard("{Enter}"); // select first file
+      expect(textarea).toHaveValue("src/main.ts ");
+    });
+
+    it("navigates categories with arrow keys", async () => {
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      await user.type(screen.getByRole("textbox"), "@");
       await user.keyboard("{ArrowDown}");
       await user.keyboard("{ArrowUp}");
       await user.keyboard("{Enter}");
-      // First item is @todos
-      expect(textarea).toHaveValue("@todos ");
-    });
-
-    it("selects @mention file item with Enter key", async () => {
-      const user = userEvent.setup();
-      render(<Composer {...defaultProps} />);
-      const textarea = screen.getByRole("textbox");
-      await user.type(textarea, "@main");
-      // main.ts should be the only file match (plus maybe @todos if "main" doesn't filter it out)
-      await user.keyboard("{Enter}");
-      expect(textarea).toHaveValue("src/main.ts ");
-    });
-
-    it("selects @mention with Tab key", async () => {
-      const user = userEvent.setup();
-      render(<Composer {...defaultProps} />);
-      const textarea = screen.getByRole("textbox");
-      await user.type(textarea, "@main");
-      await user.keyboard("{Tab}");
-      expect(textarea).toHaveValue("src/main.ts ");
+      // First category is Files; drilling in
+      expect(screen.getByText("main.ts")).toBeInTheDocument();
     });
 
     it("closes @mention menu on Escape key", async () => {
       const user = userEvent.setup();
       render(<Composer {...defaultProps} />);
       await user.type(screen.getByRole("textbox"), "@");
-      expect(screen.getByText("@todos")).toBeInTheDocument();
+      expect(screen.getByText("Files")).toBeInTheDocument();
       await user.keyboard("{Escape}");
-      expect(screen.queryByText("@todos")).not.toBeInTheDocument();
+      expect(screen.queryByText("Files")).not.toBeInTheDocument();
     });
 
-    it("selects @mention item by clicking it", async () => {
+    it("Escape goes back to categories when drilled in", async () => {
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      await user.type(screen.getByRole("textbox"), "@");
+      await user.keyboard("{Enter}"); // drill into Files
+      expect(screen.getByText("main.ts")).toBeInTheDocument();
+      await user.keyboard("{Escape}"); // back to categories
+      expect(screen.getByText("Files")).toBeInTheDocument();
+      expect(screen.queryByText("main.ts")).not.toBeInTheDocument();
+    });
+
+    it("selects Todos category and inserts @todos", async () => {
       const user = userEvent.setup();
       render(<Composer {...defaultProps} />);
       const textarea = screen.getByRole("textbox");
       await user.type(textarea, "@");
-      await user.click(screen.getByText("main.ts"));
-      expect(textarea).toHaveValue("src/main.ts ");
-    });
-
-    it("selects @todos item by clicking it", async () => {
-      const user = userEvent.setup();
-      render(<Composer {...defaultProps} />);
-      const textarea = screen.getByRole("textbox");
-      await user.type(textarea, "@");
-      await user.click(screen.getByText("@todos"));
-      expect(textarea).toHaveValue("@todos ");
+      await user.click(screen.getByText("Todos"));
+      // After drilling in, shows the Todos sub-item
+      expect(screen.getByText("Insert todo list")).toBeInTheDocument();
     });
 
     it("hides @mention menu when space is typed after @", async () => {
       const user = userEvent.setup();
       render(<Composer {...defaultProps} />);
-      const textarea = screen.getByRole("textbox");
-      await user.type(textarea, "@ ");
-      // The space after @ means the filter includes a space, which closes the menu
-      expect(screen.queryByText("@todos")).not.toBeInTheDocument();
+      await user.type(screen.getByRole("textbox"), "@ ");
+      expect(screen.queryByText("Files")).not.toBeInTheDocument();
     });
 
     it("does not trigger @mention when @ is preceded by a letter", async () => {
       const user = userEvent.setup();
       render(<Composer {...defaultProps} />);
-      const textarea = screen.getByRole("textbox");
-      await user.type(textarea, "email@");
-      // @ preceded by "l" (not space/newline), so menu should not show
-      expect(screen.queryByText("@todos")).not.toBeInTheDocument();
+      await user.type(screen.getByRole("textbox"), "email@");
+      expect(screen.queryByText("Files")).not.toBeInTheDocument();
     });
 
     it("triggers @mention after newline", async () => {
       const user = userEvent.setup();
       render(<Composer {...defaultProps} />);
       const textarea = screen.getByRole("textbox");
-      // Type text, then shift+enter for newline, then @
       await user.type(textarea, "hello{Shift>}{Enter}{/Shift}@");
-      expect(screen.getByText("@todos")).toBeInTheDocument();
+      expect(screen.getByText("Files")).toBeInTheDocument();
     });
 
-    it("shows file description when label differs from description", async () => {
+    it("shows file description when drilling into Files and filtering", async () => {
       const user = userEvent.setup();
       render(<Composer {...defaultProps} />);
-      await user.type(screen.getByRole("textbox"), "@main");
-      // label is "main.ts", description is "src/main.ts" - they differ, so description is shown
+      await user.type(screen.getByRole("textbox"), "@src/main");
+      // Smart shortcut shows file items; description should show full path
       expect(screen.getByText("src/main.ts")).toBeInTheDocument();
     });
 
-    it("ArrowDown does not exceed bounds in @mention menu", async () => {
-      useFileTreeStore.setState({
-        files: { "ws-1": ["only.ts"] },
-        expandedDirs: {},
-        loading: {},
-        error: {},
-      });
+    it("selects file by clicking after smart-shortcut", async () => {
       const user = userEvent.setup();
       render(<Composer {...defaultProps} />);
       const textarea = screen.getByRole("textbox");
-      await user.type(textarea, "@onl");
-      // Only one file matches. ArrowDown should clamp.
-      await user.keyboard("{ArrowDown}");
-      await user.keyboard("{ArrowDown}");
-      await user.keyboard("{Enter}");
-      expect(textarea).toHaveValue("only.ts ");
-    });
-
-    it("ArrowUp at first @mention item stays at 0", async () => {
-      const user = userEvent.setup();
-      render(<Composer {...defaultProps} />);
-      const textarea = screen.getByRole("textbox");
-      await user.type(textarea, "@main");
-      // Already at index 0; ArrowUp should stay there
-      await user.keyboard("{ArrowUp}");
-      await user.keyboard("{Enter}");
+      await user.type(textarea, "@src/");
+      await user.click(screen.getByText("main.ts"));
       expect(textarea).toHaveValue("src/main.ts ");
     });
 
-    it("limits @mention items to 8", async () => {
+    it("ArrowDown does not exceed bounds in @mention menu", async () => {
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      const textarea = screen.getByRole("textbox");
+      await user.type(textarea, "@");
+      // Many categories. ArrowDown many times should clamp without error.
+      for (let i = 0; i < 20; i++) await user.keyboard("{ArrowDown}");
+      // Navigate back up to a known category and select it
+      for (let i = 0; i < 20; i++) await user.keyboard("{ArrowUp}");
+      await user.keyboard("{Enter}");
+      // Should select first category (Files) and drill in
+      expect(screen.getByText("main.ts")).toBeInTheDocument();
+    });
+
+    it("ArrowUp at first item stays at 0", async () => {
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      await user.type(screen.getByRole("textbox"), "@");
+      await user.keyboard("{ArrowUp}");
+      await user.keyboard("{Enter}");
+      // First category is Files; should drill in
+      expect(screen.getByText("main.ts")).toBeInTheDocument();
+    });
+
+    it("limits file items in category to 10", async () => {
       useFileTreeStore.setState({
         files: {
-          "ws-1": [
-            "a.ts", "b.ts", "c.ts", "d.ts", "e.ts", "f.ts", "g.ts", "h.ts", "i.ts", "j.ts",
-          ],
+          "ws-1": Array.from({ length: 20 }, (_, i) => `file${i}.ts`),
         },
         expandedDirs: {},
         loading: {},
@@ -586,12 +602,21 @@ describe("Composer", () => {
       const user = userEvent.setup();
       render(<Composer {...defaultProps} />);
       await user.type(screen.getByRole("textbox"), "@");
-      // @todos (1) + files (up to 7) = 8 max, or files capped at 8 items total
+      await user.keyboard("{Enter}"); // drill into Files
       const buttons = screen.getAllByRole("button").filter(
-        (b) => b.closest('[class*="absolute"]'),
+        (b) => b.textContent?.includes(".ts"),
       );
-      // Should not exceed 8 items total
-      expect(buttons.length).toBeLessThanOrEqual(8);
+      expect(buttons.length).toBeLessThanOrEqual(10);
+    });
+
+    it("selects Git category and shows sub-items", async () => {
+      const user = userEvent.setup();
+      render(<Composer {...defaultProps} />);
+      await user.type(screen.getByRole("textbox"), "@");
+      await user.click(screen.getByText("Git"));
+      expect(screen.getByText("Diff vs main")).toBeInTheDocument();
+      expect(screen.getByText("Recent commits")).toBeInTheDocument();
+      expect(screen.getByText("Current branch")).toBeInTheDocument();
     });
   });
 
@@ -622,7 +647,7 @@ describe("Composer", () => {
     render(<Composer {...defaultProps} />);
     const textarea = screen.getByRole("textbox");
     await user.type(textarea, "hello world");
-    expect(screen.queryByText("@todos")).not.toBeInTheDocument();
+    expect(screen.queryByText("Files")).not.toBeInTheDocument();
   });
 
   // --- Thinking & Plan mode toggles ---
@@ -708,7 +733,7 @@ describe("Composer", () => {
     await user.type(textarea, "Check @todos now");
     await user.click(screen.getByTitle("Send message"));
     // In repo context, workspaceId is undefined, so @todos is NOT expanded
-    expect(onSend).toHaveBeenCalledWith("Check @todos now", undefined, undefined);
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith("Check @todos now", undefined, undefined));
   });
 
   // --- Slash command on multiline: / must be at start of current line ---
@@ -732,12 +757,21 @@ describe("Composer", () => {
 
   // --- selectAtItem inserts after existing text ---
   it("inserts @mention at cursor position preserving surrounding text", async () => {
+    useFileTreeStore.setState({
+      files: { "ws-1": ["src/main.ts", "src/utils/helper.ts", "README.md"] },
+      expandedDirs: {},
+      loading: {},
+      error: {},
+    });
     const user = userEvent.setup();
     render(<Composer {...defaultProps} />);
     const textarea = screen.getByRole("textbox");
-    await user.type(textarea, "check @");
-    await user.click(screen.getByText("@todos"));
-    expect(textarea).toHaveValue("check @todos ");
+    // Use file path shortcut (contains /) to get direct file items
+    await user.type(textarea, "check @src/main");
+    // main.ts should appear via smart file shortcut
+    expect(screen.getByText("main.ts")).toBeInTheDocument();
+    await user.keyboard("{Enter}");
+    expect(textarea).toHaveValue("check src/main.ts ");
   });
 
   // --- Model selector dropdown (lines 876-915) ---

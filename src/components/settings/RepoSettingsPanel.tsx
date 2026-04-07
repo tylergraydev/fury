@@ -52,6 +52,7 @@ export function RepoSettingsPanel({
     worktreeBasePath: null,
     providerOverride: null,
     devcontainer: null,
+    browserUrl: null,
   });
   const [showProviderKeys, setShowProviderKeys] = useState<Record<string, boolean>>({});
   const [newEnvKey, setNewEnvKey] = useState("");
@@ -188,6 +189,38 @@ export function RepoSettingsPanel({
               Base directory for worktrees (repo name is appended
               automatically). Leave empty to use the default (next to the
               repo).
+            </p>
+          </div>
+
+          {/* Browser URL */}
+          <div>
+            <label
+              className="mb-1 block text-xs font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Browser URL
+            </label>
+            <input
+              value={settings.browserUrl ?? ""}
+              onChange={(e) =>
+                setSettings((s) => ({
+                  ...s,
+                  browserUrl: e.target.value || null,
+                }))
+              }
+              placeholder="http://localhost:3000"
+              className="w-full rounded px-2 py-1.5 font-mono text-xs"
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border)",
+              }}
+            />
+            <p
+              className="mt-1 text-xs"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Default URL for the embedded browser panel.
             </p>
           </div>
 

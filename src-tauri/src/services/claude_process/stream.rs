@@ -112,7 +112,7 @@ pub(crate) fn is_known_skippable_line(line: &str) -> bool {
         .map(|t| {
             matches!(
                 t.as_str(),
-                "user" | "rate_limit_event" | "assistant" | "stream_event"
+                "user" | "rate_limit_event" | "assistant" | "stream_event" | "error"
             )
         })
         .unwrap_or(false)
@@ -379,6 +379,30 @@ pub fn parse_stream_line(line: &str) -> Vec<FrontendStreamEvent> {
                 tool_name,
                 input,
                 suggestions,
+            }]
+        }
+        // Sidecar catch-block errors: {type: "error", message: "..."}
+        // Convert to a Result event so the error message reaches the frontend.
+        "error" => {
+            let message = raw
+                .get("message")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            vec![FrontendStreamEvent::Result {
+                is_error: true,
+                result: message,
+                session_id: raw
+                    .get("session_id")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                duration_ms: None,
+                duration_api_ms: None,
+                total_cost_usd: None,
+                num_turns: None,
+                input_tokens: None,
+                output_tokens: None,
+                cache_read_tokens: None,
+                cache_creation_tokens: None,
             }]
         }
         _ => vec![],
@@ -1152,5 +1176,68 @@ mod tests {
     fn test_skippable_system_is_not_skippable() {
         let line = r#"{"type":"system","session_id":"s1"}"#;
         assert!(!is_known_skippable_line(line));
+    }
+
+    // --- error event parsing tests ---
+
+    #[test]
+    fn test_parse_error_event_with_message() {
+        let line = r#"{"type":"error","message":"No conversation found with session ID: abc-123"}"#;
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            FrontendStreamEvent::Result {
+                is_error, result, ..
+            } => {
+                assert!(is_error);
+                assert_eq!(
+                    result.as_deref(),
+                    Some("No conversation found with session ID: abc-123")
+                );
+            }
+            _ => panic!("Expected Result event from error"),
+        }
+    }
+
+    #[test]
+    fn test_parse_error_event_without_message() {
+        let line = r#"{"type":"error"}"#;
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            FrontendStreamEvent::Result {
+                is_error, result, ..
+            } => {
+                assert!(is_error);
+                assert!(result.is_none());
+            }
+            _ => panic!("Expected Result event from error"),
+        }
+    }
+
+    #[test]
+    fn test_parse_error_event_with_session_id() {
+        let line = r#"{"type":"error","message":"fail","session_id":"sess-xyz"}"#;
+        let events = parse_stream_line(line);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            FrontendStreamEvent::Result {
+                is_error,
+                result,
+                session_id,
+                ..
+            } => {
+                assert!(is_error);
+                assert_eq!(result.as_deref(), Some("fail"));
+                assert_eq!(session_id.as_deref(), Some("sess-xyz"));
+            }
+            _ => panic!("Expected Result event from error"),
+        }
+    }
+
+    #[test]
+    fn test_error_is_known_skippable() {
+        let line = r#"{"type":"error","message":"something broke"}"#;
+        assert!(is_known_skippable_line(line));
     }
 }

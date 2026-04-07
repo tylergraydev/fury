@@ -228,6 +228,21 @@ export function ChangesPanel({ context }: Props) {
   );
   const [hoveredFile, setHoveredFile] = useState<FileDiff | null>(null);
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
+
+  const handleExtractToWorkspace = async () => {
+    if (context.type !== "repo" || extracting) return;
+    setExtracting(true);
+    setExtractError(null);
+    try {
+      await useWorkspaceStore.getState().extractChangesWs(contextId);
+    } catch (e) {
+      setExtractError(String(e));
+    } finally {
+      setExtracting(false);
+    }
+  };
 
   useEffect(() => {
     const store = useDiffStore.getState();
@@ -412,17 +427,42 @@ export function ChangesPanel({ context }: Props) {
         <span style={{ color: "var(--error)" }}>
           -{diffResult.totalDeletions}
         </span>
-        <button
-          onClick={handleRefresh}
-          className="ml-auto rounded px-1.5 py-0.5 text-xs hover:opacity-80"
-          style={{
-            backgroundColor: "var(--bg-surface)",
-            color: "var(--text-muted)",
-          }}
-        >
-          Refresh
-        </button>
+        <div className="ml-auto flex items-center gap-1.5">
+          {context.type === "repo" && (
+            <button
+              onClick={handleExtractToWorkspace}
+              disabled={extracting}
+              title="Move these changes into a new workspace on a fresh branch"
+              className="rounded px-2 py-0.5 text-xs font-medium disabled:opacity-50"
+              style={{
+                backgroundColor: "var(--accent)",
+                color: "var(--bg-primary)",
+              }}
+            >
+              {extracting ? "Extracting…" : "Move to Workspace"}
+            </button>
+          )}
+          <button
+            onClick={handleRefresh}
+            className="rounded px-1.5 py-0.5 text-xs hover:opacity-80"
+            style={{
+              backgroundColor: "var(--bg-surface)",
+              color: "var(--text-muted)",
+            }}
+          >
+            Refresh
+          </button>
+        </div>
       </div>
+      {extractError && (
+        <div
+          className="truncate px-3 pb-2 text-xs"
+          style={{ color: "var(--error)" }}
+          title={extractError}
+        >
+          {extractError}
+        </div>
+      )}
 
       {/* File list */}
       <div className="flex-1 overflow-y-auto">

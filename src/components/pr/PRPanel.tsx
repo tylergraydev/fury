@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { usePrStore } from "../../stores/prStore";
+import type { AiReviewComment } from "../../stores/prStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useChatStore } from "../../stores/chatStore";
@@ -7,6 +8,7 @@ import { useAgentStore } from "../../stores/agentStore";
 import { useTodoStore } from "../../stores/todoStore";
 import type { PrInfo, PrCheck } from "../../lib/tauri";
 import { formatGhError } from "../../lib/ghErrors";
+import { AIReviewResults } from "./AIReviewResults";
 
 interface PRPanelProps {
   workspaceId: string;
@@ -247,6 +249,35 @@ function PRStatusView({
   onMerge: (method: string) => void;
 }) {
   const [mergeMethod, setMergeMethod] = useState("squash");
+
+  // AI review state
+  const aiReviewResult = usePrStore((s) => s.aiReviewResult[workspaceId] ?? null);
+  const aiReviewLoading = usePrStore((s) => s.aiReviewLoading[workspaceId] ?? false);
+  const aiReviewError = usePrStore((s) => s.aiReviewError[workspaceId] ?? null);
+
+  const handleReviewWithClaude = async () => {
+    try {
+      const prompt = await usePrStore.getState().getAiReviewPrompt(workspaceId);
+      useChatStore.getState().addUserMessage(workspaceId, prompt);
+      useAgentStore.getState().sendMessage(workspaceId, prompt, "workspace");
+    } catch {
+      // error is set in store
+    }
+  };
+
+  const handleAutoFix = (comments: AiReviewComment[]) => {
+    let message = "The following issues were found in the AI PR review. Please fix them:\n\n";
+    for (const c of comments) {
+      message += `- **${c.path}:${c.line}** (${c.severity}/${c.category}): ${c.body}`;
+      if (c.suggestedFix) {
+        message += `\n  Suggested fix: ${c.suggestedFix}`;
+      }
+      message += "\n";
+    }
+    message += "\nPlease address each issue and ensure the code is correct.";
+    useChatStore.getState().addUserMessage(workspaceId, message);
+    useAgentStore.getState().sendMessage(workspaceId, message, "workspace");
+  };
   const checks = prInfo.checks ?? [];
   const hasFailingChecks = checks.some(
     (c: PrCheck) =>
@@ -436,6 +467,20 @@ function PRStatusView({
             )}
           </div>
 
+          {/* AI Review Results */}
+          {aiReviewResult && (
+            <AIReviewResults
+              result={aiReviewResult}
+              loading={aiReviewLoading}
+              error={aiReviewError}
+              onPostToProvider={() =>
+                usePrStore.getState().submitAiReviewToProvider(workspaceId)
+              }
+              onAutoFix={handleAutoFix}
+              onClear={() => usePrStore.getState().clearAiReview(workspaceId)}
+            />
+          )}
+
           {/* Actions */}
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -448,6 +493,18 @@ function PRStatusView({
               }}
             >
               {loading ? "Pushing..." : "Push Updates"}
+            </button>
+
+            <button
+              onClick={handleReviewWithClaude}
+              disabled={aiReviewLoading}
+              className="rounded px-3 py-1 text-xs transition-opacity disabled:opacity-50"
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                color: "var(--text-primary)",
+              }}
+            >
+              {aiReviewLoading ? "Fetching diff..." : "Review with Claude"}
             </button>
 
             {hasFailingChecks && (

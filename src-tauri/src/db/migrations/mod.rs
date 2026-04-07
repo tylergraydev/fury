@@ -290,5 +290,27 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
         .map_err(|e| AppError::DbError(e.to_string()))?;
     }
 
+    // Browser URL per repo (idempotent)
+    let _ =
+        conn.execute_batch("ALTER TABLE repository_settings ADD COLUMN browser_url TEXT;");
+
+    // Notepads table
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS notepads (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            description TEXT,
+            tags TEXT NOT NULL DEFAULT '[]',
+            pinned INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_notepads_title ON notepads(title);
+        ",
+    )
+    .map_err(|e| AppError::DbError(e.to_string()))?;
+
     Ok(())
 }

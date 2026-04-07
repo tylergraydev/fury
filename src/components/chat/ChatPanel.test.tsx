@@ -643,7 +643,7 @@ describe("ChatPanel", () => {
 
   // --- handleApprovePlan ---
 
-  it("handleApprovePlan sends 'yes' via handleSend", async () => {
+  it("handleApprovePlan sends 'Approved' via handleSend", async () => {
     const sendMessageSpy = vi.fn().mockResolvedValue(undefined);
     const addUserMessageSpy = vi.fn();
     useAgentStore.setState({
@@ -662,8 +662,8 @@ describe("ChatPanel", () => {
     render(<ChatPanel contextId="ws-1" contextType="workspace" />);
     expect(screen.getByTestId("composer-plan-approval")).toHaveTextContent("true");
     await user.click(screen.getByTestId("approve-plan-btn"));
-    expect(addUserMessageSpy).toHaveBeenCalledWith("ws-1", "yes", undefined);
-    expect(sendMessageSpy).toHaveBeenCalledWith("ws-1", "yes", "workspace", undefined, undefined, undefined);
+    expect(addUserMessageSpy).toHaveBeenCalledWith("ws-1", "Approved", undefined);
+    expect(sendMessageSpy).toHaveBeenCalledWith("ws-1", "Approved", "workspace", undefined, undefined, undefined);
   });
 
   // --- handleCopyPlan ---

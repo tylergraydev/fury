@@ -30,12 +30,14 @@ export async function respondToPermission(
   approved: boolean,
   updatedPermissions?: unknown[],
   decisionClassification?: string,
+  updatedInput?: Record<string, unknown>,
 ): Promise<void> {
   return invoke("respond_to_permission", {
     workspaceId,
     approved,
     updatedPermissions: updatedPermissions ?? null,
     decisionClassification: decisionClassification ?? null,
+    updatedInput: updatedInput ?? null,
   });
 }
 

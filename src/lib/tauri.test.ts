@@ -1209,12 +1209,12 @@ describe("Merge/branch commands", () => {
 describe("Permission commands", () => {
   it("respondToPermission calls invoke with respond_to_permission", async () => {
     await respondToPermission("w1", true);
-    expect(invoke).toHaveBeenCalledWith("respond_to_permission", { workspaceId: "w1", approved: true, updatedPermissions: null, decisionClassification: null });
+    expect(invoke).toHaveBeenCalledWith("respond_to_permission", { workspaceId: "w1", approved: true, updatedPermissions: null, decisionClassification: null, updatedInput: null });
   });
 
   it("respondToPermission passes approved=false", async () => {
     await respondToPermission("w1", false);
-    expect(invoke).toHaveBeenCalledWith("respond_to_permission", { workspaceId: "w1", approved: false, updatedPermissions: null, decisionClassification: null });
+    expect(invoke).toHaveBeenCalledWith("respond_to_permission", { workspaceId: "w1", approved: false, updatedPermissions: null, decisionClassification: null, updatedInput: null });
   });
 });
 

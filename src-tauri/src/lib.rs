@@ -29,6 +29,7 @@ fn specta_builder() -> tauri_specta::Builder {
             commands::repository::init_repository,
             // Workspace commands
             commands::workspace::create_workspace,
+            commands::workspace::extract_changes_to_workspace,
             commands::workspace::list_workspaces,
             commands::workspace::archive_workspace,
             commands::workspace::delete_workspace,
@@ -74,6 +75,7 @@ fn specta_builder() -> tauri_specta::Builder {
             commands::file_viewer::list_repo_directories,
             commands::file_viewer::list_workspace_files,
             commands::file_viewer::list_repo_files,
+            commands::file_viewer::init_workspace_git,
             commands::file_viewer::read_workspace_file,
             commands::file_viewer::read_repo_file,
             commands::file_viewer::load_type_definitions,
@@ -125,6 +127,9 @@ fn specta_builder() -> tauri_specta::Builder {
             commands::pr::push_changes,
             commands::pr::fix_failing_checks,
             commands::pr::merge_pr,
+            // PR AI review commands
+            commands::pr_review_ai::get_pr_diff,
+            commands::pr_review_ai::submit_ai_review,
             // PR review commands
             commands::pr_reviews::get_pr_reviews,
             commands::pr_reviews::get_pr_review_comments,
@@ -165,10 +170,19 @@ fn specta_builder() -> tauri_specta::Builder {
             commands::copilot::copilot_did_change,
             commands::copilot::copilot_did_close,
             commands::copilot::copilot_complete,
+            commands::copilot::copilot_notify_accepted,
+            commands::copilot::copilot_notify_rejected,
             // Claude Context commands
             commands::claude_context::index_repository,
             commands::claude_context::get_indexing_status,
             commands::claude_context::list_indexing_statuses,
+            // Codebase search commands
+            commands::codebase_search::search_codebase,
+            commands::codebase_search::search_symbols,
+            commands::codebase_search::start_codebase_indexing,
+            commands::codebase_search::stop_codebase_indexing,
+            commands::codebase_search::delete_codebase_index,
+            commands::codebase_search::get_codebase_index_stats,
             // Claude permission commands
             commands::claude_permissions::get_claude_permissions,
             commands::claude_permissions::add_claude_permissions,
@@ -212,6 +226,12 @@ fn specta_builder() -> tauri_specta::Builder {
             commands::snippet::list_snippets,
             commands::snippet::update_snippet,
             commands::snippet::delete_snippet,
+            // Notepad commands
+            commands::notepad::create_notepad,
+            commands::notepad::list_notepads,
+            commands::notepad::get_notepad,
+            commands::notepad::update_notepad,
+            commands::notepad::delete_notepad,
             // Test runner commands
             commands::test_runner::detect_test_framework,
             commands::test_runner::get_test_runner_config,
@@ -243,6 +263,26 @@ fn specta_builder() -> tauri_specta::Builder {
             // Containerize commands
             commands::containerize::containerize_repo,
             commands::containerize::apply_devcontainer_config,
+            // Browser commands
+            commands::browser::create_browser,
+            commands::browser::navigate_browser,
+            commands::browser::update_browser_bounds,
+            commands::browser::show_browser,
+            commands::browser::hide_browser,
+            commands::browser::close_browser,
+            commands::browser::eval_browser_js,
+            // URL fetch commands
+            commands::url_fetch::fetch_url_content,
+            // Web search commands
+            commands::web_search::web_search,
+            // Diagnostics commands
+            commands::diagnostics::run_lint,
+            // Docs commands
+            commands::docs::resolve_library_id,
+            commands::docs::query_library_docs,
+            // Inline edit commands
+            commands::inline_edit::inline_edit,
+            commands::inline_edit::cancel_inline_edit,
         ]);
 
     builder
@@ -331,6 +371,73 @@ pub fn run() {
             let perf_metrics = Arc::clone(&app.state::<AppState>().perf_metrics);
             tauri::async_runtime::spawn(services::perf_server::start_perf_server(perf_metrics));
 
+            // Start browser bridge HTTP server and register MCP server
+            {
+                let state = app.state::<AppState>();
+                let port = {
+                    let mut allocator = state.port_allocator.lock().unwrap();
+                    allocator.allocate().unwrap_or(9747)
+                };
+                let token: String = uuid::Uuid::new_v4().to_string();
+                let browser_webviews = Arc::clone(&state.browser_webviews);
+
+                // Store port and token for MCP registration
+                std::env::set_var("FURY_BROWSER_BRIDGE_PORT", port.to_string());
+                std::env::set_var("FURY_BROWSER_BRIDGE_TOKEN", &token);
+
+                let token_clone = token.clone();
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(
+                    services::browser_bridge::start_bridge_server(browser_webviews, token, port, app_handle),
+                );
+
+                // Register the browser MCP server with Claude Code in the background
+                let resource_dir = app.path().resource_dir().ok();
+                tauri::async_runtime::spawn_blocking(move || {
+                    // Dev path: relative to Cargo manifest directory
+                    let dev_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                        .join("sidecar")
+                        .join("dist")
+                        .join("fury-browser-mcp.mjs");
+                    let mcp_path = if dev_path.exists() {
+                        dev_path.to_string_lossy().to_string()
+                    } else {
+                        // Production: resource directory
+                        resource_dir
+                            .map(|d| d.join("fury-browser-mcp.mjs"))
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string()
+                    };
+
+                    // Remove any stale registration from a previous crash
+                    let _ = services::mcp::remove_mcp_server(
+                        "fury-browser",
+                        &models::mcp::McpScope::User,
+                    );
+
+                    // Register with fresh port and token
+                    let args = vec![
+                        mcp_path,
+                        "--port".to_string(),
+                        port.to_string(),
+                        "--token".to_string(),
+                        token_clone,
+                    ];
+                    if let Err(e) = services::mcp::add_mcp_server(
+                        "fury-browser",
+                        "node",
+                        &args,
+                        &std::collections::HashMap::new(),
+                        &models::mcp::McpScope::User,
+                    ) {
+                        eprintln!("[browser-mcp] Failed to register MCP server: {}", e);
+                    } else {
+                        eprintln!("[browser-mcp] Registered fury-browser MCP server on port {}", port);
+                    }
+                });
+            }
+
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -375,11 +482,12 @@ pub fn run() {
                     }
                 }
 
-                // Stop sidecar
+                // Stop sidecar (tokio::sync::Mutex — use try_lock in sync context)
                 {
-                    let mut sidecar = state.agent_sidecar.lock().unwrap();
-                    if let Some(mut handle) = sidecar.take() {
-                        let _ = handle.child.start_kill();
+                    if let Ok(mut sidecar) = state.agent_sidecar.try_lock() {
+                        if let Some(mut handle) = sidecar.take() {
+                            let _ = handle.child.start_kill();
+                        }
                     }
                 }
 
@@ -390,6 +498,15 @@ pub fn run() {
                         let _ = platform::kill_process_group(pid);
                     }
                 }
+
+                // Close all browser webviews
+                services::browser::close_all(&state.browser_webviews);
+
+                // Remove browser MCP server registration
+                let _ = services::mcp::remove_mcp_server(
+                    "fury-browser",
+                    &models::mcp::McpScope::User,
+                );
             }
         });
 }

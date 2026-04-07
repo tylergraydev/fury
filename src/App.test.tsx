@@ -86,9 +86,9 @@ vi.mock("./components/file-viewer/SplitEditorLayout", () => ({
   ),
 }));
 
-vi.mock("./components/chat/SplitChatLayout", () => ({
-  SplitChatLayout: ({ leftContextId, leftContextType, rightContextId, rightContextType }: any) => (
-    <div data-testid="split-chat-layout" data-left-id={leftContextId} data-left-type={leftContextType} data-right-id={rightContextId} data-right-type={rightContextType}>SplitChatLayout</div>
+vi.mock("./components/chat/AgentPaneLayout", () => ({
+  AgentPaneLayout: ({ panes }: any) => (
+    <div data-testid="agent-pane-layout" data-pane-count={panes.length}>AgentPaneLayout</div>
   ),
 }));
 
@@ -230,9 +230,8 @@ beforeEach(() => {
   useFileViewerStore.setState({ tabs: [], activeTabId: null, splitActive: false });
   useUIStore.setState({
     ...useUIStore.getState(),
-    splitChatActive: false,
-    splitChatContextId: null,
-    splitChatContextType: null,
+    agentPanes: [],
+    focusedPaneIndex: 0,
   });
   vi.clearAllMocks();
 });
@@ -863,35 +862,31 @@ describe("App", () => {
       expect(screen.queryByTestId("chat-panel")).not.toBeInTheDocument();
     });
 
-    it("shows SplitChatLayout when splitChatActive with context", () => {
+    it("shows AgentPaneLayout when multiple agent panes exist", () => {
       setWorkspaceContext();
       useUIStore.setState({
         ...useUIStore.getState(),
-        splitChatActive: true,
-        splitChatContextId: "ws-2",
-        splitChatContextType: "workspace",
+        agentPanes: [
+          { id: "p1", contextId: "ws-1", contextType: "workspace", label: "WS 1" },
+          { id: "p2", contextId: "ws-2", contextType: "workspace", label: "WS 2" },
+        ],
+        focusedPaneIndex: 0,
       });
       useFileViewerStore.setState({ tabs: [], activeTabId: null, splitActive: false });
       render(<App />);
-      const splitChat = screen.getByTestId("split-chat-layout");
-      expect(splitChat).toBeInTheDocument();
-      expect(splitChat).toHaveAttribute("data-left-id", "ws-1");
-      expect(splitChat).toHaveAttribute("data-left-type", "workspace");
-      expect(splitChat).toHaveAttribute("data-right-id", "ws-2");
-      expect(splitChat).toHaveAttribute("data-right-type", "workspace");
+      expect(screen.getByTestId("agent-pane-layout")).toBeInTheDocument();
     });
 
-    it("shows ChatPanel when splitChatActive but no splitChatContextId", () => {
+    it("shows ChatPanel when only one agent pane exists", () => {
       setWorkspaceContext();
       useUIStore.setState({
         ...useUIStore.getState(),
-        splitChatActive: true,
-        splitChatContextId: null,
-        splitChatContextType: null,
+        agentPanes: [{ id: "p1", contextId: "ws-1", contextType: "workspace", label: "WS 1" }],
+        focusedPaneIndex: 0,
       });
       render(<App />);
       expect(screen.getByTestId("chat-panel")).toBeInTheDocument();
-      expect(screen.queryByTestId("split-chat-layout")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("agent-pane-layout")).not.toBeInTheDocument();
     });
 
     it("uses contextId and contextType from view tab when available", () => {

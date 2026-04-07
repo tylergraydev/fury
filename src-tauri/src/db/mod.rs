@@ -8,6 +8,7 @@ mod settings;
 mod templates;
 mod todos;
 mod workspaces;
+mod notepads;
 
 use crate::error::AppError;
 use rusqlite::Connection;

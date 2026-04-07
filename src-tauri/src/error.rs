@@ -60,6 +60,9 @@ pub enum AppError {
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
 
+    #[error("Search index error: {0}")]
+    IndexError(String),
+
     #[error("Internal error: {0}")]
     InternalError(String),
 }

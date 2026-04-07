@@ -1,4 +1,4 @@
-import { X, Settings, GitMerge, History, FileDiff, Users, Columns2, BarChart3, MessageSquare } from "lucide-react";
+import { X, Settings, GitMerge, History, FileDiff, Users, Columns2, BarChart3, MessageSquare, Globe } from "lucide-react";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
 import { useUIStore } from "../../stores/uiStore";
 import type { PaneId } from "../../stores/fileViewerStore";
@@ -10,6 +10,7 @@ const VIEW_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   diff: FileDiff,
   team: Users,
   usage: BarChart3,
+  browser: Globe,
 };
 
 export function FileTabBar() {
@@ -29,15 +30,21 @@ export function FileTabBar() {
   const setActiveViewTab = useUIStore((s) => s.setActiveViewTab);
   const closeViewTab = useUIStore((s) => s.closeViewTab);
   const pinViewTab = useUIStore((s) => s.pinViewTab);
-  const splitChat = useUIStore((s) => s.splitChat);
-  const splitChatActive = useUIStore((s) => s.splitChatActive);
-  const closeSplitChat = useUIStore((s) => s.closeSplitChat);
+  const addAgentPane = useUIStore((s) => s.addAgentPane);
+  const agentPanes = useUIStore((s) => s.agentPanes);
+  const closeAllSplitPanes = useUIStore((s) => s.closeAllSplitPanes);
+
+  const splitBrowserActive = useUIStore((s) => s.splitBrowserActive);
+  const splitBrowser = useUIStore((s) => s.splitBrowser);
+  const closeSplitBrowser = useUIStore((s) => s.closeSplitBrowser);
 
   const activeViewTab = viewTabs.find((t) => t.id === activeViewTabId);
   const viewType = activeViewTab?.type ?? "chat";
   const isChatActive = viewType === "chat" && activeFileTabId === null && activeViewTabId === "chat";
+  const isBrowserActive = activeViewTabId === "browser" && activeFileTabId === null;
+  const hasBrowserTab = viewTabs.some((t) => t.type === "browser");
   const workspaceChatTabs = viewTabs.filter((t) => t.type === "chat" && t.id !== "chat");
-  const nonChatViewTabs = viewTabs.filter((t) => t.type !== "chat" && t.type !== "settings");
+  const nonChatViewTabs = viewTabs.filter((t) => t.type !== "chat" && t.type !== "settings" && t.type !== "browser");
 
   const handleChatClick = () => {
     showChat();
@@ -89,6 +96,58 @@ export function FileTabBar() {
         Chat
       </button>
 
+      {/* Browser tab — next to chat when open */}
+      {hasBrowserTab && (
+        <div
+          role="tab"
+          aria-selected={isBrowserActive}
+          tabIndex={isBrowserActive ? 0 : -1}
+          className="group flex flex-shrink-0 cursor-pointer items-center gap-1 py-1.5 pl-3 pr-1 transition-colors"
+          style={{
+            color: isBrowserActive ? "var(--accent)" : "var(--text-muted)",
+            borderBottom: isBrowserActive
+              ? "2px solid var(--accent)"
+              : "2px solid transparent",
+          }}
+          onClick={() => {
+            showChat();
+            setActiveViewTab("browser");
+          }}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showChat(); setActiveViewTab("browser"); } }}
+        >
+          <Globe className="h-3 w-3" />
+          <span>Browser</span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (splitBrowserActive) {
+                closeSplitBrowser();
+              } else {
+                splitBrowser();
+              }
+            }}
+            className="ml-0.5 rounded p-1 opacity-0 group-hover:opacity-100 hover:bg-[var(--bg-hover)]"
+            style={{ color: splitBrowserActive ? "var(--accent)" : "var(--text-muted)" }}
+            title={splitBrowserActive ? "Close split view" : "Split with chat"}
+            aria-label={splitBrowserActive ? "Close split view" : "Split with chat"}
+          >
+            <Columns2 className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              closeViewTab("browser");
+              closeSplitBrowser();
+            }}
+            className="ml-0.5 rounded p-1 hover:bg-[var(--bg-hover)]"
+            style={{ color: "var(--text-muted)" }}
+            aria-label="Close Browser"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Workspace-pinned chat tabs */}
       {workspaceChatTabs.map((tab) => {
         const isActive = activeViewTabId === tab.id && activeFileTabId === null;
@@ -119,7 +178,7 @@ export function FileTabBar() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  splitChat(tab.contextId!, tab.contextType!);
+                  addAgentPane(tab.contextId!, tab.contextType!, tab.label);
                   showChat();
                   setActiveViewTab("chat");
                 }}
@@ -238,9 +297,9 @@ export function FileTabBar() {
 
       {/* Split toggle + spacer */}
       <div className="flex flex-1 items-center justify-end">
-        {splitChatActive && (
+        {agentPanes.length > 1 && (
           <button
-            onClick={() => closeSplitChat()}
+            onClick={() => closeAllSplitPanes()}
             className="flex-shrink-0 rounded p-1 hover:bg-[var(--bg-hover)]"
             style={{ color: "var(--accent)" }}
             title="Close split chat view"

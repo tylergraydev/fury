@@ -7,6 +7,7 @@ import {
   type WorkflowRun,
   type CreatePrRequest,
   type MergeResult,
+  type SubmitReviewRequest,
   createPr as createPrCmd,
   getPrChecks as getPrChecksCmd,
   pushChanges as pushChangesCmd,
@@ -15,7 +16,24 @@ import {
   getPrFullData as getPrFullDataCmd,
   getReviewsAndComments as getReviewsAndCommentsCmd,
   getWorkflowRuns as getWorkflowRunsCmd,
+  getPrDiff as getPrDiffCmd,
+  submitAiReview as submitAiReviewCmd,
 } from "../lib/tauri";
+
+export interface AiReviewComment {
+  path: string;
+  line: number;
+  body: string;
+  severity: "error" | "warning" | "info";
+  category: "bug" | "security" | "performance" | "style" | "logic";
+  suggestedFix: string | null;
+}
+
+export interface AiReviewResult {
+  summary: string;
+  overallAssessment: "approve" | "request_changes" | "comment";
+  comments: AiReviewComment[];
+}
 
 interface PrStore {
   prInfo: Record<string, PrInfo | null>;
@@ -27,6 +45,11 @@ interface PrStore {
   loading: Record<string, boolean>;
   error: Record<string, string | null>;
   subscriptions: Record<string, UnlistenFn[]>;
+
+  // AI review state
+  aiReviewResult: Record<string, AiReviewResult | null>;
+  aiReviewLoading: Record<string, boolean>;
+  aiReviewError: Record<string, string | null>;
 
   subscribe: (workspaceId: string) => Promise<void>;
   unsubscribe: (workspaceId: string) => void;
@@ -46,6 +69,12 @@ interface PrStore {
   getReviewComments: (workspaceId: string) => PrComment[];
   isLoading: (workspaceId: string) => boolean;
   getError: (workspaceId: string) => string | null;
+
+  // AI review actions
+  getAiReviewPrompt: (workspaceId: string) => Promise<string>;
+  setAiReviewResult: (workspaceId: string, result: AiReviewResult) => void;
+  submitAiReviewToProvider: (workspaceId: string) => Promise<void>;
+  clearAiReview: (workspaceId: string) => void;
 }
 
 // Module-level inflight trackers — prevent duplicate concurrent requests
@@ -84,6 +113,9 @@ export const usePrStore = create<PrStore>((set, get) => ({
   loading: {},
   error: {},
   subscriptions: {},
+  aiReviewResult: {},
+  aiReviewLoading: {},
+  aiReviewError: {},
 
   subscribe: async (workspaceId: string) => {
     if (get().subscriptions[workspaceId]) return;
@@ -416,5 +448,127 @@ export const usePrStore = create<PrStore>((set, get) => ({
 
   getError: (workspaceId: string) => {
     return get().error[workspaceId] ?? null;
+  },
+
+  getAiReviewPrompt: async (workspaceId: string) => {
+    set((state) => ({
+      aiReviewLoading: { ...state.aiReviewLoading, [workspaceId]: true },
+      aiReviewError: { ...state.aiReviewError, [workspaceId]: null },
+    }));
+    try {
+      const diff = await getPrDiffCmd(workspaceId);
+      const prInfo = get().prInfo[workspaceId];
+      const title = prInfo?.title ?? undefined;
+
+      let prompt =
+        "You are reviewing a pull request. Analyze the diff below for bugs, logic errors, " +
+        "security issues, and performance problems. Focus on substantive issues — ignore " +
+        "formatting and style unless it introduces a bug.\n\n";
+
+      if (title) {
+        prompt += `**PR Title:** ${title}\n\n`;
+      }
+
+      prompt += `**Diff:**\n\`\`\`diff\n${diff}\n\`\`\`\n\n`;
+
+      prompt +=
+        "Respond with a JSON object matching this exact schema (no markdown fencing, use camelCase keys):\n" +
+        "{\n" +
+        '  "summary": "Brief overall assessment of the PR",\n' +
+        '  "overallAssessment": "approve" | "request_changes" | "comment",\n' +
+        '  "comments": [\n' +
+        "    {\n" +
+        '      "path": "file/path.rs",\n' +
+        '      "line": 42,\n' +
+        '      "body": "Description of the issue",\n' +
+        '      "severity": "error" | "warning" | "info",\n' +
+        '      "category": "bug" | "security" | "performance" | "style" | "logic",\n' +
+        '      "suggestedFix": "Optional code suggestion or null"\n' +
+        "    }\n" +
+        "  ]\n" +
+        "}\n\n" +
+        "Rules:\n" +
+        "- Only include comments for genuine issues found in the diff\n" +
+        '- Use "error" severity for bugs and security issues\n' +
+        '- Use "warning" for potential problems and performance issues\n' +
+        '- Use "info" for minor suggestions\n' +
+        "- The \"line\" must reference a line number from the new side of the diff\n" +
+        '- If no issues found, return an empty comments array and "approve" assessment\n' +
+        "- For suggestedFix, provide the corrected code snippet or null\n";
+
+      set((state) => ({
+        aiReviewLoading: { ...state.aiReviewLoading, [workspaceId]: false },
+      }));
+
+      return prompt;
+    } catch (e) {
+      set((state) => ({
+        aiReviewLoading: { ...state.aiReviewLoading, [workspaceId]: false },
+        aiReviewError: {
+          ...state.aiReviewError,
+          [workspaceId]: String(e),
+        },
+      }));
+      throw e;
+    }
+  },
+
+  setAiReviewResult: (workspaceId: string, result: AiReviewResult) => {
+    set((state) => ({
+      aiReviewResult: { ...state.aiReviewResult, [workspaceId]: result },
+    }));
+  },
+
+  submitAiReviewToProvider: async (workspaceId: string) => {
+    const review = get().aiReviewResult[workspaceId];
+    if (!review) return;
+
+    set((state) => ({
+      aiReviewLoading: { ...state.aiReviewLoading, [workspaceId]: true },
+      aiReviewError: { ...state.aiReviewError, [workspaceId]: null },
+    }));
+
+    try {
+      const eventMap: Record<string, string> = {
+        approve: "APPROVE",
+        request_changes: "REQUEST_CHANGES",
+        comment: "COMMENT",
+      };
+
+      const request: SubmitReviewRequest = {
+        workspaceId,
+        body: review.summary,
+        event: eventMap[review.overallAssessment] ?? "COMMENT",
+        comments: review.comments.map((c) => {
+          let body = `**${c.severity} (${c.category}):** ${c.body}`;
+          if (c.suggestedFix) {
+            body += `\n\n\`\`\`suggestion\n${c.suggestedFix}\n\`\`\``;
+          }
+          return { path: c.path, line: c.line, body };
+        }),
+      };
+
+      await submitAiReviewCmd(request);
+
+      set((state) => ({
+        aiReviewLoading: { ...state.aiReviewLoading, [workspaceId]: false },
+      }));
+    } catch (e) {
+      set((state) => ({
+        aiReviewLoading: { ...state.aiReviewLoading, [workspaceId]: false },
+        aiReviewError: {
+          ...state.aiReviewError,
+          [workspaceId]: String(e),
+        },
+      }));
+      throw e;
+    }
+  },
+
+  clearAiReview: (workspaceId: string) => {
+    set((state) => ({
+      aiReviewResult: { ...state.aiReviewResult, [workspaceId]: null },
+      aiReviewError: { ...state.aiReviewError, [workspaceId]: null },
+    }));
   },
 }));
