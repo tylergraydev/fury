@@ -228,7 +228,7 @@ pub(crate) fn delete_workspace_inner(
     db: &crate::db::Database,
     id: &Uuid,
 ) -> Result<(), AppError> {
-    db.delete_workspace(&id)
+    db.delete_workspace(id)
 }
 
 /// Resolve worktree base path from repo settings and repo info.

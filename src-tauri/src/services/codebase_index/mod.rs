@@ -188,7 +188,7 @@ impl CodebaseIndex {
             }
 
             files_indexed += 1;
-            if files_indexed % 50 == 0 || files_indexed == total {
+            if files_indexed.is_multiple_of(50) || files_indexed == total {
                 progress_callback(files_indexed, total, &relative);
             }
         }
@@ -208,6 +208,7 @@ impl CodebaseIndex {
     }
 
     /// Re-index only the given changed file paths.
+    #[allow(dead_code)] // Reserved for incremental re-index hookup.
     pub fn update_files(
         &mut self,
         repo_path: &Path,
@@ -385,6 +386,7 @@ impl CodebaseIndex {
 }
 
 /// Statistics from a full index operation.
+#[allow(dead_code)] // Returned by index_full; callers currently discard.
 pub struct IndexStats {
     pub files_indexed: u32,
     pub chunks_indexed: u32,

@@ -35,6 +35,7 @@ pub async fn get_pr_diff(
 }
 
 /// Build the review prompt that instructs the AI to analyze the diff.
+#[allow(dead_code)] // Reserved for the AI PR review feature wiring.
 pub(crate) fn build_review_prompt(
     diff: &str,
     pr_title: Option<&str>,
@@ -92,6 +93,7 @@ pub(crate) fn build_review_prompt(
 }
 
 /// Parse the AI response text into a structured AiReviewResult.
+#[allow(dead_code)] // Reserved for the AI PR review feature wiring.
 pub(crate) fn parse_review_response(response: &str) -> Result<AiReviewResult, AppError> {
     // Try to extract JSON from the response — it may be wrapped in markdown fencing
     let json_str = extract_json_block(response);
@@ -106,6 +108,7 @@ pub(crate) fn parse_review_response(response: &str) -> Result<AiReviewResult, Ap
 }
 
 /// Extract JSON from a response that may have markdown code fences.
+#[allow(dead_code)] // Reserved for the AI PR review feature wiring.
 fn extract_json_block(text: &str) -> &str {
     // Try to find ```json ... ``` blocks
     if let Some(start) = text.find("```json") {
@@ -135,6 +138,7 @@ fn extract_json_block(text: &str) -> &str {
 
 /// Convert AI review comments to inline comments for GitHub/ADO submission.
 /// Uses GitHub suggestion syntax for suggested fixes.
+#[allow(dead_code)] // Reserved for the AI PR review feature wiring.
 pub(crate) fn to_inline_comments(comments: &[AiReviewComment]) -> Vec<ReviewInlineComment> {
     comments
         .iter()

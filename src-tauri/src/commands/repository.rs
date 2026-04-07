@@ -847,7 +847,7 @@ mod tests {
         assert!(result.is_ok());
         let repo = result.unwrap();
         assert_eq!(repo.default_branch, "main");
-        assert!(repo.name.len() > 0);
+        assert!(!repo.name.is_empty());
 
         // Verify persisted to in-memory state
         let app_state = app.state::<crate::state::AppState>();

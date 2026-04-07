@@ -295,6 +295,7 @@ pub fn submit_pr_review(
 }
 
 /// Post a top-level comment on a PR (not an inline review comment).
+#[allow(dead_code)] // Reserved for the AI PR review feature wiring.
 pub fn post_pr_comment(
     worktree_path: &Path,
     pr_number: u64,

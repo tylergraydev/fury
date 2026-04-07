@@ -61,7 +61,7 @@ mod tests {
     fn test_allocate_and_release() {
         let mut pa = PortAllocator::new(49100, 49200);
         let port = pa.allocate().unwrap();
-        assert!(port >= 49100 && port < 49200);
+        assert!((49100..49200).contains(&port));
         assert!(pa.allocated.contains(&port));
         pa.release(port);
         assert!(!pa.allocated.contains(&port));
@@ -73,7 +73,7 @@ mod tests {
         let p1 = pa.allocate().unwrap();
         let p2 = pa.allocate().unwrap();
         assert!(
-            p2 > p1 && (p2 - p1) % 10 == 0,
+            p2 > p1 && (p2 - p1).is_multiple_of(10),
             "expected p2 ({p2}) to be a multiple of 10 above p1 ({p1})"
         );
     }

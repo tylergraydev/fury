@@ -286,8 +286,10 @@ mod tests {
     fn test_update_app_settings_inner_persists_to_db() {
         let db = test_db();
         let old = AppSettings::default();
-        let mut new = AppSettings::default();
-        new.analytics_enabled = true;
+        let new = AppSettings {
+            analytics_enabled: true,
+            ..AppSettings::default()
+        };
         update_app_settings_inner(Some(&db), &old, &new).unwrap();
         // Verify persisted
         let loaded = db.get_app_settings().unwrap();
@@ -486,8 +488,10 @@ mod tests {
         let app = mock_app_with_state();
         let state: tauri::State<'_, crate::state::AppState> = app.state();
 
-        let mut settings = AppSettings::default();
-        settings.analytics_enabled = true;
+        let settings = AppSettings {
+            analytics_enabled: true,
+            ..AppSettings::default()
+        };
 
         let result = update_app_settings(state, settings).await;
         assert!(result.is_ok());
@@ -504,8 +508,10 @@ mod tests {
         let app = mock_app_with_state();
         let state: tauri::State<'_, crate::state::AppState> = app.state();
 
-        let mut settings = AppSettings::default();
-        settings.analytics_enabled = true;
+        let settings = AppSettings {
+            analytics_enabled: true,
+            ..AppSettings::default()
+        };
         update_app_settings(state, settings).await.unwrap();
 
         // Verify persisted in DB
@@ -550,14 +556,18 @@ mod tests {
 
         // Update once
         let state: tauri::State<'_, crate::state::AppState> = app.state();
-        let mut settings1 = AppSettings::default();
-        settings1.analytics_enabled = true;
+        let settings1 = AppSettings {
+            analytics_enabled: true,
+            ..AppSettings::default()
+        };
         update_app_settings(state, settings1).await.unwrap();
 
         // Update again
         let state2: tauri::State<'_, crate::state::AppState> = app.state();
-        let mut settings2 = AppSettings::default();
-        settings2.analytics_enabled = false;
+        let settings2 = AppSettings {
+            analytics_enabled: false,
+            ..AppSettings::default()
+        };
         update_app_settings(state2, settings2).await.unwrap();
 
         // Verify final state

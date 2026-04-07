@@ -625,7 +625,7 @@ mod tests {
         let state: State<'_, crate::state::AppState> = app.state();
         let dir = tempfile::tempdir().unwrap();
         let file_path = dir.path().join("image.png");
-        std::fs::write(&file_path, &[0x89, 0x50, 0x4E, 0x47]).unwrap();
+        std::fs::write(&file_path, [0x89, 0x50, 0x4E, 0x47]).unwrap();
         let result = read_file_base64(state, file_path.to_string_lossy().to_string()).await;
         assert!(result.is_ok());
         let data_url = result.unwrap();

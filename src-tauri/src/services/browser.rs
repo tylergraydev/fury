@@ -18,6 +18,7 @@ pub struct BrowserBounds {
 }
 
 /// A console log entry captured from the browser.
+#[allow(dead_code)] // Will be populated once the bridge has a round-trip eval path.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ConsoleLogEntry {

@@ -57,7 +57,7 @@ pub fn walk_repo(repo_path: &Path) -> Result<Vec<PathBuf>, AppError> {
         })?;
 
         // Skip directories
-        if !entry.file_type().map_or(false, |ft| ft.is_file()) {
+        if !entry.file_type().is_some_and(|ft| ft.is_file()) {
             continue;
         }
 
@@ -151,8 +151,8 @@ mod tests {
     fn test_walk_repo_skips_binary_extensions() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("main.rs"), "fn main() {}").unwrap();
-        fs::write(dir.path().join("image.png"), &[0u8; 100]).unwrap();
-        fs::write(dir.path().join("font.woff2"), &[0u8; 100]).unwrap();
+        fs::write(dir.path().join("image.png"), [0u8; 100]).unwrap();
+        fs::write(dir.path().join("font.woff2"), [0u8; 100]).unwrap();
 
         let files = walk_repo(dir.path()).unwrap();
         assert_eq!(files.len(), 1);

@@ -183,7 +183,11 @@ pub struct TaskLog {
 }
 
 // --- AI Review types ---
+// These types are reserved for the AI PR review feature wiring; they are
+// referenced from `commands::pr_review_ai` helpers that aren't connected to a
+// command yet. Allowed dead until they are wired up.
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum ReviewIssueSeverity {
@@ -192,6 +196,7 @@ pub enum ReviewIssueSeverity {
     Info,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum ReviewIssueCategory {
@@ -202,6 +207,7 @@ pub enum ReviewIssueCategory {
     Logic,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AiReviewComment {
@@ -213,6 +219,7 @@ pub struct AiReviewComment {
     pub suggested_fix: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AiReviewResult {

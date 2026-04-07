@@ -620,6 +620,7 @@ pub async fn link_work_item_to_pr(
 mod tests {
     use super::*;
 
+    #[allow(clippy::too_many_arguments)]
     fn make_work_item_json(
         id: u64,
         title: &str,

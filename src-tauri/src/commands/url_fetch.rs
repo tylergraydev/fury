@@ -300,7 +300,7 @@ fn extract_tag_content(html: &str, tag: &str) -> Option<String> {
     let close = format!("</{}>", tag);
     let open_pos = find_case_insensitive_ascii(html, &open)?;
     // Find the `>` closing the open tag (skipping attributes).
-    let gt_rel = html[open_pos..].as_bytes().iter().position(|&c| c == b'>')?;
+    let gt_rel = html.as_bytes()[open_pos..].iter().position(|&c| c == b'>')?;
     let content_start = open_pos + gt_rel + 1;
     let close_rel = find_case_insensitive_ascii(&html[content_start..], &close)?;
     let content_end = content_start + close_rel;

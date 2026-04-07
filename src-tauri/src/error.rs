@@ -60,6 +60,7 @@ pub enum AppError {
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
 
+    #[allow(dead_code)] // Reserved for codebase-index error reporting.
     #[error("Search index error: {0}")]
     IndexError(String),
 

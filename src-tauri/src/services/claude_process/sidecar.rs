@@ -443,6 +443,7 @@ mod tests {
 
     // ─── handle_sidecar_line tests ───────────────────────────────────
 
+    #[allow(clippy::type_complexity)]
     fn setup_sidecar_test() -> (
         tauri::AppHandle<tauri::test::MockRuntime>,
         Arc<Mutex<HashMap<Uuid, AgentInfo>>>,

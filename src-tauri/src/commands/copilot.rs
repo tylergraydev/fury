@@ -334,7 +334,7 @@ mod tests {
             std::sync::Mutex::new(None);
         let result = get_handle_from_mutex(&copilot);
         assert!(result.is_err());
-        let err = format!("{}", result.err().expect("expected error"));
+        let err = format!("{}", result.expect_err("expected error"));
         assert!(err.contains("not running"));
     }
 

@@ -301,8 +301,10 @@ mod tests {
     #[test]
     fn test_save_and_get_app_settings() {
         let db = test_db();
-        let mut settings = crate::models::settings::AppSettings::default();
-        settings.analytics_enabled = true;
+        let settings = crate::models::settings::AppSettings {
+            analytics_enabled: true,
+            ..Default::default()
+        };
         db.save_app_settings(&settings).unwrap();
         let fetched = db.get_app_settings().unwrap();
         assert!(fetched.analytics_enabled);
@@ -326,9 +328,11 @@ mod tests {
         let db = test_db();
         let repo = test_repo();
         db.insert_repository(&repo).unwrap();
-        let mut settings = RepoSettings::default();
-        settings.setup_script = Some("npm install".to_string());
-        settings.run_script_mode = RunScriptMode::Concurrent;
+        let settings = RepoSettings {
+            setup_script: Some("npm install".to_string()),
+            run_script_mode: RunScriptMode::Concurrent,
+            ..Default::default()
+        };
         db.upsert_repo_settings(&repo.id, &settings).unwrap();
         let fetched = db.get_repo_settings(&repo.id).unwrap();
         assert_eq!(fetched.setup_script.as_deref(), Some("npm install"));
@@ -340,13 +344,17 @@ mod tests {
         let db = test_db();
         let repo = test_repo();
         db.insert_repository(&repo).unwrap();
-        let mut settings1 = RepoSettings::default();
-        settings1.setup_script = Some("npm install".to_string());
+        let settings1 = RepoSettings {
+            setup_script: Some("npm install".to_string()),
+            ..Default::default()
+        };
         db.upsert_repo_settings(&repo.id, &settings1).unwrap();
-        let mut settings2 = RepoSettings::default();
-        settings2.setup_script = Some("yarn install".to_string());
-        settings2.run_script = Some("yarn dev".to_string());
-        settings2.run_script_mode = RunScriptMode::Concurrent;
+        let settings2 = RepoSettings {
+            setup_script: Some("yarn install".to_string()),
+            run_script: Some("yarn dev".to_string()),
+            run_script_mode: RunScriptMode::Concurrent,
+            ..Default::default()
+        };
         db.upsert_repo_settings(&repo.id, &settings2).unwrap();
         let fetched = db.get_repo_settings(&repo.id).unwrap();
         assert_eq!(fetched.setup_script.as_deref(), Some("yarn install"));
@@ -359,11 +367,13 @@ mod tests {
         let db = test_db();
         let repo = test_repo();
         db.insert_repository(&repo).unwrap();
-        let mut settings = RepoSettings::default();
-        settings.env_vars = std::collections::HashMap::from([
-            ("NODE_ENV".to_string(), "production".to_string()),
-            ("PORT".to_string(), "3000".to_string()),
-        ]);
+        let settings = RepoSettings {
+            env_vars: std::collections::HashMap::from([
+                ("NODE_ENV".to_string(), "production".to_string()),
+                ("PORT".to_string(), "3000".to_string()),
+            ]),
+            ..Default::default()
+        };
         db.upsert_repo_settings(&repo.id, &settings).unwrap();
         let fetched = db.get_repo_settings(&repo.id).unwrap();
         assert_eq!(fetched.env_vars.get("NODE_ENV").unwrap(), "production");
@@ -437,8 +447,10 @@ mod tests {
         let db = test_db();
         let repo = test_repo();
         db.insert_repository(&repo).unwrap();
-        let mut settings = RepoSettings::default();
-        settings.setup_script = Some("npm install".to_string());
+        let settings = RepoSettings {
+            setup_script: Some("npm install".to_string()),
+            ..Default::default()
+        };
         db.upsert_repo_settings(&repo.id, &settings).unwrap();
         let config = TestRunnerConfig {
             framework: Some(TestFramework::Vitest),

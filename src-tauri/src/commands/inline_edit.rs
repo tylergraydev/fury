@@ -11,6 +11,7 @@ use uuid::Uuid;
 /// Uses a dedicated `edit_id` (not the workspace UUID) so the sidecar routes
 /// response events to `agent-stream:{edit_id}`, keeping the main agent session
 /// untouched. Tools are disabled and thinking is off for fast, focused edits.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 #[specta::specta]
 pub async fn inline_edit(

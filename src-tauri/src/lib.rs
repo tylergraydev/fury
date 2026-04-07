@@ -1,3 +1,10 @@
+// Several legacy service modules (branch, checkpoint, copilot_lsp,
+// cursor_migration, script_runner, slash_commands, terminal, worktree)
+// have a `#[cfg(test)] mod tests` block in the middle of the file with
+// additional helper items afterwards. clippy 1.94 flags this pattern;
+// rearranging each file is out of scope for the security/reliability pass.
+#![allow(clippy::items_after_test_module)]
+
 mod commands;
 mod db;
 mod error;
@@ -586,8 +593,10 @@ mod init_tests {
         let dir = tempfile::tempdir().unwrap();
         {
             let db = db::Database::init(dir.path()).unwrap();
-            let mut settings = models::settings::AppSettings::default();
-            settings.analytics_enabled = true;
+            let settings = models::settings::AppSettings {
+                analytics_enabled: true,
+                ..models::settings::AppSettings::default()
+            };
             db.save_app_settings(&settings).unwrap();
         }
         let state = AppState::new();
