@@ -381,10 +381,12 @@ pub fn run() {
                 let token: String = uuid::Uuid::new_v4().to_string();
                 let browser_webviews = Arc::clone(&state.browser_webviews);
 
-                // Store port and token for MCP registration
-                std::env::set_var("FURY_BROWSER_BRIDGE_PORT", port.to_string());
-                std::env::set_var("FURY_BROWSER_BRIDGE_TOKEN", &token);
-
+                // Note: we deliberately do NOT put the port/token into the
+                // process environment. Every child process Fury spawns
+                // (agents, terminals, devcontainers, test runners, scripts)
+                // would otherwise inherit them and gain full eval power over
+                // the embedded browser. The MCP sidecar receives them as
+                // explicit CLI args below.
                 let token_clone = token.clone();
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(
@@ -482,13 +484,31 @@ pub fn run() {
                     }
                 }
 
-                // Stop sidecar (tokio::sync::Mutex — use try_lock in sync context)
+                // Stop sidecar. `agent_sidecar` is a `tokio::sync::Mutex`, so
+                // we need an async context to acquire it. A bare `try_lock`
+                // (the previous implementation) would fail and leak the node
+                // child whenever an in-flight `send_command` was holding the
+                // lock. Use `block_on` on the Tauri async runtime handle so
+                // we actually wait for the lock with a short timeout.
                 {
-                    if let Ok(mut sidecar) = state.agent_sidecar.try_lock() {
-                        if let Some(mut handle) = sidecar.take() {
-                            let _ = handle.child.start_kill();
+                    let sidecar_arc = Arc::clone(&state.agent_sidecar);
+                    tauri::async_runtime::block_on(async move {
+                        // Cap the wait so we never block shutdown forever.
+                        let acquire =
+                            tokio::time::timeout(std::time::Duration::from_secs(2), sidecar_arc.lock());
+                        match acquire.await {
+                            Ok(mut sidecar) => {
+                                if let Some(mut handle) = sidecar.take() {
+                                    let _ = handle.child.start_kill();
+                                }
+                            }
+                            Err(_) => {
+                                eprintln!(
+                                    "[shutdown] Could not acquire agent_sidecar lock within 2s — sidecar may leak"
+                                );
+                            }
                         }
-                    }
+                    });
                 }
 
                 // Kill test processes

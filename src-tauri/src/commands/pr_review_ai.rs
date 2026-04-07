@@ -97,10 +97,10 @@ pub(crate) fn parse_review_response(response: &str) -> Result<AiReviewResult, Ap
     let json_str = extract_json_block(response);
 
     serde_json::from_str::<AiReviewResult>(json_str).map_err(|e| {
+        let preview: String = response.chars().take(500).collect();
         AppError::PrError(format!(
             "Failed to parse AI review response as JSON: {}. Response: {}",
-            e,
-            &response[..response.len().min(500)]
+            e, preview
         ))
     })
 }
@@ -245,7 +245,12 @@ pub async fn submit_ai_review(
         }
     }
 
-    let _ = app.emit(&format!("pr-review-submitted:{}", ws_id), ());
+    if let Err(e) = app.emit(&format!("pr-review-submitted:{}", ws_id), ()) {
+        eprintln!(
+            "[pr-review-ai] Failed to emit pr-review-submitted event for ws {}: {}",
+            ws_id, e
+        );
+    }
     Ok(())
 }
 

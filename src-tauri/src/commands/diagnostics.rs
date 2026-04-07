@@ -24,19 +24,33 @@ pub async fn run_lint(
 
     let mut diagnostics = Vec::new();
 
-    // Try ESLint (for JS/TS projects)
+    // Try ESLint (for JS/TS projects). If the runner fails outright we must
+    // propagate the error — returning an empty list silently would let users
+    // believe "no lint errors" when really the linter never ran.
     if repo_path.join("node_modules/.bin/eslint").exists()
         || repo_path.join("package.json").exists()
     {
-        if let Ok(results) = run_eslint(&repo_path, file_path.as_deref()) {
-            diagnostics.extend(results);
+        match run_eslint(&repo_path, file_path.as_deref()) {
+            Ok(results) => diagnostics.extend(results),
+            Err(e) => {
+                return Err(AppError::InternalError(format!(
+                    "ESLint runner failed: {}",
+                    e
+                )));
+            }
         }
     }
 
     // Try cargo clippy (for Rust projects)
     if repo_path.join("Cargo.toml").exists() {
-        if let Ok(results) = run_clippy(&repo_path) {
-            diagnostics.extend(results);
+        match run_clippy(&repo_path) {
+            Ok(results) => diagnostics.extend(results),
+            Err(e) => {
+                return Err(AppError::InternalError(format!(
+                    "Clippy runner failed: {}",
+                    e
+                )));
+            }
         }
     }
 
@@ -61,7 +75,16 @@ fn run_eslint(
         .output()
         .map_err(|e| AppError::InternalError(format!("Failed to run eslint: {}", e)))?;
 
+    // ESLint exits non-zero when it finds problems; that's normal. It only
+    // indicates runner failure when stdout is empty AND exit != 0.
     let stdout = String::from_utf8_lossy(&output.stdout);
+    if stdout.trim().is_empty() && !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::InternalError(format!(
+            "eslint exited {} with no JSON output: {}",
+            output.status, stderr
+        )));
+    }
     parse_eslint_json(&stdout)
 }
 
@@ -82,7 +105,15 @@ fn parse_eslint_json(json: &str) -> Result<Vec<LintDiagnostic>, AppError> {
         rule_id: Option<String>,
     }
 
-    let files: Vec<EslintFile> = serde_json::from_str(json).unwrap_or_default();
+    // An empty stdout means "no files linted" — return empty, not a parse
+    // error. Any other stdout that can't be parsed as the ESLint JSON schema
+    // means the runner misbehaved and we should surface it.
+    if json.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    let files: Vec<EslintFile> = serde_json::from_str(json).map_err(|e| {
+        AppError::InternalError(format!("Failed to parse eslint JSON output: {}", e))
+    })?;
     let mut results = Vec::new();
     for file in files {
         for msg in file.messages {
@@ -111,7 +142,17 @@ fn run_clippy(repo_path: &std::path::Path) -> Result<Vec<LintDiagnostic>, AppErr
         .output()
         .map_err(|e| AppError::InternalError(format!("Failed to run clippy: {}", e)))?;
 
+    // Clippy exits non-zero when there are warnings/errors — that's normal.
+    // Runner failure is only signaled by an empty stdout with a non-success
+    // status (e.g. compile error before diagnostics are emitted).
     let stdout = String::from_utf8_lossy(&output.stdout);
+    if stdout.trim().is_empty() && !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::InternalError(format!(
+            "cargo clippy exited {} with no JSON output: {}",
+            output.status, stderr
+        )));
+    }
     parse_clippy_json(&stdout)
 }
 

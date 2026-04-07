@@ -103,35 +103,6 @@ const TOOLS = [
     },
   },
   {
-    name: "browser_screenshot",
-    description:
-      "Take a screenshot of the current page in the embedded browser. Returns an HTML snapshot of the page.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        selector: {
-          type: "string",
-          description: "Optional CSS selector to capture a specific element",
-        },
-      },
-    },
-  },
-  {
-    name: "browser_console_logs",
-    description:
-      "Get recent console output (logs, warnings, errors) from the embedded browser. Useful for debugging the user's app.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        level: {
-          type: "string",
-          enum: ["error", "warn", "log", "all"],
-          description: "Filter by log level. Defaults to 'all'.",
-        },
-      },
-    },
-  },
-  {
     name: "browser_click",
     description:
       "Click a DOM element in the embedded browser by CSS selector.",
@@ -163,70 +134,6 @@ const TOOLS = [
         },
       },
       required: ["selector", "text"],
-    },
-  },
-  {
-    name: "browser_get_text",
-    description:
-      "Get the text content of a DOM element in the embedded browser.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        selector: {
-          type: "string",
-          description: "CSS selector of the element",
-        },
-      },
-      required: ["selector"],
-    },
-  },
-  {
-    name: "browser_get_html",
-    description:
-      "Get the HTML content of the page or a specific element in the embedded browser.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        selector: {
-          type: "string",
-          description:
-            "CSS selector. If omitted, returns the full page HTML.",
-        },
-      },
-    },
-  },
-  {
-    name: "browser_evaluate",
-    description:
-      "Execute arbitrary JavaScript in the embedded browser and return the result.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        script: {
-          type: "string",
-          description: "JavaScript code to execute",
-        },
-      },
-      required: ["script"],
-    },
-  },
-  {
-    name: "browser_wait_for",
-    description:
-      "Wait for a DOM element to appear in the embedded browser.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        selector: {
-          type: "string",
-          description: "CSS selector to wait for",
-        },
-        timeout_ms: {
-          type: "number",
-          description: "Timeout in milliseconds (default: 5000)",
-        },
-      },
-      required: ["selector"],
     },
   },
 ];
@@ -265,16 +172,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case "browser_navigate":
       result = await bridgeRequest("/browser/navigate", { url: input.url });
       break;
-    case "browser_screenshot":
-      result = await bridgeRequest("/browser/screenshot", {
-        selector: input.selector,
-      });
-      break;
-    case "browser_console_logs":
-      result = await bridgeRequest("/browser/console", {
-        level: input.level,
-      });
-      break;
     case "browser_click":
       result = await bridgeRequest("/browser/click", {
         selector: input.selector,
@@ -284,32 +181,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       result = await bridgeRequest("/browser/type", {
         selector: input.selector,
         text: input.text,
-      });
-      break;
-    case "browser_get_text": {
-      // Get text via eval
-      const script = `(function() {
-        const el = document.querySelector(${JSON.stringify(input.selector)});
-        if (!el) return JSON.stringify({ error: 'Element not found' });
-        return JSON.stringify({ text: el.textContent });
-      })()`;
-      result = await bridgeRequest("/browser/eval", { script });
-      break;
-    }
-    case "browser_get_html":
-      result = await bridgeRequest("/browser/html", {
-        selector: input.selector,
-      });
-      break;
-    case "browser_evaluate":
-      result = await bridgeRequest("/browser/eval", {
-        script: input.script,
-      });
-      break;
-    case "browser_wait_for":
-      result = await bridgeRequest("/browser/wait", {
-        selector: input.selector,
-        timeout_ms: input.timeout_ms,
       });
       break;
     default:

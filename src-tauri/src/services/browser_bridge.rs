@@ -44,38 +44,6 @@ pub struct TypeRequest {
     pub browser_id: Option<String>,
 }
 
-#[derive(Deserialize)]
-pub struct EvalRequest {
-    pub script: String,
-    #[serde(default)]
-    pub browser_id: Option<String>,
-}
-
-#[derive(Deserialize)]
-pub struct HtmlRequest {
-    #[serde(default)]
-    pub selector: Option<String>,
-    #[serde(default)]
-    pub browser_id: Option<String>,
-}
-
-#[derive(Deserialize)]
-pub struct ConsoleRequest {
-    #[serde(default)]
-    pub level: Option<String>,
-    #[serde(default)]
-    pub browser_id: Option<String>,
-}
-
-#[derive(Deserialize)]
-pub struct WaitRequest {
-    pub selector: String,
-    #[serde(default)]
-    pub timeout_ms: Option<u64>,
-    #[serde(default)]
-    pub browser_id: Option<String>,
-}
-
 #[derive(Serialize)]
 pub struct BridgeResponse {
     pub ok: bool,
@@ -125,7 +93,7 @@ fn resolve_browser_id(
     drop(lock);
     match result {
         Some(id) => {
-            eprintln!("[browser-bridge] Resolved browser id={} (total={})", &id[..8.min(id.len())], count);
+            eprintln!("[browser-bridge] Resolved browser (total={})", count);
             Ok(id)
         }
         None => {
@@ -142,16 +110,31 @@ fn check_auth(headers: &axum::http::HeaderMap, expected: &str) -> Result<(), (St
         .get(AUTH_HEADER)
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    if token != expected {
+    // Constant-time comparison to avoid leaking token length/prefix via
+    // timing. Short-circuit length mismatch first — the lengths are not
+    // secret, but the contents are.
+    if token.len() != expected.len() || !constant_time_eq(token.as_bytes(), expected.as_bytes()) {
+        // Never log the received or expected token, even a prefix — anything
+        // that reaches stderr can end up in devcontainer log capture or crash
+        // reporters.
         eprintln!(
-            "[browser-bridge] AUTH FAILED: got={} expected={} (header present={})",
-            if token.len() > 8 { &token[..8] } else { token },
-            if expected.len() > 8 { &expected[..8] } else { expected },
+            "[browser-bridge] AUTH FAILED (header present={})",
             headers.get(AUTH_HEADER).is_some()
         );
         return Err((StatusCode::UNAUTHORIZED, "Invalid token".into()));
     }
     Ok(())
+}
+
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff: u8 = 0;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
 }
 
 // --- Handlers ---
@@ -175,9 +158,18 @@ async fn handle_navigate(
             }
         }
         Err(_) => {
-            // No browser open — tell the frontend to open one
-            let _ = state.app.emit("browser-open", &req.url);
-            Ok(Json(BridgeResponse::success("Browser panel opening — navigate request sent to Fury UI")))
+            // No browser open — tell the frontend to open one. If the emit
+            // fails we must propagate the error so the MCP client doesn't
+            // think the navigation succeeded.
+            if let Err(e) = state.app.emit("browser-open", &req.url) {
+                return Ok(Json(BridgeResponse::err(format!(
+                    "Failed to dispatch browser-open event to UI: {}",
+                    e
+                ))));
+            }
+            Ok(Json(BridgeResponse::success(
+                "Browser panel opening — navigate request sent to Fury UI",
+            )))
         }
     }
 }
@@ -191,7 +183,11 @@ async fn handle_click(
     let id = resolve_browser_id(req.browser_id.as_deref(), &state.webviews)
         .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
-    let js = format!("window.__fury.click({})", serde_json::to_string(&req.selector).unwrap());
+    let selector_json = match serde_json::to_string(&req.selector) {
+        Ok(s) => s,
+        Err(e) => return Ok(Json(BridgeResponse::err(format!("Invalid selector: {}", e)))),
+    };
+    let js = format!("window.__fury.click({})", selector_json);
     match browser::eval_js(&id, &js, &state.webviews) {
         Ok(()) => Ok(Json(BridgeResponse::ok())),
         Err(e) => Ok(Json(BridgeResponse::err(e.to_string()))),
@@ -207,112 +203,18 @@ async fn handle_type(
     let id = resolve_browser_id(req.browser_id.as_deref(), &state.webviews)
         .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
-    let js = format!(
-        "window.__fury.type({}, {})",
-        serde_json::to_string(&req.selector).unwrap(),
-        serde_json::to_string(&req.text).unwrap()
-    );
-    match browser::eval_js(&id, &js, &state.webviews) {
-        Ok(()) => Ok(Json(BridgeResponse::ok())),
-        Err(e) => Ok(Json(BridgeResponse::err(e.to_string()))),
-    }
-}
-
-async fn handle_eval(
-    headers: axum::http::HeaderMap,
-    AxumState(state): AxumState<BridgeState>,
-    Json(req): Json<EvalRequest>,
-) -> Result<Json<BridgeResponse>, (StatusCode, String)> {
-    check_auth(&headers, &state.token)?;
-    let id = resolve_browser_id(req.browser_id.as_deref(), &state.webviews)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
-
-    match browser::eval_js(&id, &req.script, &state.webviews) {
-        Ok(()) => Ok(Json(BridgeResponse::ok())),
-        Err(e) => Ok(Json(BridgeResponse::err(e.to_string()))),
-    }
-}
-
-async fn handle_console(
-    headers: axum::http::HeaderMap,
-    AxumState(state): AxumState<BridgeState>,
-    Json(req): Json<ConsoleRequest>,
-) -> Result<Json<BridgeResponse>, (StatusCode, String)> {
-    check_auth(&headers, &state.token)?;
-    let id = resolve_browser_id(req.browser_id.as_deref(), &state.webviews)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
-
-    let level = req.level.as_deref().unwrap_or("all");
-    let js = format!("window.__fury.getLogs({})", serde_json::to_string(level).unwrap());
-    match browser::eval_js(&id, &js, &state.webviews) {
-        Ok(()) => Ok(Json(BridgeResponse::success("Console logs requested (eval is fire-and-forget; use screenshot for visible results)"))),
-        Err(e) => Ok(Json(BridgeResponse::err(e.to_string()))),
-    }
-}
-
-async fn handle_html(
-    headers: axum::http::HeaderMap,
-    AxumState(state): AxumState<BridgeState>,
-    Json(req): Json<HtmlRequest>,
-) -> Result<Json<BridgeResponse>, (StatusCode, String)> {
-    check_auth(&headers, &state.token)?;
-    let id = resolve_browser_id(req.browser_id.as_deref(), &state.webviews)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
-
-    let selector_arg = match req.selector {
-        Some(ref s) => serde_json::to_string(s).unwrap(),
-        None => "null".to_string(),
+    let selector_json = match serde_json::to_string(&req.selector) {
+        Ok(s) => s,
+        Err(e) => return Ok(Json(BridgeResponse::err(format!("Invalid selector: {}", e)))),
     };
-    let js = format!("window.__fury.getHTML({})", selector_arg);
-    match browser::eval_js(&id, &js, &state.webviews) {
-        Ok(()) => Ok(Json(BridgeResponse::ok())),
-        Err(e) => Ok(Json(BridgeResponse::err(e.to_string()))),
-    }
-}
-
-async fn handle_wait(
-    headers: axum::http::HeaderMap,
-    AxumState(state): AxumState<BridgeState>,
-    Json(req): Json<WaitRequest>,
-) -> Result<Json<BridgeResponse>, (StatusCode, String)> {
-    check_auth(&headers, &state.token)?;
-    let id = resolve_browser_id(req.browser_id.as_deref(), &state.webviews)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
-
-    let timeout = req.timeout_ms.unwrap_or(5000);
-    let js = format!(
-        "window.__fury.waitFor({}, {})",
-        serde_json::to_string(&req.selector).unwrap(),
-        timeout
-    );
-    match browser::eval_js(&id, &js, &state.webviews) {
-        Ok(()) => Ok(Json(BridgeResponse::ok())),
-        Err(e) => Ok(Json(BridgeResponse::err(e.to_string()))),
-    }
-}
-
-async fn handle_screenshot(
-    headers: axum::http::HeaderMap,
-    AxumState(state): AxumState<BridgeState>,
-) -> Result<Json<BridgeResponse>, (StatusCode, String)> {
-    check_auth(&headers, &state.token)?;
-
-    // Screenshot requires platform-specific implementation.
-    // For now, return HTML snapshot as a fallback.
-    let id = {
-        let lock = state.webviews.lock().unwrap();
-        lock.keys().next().cloned()
+    let text_json = match serde_json::to_string(&req.text) {
+        Ok(s) => s,
+        Err(e) => return Ok(Json(BridgeResponse::err(format!("Invalid text: {}", e)))),
     };
-
-    match id {
-        Some(id) => {
-            let js = "window.__fury.getHTML(null)";
-            match browser::eval_js(&id, js, &state.webviews) {
-                Ok(()) => Ok(Json(BridgeResponse::success("Screenshot requested (HTML snapshot via eval)"))),
-                Err(e) => Ok(Json(BridgeResponse::err(e.to_string()))),
-            }
-        }
-        None => Ok(Json(BridgeResponse::err("No browser is open"))),
+    let js = format!("window.__fury.type({}, {})", selector_json, text_json);
+    match browser::eval_js(&id, &js, &state.webviews) {
+        Ok(()) => Ok(Json(BridgeResponse::ok())),
+        Err(e) => Ok(Json(BridgeResponse::err(e.to_string()))),
     }
 }
 
@@ -323,15 +225,28 @@ async fn handle_open(
 ) -> Result<Json<BridgeResponse>, (StatusCode, String)> {
     check_auth(&headers, &state.token)?;
 
-    // If a browser is already open, navigate it
+    // If a browser is already open, navigate it and report the real result.
     if let Ok(id) = resolve_browser_id(req.browser_id.as_deref(), &state.webviews) {
-        let _ = browser::navigate(&id, &req.url, &state.webviews);
-        return Ok(Json(BridgeResponse::success("Navigated existing browser")));
+        return match browser::navigate(&id, &req.url, &state.webviews) {
+            Ok(()) => Ok(Json(BridgeResponse::success("Navigated existing browser"))),
+            Err(e) => Ok(Json(BridgeResponse::err(format!(
+                "Navigation failed: {}",
+                e
+            )))),
+        };
     }
 
-    // Emit event to frontend to open the browser panel with this URL
-    let _ = state.app.emit("browser-open", &req.url);
-    Ok(Json(BridgeResponse::success("Browser panel opening with requested URL")))
+    // Emit event to frontend to open the browser panel with this URL. If the
+    // emit fails, surface the error instead of claiming success.
+    if let Err(e) = state.app.emit("browser-open", &req.url) {
+        return Ok(Json(BridgeResponse::err(format!(
+            "Failed to dispatch browser-open event to UI: {}",
+            e
+        ))));
+    }
+    Ok(Json(BridgeResponse::success(
+        "Browser panel opening with requested URL",
+    )))
 }
 
 /// Logging middleware for all bridge requests.
@@ -357,11 +272,6 @@ pub async fn start_bridge_server(webviews: BrowserWebviews, token: String, port:
         .route("/browser/navigate", post(handle_navigate))
         .route("/browser/click", post(handle_click))
         .route("/browser/type", post(handle_type))
-        .route("/browser/eval", post(handle_eval))
-        .route("/browser/console", post(handle_console))
-        .route("/browser/html", post(handle_html))
-        .route("/browser/wait", post(handle_wait))
-        .route("/browser/screenshot", post(handle_screenshot))
         .layer(axum::middleware::from_fn(log_requests))
         .with_state(state);
 

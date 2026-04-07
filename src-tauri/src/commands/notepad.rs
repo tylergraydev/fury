@@ -95,7 +95,9 @@ pub async fn create_notepad(
 #[tauri::command]
 #[specta::specta]
 pub async fn list_notepads(state: State<'_, AppState>) -> Result<Vec<Notepad>, AppError> {
-    Ok(state.with_db(list_notepads_inner).await.unwrap_or_else(|_| vec![]))
+    // Propagate DB errors to the caller. Returning an empty list on failure
+    // (as the original code did) looked like data loss to users.
+    state.with_db(list_notepads_inner).await
 }
 
 #[tauri::command]

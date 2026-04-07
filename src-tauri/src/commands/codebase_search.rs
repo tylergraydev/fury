@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 
-use crate::commands::claude_context::{set_indexing_status, update_indexing_result};
+use crate::commands::claude_context::update_indexing_result;
 use crate::error::AppError;
 use crate::models::codebase_search::{CodeSearchResult, IndexProgress};
 use crate::models::mcp::IndexingState;
@@ -79,18 +79,29 @@ pub async fn start_codebase_indexing(
 
     let repo_path_str = repo_path.to_string_lossy().to_string();
 
-    // Check if already indexing
+    // Check-and-set under a single lock. Previously this was a TOCTOU race:
+    // two concurrent callers could both pass the "already indexing?" check
+    // and then both call `set_indexing_status` + spawn an `index_full` job
+    // that collide on the on-disk Tantivy writer. Tantivy permits only one
+    // writer per index, so the second would block or error.
     {
-        let statuses = state.indexing_status.lock().unwrap();
+        let mut statuses = state.indexing_status.lock().unwrap();
         if let Some(status) = statuses.get(&id) {
             if status.status == IndexingState::Indexing {
                 return Ok(()); // Already in progress
             }
         }
+        statuses.insert(
+            id,
+            crate::models::mcp::IndexingStatus {
+                repo_id: id.to_string(),
+                repo_path: repo_path_str.clone(),
+                status: IndexingState::Indexing,
+                error: None,
+                last_indexed_at: None,
+            },
+        );
     }
-
-    // Set status to Indexing
-    set_indexing_status(&state.indexing_status, id, &repo_path_str);
 
     let indexing_status = Arc::clone(&state.indexing_status);
     let codebase_indexes = Arc::clone(&state.codebase_indexes);
@@ -108,7 +119,14 @@ pub async fn start_codebase_indexing(
                     total_files,
                     current_file: Some(current_file.to_string()),
                 };
-                let _ = app_clone.emit(&format!("codebase-index-progress:{}", id), &progress);
+                if let Err(e) =
+                    app_clone.emit(&format!("codebase-index-progress:{}", id), &progress)
+                {
+                    eprintln!(
+                        "[codebase-index] Failed to emit progress for repo {}: {}",
+                        id, e
+                    );
+                }
             })?;
 
             // Store the index in memory

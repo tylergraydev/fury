@@ -46,6 +46,8 @@ pub async fn web_search(
         .send()
         .await
         .map_err(|e| AppError::InternalError(format!("Search request failed: {}", e)))?
+        .error_for_status()
+        .map_err(|e| AppError::InternalError(format!("DuckDuckGo returned error: {}", e)))?
         .json()
         .await
         .map_err(|e| AppError::InternalError(format!("Failed to parse search results: {}", e)))?;

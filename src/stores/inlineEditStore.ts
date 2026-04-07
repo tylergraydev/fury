@@ -57,7 +57,9 @@ export const useInlineEditStore = create<InlineEditStore>((set, get) => ({
     // Cancel any existing session
     const existing = get().session;
     if (existing) {
-      cancelInlineEdit(existing.editId).catch(() => {});
+      cancelInlineEdit(existing.editId).catch((e) => {
+        console.error("[inlineEdit] failed to cancel prior session:", e);
+      });
     }
 
     set({
@@ -79,17 +81,52 @@ export const useInlineEditStore = create<InlineEditStore>((set, get) => ({
       session: { ...session, instruction, status: "generating", error: null },
     });
 
-    // Subscribe to stream events for this edit
+    // Subscribe to stream events for this edit. We must guarantee that the
+    // listener is freed on ALL terminal paths (result / error / timeout /
+    // sidecar disconnect), otherwise the store leaks listeners on every
+    // Cmd+K invocation and gets stuck in "generating" forever.
     let accumulated = "";
-    const unlisten = await listen<FrontendStreamEvent>(
+    let settled = false;
+    let unlisten: (() => void) | null = null;
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
+    const cleanup = () => {
+      if (settled) return;
+      settled = true;
+      if (timeoutHandle !== null) {
+        clearTimeout(timeoutHandle);
+        timeoutHandle = null;
+      }
+      if (unlisten) {
+        try {
+          unlisten();
+        } catch (e) {
+          console.error("[inlineEdit] failed to unlisten:", e);
+        }
+        unlisten = null;
+      }
+    };
+
+    const failSession = (message: string) => {
+      cleanup();
+      const current = get().session;
+      if (current?.editId === session.editId) {
+        set({
+          session: { ...current, status: "prompting", error: message },
+        });
+      }
+    };
+
+    unlisten = await listen<FrontendStreamEvent>(
       `agent-stream:${session.editId}`,
       (event) => {
+        if (settled) return;
         const payload = event.payload;
 
         if (payload.type === "assistantText") {
           accumulated += payload.text;
         } else if (payload.type === "result") {
-          unlisten();
+          cleanup();
           const current = get().session;
           if (!current || current.editId !== session.editId) return;
 
@@ -116,6 +153,12 @@ export const useInlineEditStore = create<InlineEditStore>((set, get) => ({
       },
     );
 
+    // If the sidecar never sends a terminal event (crash, dropped IPC) we
+    // must still recover. 2 minutes is generous for a single inline edit.
+    timeoutHandle = setTimeout(() => {
+      failSession("Inline edit timed out after 2 minutes");
+    }, 120_000);
+
     try {
       await inlineEdit(
         workspaceId,
@@ -127,17 +170,7 @@ export const useInlineEditStore = create<InlineEditStore>((set, get) => ({
         instruction,
       );
     } catch (e) {
-      unlisten();
-      const current = get().session;
-      if (current?.editId === session.editId) {
-        set({
-          session: {
-            ...current,
-            status: "prompting",
-            error: e instanceof Error ? e.message : String(e),
-          },
-        });
-      }
+      failSession(e instanceof Error ? e.message : String(e));
     }
   },
 
@@ -153,7 +186,9 @@ export const useInlineEditStore = create<InlineEditStore>((set, get) => ({
     const session = get().session;
     if (session) {
       if (session.status === "generating") {
-        cancelInlineEdit(session.editId).catch(() => {});
+        cancelInlineEdit(session.editId).catch((e) => {
+          console.error("[inlineEdit] failed to cancel session:", e);
+        });
       }
       set({ session: null, lastAction: "rejected" });
     }

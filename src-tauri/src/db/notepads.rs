@@ -4,6 +4,47 @@ use crate::models::notepad::Notepad;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
+/// Helper: turn any row-decode failure into a rusqlite::Error so it flows
+/// through `query_map` as a real error instead of producing corrupted data.
+fn decode_row_err(idx: usize, err: impl std::fmt::Display) -> rusqlite::Error {
+    rusqlite::Error::FromSqlConversionFailure(
+        idx,
+        rusqlite::types::Type::Text,
+        Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            err.to_string(),
+        )),
+    )
+}
+
+fn row_to_notepad(row: &rusqlite::Row<'_>) -> rusqlite::Result<Notepad> {
+    let id_str: String = row.get(0)?;
+    let tags_json: String = row.get(4)?;
+    let pinned_int: i32 = row.get(5)?;
+    let created_str: String = row.get(6)?;
+    let updated_str: String = row.get(7)?;
+
+    let id = Uuid::parse_str(&id_str).map_err(|e| decode_row_err(0, e))?;
+    let tags: Vec<String> = serde_json::from_str(&tags_json).map_err(|e| decode_row_err(4, e))?;
+    let created_at = DateTime::parse_from_rfc3339(&created_str)
+        .map(|dt| dt.with_timezone(&Utc))
+        .map_err(|e| decode_row_err(6, e))?;
+    let updated_at = DateTime::parse_from_rfc3339(&updated_str)
+        .map(|dt| dt.with_timezone(&Utc))
+        .map_err(|e| decode_row_err(7, e))?;
+
+    Ok(Notepad {
+        id,
+        title: row.get(1)?,
+        content: row.get(2)?,
+        description: row.get(3)?,
+        tags,
+        pinned: pinned_int != 0,
+        created_at,
+        updated_at,
+    })
+}
+
 impl Database {
     pub fn insert_notepad(&self, notepad: &Notepad) -> Result<(), AppError> {
         let tags_json = serde_json::to_string(&notepad.tags)?;
@@ -29,30 +70,23 @@ impl Database {
             "SELECT id, title, content, description, tags, pinned, created_at, updated_at
              FROM notepads ORDER BY pinned DESC, title ASC",
         )?;
-        let notepads = stmt
-            .query_map([], |row| {
-                let tags_json: String = row.get(4)?;
-                let id_str: String = row.get(0)?;
-                let created_str: String = row.get(6)?;
-                let updated_str: String = row.get(7)?;
-                let pinned_int: i32 = row.get(5)?;
-                Ok(Notepad {
-                    id: Uuid::parse_str(&id_str).unwrap_or_default(),
-                    title: row.get(1)?,
-                    content: row.get(2)?,
-                    description: row.get(3)?,
-                    tags: serde_json::from_str(&tags_json).unwrap_or_default(),
-                    pinned: pinned_int != 0,
-                    created_at: DateTime::parse_from_rfc3339(&created_str)
-                        .map(|dt| dt.with_timezone(&Utc))
-                        .unwrap_or_else(|_| Utc::now()),
-                    updated_at: DateTime::parse_from_rfc3339(&updated_str)
-                        .map(|dt| dt.with_timezone(&Utc))
-                        .unwrap_or_else(|_| Utc::now()),
-                })
-            })?
-            .filter_map(|r| r.ok())
-            .collect();
+        let mut notepads = Vec::new();
+        let rows = stmt.query_map([], row_to_notepad)?;
+        for row in rows {
+            match row {
+                Ok(n) => notepads.push(n),
+                Err(e) => {
+                    // Surface the decode failure so callers can see it, but
+                    // log and continue so a single corrupt row doesn't hide
+                    // every other notepad from the user.
+                    eprintln!("[db/notepads] Skipping corrupt row: {}", e);
+                    return Err(AppError::DbError(format!(
+                        "Corrupt notepad row in database: {}",
+                        e
+                    )));
+                }
+            }
+        }
         Ok(notepads)
     }
 
@@ -61,27 +95,7 @@ impl Database {
             "SELECT id, title, content, description, tags, pinned, created_at, updated_at
              FROM notepads WHERE id = ?1",
         )?;
-        let result = stmt.query_row(rusqlite::params![id.to_string()], |row| {
-            let tags_json: String = row.get(4)?;
-            let id_str: String = row.get(0)?;
-            let created_str: String = row.get(6)?;
-            let updated_str: String = row.get(7)?;
-            let pinned_int: i32 = row.get(5)?;
-            Ok(Notepad {
-                id: Uuid::parse_str(&id_str).unwrap_or_default(),
-                title: row.get(1)?,
-                content: row.get(2)?,
-                description: row.get(3)?,
-                tags: serde_json::from_str(&tags_json).unwrap_or_default(),
-                pinned: pinned_int != 0,
-                created_at: DateTime::parse_from_rfc3339(&created_str)
-                    .map(|dt| dt.with_timezone(&Utc))
-                    .unwrap_or_else(|_| Utc::now()),
-                updated_at: DateTime::parse_from_rfc3339(&updated_str)
-                    .map(|dt| dt.with_timezone(&Utc))
-                    .unwrap_or_else(|_| Utc::now()),
-            })
-        });
+        let result = stmt.query_row(rusqlite::params![id.to_string()], row_to_notepad);
         match result {
             Ok(notepad) => Ok(Some(notepad)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),

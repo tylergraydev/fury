@@ -7,15 +7,19 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use tantivy::collector::TopDocs;
-use tantivy::query::QueryParser;
-use tantivy::schema::Value;
 use tantivy::directory::MmapDirectory;
-use tantivy::{doc, Index, IndexReader, TantivyDocument};
+use tantivy::query::QueryParser;
+use tantivy::schema::{Field, Value};
+use tantivy::{doc, Index, IndexReader, TantivyDocument, TantivyError};
 
 use crate::error::AppError;
 use crate::models::codebase_search::CodeSearchResult;
 
 /// A codebase search index backed by Tantivy.
+///
+/// All fields are `Send + Sync` (tantivy's `Index`, `IndexReader`, `PathBuf`,
+/// and `HashMap<PathBuf, u64>`), so `CodebaseIndex` is automatically `Send`
+/// without any unsafe impl.
 pub struct CodebaseIndex {
     index: Index,
     reader: IndexReader,
@@ -24,12 +28,15 @@ pub struct CodebaseIndex {
     file_hashes: HashMap<PathBuf, u64>,
 }
 
-// CodebaseIndex holds an IndexReader which is Send + Sync.
-// The IndexWriter is created on demand and not stored.
-unsafe impl Send for CodebaseIndex {}
-
 impl CodebaseIndex {
     /// Open an existing index or create a new one at the given directory.
+    ///
+    /// If the on-disk index can't be opened because its schema differs from
+    /// the current schema (e.g. after an upgrade that added a field), the
+    /// index is recreated. For all other open failures — IO errors, a stuck
+    /// lock, a partially-written meta.json — the error is propagated so the
+    /// caller can decide what to do. We no longer nuke the directory on an
+    /// unclassified error.
     pub fn open_or_create(index_dir: &Path) -> Result<Self, AppError> {
         let schema = schema::build_schema();
 
@@ -39,16 +46,34 @@ impl CodebaseIndex {
             let mmap_dir = MmapDirectory::open(index_dir)
                 .map_err(|e| AppError::InternalError(format!("Failed to open directory: {}", e)))?;
             match Index::open(mmap_dir) {
-                Ok(idx) => idx,
+                Ok(idx) => {
+                    // Sanity-check the on-disk schema against the current
+                    // expected schema. If any field name we rely on is
+                    // missing, treat it as a schema drift and recreate.
+                    if !has_all_expected_fields(&idx) {
+                        eprintln!(
+                            "[codebase-index] schema drift detected at {:?}, recreating",
+                            index_dir
+                        );
+                        recreate_index(index_dir, schema)?
+                    } else {
+                        idx
+                    }
+                }
+                Err(TantivyError::SchemaError(msg)) => {
+                    eprintln!(
+                        "[codebase-index] schema error at {:?} ({}), recreating",
+                        index_dir, msg
+                    );
+                    recreate_index(index_dir, schema)?
+                }
                 Err(e) => {
-                    // Schema mismatch — recreate
-                    eprintln!("Warning: failed to open existing index ({}), recreating...", e);
-                    std::fs::remove_dir_all(index_dir)?;
-                    std::fs::create_dir_all(index_dir)?;
-                    let new_dir = MmapDirectory::open(index_dir)
-                        .map_err(|e| AppError::InternalError(format!("Failed to open directory: {}", e)))?;
-                    Index::create(new_dir, schema, tantivy::IndexSettings::default())
-                        .map_err(|e| AppError::InternalError(format!("Failed to create index: {}", e)))?
+                    // Any other failure (IO error, lock held, partial meta)
+                    // is surfaced rather than silently destroying the index.
+                    return Err(AppError::InternalError(format!(
+                        "Failed to open existing index at {:?}: {}",
+                        index_dir, e
+                    )));
                 }
             }
         } else {
@@ -70,6 +95,13 @@ impl CodebaseIndex {
             index_dir: index_dir.to_path_buf(),
             file_hashes: HashMap::new(),
         })
+    }
+
+    /// Resolve every field we reference up-front. Returning `AppError` here
+    /// means a schema drift panics during `spawn_blocking` is impossible —
+    /// it becomes a regular error instead.
+    fn fields(&self) -> Result<Fields, AppError> {
+        Fields::resolve(&self.index.schema())
     }
 
     /// Index all files in a repository.
@@ -98,16 +130,7 @@ impl CodebaseIndex {
 
         self.file_hashes.clear();
 
-        let schema = self.index.schema();
-        let field_file_path = schema.get_field(schema::FIELD_FILE_PATH).unwrap();
-        let field_chunk_id = schema.get_field(schema::FIELD_CHUNK_ID).unwrap();
-        let field_content = schema.get_field(schema::FIELD_CONTENT).unwrap();
-        let field_language = schema.get_field(schema::FIELD_LANGUAGE).unwrap();
-        let field_kind = schema.get_field(schema::FIELD_KIND).unwrap();
-        let field_start_line = schema.get_field(schema::FIELD_START_LINE).unwrap();
-        let field_end_line = schema.get_field(schema::FIELD_END_LINE).unwrap();
-        let field_file_modified = schema.get_field(schema::FIELD_FILE_MODIFIED).unwrap();
-        let field_symbol_name = schema.get_field(schema::FIELD_SYMBOL_NAME).unwrap();
+        let f = self.fields()?;
 
         let mut files_indexed = 0u32;
         let mut chunks_indexed = 0u32;
@@ -119,10 +142,19 @@ impl CodebaseIndex {
                 .to_string_lossy()
                 .to_string();
 
-            // Read file content
+            // Read file content. Skip silently only for the expected cases
+            // (non-UTF8 binary content). Log other errors so permission
+            // problems don't silently exclude half the repo from the index.
             let content = match std::fs::read_to_string(file_path) {
                 Ok(c) => c,
-                Err(_) => continue, // Skip unreadable files (binary, permission, etc.)
+                Err(e) if e.kind() == std::io::ErrorKind::InvalidData => continue,
+                Err(e) => {
+                    eprintln!(
+                        "[codebase-index] Skipping unreadable file {:?}: {}",
+                        file_path, e
+                    );
+                    continue;
+                }
             };
 
             // Compute content hash for incremental updates
@@ -141,15 +173,15 @@ impl CodebaseIndex {
                 let chunk_id = format!("{}:{}:{}", relative, chunk.start_line, chunk.end_line);
 
                 writer.add_document(doc!(
-                    field_file_path => relative.clone(),
-                    field_chunk_id => chunk_id,
-                    field_content => chunk.content.clone(),
-                    field_language => lang_str.to_string(),
-                    field_kind => chunk.kind.as_str().to_string(),
-                    field_start_line => chunk.start_line as u64,
-                    field_end_line => chunk.end_line as u64,
-                    field_file_modified => mtime,
-                    field_symbol_name => chunk.symbol_name.clone().unwrap_or_default(),
+                    f.file_path => relative.clone(),
+                    f.chunk_id => chunk_id,
+                    f.content => chunk.content.clone(),
+                    f.language => lang_str.to_string(),
+                    f.kind => chunk.kind.as_str().to_string(),
+                    f.start_line => chunk.start_line as u64,
+                    f.end_line => chunk.end_line as u64,
+                    f.file_modified => mtime,
+                    f.symbol_name => chunk.symbol_name.clone().unwrap_or_default(),
                 )).map_err(|e| AppError::InternalError(format!("Failed to add document: {}", e)))?;
 
                 chunks_indexed += 1;
@@ -190,16 +222,7 @@ impl CodebaseIndex {
             .writer(50_000_000)
             .map_err(|e| AppError::InternalError(format!("Failed to create writer: {}", e)))?;
 
-        let schema = self.index.schema();
-        let field_file_path = schema.get_field(schema::FIELD_FILE_PATH).unwrap();
-        let field_chunk_id = schema.get_field(schema::FIELD_CHUNK_ID).unwrap();
-        let field_content = schema.get_field(schema::FIELD_CONTENT).unwrap();
-        let field_language = schema.get_field(schema::FIELD_LANGUAGE).unwrap();
-        let field_kind = schema.get_field(schema::FIELD_KIND).unwrap();
-        let field_start_line = schema.get_field(schema::FIELD_START_LINE).unwrap();
-        let field_end_line = schema.get_field(schema::FIELD_END_LINE).unwrap();
-        let field_file_modified = schema.get_field(schema::FIELD_FILE_MODIFIED).unwrap();
-        let field_symbol_name = schema.get_field(schema::FIELD_SYMBOL_NAME).unwrap();
+        let f = self.fields()?;
 
         for file_path in changed_paths {
             let relative = file_path
@@ -209,14 +232,21 @@ impl CodebaseIndex {
                 .to_string();
 
             // Delete old documents for this file
-            let term = tantivy::Term::from_field_text(field_file_path, &relative);
+            let term = tantivy::Term::from_field_text(f.file_path, &relative);
             writer.delete_term(term);
 
             // If file still exists, re-index it
             if file_path.exists() {
                 let content = match std::fs::read_to_string(file_path) {
                     Ok(c) => c,
-                    Err(_) => continue,
+                    Err(e) if e.kind() == std::io::ErrorKind::InvalidData => continue,
+                    Err(e) => {
+                        eprintln!(
+                            "[codebase-index] Skipping unreadable file {:?}: {}",
+                            file_path, e
+                        );
+                        continue;
+                    }
                 };
 
                 // Check if content actually changed
@@ -237,15 +267,15 @@ impl CodebaseIndex {
                     let chunk_id =
                         format!("{}:{}:{}", relative, chunk.start_line, chunk.end_line);
                     writer.add_document(doc!(
-                        field_file_path => relative.clone(),
-                        field_chunk_id => chunk_id,
-                        field_content => chunk.content.clone(),
-                        field_language => lang_str.to_string(),
-                        field_kind => chunk.kind.as_str().to_string(),
-                        field_start_line => chunk.start_line as u64,
-                        field_end_line => chunk.end_line as u64,
-                        field_file_modified => mtime,
-                        field_symbol_name => chunk.symbol_name.clone().unwrap_or_default(),
+                        f.file_path => relative.clone(),
+                        f.chunk_id => chunk_id,
+                        f.content => chunk.content.clone(),
+                        f.language => lang_str.to_string(),
+                        f.kind => chunk.kind.as_str().to_string(),
+                        f.start_line => chunk.start_line as u64,
+                        f.end_line => chunk.end_line as u64,
+                        f.file_modified => mtime,
+                        f.symbol_name => chunk.symbol_name.clone().unwrap_or_default(),
                     )).map_err(|e| {
                         AppError::InternalError(format!("Failed to add document: {}", e))
                     })?;
@@ -269,10 +299,9 @@ impl CodebaseIndex {
 
     /// Search the index for the given query, returning the top N results.
     pub fn search(&self, query: &str, limit: usize) -> Result<Vec<CodeSearchResult>, AppError> {
-        let schema = self.index.schema();
-        let field_content = schema.get_field(schema::FIELD_CONTENT).unwrap();
+        let f = self.fields()?;
 
-        let query_parser = QueryParser::for_index(&self.index, vec![field_content]);
+        let query_parser = QueryParser::for_index(&self.index, vec![f.content]);
         let parsed_query = query_parser
             .parse_query(query)
             .map_err(|e| AppError::InternalError(format!("Failed to parse query: {}", e)))?;
@@ -282,7 +311,7 @@ impl CodebaseIndex {
             .search(&parsed_query, &TopDocs::with_limit(limit))
             .map_err(|e| AppError::InternalError(format!("Search failed: {}", e)))?;
 
-        self.extract_results(&searcher, &top_docs)
+        self.extract_results(&searcher, &top_docs, &f)
     }
 
     /// Search the index for symbols matching the given query.
@@ -291,10 +320,9 @@ impl CodebaseIndex {
         query: &str,
         limit: usize,
     ) -> Result<Vec<CodeSearchResult>, AppError> {
-        let schema = self.index.schema();
-        let field_symbol_name = schema.get_field(schema::FIELD_SYMBOL_NAME).unwrap();
+        let f = self.fields()?;
 
-        let query_parser = QueryParser::for_index(&self.index, vec![field_symbol_name]);
+        let query_parser = QueryParser::for_index(&self.index, vec![f.symbol_name]);
         let parsed_query = query_parser
             .parse_query(query)
             .map_err(|e| AppError::InternalError(format!("Failed to parse query: {}", e)))?;
@@ -304,36 +332,28 @@ impl CodebaseIndex {
             .search(&parsed_query, &TopDocs::with_limit(limit))
             .map_err(|e| AppError::InternalError(format!("Search failed: {}", e)))?;
 
-        self.extract_results(&searcher, &top_docs)
+        self.extract_results(&searcher, &top_docs, &f)
     }
 
     fn extract_results(
         &self,
         searcher: &tantivy::Searcher,
         top_docs: &[(f32, tantivy::DocAddress)],
+        f: &Fields,
     ) -> Result<Vec<CodeSearchResult>, AppError> {
-        let schema = self.index.schema();
-        let field_file_path = schema.get_field(schema::FIELD_FILE_PATH).unwrap();
-        let field_content = schema.get_field(schema::FIELD_CONTENT).unwrap();
-        let field_kind = schema.get_field(schema::FIELD_KIND).unwrap();
-        let field_language = schema.get_field(schema::FIELD_LANGUAGE).unwrap();
-        let field_start_line = schema.get_field(schema::FIELD_START_LINE).unwrap();
-        let field_end_line = schema.get_field(schema::FIELD_END_LINE).unwrap();
-        let field_symbol_name = schema.get_field(schema::FIELD_SYMBOL_NAME).unwrap();
-
         let mut results = Vec::new();
         for (score, doc_address) in top_docs {
             let doc: TantivyDocument = searcher
                 .doc(*doc_address)
                 .map_err(|e| AppError::InternalError(format!("Failed to fetch doc: {}", e)))?;
 
-            let file_path = doc.get_first(field_file_path).and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let content = doc.get_first(field_content).and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let kind = doc.get_first(field_kind).and_then(|v| v.as_str()).unwrap_or("block").to_string();
-            let language = doc.get_first(field_language).and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-            let start_line = doc.get_first(field_start_line).and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-            let end_line = doc.get_first(field_end_line).and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-            let symbol_name_val = doc.get_first(field_symbol_name).and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let file_path = doc.get_first(f.file_path).and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let content = doc.get_first(f.content).and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let kind = doc.get_first(f.kind).and_then(|v| v.as_str()).unwrap_or("block").to_string();
+            let language = doc.get_first(f.language).and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+            let start_line = doc.get_first(f.start_line).and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+            let end_line = doc.get_first(f.end_line).and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+            let symbol_name_val = doc.get_first(f.symbol_name).and_then(|v| v.as_str()).unwrap_or("").to_string();
 
             results.push(CodeSearchResult {
                 file_path,
@@ -368,6 +388,59 @@ impl CodebaseIndex {
 pub struct IndexStats {
     pub files_indexed: u32,
     pub chunks_indexed: u32,
+}
+
+/// Resolved handles to every schema field the indexer/searcher uses.
+struct Fields {
+    file_path: Field,
+    chunk_id: Field,
+    content: Field,
+    language: Field,
+    kind: Field,
+    start_line: Field,
+    end_line: Field,
+    file_modified: Field,
+    symbol_name: Field,
+}
+
+impl Fields {
+    fn resolve(schema: &tantivy::schema::Schema) -> Result<Self, AppError> {
+        let get = |name: &str| -> Result<Field, AppError> {
+            schema
+                .get_field(name)
+                .map_err(|e| AppError::InternalError(format!("Missing schema field {}: {}", name, e)))
+        };
+        Ok(Fields {
+            file_path: get(schema::FIELD_FILE_PATH)?,
+            chunk_id: get(schema::FIELD_CHUNK_ID)?,
+            content: get(schema::FIELD_CONTENT)?,
+            language: get(schema::FIELD_LANGUAGE)?,
+            kind: get(schema::FIELD_KIND)?,
+            start_line: get(schema::FIELD_START_LINE)?,
+            end_line: get(schema::FIELD_END_LINE)?,
+            file_modified: get(schema::FIELD_FILE_MODIFIED)?,
+            symbol_name: get(schema::FIELD_SYMBOL_NAME)?,
+        })
+    }
+}
+
+/// Check that the on-disk index still exposes every field the current code
+/// expects. Used to detect schema drift before attempting to write to it.
+fn has_all_expected_fields(index: &Index) -> bool {
+    Fields::resolve(&index.schema()).is_ok()
+}
+
+/// Wipe and rebuild the index directory with a fresh schema.
+fn recreate_index(
+    index_dir: &Path,
+    schema: tantivy::schema::Schema,
+) -> Result<Index, AppError> {
+    std::fs::remove_dir_all(index_dir)?;
+    std::fs::create_dir_all(index_dir)?;
+    let new_dir = MmapDirectory::open(index_dir)
+        .map_err(|e| AppError::InternalError(format!("Failed to open directory: {}", e)))?;
+    Index::create(new_dir, schema, tantivy::IndexSettings::default())
+        .map_err(|e| AppError::InternalError(format!("Failed to create index: {}", e)))
 }
 
 /// Simple FNV-1a hash for quick content comparison.
