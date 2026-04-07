@@ -79,10 +79,6 @@ async function copilotNotifyAccepted(uuid: string): Promise<void> {
   return instrumentedInvoke("copilot_notify_accepted", { uuid });
 }
 
-async function copilotNotifyRejected(uuids: string[]): Promise<void> {
-  return instrumentedInvoke("copilot_notify_rejected", { uuids });
-}
-
 // --- Document tracking ---
 
 const openDocuments = new Map<
@@ -383,25 +379,30 @@ export function registerCopilotProvider(): void {
 function mapCompletionItems(result: CompletionResult): monaco.languages.InlineCompletion[] {
   return result.items.map((item) => {
     const uuid = extractCompletionUuid(item.command);
-    const mapped: monaco.languages.InlineCompletion = {
-      insertText: item.insertText,
-      range: item.range
-        ? new monaco.Range(
-            item.range.start.line + 1,
-            item.range.start.character + 1,
-            item.range.end.line + 1,
-            item.range.end.character + 1,
-          )
-        : undefined,
-    };
-    // Attach acceptance command if we have a UUID
-    if (uuid) {
-      mapped.command = {
-        id: ACCEPT_COMMAND_ID,
-        title: "Copilot Completion Accepted",
-        arguments: [uuid],
-      };
-    }
+    const range = item.range
+      ? new monaco.Range(
+          item.range.start.line + 1,
+          item.range.start.character + 1,
+          item.range.end.line + 1,
+          item.range.end.character + 1,
+        )
+      : undefined;
+    // `command` is readonly on the Monaco type, so we must build the whole
+    // object at construction time rather than assigning it after.
+    const mapped: monaco.languages.InlineCompletion = uuid
+      ? {
+          insertText: item.insertText,
+          range,
+          command: {
+            id: ACCEPT_COMMAND_ID,
+            title: "Copilot Completion Accepted",
+            arguments: [uuid],
+          },
+        }
+      : {
+          insertText: item.insertText,
+          range,
+        };
     return mapped;
   });
 }

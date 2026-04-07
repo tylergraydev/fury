@@ -1,7 +1,18 @@
 import { instrumentedInvoke as invoke } from "../ipcInstrumentation";
-import type { CodeSearchResult, IndexProgress, IndexingStatus } from "./bindings.generated";
+import type { CodeSearchResult } from "./bindings.generated";
 
-export type { CodeSearchResult, IndexProgress };
+/// Progress payload for `codebase-index-progress:{repoId}` stream events.
+/// Mirrors `crate::models::codebase_search::IndexProgress` in Rust. Defined
+/// manually because specta only generates types that appear in command
+/// signatures, and this one is only used in `emit()` calls.
+export interface IndexProgress {
+  repoId: string;
+  filesIndexed: number;
+  totalFiles: number;
+  currentFile: string | null;
+}
+
+export type { CodeSearchResult };
 
 export async function searchCodebase(
   repoId: string,
@@ -37,6 +48,3 @@ export async function getCodebaseIndexStats(
   return invoke("get_codebase_index_stats", { repoId });
 }
 
-export async function getIndexingStatus(repoId: string): Promise<IndexingStatus> {
-  return invoke("get_indexing_status", { repoId });
-}
