@@ -290,6 +290,14 @@ fn specta_builder() -> tauri_specta::Builder {
             // Inline edit commands
             commands::inline_edit::inline_edit,
             commands::inline_edit::cancel_inline_edit,
+            // Memory commands
+            commands::memory::list_memory_observations,
+            commands::memory::search_memory,
+            commands::memory::get_memory_snapshots,
+            commands::memory::get_memory_context,
+            commands::memory::save_memory_learning,
+            commands::memory::clear_workspace_memory,
+            commands::memory::prune_memory_observations,
         ]);
 
     builder

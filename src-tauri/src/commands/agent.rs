@@ -423,10 +423,39 @@ pub async fn send_message(
         vec![]
     };
 
-    // Get system prompt additions
+    // Get system prompt additions + memory context (Layer 1)
+    let repo_id_for_memory = if let Some(workspace_id) = request.workspace_id {
+        let workspaces = state.workspaces.read().unwrap();
+        workspaces.get(&workspace_id).map(|ws| ws.repo_id.to_string())
+    } else {
+        request.repo_id.map(|id| id.to_string())
+    };
+
     let system_prompt = {
         let settings = state.settings.read().unwrap();
-        settings.system_prompt_additions.clone()
+        let base_prompt = settings.system_prompt_additions.clone();
+
+        // Build memory context from DB snapshots
+        let memory_context = {
+            let ws_id = context_id.to_string();
+
+            if let Some(rid) = repo_id_for_memory.as_deref() {
+                let db_guard = state.db.lock().unwrap_or_else(|e| e.into_inner());
+                db_guard.as_ref().and_then(|db| {
+                    db.build_memory_context(&ws_id, rid).ok().flatten()
+                })
+            } else {
+                None
+            }
+        };
+
+        // Combine: base prompt + memory context
+        match (base_prompt, memory_context) {
+            (Some(base), Some(mem)) => Some(format!("{}\n\n{}", base, mem)),
+            (Some(base), None) => Some(base),
+            (None, Some(mem)) => Some(mem),
+            (None, None) => None,
+        }
     };
 
     let (disable_thinking, disable_plan_mode) = extract_toggle_flags(&request);
@@ -493,6 +522,8 @@ pub async fn send_message(
             env_vars: Some(env_vars),
             additional_dirs: Some(linked_dirs.iter().map(|d| d.to_string_lossy().to_string()).collect()),
             disable_thinking: Some(disable_thinking),
+            repo_id: repo_id_for_memory.clone(),
+            memory_enabled: Some(true),
         };
 
         let mut guard = state.agent_sidecar.lock().await;
@@ -755,7 +786,7 @@ pub async fn send_followup_message(
     };
 
     // Bug #4 fix: Look up workspace, repo, and build env vars + system prompt
-    let (cwd, env_vars) = {
+    let (cwd, env_vars, repo_id_for_memory) = {
         let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&id)
@@ -770,7 +801,7 @@ pub async fn send_followup_message(
         let repo_settings = crate::commands::script::resolve_settings(&state, &repo.id).ok();
         let provider_override = repo_settings.as_ref().and_then(|s| s.provider_override.as_ref());
         let env = claude_process::build_env_vars(&ws, &repo, &settings, provider_override);
-        (ws.worktree_path.to_string_lossy().to_string(), env)
+        (ws.worktree_path.to_string_lossy().to_string(), env, ws.repo_id.to_string())
     };
 
     // Read system prompt from settings
@@ -809,6 +840,8 @@ pub async fn send_followup_message(
         env_vars: Some(env_vars),
         additional_dirs: Some(linked_dirs),
         disable_thinking: None,
+        repo_id: Some(repo_id_for_memory),
+        memory_enabled: Some(true),
     };
 
     let mut guard = state.agent_sidecar.lock().await;

@@ -6,6 +6,7 @@ import type {
   PermissionResponseCommand,
   InterruptCommand,
 } from "./protocol.js";
+import { MemoryStore, extractObservation, createMemoryMcpServer } from "./memory/index.js";
 
 // Track active queries and pending permissions per workspace
 const activeQueries = new Map<string, { abort: () => void }>();
@@ -33,6 +34,8 @@ async function handleQuery(cmd: QueryCommand): Promise<void> {
     envVars,
     additionalDirs,
     disableThinking,
+    repoId,
+    memoryEnabled,
   } = cmd;
 
   // Build env: inherit current process.env and overlay workspace-specific vars
@@ -109,6 +112,60 @@ async function handleQuery(cmd: QueryCommand): Promise<void> {
     if (disallowedTools) options.disallowedTools = disallowedTools;
     if (additionalDirs) options.additionalDirectories = additionalDirs;
     if (disableThinking) options.thinking = { type: "disabled" };
+
+    // --- Memory System (Layers 2 & 3) ---
+    let memoryStore: MemoryStore | null = null;
+    if (memoryEnabled !== false) {
+      memoryStore = new MemoryStore(id, repoId || "", emit);
+
+      // Layer 2: Hook-based observation extraction
+      options.hooks = {
+        PostToolUse: [{
+          hooks: [async (input: Record<string, unknown>) => {
+            try {
+              const obs = extractObservation(input as Parameters<typeof extractObservation>[0]);
+              if (obs && memoryStore) {
+                memoryStore.addObservation(obs);
+              }
+            } catch {
+              // Never let memory errors break the agent
+            }
+            return {};
+          }],
+        }],
+        SessionStart: [{
+          hooks: [async (input: Record<string, unknown>) => {
+            if (memoryStore && input.session_id) {
+              memoryStore.setSessionId(input.session_id as string);
+            }
+            return {};
+          }],
+        }],
+        SessionEnd: [{
+          hooks: [async () => {
+            try {
+              if (memoryStore) {
+                memoryStore.compressAndEmit();
+              }
+            } catch {
+              // Never let memory errors break the agent
+            }
+            return {};
+          }],
+        }],
+      };
+
+      // Layer 3: In-process MCP server for on-demand memory access
+      try {
+        const memoryMcpServer = createMemoryMcpServer(memoryStore);
+        options.mcpServers = {
+          ...(options.mcpServers as Record<string, unknown> || {}),
+          "fury-memory": memoryMcpServer,
+        };
+      } catch {
+        // MCP server creation failed — continue without it
+      }
+    }
 
     const q = sdkQuery({
       prompt,

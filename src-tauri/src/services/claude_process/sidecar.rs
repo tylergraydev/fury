@@ -45,6 +45,10 @@ pub enum SidecarCommand {
         additional_dirs: Option<Vec<String>>,
         #[serde(rename = "disableThinking", skip_serializing_if = "Option::is_none")]
         disable_thinking: Option<bool>,
+        #[serde(rename = "repoId", skip_serializing_if = "Option::is_none")]
+        repo_id: Option<String>,
+        #[serde(rename = "memoryEnabled", skip_serializing_if = "Option::is_none")]
+        memory_enabled: Option<bool>,
     },
     PermissionResponse {
         id: String,
@@ -195,6 +199,51 @@ pub(crate) fn handle_sidecar_line<R: tauri::Runtime>(
     db: &Arc<Mutex<Option<Database>>>,
 ) -> Result<(), String> {
     let (workspace_id, raw) = parse_sidecar_line_id(line)?;
+
+    // Handle memory observation events from hooks (Layer 2)
+    if raw.get("type").and_then(|v| v.as_str()) == Some("memory_observation") {
+        if let Some(obs_data) = raw.get("observation") {
+            if let Ok(obs_event) = serde_json::from_value::<crate::models::memory::MemoryObservationEvent>(obs_data.clone()) {
+                // Resolve repo_id from workspace
+                let repo_id = raw.get("repo_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let observation = crate::models::memory::MemoryObservation {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    workspace_id: workspace_id.to_string(),
+                    repo_id,
+                    session_id: obs_event.session_id,
+                    observation_type: obs_event.observation_type,
+                    content: obs_event.content,
+                    compressed_content: None,
+                    source_tool: obs_event.source_tool,
+                    file_paths: obs_event.file_paths,
+                    tokens_raw: None,
+                    tokens_compressed: None,
+                    created_at: chrono::Utc::now().to_rfc3339(),
+                    accessed_at: None,
+                };
+                if let Ok(guard) = db.lock() {
+                    if let Some(database) = guard.as_ref() {
+                        let _ = database.insert_memory_observation(&observation);
+                    }
+                }
+            }
+        }
+        return Ok(()); // Memory events don't get forwarded to frontend
+    }
+
+    // Handle memory snapshot events (compressed observations)
+    if raw.get("type").and_then(|v| v.as_str()) == Some("memory_snapshot") {
+        if let Ok(snapshot) = serde_json::from_value::<crate::models::memory::MemorySnapshot>(
+            raw.get("snapshot").cloned().unwrap_or_default(),
+        ) {
+            if let Ok(guard) = db.lock() {
+                if let Some(database) = guard.as_ref() {
+                    let _ = database.upsert_memory_snapshot(&snapshot);
+                }
+            }
+        }
+        return Ok(()); // Memory events don't get forwarded to frontend
+    }
 
     // Parse stream events using the existing parser
     let events = super::parse_stream_line(line);
