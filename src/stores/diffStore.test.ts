@@ -10,6 +10,10 @@ vi.mock("../lib/tauri", () => ({
 }));
 
 import { useDiffStore } from "./diffStore";
+import { useToastStore } from "./toastStore";
+import { useChatStore } from "./chatStore";
+import { useAgentStore } from "./agentStore";
+import { useWorkspaceStore } from "./workspaceStore";
 import {
   getDiff,
   getFileDiff,
@@ -443,5 +447,66 @@ describe("diffStore - clearPatchPreviews", () => {
     expect(useDiffStore.getState().patchPreviews["ws-2:c.ts"]).toBeTruthy();
     expect(useDiffStore.getState().patchLoading["ws-1:a.ts"]).toBeUndefined();
     expect(useDiffStore.getState().patchLoading["ws-2:c.ts"]).toBe(true);
+  });
+});
+
+describe("diffStore - error toast with Ask Chat", () => {
+  beforeEach(() => {
+    useWorkspaceStore.setState({ activeWorkspaceId: "ws-1" } as any);
+    useToastStore.setState({ toasts: [] });
+  });
+
+  it("shows error toast with Ask Chat action on loadDiff failure", async () => {
+    vi.mocked(getDiff).mockRejectedValue(new Error("git error"));
+    await useDiffStore.getState().loadDiff("ws-1");
+
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0].type).toBe("error");
+    expect(toasts[0].message).toBe("Error: git error");
+    expect(toasts[0].action).toBeDefined();
+    expect(toasts[0].action!.label).toBe("Ask Chat");
+  });
+
+  it("shows error toast with Ask Chat action on loadRepoDiff failure", async () => {
+    vi.mocked(getRepoDiff).mockRejectedValue(new Error("repo error"));
+    await useDiffStore.getState().loadRepoDiff("repo-1");
+
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0].type).toBe("error");
+    expect(toasts[0].message).toBe("Error: repo error");
+    expect(toasts[0].action!.label).toBe("Ask Chat");
+  });
+
+  it("sends error to chat when Ask Chat is clicked", async () => {
+    const addUserMessage = vi.fn();
+    const sendMessage = vi.fn().mockResolvedValue(undefined);
+    useChatStore.setState({ addUserMessage } as any);
+    useAgentStore.setState({ sendMessage } as any);
+
+    vi.mocked(getDiff).mockRejectedValue(new Error("git error"));
+    await useDiffStore.getState().loadDiff("ws-1");
+
+    const toast = useToastStore.getState().toasts[0];
+    toast.action!.onClick();
+
+    expect(addUserMessage).toHaveBeenCalledWith(
+      "ws-1",
+      expect.stringContaining("git error"),
+    );
+    expect(sendMessage).toHaveBeenCalledWith(
+      "ws-1",
+      expect.stringContaining("git error"),
+      "workspace",
+    );
+  });
+
+  it("does not show toast when no active workspace", async () => {
+    useWorkspaceStore.setState({ activeWorkspaceId: null } as any);
+    vi.mocked(getDiff).mockRejectedValue(new Error("git error"));
+    await useDiffStore.getState().loadDiff("ws-1");
+
+    expect(useToastStore.getState().toasts).toHaveLength(0);
   });
 });
