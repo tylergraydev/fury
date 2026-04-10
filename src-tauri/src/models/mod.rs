@@ -9,6 +9,7 @@ pub mod export;
 pub mod linear;
 pub mod lsp;
 pub mod mcp;
+pub mod memory;
 pub mod merge;
 pub mod pr;
 pub mod prompt;

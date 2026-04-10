@@ -14,6 +14,10 @@ export type SidecarCommand =
       envVars?: Record<string, string>;
       additionalDirs?: string[];
       disableThinking?: boolean;
+      repoId?: string; // for memory scoping
+      memoryEnabled?: boolean; // enable memory system
+      mempalacePythonCmd?: string; // python command for MemPalace MCP server
+      mempalacePalacePath?: string; // palace directory path
     }
   | { type: "permission_response"; id: string; approved: boolean; updatedPermissions?: unknown[]; decisionClassification?: string; updatedInput?: Record<string, unknown> }
   | { type: "interrupt"; id: string }

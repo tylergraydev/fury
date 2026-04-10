@@ -423,10 +423,36 @@ pub async fn send_message(
         vec![]
     };
 
-    // Get system prompt additions
-    let system_prompt = {
+    // Get system prompt additions + memory context (Layer 1)
+    let repo_id_for_memory = if let Some(workspace_id) = request.workspace_id {
+        let workspaces = state.workspaces.read().unwrap();
+        workspaces.get(&workspace_id).map(|ws| ws.repo_id.to_string())
+    } else {
+        request.repo_id.map(|id| id.to_string())
+    };
+
+    let base_prompt = {
         let settings = state.settings.read().unwrap();
         settings.system_prompt_additions.clone()
+    };
+
+    // Build memory context from DB snapshots (via spawn_blocking to avoid blocking executor)
+    let memory_context = if let Some(rid) = repo_id_for_memory.as_deref() {
+        let ws_id = context_id.to_string();
+        let rid = rid.to_string();
+        state
+            .with_db(move |db| Ok(db.build_memory_context(&ws_id, &rid).ok().flatten()))
+            .await
+            .unwrap_or(None)
+    } else {
+        None
+    };
+
+    let system_prompt = match (base_prompt, memory_context) {
+        (Some(base), Some(mem)) => Some(format!("{}\n\n{}", base, mem)),
+        (Some(base), None) => Some(base),
+        (None, Some(mem)) => Some(mem),
+        (None, None) => None,
     };
 
     let (disable_thinking, disable_plan_mode) = extract_toggle_flags(&request);
@@ -482,7 +508,7 @@ pub async fn send_message(
         // race conditions where concurrent callers find the handle missing.
         let permission_mode = resolve_permission_mode(disable_plan_mode);
 
-        let cmd = claude_process::SidecarCommand::Query {
+        let mut cmd = claude_process::SidecarCommand::Query {
             id: context_id.to_string(),
             prompt: request.message.clone(),
             cwd: working_dir.to_string_lossy().to_string(),
@@ -493,7 +519,27 @@ pub async fn send_message(
             env_vars: Some(env_vars),
             additional_dirs: Some(linked_dirs.iter().map(|d| d.to_string_lossy().to_string()).collect()),
             disable_thinking: Some(disable_thinking),
+            repo_id: repo_id_for_memory.clone(),
+            memory_enabled: Some(true),
+            mempalace_python_cmd: None,
+            mempalace_palace_path: None,
         };
+
+        // If MemPalace is enabled, detect and populate config
+        {
+            let mp_settings = state.settings.read().unwrap().mempalace.clone();
+            if mp_settings.enabled {
+                if let Some(py_cmd) = crate::services::mempalace::detect_python(mp_settings.python_command.as_deref()).await {
+                    if crate::services::mempalace::detect_mempalace(&py_cmd).await.is_some() {
+                        let palace_path = crate::services::mempalace::resolve_palace_path(mp_settings.palace_path.as_deref());
+                        if let claude_process::SidecarCommand::Query { ref mut mempalace_python_cmd, ref mut mempalace_palace_path, .. } = cmd {
+                            *mempalace_python_cmd = Some(py_cmd);
+                            *mempalace_palace_path = Some(palace_path);
+                        }
+                    }
+                }
+            }
+        }
 
         let mut guard = state.agent_sidecar.lock().await;
         if guard.is_none() {
@@ -755,7 +801,7 @@ pub async fn send_followup_message(
     };
 
     // Bug #4 fix: Look up workspace, repo, and build env vars + system prompt
-    let (cwd, env_vars) = {
+    let (cwd, env_vars, repo_id_for_memory) = {
         let workspaces = state.workspaces.read().unwrap();
         let ws = workspaces
             .get(&id)
@@ -770,13 +816,30 @@ pub async fn send_followup_message(
         let repo_settings = crate::commands::script::resolve_settings(&state, &repo.id).ok();
         let provider_override = repo_settings.as_ref().and_then(|s| s.provider_override.as_ref());
         let env = claude_process::build_env_vars(&ws, &repo, &settings, provider_override);
-        (ws.worktree_path.to_string_lossy().to_string(), env)
+        (ws.worktree_path.to_string_lossy().to_string(), env, ws.repo_id.to_string())
     };
 
-    // Read system prompt from settings
-    let system_prompt = {
+    // Read system prompt from settings + memory context (Layer 1)
+    let base_prompt = {
         let settings = state.settings.read().unwrap();
         settings.system_prompt_additions.clone()
+    };
+
+    // Build memory context from DB snapshots (via spawn_blocking)
+    let memory_context = {
+        let rid = repo_id_for_memory.clone();
+        let ws_id = id.to_string();
+        state
+            .with_db(move |db| Ok(db.build_memory_context(&ws_id, &rid).ok().flatten()))
+            .await
+            .unwrap_or(None)
+    };
+
+    let system_prompt = match (base_prompt, memory_context) {
+        (Some(base), Some(mem)) => Some(format!("{}\n\n{}", base, mem)),
+        (Some(base), None) => Some(base),
+        (None, Some(mem)) => Some(mem),
+        (None, None) => None,
     };
 
     // Resolve linked workspace directories
@@ -798,7 +861,7 @@ pub async fn send_followup_message(
 
     let permission_mode = resolve_permission_mode(disable_plan_mode);
 
-    let cmd = claude_process::SidecarCommand::Query {
+    let mut cmd = claude_process::SidecarCommand::Query {
         id: id.to_string(),
         prompt: message,
         cwd,
@@ -809,7 +872,27 @@ pub async fn send_followup_message(
         env_vars: Some(env_vars),
         additional_dirs: Some(linked_dirs),
         disable_thinking: None,
+        repo_id: Some(repo_id_for_memory),
+        memory_enabled: Some(true),
+        mempalace_python_cmd: None,
+        mempalace_palace_path: None,
     };
+
+    // If MemPalace is enabled, detect and populate config
+    {
+        let mp_settings = state.settings.read().unwrap().mempalace.clone();
+        if mp_settings.enabled {
+            if let Some(py_cmd) = crate::services::mempalace::detect_python(mp_settings.python_command.as_deref()).await {
+                if crate::services::mempalace::detect_mempalace(&py_cmd).await.is_some() {
+                    let palace_path = crate::services::mempalace::resolve_palace_path(mp_settings.palace_path.as_deref());
+                    if let claude_process::SidecarCommand::Query { ref mut mempalace_python_cmd, ref mut mempalace_palace_path, .. } = cmd {
+                        *mempalace_python_cmd = Some(py_cmd);
+                        *mempalace_palace_path = Some(palace_path);
+                    }
+                }
+            }
+        }
+    }
 
     let mut guard = state.agent_sidecar.lock().await;
     let handle = guard.as_mut().ok_or_else(|| {

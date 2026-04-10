@@ -312,5 +312,59 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
     )
     .map_err(|e| AppError::DbError(e.to_string()))?;
 
+    // Memory system tables — observations extracted from agent sessions
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS memory_observations (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            repo_id TEXT NOT NULL,
+            session_id TEXT,
+            observation_type TEXT NOT NULL,
+            content TEXT NOT NULL,
+            compressed_content TEXT,
+            source_tool TEXT,
+            file_paths TEXT,
+            tokens_raw INTEGER,
+            tokens_compressed INTEGER,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            accessed_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_obs_workspace ON memory_observations(workspace_id);
+        CREATE INDEX IF NOT EXISTS idx_obs_repo ON memory_observations(repo_id);
+        CREATE INDEX IF NOT EXISTS idx_obs_type ON memory_observations(observation_type);
+        ",
+    )
+    .map_err(|e| AppError::DbError(e.to_string()))?;
+
+    // Memory snapshots — compressed summaries used for context injection
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS memory_snapshots (
+            id TEXT PRIMARY KEY,
+            scope TEXT NOT NULL,
+            scope_id TEXT,
+            category TEXT NOT NULL,
+            content TEXT NOT NULL,
+            observation_ids TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            supersedes TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_snap_scope ON memory_snapshots(scope, scope_id);
+        ",
+    )
+    .map_err(|e| AppError::DbError(e.to_string()))?;
+
+    // Key-value metadata table for migration flags and misc state
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS kv_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        ",
+    )
+    .map_err(|e| AppError::DbError(e.to_string()))?;
+
     Ok(())
 }

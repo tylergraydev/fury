@@ -12,6 +12,7 @@ import {
   Search,
   Blocks,
   ShieldCheck,
+  Brain,
 } from "lucide-react";
 import { useUIStore } from "../../stores/uiStore";
 import { isMac } from "../../lib/keybindings";
@@ -26,6 +27,7 @@ import {
   CodeSearchTab,
   McpTab,
   CodeIntelTab,
+  MemoryTab,
   MigrationTab,
   ExperimentalTab,
   UpdatesTab,
@@ -41,6 +43,7 @@ const NAV_ITEMS: { tab: SettingsTab; label: string; icon: React.ComponentType<{ 
   { tab: "code-search", label: "Code Search", icon: Search },
   { tab: "mcp", label: "MCP Servers", icon: Server },
   { tab: "code-intel", label: "Code Intelligence", icon: Blocks },
+  { tab: "memory", label: "Memory", icon: Brain },
   { tab: "migration", label: "Migration", icon: ArrowLeftRight },
   { tab: "experimental", label: "Experimental", icon: FlaskConical },
   { tab: "updates", label: "Updates", icon: Download },
@@ -137,6 +140,7 @@ export function AppSettingsPanel() {
         {activeTab === "code-search" && <CodeSearchTab />}
         {activeTab === "mcp" && <McpTab />}
         {activeTab === "code-intel" && <CodeIntelTab />}
+        {activeTab === "memory" && <MemoryTab />}
         {activeTab === "migration" && <MigrationTab />}
         {activeTab === "experimental" && <ExperimentalTab />}
         {activeTab === "updates" && <UpdatesTab />}

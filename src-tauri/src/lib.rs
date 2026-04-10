@@ -290,6 +290,19 @@ fn specta_builder() -> tauri_specta::Builder {
             // Inline edit commands
             commands::inline_edit::inline_edit,
             commands::inline_edit::cancel_inline_edit,
+            // Memory commands
+            commands::memory::list_memory_observations,
+            commands::memory::search_memory,
+            commands::memory::get_memory_snapshots,
+            commands::memory::get_memory_context,
+            commands::memory::save_memory_learning,
+            commands::memory::clear_workspace_memory,
+            commands::memory::prune_memory_observations,
+            // MemPalace commands
+            commands::mempalace::check_mempalace_status,
+            commands::mempalace::initialize_mempalace_palace,
+            commands::mempalace::install_mempalace_package,
+            commands::mempalace::migrate_memory_to_mempalace,
         ]);
 
     builder
