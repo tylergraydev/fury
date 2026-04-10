@@ -185,6 +185,13 @@ export class MemoryStore {
   }
 
   /**
+   * Get all observations (for MemPalace sync).
+   */
+  getAll(): StoredObservation[] {
+    return this.observations;
+  }
+
+  /**
    * Get observation count (for diagnostics).
    */
   get observationCount(): number {

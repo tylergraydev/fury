@@ -29,6 +29,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub claude_context: ClaudeContextSettings,
     #[serde(default)]
+    pub mempalace: MemPalaceSettings,
+    #[serde(default)]
     pub custom_themes: Vec<CustomTheme>,
 }
 
@@ -45,6 +47,7 @@ impl Default for AppSettings {
             linear: LinearSettings::default(),
             azure_devops: AzureDevOpsSettings::default(),
             claude_context: ClaudeContextSettings::default(),
+            mempalace: MemPalaceSettings::default(),
             custom_themes: Vec::new(),
         }
     }
@@ -140,6 +143,26 @@ pub struct ClaudeContextSettings {
     pub openai_api_key: Option<String>,
     pub zilliz_uri: Option<String>,
     pub zilliz_token: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MemPalaceSettings {
+    pub enabled: bool,
+    #[serde(default)]
+    pub palace_path: Option<String>,
+    #[serde(default)]
+    pub python_command: Option<String>,
+}
+
+impl Default for MemPalaceSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            palace_path: None,
+            python_command: None,
+        }
+    }
 }
 
 #[cfg(test)]

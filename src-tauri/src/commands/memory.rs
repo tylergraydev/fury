@@ -64,16 +64,17 @@ pub async fn save_memory_learning(
     state: State<'_, AppState>,
     request: SaveLearningRequest,
 ) -> Result<(), AppError> {
+    let scope_id = if request.scope == "global" {
+        None
+    } else if request.scope == "repo" {
+        Some(request.repo_id.clone())
+    } else {
+        Some(request.workspace_id.clone())
+    };
     let snapshot = MemorySnapshot {
         id: uuid::Uuid::new_v4().to_string(),
         scope: request.scope,
-        scope_id: if request.scope == "global" {
-            None
-        } else if request.scope == "repo" {
-            Some(request.repo_id.clone())
-        } else {
-            Some(request.workspace_id.clone())
-        },
+        scope_id,
         category: request.category,
         content: format!("- {}", request.content),
         observation_ids: vec![],

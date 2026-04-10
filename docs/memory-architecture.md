@@ -1,5 +1,9 @@
 # Fury Memory System — Architecture Design (v2)
 
+> **Note:** This is an internal design document. For user-facing documentation, see [Memory](core/memory.mdx).
+>
+> **Update (v2.1):** Layer 3 now supports [MemPalace](https://github.com/milla-jovovich/mempalace) as an external MCP server for semantic search via ChromaDB. When MemPalace is available, it replaces the in-process MCP server with 19 tools including vector search, knowledge graph queries, and palace navigation. The in-process server remains as a fallback. MemPalace is enabled by default — see Settings > Memory.
+
 ## How Fury Talks to Claude
 
 Fury uses the **Claude Agent SDK** (`@anthropic-ai/claude-agent-sdk`) via a **Node.js sidecar process**. The flow is:

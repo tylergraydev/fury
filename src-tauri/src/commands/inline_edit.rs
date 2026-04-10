@@ -71,6 +71,10 @@ pub async fn inline_edit(
         env_vars: Some(env_vars),
         additional_dirs: None,
         disable_thinking: Some(true),
+        repo_id: None,
+        memory_enabled: None,
+        mempalace_python_cmd: None,
+        mempalace_palace_path: None,
     };
 
     let mut guard = state.agent_sidecar.lock().await;

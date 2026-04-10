@@ -298,6 +298,11 @@ fn specta_builder() -> tauri_specta::Builder {
             commands::memory::save_memory_learning,
             commands::memory::clear_workspace_memory,
             commands::memory::prune_memory_observations,
+            // MemPalace commands
+            commands::mempalace::check_mempalace_status,
+            commands::mempalace::initialize_mempalace_palace,
+            commands::mempalace::install_mempalace_package,
+            commands::mempalace::migrate_memory_to_mempalace,
         ]);
 
     builder

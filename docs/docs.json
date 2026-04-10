@@ -92,6 +92,7 @@
               "core/linear-integration",
               "core/azure-devops",
               "core/copilot",
+              "core/memory",
               "core/command-palette",
               "core/dev-containers"
             ]

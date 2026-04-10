@@ -29,4 +29,5 @@ pub mod test_runner;
 pub mod slash_commands;
 pub mod terminal;
 pub mod path_validation;
+pub mod mempalace;
 pub mod worktree;

@@ -36,6 +36,8 @@ async function handleQuery(cmd: QueryCommand): Promise<void> {
     disableThinking,
     repoId,
     memoryEnabled,
+    mempalacePythonCmd,
+    mempalacePalacePath,
   } = cmd;
 
   // Build env: inherit current process.env and overlay workspace-specific vars
@@ -146,6 +148,23 @@ async function handleQuery(cmd: QueryCommand): Promise<void> {
             try {
               if (memoryStore) {
                 memoryStore.compressAndEmit();
+                // Sync observations to MemPalace if configured
+                if (mempalacePythonCmd && mempalacePalacePath) {
+                  const allObs = memoryStore.getAll();
+                  if (allObs.length > 0) {
+                    emit({
+                      id,
+                      type: "mempalace_sync",
+                      repoName: repoId || "default",
+                      observations: allObs.map(obs => ({
+                        content: obs.content,
+                        category: obs.observationType,
+                        filePaths: obs.filePaths,
+                        sourceTool: obs.sourceTool,
+                      })),
+                    });
+                  }
+                }
               }
             } catch {
               // Never let memory errors break the agent
@@ -155,15 +174,28 @@ async function handleQuery(cmd: QueryCommand): Promise<void> {
         }],
       };
 
-      // Layer 3: In-process MCP server for on-demand memory access
-      try {
-        const memoryMcpServer = createMemoryMcpServer(memoryStore);
+      // Layer 3: MCP server for on-demand memory access
+      if (mempalacePythonCmd && mempalacePalacePath) {
+        // External MemPalace MCP server (semantic search via ChromaDB)
         options.mcpServers = {
           ...(options.mcpServers as Record<string, unknown> || {}),
-          "fury-memory": memoryMcpServer,
+          "mempalace": {
+            type: "stdio",
+            command: mempalacePythonCmd,
+            args: ["-m", "mempalace.mcp_server", "--palace", mempalacePalacePath],
+          },
         };
-      } catch {
-        // MCP server creation failed — continue without it
+      } else {
+        // Fallback: in-process MCP server (keyword search)
+        try {
+          const memoryMcpServer = createMemoryMcpServer(memoryStore);
+          options.mcpServers = {
+            ...(options.mcpServers as Record<string, unknown> || {}),
+            "fury-memory": memoryMcpServer,
+          };
+        } catch {
+          // MCP server creation failed — continue without it
+        }
       }
     }
 

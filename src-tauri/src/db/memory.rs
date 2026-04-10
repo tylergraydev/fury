@@ -288,6 +288,66 @@ impl Database {
         Ok(affected)
     }
 
+    /// Get all memory snapshots for MemPalace migration.
+    pub fn get_all_memory_snapshots(&self) -> Result<Vec<MemorySnapshot>, AppError> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, scope, scope_id, category, content, observation_ids,
+                        created_at, supersedes
+                 FROM memory_snapshots
+                 ORDER BY created_at ASC",
+            )
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                let obs_ids_str: String = row.get(5)?;
+                let observation_ids: Vec<String> =
+                    serde_json::from_str(&obs_ids_str).unwrap_or_default();
+                Ok(MemorySnapshot {
+                    id: row.get(0)?,
+                    scope: row.get(1)?,
+                    scope_id: row.get(2)?,
+                    category: row.get(3)?,
+                    content: row.get(4)?,
+                    observation_ids,
+                    created_at: row.get(6)?,
+                    supersedes: row.get(7)?,
+                })
+            })
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+
+        let mut results = Vec::new();
+        for row in rows {
+            results.push(row.map_err(|e| AppError::DbError(e.to_string()))?);
+        }
+        Ok(results)
+    }
+
+    /// Check if MemPalace migration has been completed.
+    pub fn is_mempalace_migrated(&self) -> bool {
+        self.conn
+            .query_row(
+                "SELECT value FROM kv_meta WHERE key = 'mempalace_migrated'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .map(|v| v == "true")
+            .unwrap_or(false)
+    }
+
+    /// Mark MemPalace migration as completed.
+    pub fn set_mempalace_migrated(&self) -> Result<(), AppError> {
+        self.conn
+            .execute(
+                "INSERT OR REPLACE INTO kv_meta (key, value) VALUES ('mempalace_migrated', 'true')",
+                [],
+            )
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+        Ok(())
+    }
+
     /// Delete all memory data for a workspace.
     pub fn clear_workspace_memory(&self, workspace_id: &str) -> Result<(), AppError> {
         self.conn

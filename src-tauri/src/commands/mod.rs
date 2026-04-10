@@ -17,6 +17,7 @@ pub mod git_diff;
 pub mod linear;
 pub mod lsp;
 pub mod mcp;
+pub mod mempalace;
 pub mod memory;
 pub mod merge;
 pub mod perf;

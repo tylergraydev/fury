@@ -1,0 +1,112 @@
+---
+title: Memory
+description: Persistent memory across agent sessions with semantic search
+---
+
+Fury's memory system lets your AI agent remember context across sessions — decisions made, patterns discovered, errors encountered, and preferences learned. Instead of starting fresh every conversation, the agent picks up where it left off.
+
+## How it works
+
+Memory operates in three layers, each serving a different purpose:
+
+### Layer 1: Context injection
+
+At the start of every session, Fury reads compressed memory snapshots from the database and prepends them to the system prompt. This gives the agent immediate awareness of past context without any tool calls.
+
+The context is organized by scope:
+
+| Scope | What it contains |
+|-------|-----------------|
+| **Global** | Your preferences across all projects |
+| **Repository** | Patterns shared across all branches in a repo |
+| **Workspace** | Branch-specific context for the current task |
+
+Cost: ~2-3K tokens per session (fixed).
+
+### Layer 2: Observation hooks
+
+During a session, Fury automatically extracts observations from tool results using SDK hooks:
+
+- **File changes** — Tracks which files were modified and what changed
+- **Errors** — Captures errors from bash commands
+- **Patterns** — Records significant commands (npm, cargo, git, docker, etc.)
+- **Decisions** — Extracts architectural choices from the agent's reasoning
+
+These observations are compressed at session end using deduplication and summarization, then persisted for future sessions.
+
+Cost: Zero tokens (runs in the sidecar process, not sent to the API).
+
+### Layer 3: Semantic search
+
+The agent can actively search and store memories on demand using MCP tools. With MemPalace enabled (the default), this provides 19 tools including:
+
+- **Semantic search** — Find relevant memories using vector similarity via ChromaDB
+- **Knowledge graph** — Query entity relationships with temporal awareness
+- **Palace navigation** — Browse memories organized by project and category
+- **Agent diary** — Per-agent notes that persist across sessions
+
+Without MemPalace, a basic keyword search fallback is used.
+
+## MemPalace
+
+[MemPalace](https://github.com/milla-jovovich/mempalace) is an open-source memory system that powers Layer 3's semantic search. It stores complete observations in a navigable "palace" structure backed by ChromaDB for vector search.
+
+### Setup
+
+MemPalace is enabled by default. Go to **Settings > Memory** to check status and configure.
+
+**Requirements:**
+- Python 3.9+
+- `mempalace` package (installable from the Settings page)
+
+If Python or MemPalace isn't available, Fury falls back to basic keyword search automatically.
+
+### Installing
+
+From **Settings > Memory**, click **Install MemPalace**. Fury will try these methods in order:
+
+1. `pipx install mempalace` (isolated, recommended)
+2. `uv tool install mempalace`
+3. `pip install --user mempalace`
+
+### Palace initialization
+
+The palace directory (default: `~/.mempalace/palace`) is created automatically on first use. You can also click **Initialize Palace** in Settings to set it up manually.
+
+### Configuration
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Enabled** | `true` | Toggle MemPalace on/off |
+| **Palace Path** | `~/.mempalace/palace` | Where ChromaDB and knowledge graph are stored |
+| **Python Command** | Auto-detected | Override the Python binary (e.g., `python3.11`) |
+
+### Data migration
+
+If you have existing memory from before MemPalace was enabled, click **Migrate Existing Memory** in Settings to import your SQLite snapshots into MemPalace drawers.
+
+## Scope mapping
+
+Fury maps its memory scopes to MemPalace's palace structure:
+
+| Fury concept | MemPalace equivalent |
+|-------------|---------------------|
+| Repository | Wing (e.g., `fury`) |
+| Category (decisions, patterns, errors) | Room (e.g., `decisions`) |
+| Global scope | Wing `_global` |
+| Workspace/branch | Drawer metadata |
+
+## Settings
+
+Configure memory from **Settings > Memory** (Brain icon). The page shows:
+
+- **Enable/disable** toggle for MemPalace
+- **Status indicators** for Python, MemPalace package, and palace directory
+- **Setup actions** — Install, initialize, and migrate
+- **Path configuration** — Palace directory and Python command overrides
+
+## Disabling memory
+
+To disable memory entirely, turn off MemPalace in **Settings > Memory**. Layer 1 (context injection) and Layer 2 (observation hooks) still operate using the built-in SQLite storage, but Layer 3 falls back to basic keyword search.
+
+To fully disable all memory layers, this requires a code change — memory is considered a core feature of Fury's agent orchestration.

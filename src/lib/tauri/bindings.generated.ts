@@ -1815,6 +1815,128 @@ async cancelInlineEdit(editId: string) : Promise<Result<null, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * List memory observations for a workspace.
+ */
+async listMemoryObservations(workspaceId: string, limit: number | null) : Promise<Result<MemoryObservation[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_memory_observations", { workspaceId, limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Search memory observations across scopes.
+ */
+async searchMemory(query: string, scope: string, scopeId: string | null, limit: number | null) : Promise<Result<MemoryObservation[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("search_memory", { query, scope, scopeId, limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get memory snapshots for a scope.
+ */
+async getMemorySnapshots(scope: string, scopeId: string | null) : Promise<Result<MemorySnapshot[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_memory_snapshots", { scope, scopeId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Build the full memory context for a workspace (for debugging/preview).
+ */
+async getMemoryContext(workspaceId: string, repoId: string) : Promise<Result<string | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_memory_context", { workspaceId, repoId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Save a learning manually (user or agent-initiated).
+ */
+async saveMemoryLearning(request: SaveLearningRequest) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_memory_learning", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Clear all memory for a workspace.
+ */
+async clearWorkspaceMemory(workspaceId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("clear_workspace_memory", { workspaceId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Prune old observations (called periodically or from settings).
+ */
+async pruneMemoryObservations(olderThanDays: number | null) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("prune_memory_observations", { olderThanDays }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get the current status of the MemPalace integration.
+ */
+async checkMempalaceStatus() : Promise<Result<MemPalaceStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("check_mempalace_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Initialize a MemPalace palace directory.
+ */
+async initializeMempalacePalace() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("initialize_mempalace_palace") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Install mempalace via pipx, uv, or pip.
+ */
+async installMempalacePackage() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("install_mempalace_package") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Migrate existing SQLite memory snapshots to MemPalace drawers.
+ * No-op if already migrated.
+ */
+async migrateMemoryToMempalace() : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("migrate_memory_to_mempalace") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -1839,7 +1961,7 @@ disablePlanMode: boolean }
 export type AgentStatus = "Idle" | "Running" | "Stopping" | { Error: string }
 export type AgentTurnPayload = { workspaceId: string; durationMs: number; durationApiMs: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number; totalCostUsd: number; numTurns: number; timestamp: number }
 export type AgentType = "claude_code" | "codex_cli"
-export type AppSettings = { agentType?: AgentType; theme: string; provider: ProviderConfig; systemPromptAdditions: string | null; analyticsEnabled: boolean; experimental: ExperimentalSettings; copilot?: CopilotSettings; linear?: LinearSettings; azureDevops?: AzureDevOpsSettings; claudeContext?: ClaudeContextSettings; customThemes?: CustomTheme[] }
+export type AppSettings = { agentType?: AgentType; theme: string; provider: ProviderConfig; systemPromptAdditions: string | null; analyticsEnabled: boolean; experimental: ExperimentalSettings; copilot?: CopilotSettings; linear?: LinearSettings; azureDevops?: AzureDevOpsSettings; claudeContext?: ClaudeContextSettings; mempalace?: MemPalaceSettings; customThemes?: CustomTheme[] }
 export type AzureDevOpsSettings = { pat: string | null; defaultOrg: string | null }
 export type BranchStatus = { branch: string; defaultBranch: string; ahead: number; behind: number; hasUpstream: boolean }
 export type ChatMessage = { id: string; workspaceId: string; role: MessageRole; content: ContentBlock[]; timestamp: string; displayText?: string | null; metadata?: ResponseMetadata | null }
@@ -1933,6 +2055,16 @@ export type LspPlugin = { name: string; scope: string; enabled: boolean; binaryF
 export type LspSuggestion = { pluginName: string; language: string; fileCount: number; binaryName: string; installHint: string }
 export type McpScope = "user" | "project"
 export type McpServer = { name: string; command: string; args: string[]; env: Partial<{ [key in string]: string }>; scope: McpScope }
+export type MemPalaceSettings = { enabled: boolean; palacePath?: string | null; pythonCommand?: string | null }
+export type MemPalaceStatus = { pythonAvailable: boolean; pythonCommand: string | null; mempalaceInstalled: boolean; mempalaceVersion: string | null; palaceInitialized: boolean; palacePath: string }
+/**
+ * A single observation extracted from an agent session via hooks.
+ */
+export type MemoryObservation = { id: string; workspaceId: string; repoId: string; sessionId: string | null; observationType: string; content: string; compressedContent: string | null; sourceTool: string | null; filePaths: string[]; tokensRaw: number | null; tokensCompressed: number | null; createdAt: string; accessedAt: string | null }
+/**
+ * A compressed memory snapshot used for context injection (Layer 1).
+ */
+export type MemorySnapshot = { id: string; scope: string; scopeId: string | null; category: string; content: string; observationIds: string[]; createdAt: string; supersedes: string | null }
 export type MergeResult = { success: boolean; message: string; mergeMethod: string }
 export type MessageRole = "user" | "assistant" | "system"
 export type Notepad = { id: string; title: string; content: string; description: string | null; tags: string[]; pinned: boolean; createdAt: string; updatedAt: string }
@@ -1960,6 +2092,10 @@ export type ReviewInlineComment = { path: string; line: number; body: string }
 export type ReviewsAndComments = { reviews: PrReview[]; reviewComments: PrComment[] }
 export type RunLogsResult = { logs: string; truncated: boolean; taskLogs: TaskLog[] | null }
 export type RunScriptMode = "concurrent" | "nonconcurrent"
+/**
+ * Request to save a learning via the MCP tool or Tauri command.
+ */
+export type SaveLearningRequest = { workspaceId: string; repoId: string; content: string; category: string; scope: string }
 export type SendMessageRequest = { 
 /**
  * Either workspace_id or repo_id must be provided.

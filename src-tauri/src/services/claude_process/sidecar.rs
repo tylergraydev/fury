@@ -49,6 +49,10 @@ pub enum SidecarCommand {
         repo_id: Option<String>,
         #[serde(rename = "memoryEnabled", skip_serializing_if = "Option::is_none")]
         memory_enabled: Option<bool>,
+        #[serde(rename = "mempalacePythonCmd", skip_serializing_if = "Option::is_none")]
+        mempalace_python_cmd: Option<String>,
+        #[serde(rename = "mempalacePalacePath", skip_serializing_if = "Option::is_none")]
+        mempalace_palace_path: Option<String>,
     },
     PermissionResponse {
         id: String,
@@ -245,6 +249,65 @@ pub(crate) fn handle_sidecar_line<R: tauri::Runtime>(
         return Ok(()); // Memory events don't get forwarded to frontend
     }
 
+    // Handle MemPalace sync events (batch observations → MemPalace drawers)
+    if raw.get("type").and_then(|v| v.as_str()) == Some("mempalace_sync") {
+        let repo_name = raw
+            .get("repoName")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default")
+            .to_string();
+        let observations: Vec<serde_json::Value> = raw
+            .get("observations")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+
+        if !observations.is_empty() {
+            // Read MemPalace settings
+            let (python_cmd, palace_path) = {
+                let settings = app.state::<crate::state::AppState>();
+                let mp = settings.settings.read().unwrap().mempalace.clone();
+                let py = mp.python_command.clone().unwrap_or_else(|| "python3".to_string());
+                let path = crate::services::mempalace::resolve_palace_path(mp.palace_path.as_deref());
+                (py, path)
+            };
+
+            let entries: Vec<crate::services::mempalace::MemPalaceSyncEntry> = observations
+                .into_iter()
+                .filter_map(|obs| {
+                    Some(crate::services::mempalace::MemPalaceSyncEntry {
+                        content: obs.get("content")?.as_str()?.to_string(),
+                        category: obs.get("category")?.as_str()?.to_string(),
+                        repo_name: repo_name.clone(),
+                        file_paths: obs
+                            .get("filePaths")
+                            .and_then(|v| v.as_array())
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                    .collect()
+                            })
+                            .unwrap_or_default(),
+                    })
+                })
+                .collect();
+
+            // Spawn async task — don't block the event loop
+            tokio::spawn(async move {
+                if let Err(e) = crate::services::mempalace::sync_observations_to_mempalace(
+                    &python_cmd,
+                    &palace_path,
+                    entries,
+                )
+                .await
+                {
+                    eprintln!("[mempalace] sync failed: {e}");
+                }
+            });
+        }
+        return Ok(());
+    }
+
     // Parse stream events using the existing parser
     let events = super::parse_stream_line(line);
 
@@ -353,6 +416,10 @@ mod tests {
             env_vars: None,
             additional_dirs: None,
             disable_thinking: None,
+            repo_id: None,
+            memory_enabled: None,
+            mempalace_python_cmd: None,
+            mempalace_palace_path: None,
         };
         let json = serde_json::to_string(&cmd).unwrap();
         assert!(json.contains("\"type\":\"query\""));
@@ -377,6 +444,10 @@ mod tests {
             env_vars: None,
             additional_dirs: Some(vec!["/extra".to_string()]),
             disable_thinking: Some(true),
+            repo_id: None,
+            memory_enabled: None,
+            mempalace_python_cmd: None,
+            mempalace_palace_path: None,
         };
         let json = serde_json::to_string(&cmd).unwrap();
         // All fields must use camelCase to match TypeScript protocol

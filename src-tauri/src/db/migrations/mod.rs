@@ -355,5 +355,16 @@ pub fn run(conn: &Connection) -> Result<(), AppError> {
     )
     .map_err(|e| AppError::DbError(e.to_string()))?;
 
+    // Key-value metadata table for migration flags and misc state
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS kv_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        ",
+    )
+    .map_err(|e| AppError::DbError(e.to_string()))?;
+
     Ok(())
 }
