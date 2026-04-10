@@ -39,7 +39,7 @@ export function ActionBarButton({ onClick, icon: Icon, label, color, bgColor, sh
       <Icon className="h-3.5 w-3.5" />
       {label}
       {showShortcut && (
-        <kbd className="ml-1 rounded bg-[var(--bg-hover)] px-1 py-0.5 text-[9px] font-normal" style={{ color: "inherit" }}>
+        <kbd className="ml-1 rounded bg-black/20 px-1 py-0.5 text-[9px] font-normal" style={{ color: "inherit" }}>
           ⌘⇧↵
         </kbd>
       )}
