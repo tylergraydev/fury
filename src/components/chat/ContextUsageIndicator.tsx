@@ -1,19 +1,19 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { formatTokens, formatCost } from "../../lib/format";
 import type { SessionStats } from "../../stores/chatStore";
+import { getContextWindow } from "../../lib/models";
 import { ContextBreakdownPopover } from "./ContextBreakdownPopover";
 
-export const CONTEXT_WINDOW_TOKENS = 200_000;
-
-function ContextTooltip({ stats, pct, color }: {
+function ContextTooltip({ stats, pct, color, contextWindowTokens }: {
   stats: SessionStats;
   pct: number;
   color: string;
+  contextWindowTokens: number;
 }) {
   const rows: Array<{ label: string; value: string }> = [
     {
       label: "Context",
-      value: `${formatTokens(stats.totalInputTokens)} / ${formatTokens(CONTEXT_WINDOW_TOKENS)} (${pct.toFixed(0)}%)`,
+      value: `${formatTokens(stats.totalInputTokens)} / ${formatTokens(contextWindowTokens)} (${pct.toFixed(0)}%)`,
     },
     {
       label: "Output",
@@ -62,15 +62,17 @@ function ContextTooltip({ stats, pct, color }: {
 
 interface ContextUsageIndicatorProps {
   stats: SessionStats;
-  workspaceId?: string;
+  contextId?: string;
+  model?: string;
 }
 
-export function ContextUsageIndicator({ stats, workspaceId }: ContextUsageIndicatorProps) {
+export function ContextUsageIndicator({ stats, contextId, model }: ContextUsageIndicatorProps) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [showPopover, setShowPopover] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const pct = Math.min(100, (stats.totalInputTokens / CONTEXT_WINDOW_TOKENS) * 100);
+  const contextWindowTokens = getContextWindow(model ?? "");
+  const pct = Math.min(100, (stats.totalInputTokens / contextWindowTokens) * 100);
   const isWarning = pct >= 75;
   const isCritical = pct >= 90;
 
@@ -83,19 +85,19 @@ export function ContextUsageIndicator({ stats, workspaceId }: ContextUsageIndica
   const dashoffset = circumference * (1 - pct / 100);
 
   const handleClick = useCallback(() => {
-    if (workspaceId) {
+    if (contextId) {
       setShowPopover((prev) => !prev);
     }
-  }, [workspaceId]);
+  }, [contextId]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if ((e.key === "Enter" || e.key === " ") && workspaceId) {
+      if ((e.key === "Enter" || e.key === " ") && contextId) {
         e.preventDefault();
         setShowPopover((prev) => !prev);
       }
     },
-    [workspaceId],
+    [contextId],
   );
 
   // Close on Escape and click-outside
@@ -127,10 +129,10 @@ export function ContextUsageIndicator({ stats, workspaceId }: ContextUsageIndica
       onMouseLeave={() => setShowTooltip(false)}
     >
       <div
-        className={`flex items-center justify-center ${workspaceId ? "cursor-pointer" : "cursor-default"}`}
+        className={`flex items-center justify-center ${contextId ? "cursor-pointer" : "cursor-default"}`}
         style={{ width: 24, height: 24 }}
-        role={workspaceId ? "button" : undefined}
-        tabIndex={workspaceId ? 0 : undefined}
+        role={contextId ? "button" : undefined}
+        tabIndex={contextId ? 0 : undefined}
         aria-label={`Context usage: ${pct.toFixed(0)}%`}
         aria-expanded={showPopover}
         onClick={handleClick}
@@ -156,11 +158,12 @@ export function ContextUsageIndicator({ stats, workspaceId }: ContextUsageIndica
           />
         </svg>
       </div>
-      {showTooltip && !showPopover && <ContextTooltip stats={stats} pct={pct} color={color} />}
-      {showPopover && workspaceId && (
+      {showTooltip && !showPopover && <ContextTooltip stats={stats} pct={pct} color={color} contextWindowTokens={contextWindowTokens} />}
+      {showPopover && contextId && (
         <ContextBreakdownPopover
           stats={stats}
-          workspaceId={workspaceId}
+          contextId={contextId}
+          contextWindowTokens={contextWindowTokens}
           onClose={() => setShowPopover(false)}
         />
       )}

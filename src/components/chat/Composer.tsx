@@ -12,7 +12,8 @@ import { useVoiceInput } from "../../hooks/useVoiceInput";
 import { useToastStore } from "../../stores/toastStore";
 import { ActionBar, ActionBarButton } from "./ActionBar";
 import { QuestionCard } from "./QuestionCard";
-import { ContextUsageIndicator, CONTEXT_WINDOW_TOKENS } from "./ContextUsageIndicator";
+import { ContextUsageIndicator } from "./ContextUsageIndicator";
+import { getContextWindow } from "../../lib/models";
 import { FileChipIcon } from "./FileChipIcon";
 import { useFileDropHandler } from "../../hooks/useFileDropHandler";
 import { useSlashCommandAutocomplete } from "../../hooks/useSlashCommandAutocomplete";
@@ -469,10 +470,10 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
       )}
 
       {/* Context near-full warning with compact button */}
-      {sessionStats && sessionStats.totalInputTokens > 0 && (sessionStats.totalInputTokens / CONTEXT_WINDOW_TOKENS) >= 0.9 && agentStatus === "Idle" && (
+      {sessionStats && sessionStats.totalInputTokens > 0 && (sessionStats.totalInputTokens / getContextWindow(selectedModel)) >= 0.9 && agentStatus === "Idle" && (
         <ActionBar
           icon={<Brain className="h-4 w-4 flex-shrink-0" style={{ color: "var(--error)" }} />}
-          description={<span>Context window is {Math.round((sessionStats.totalInputTokens / CONTEXT_WINDOW_TOKENS) * 100)}% full. Compact to free space.</span>}
+          description={<span>Context window is {Math.round((sessionStats.totalInputTokens / getContextWindow(selectedModel)) * 100)}% full. Compact to free space.</span>}
           bgStyle={{ backgroundColor: "color-mix(in srgb, var(--error) 10%, transparent)" }}
           primaryAction={
             <button
@@ -723,7 +724,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
             {/* Right side: Context ring, Plus button, Send button */}
             <div className="flex items-center gap-1.5">
               {sessionStats && sessionStats.totalInputTokens > 0 && (
-                <ContextUsageIndicator stats={sessionStats} workspaceId={workspaceId} />
+                <ContextUsageIndicator stats={sessionStats} contextId={contextId} model={selectedModel} />
               )}
               <div className="relative" ref={plusMenuRef}>
                 <button
