@@ -10,6 +10,10 @@ import {
   getRepoFileDiff as getRepoFileDiffCmd,
   getRepoFilePatch as getRepoFilePatchCmd,
 } from "../lib/tauri";
+import { useToastStore } from "./toastStore";
+import { useChatStore } from "./chatStore";
+import { useAgentStore } from "./agentStore";
+import { useWorkspaceStore } from "./workspaceStore";
 
 interface DiffStore {
   diffResults: Record<string, DiffResult | null>;
@@ -45,6 +49,23 @@ interface DiffStore {
     filePath: string,
   ) => FilePatchPreview | null;
   clearPatchPreviews: (contextId: string) => void;
+}
+
+function showGitErrorToast(errorMsg: string) {
+  const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+  if (!workspaceId) return;
+  useToastStore.getState().addToast(errorMsg, "error", {
+    action: {
+      label: "Ask Chat",
+      onClick: () => {
+        const prompt = `I got this git error when refreshing changes:\n\n\`\`\`\n${errorMsg}\n\`\`\`\n\nWhat does this mean and how can I fix it?`;
+        useChatStore.getState().addUserMessage(workspaceId, prompt);
+        useAgentStore
+          .getState()
+          .sendMessage(workspaceId, prompt, "workspace");
+      },
+    },
+  });
 }
 
 // Module-level inflight trackers — prevent duplicate concurrent requests
@@ -87,12 +108,14 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
         loading: { ...state.loading, [workspaceId]: false },
       }));
     } catch (e) {
+      const errorMsg = String(e);
       set((state) => ({
         loading: { ...state.loading, [workspaceId]: false },
         error: hasCached
           ? state.error
-          : { ...state.error, [workspaceId]: String(e) },
+          : { ...state.error, [workspaceId]: errorMsg },
       }));
+      showGitErrorToast(errorMsg);
     } finally {
       _inflightDiff.delete(workspaceId);
     }
@@ -125,12 +148,14 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
         loading: { ...state.loading, [repoId]: false },
       }));
     } catch (e) {
+      const errorMsg = String(e);
       set((state) => ({
         loading: { ...state.loading, [repoId]: false },
         error: hasCached
           ? state.error
-          : { ...state.error, [repoId]: String(e) },
+          : { ...state.error, [repoId]: errorMsg },
       }));
+      showGitErrorToast(errorMsg);
     } finally {
       _inflightRepoDiff.delete(repoId);
     }
