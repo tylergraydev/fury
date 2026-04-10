@@ -6,7 +6,6 @@ import { useThemeColors } from "../../hooks/useThemeColors";
 import { useChatStore } from "../../stores/chatStore";
 import type { SessionStats } from "../../stores/chatStore";
 import type { ChatMessage } from "../../lib/tauri";
-import { CONTEXT_WINDOW_TOKENS } from "./ContextUsageIndicator";
 
 // ---------------------------------------------------------------------------
 // Per-turn delta computation
@@ -146,13 +145,14 @@ function StatCell({ label, value }: { label: string; value: string }) {
 
 interface ContextBreakdownPopoverProps {
   stats: SessionStats;
-  workspaceId: string;
+  contextId: string;
+  contextWindowTokens: number;
   onClose: () => void;
 }
 
-export function ContextBreakdownPopover({ stats, workspaceId, onClose }: ContextBreakdownPopoverProps) {
+export function ContextBreakdownPopover({ stats, contextId, contextWindowTokens, onClose }: ContextBreakdownPopoverProps) {
   const colors = useThemeColors();
-  const messages = useChatStore((s) => s.messages[workspaceId] ?? []);
+  const messages = useChatStore((s) => s.messages[contextId] ?? []);
   const [visible, setVisible] = useState(false);
 
   // Fade in on mount
@@ -161,10 +161,10 @@ export function ContextBreakdownPopover({ stats, workspaceId, onClose }: Context
   }, []);
 
   // ---- Donut data ----
-  const pct = Math.min(100, (stats.totalInputTokens / CONTEXT_WINDOW_TOKENS) * 100);
+  const pct = Math.min(100, (stats.totalInputTokens / contextWindowTokens) * 100);
   const cached = stats.totalCacheReadTokens ?? 0;
   const freshInput = Math.max(0, stats.totalInputTokens - cached);
-  const remaining = Math.max(0, CONTEXT_WINDOW_TOKENS - stats.totalInputTokens);
+  const remaining = Math.max(0, contextWindowTokens - stats.totalInputTokens);
 
   const donutData = useMemo(
     () => [
@@ -289,7 +289,7 @@ export function ContextBreakdownPopover({ stats, workspaceId, onClose }: Context
       >
         <StatCell
           label="Context"
-          value={`${formatTokens(stats.totalInputTokens)} / ${formatTokens(CONTEXT_WINDOW_TOKENS)}`}
+          value={`${formatTokens(stats.totalInputTokens)} / ${formatTokens(contextWindowTokens)}`}
         />
         <StatCell label="Output" value={formatTokens(stats.totalOutputTokens)} />
         <StatCell label="Cache hit" value={`${cacheHitRate}%`} />

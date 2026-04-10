@@ -1134,7 +1134,7 @@ describe("Composer", () => {
     it("shows compact warning when context is >= 90% full", () => {
       useChatStore.setState({
         sessionStats: {
-          "ws-1": { totalInputTokens: 190_000, totalOutputTokens: 0, totalCostUsd: 1.5, numTurns: 10 },
+          "ws-1": { totalInputTokens: 950_000, totalOutputTokens: 0, totalCostUsd: 1.5, numTurns: 10 },
         },
       });
       render(<Composer {...defaultProps} />);
@@ -1145,7 +1145,7 @@ describe("Composer", () => {
       const onSend = vi.fn();
       useChatStore.setState({
         sessionStats: {
-          "ws-1": { totalInputTokens: 195_000, totalOutputTokens: 0, totalCostUsd: 2.0, numTurns: 15 },
+          "ws-1": { totalInputTokens: 950_000, totalOutputTokens: 0, totalCostUsd: 2.0, numTurns: 15 },
         },
       });
       const user = userEvent.setup();
@@ -1157,7 +1157,7 @@ describe("Composer", () => {
     it("does not show compact warning when context < 90%", () => {
       useChatStore.setState({
         sessionStats: {
-          "ws-1": { totalInputTokens: 100_000, totalOutputTokens: 0, totalCostUsd: 0.5, numTurns: 5 },
+          "ws-1": { totalInputTokens: 500_000, totalOutputTokens: 0, totalCostUsd: 0.5, numTurns: 5 },
         },
       });
       render(<Composer {...defaultProps} />);
@@ -1167,7 +1167,7 @@ describe("Composer", () => {
     it("does not show compact warning when agent is running", () => {
       useChatStore.setState({
         sessionStats: {
-          "ws-1": { totalInputTokens: 195_000, totalOutputTokens: 0, totalCostUsd: 2.0, numTurns: 15 },
+          "ws-1": { totalInputTokens: 950_000, totalOutputTokens: 0, totalCostUsd: 2.0, numTurns: 15 },
         },
       });
       render(<Composer {...defaultProps} agentStatus="Running" />);
@@ -1177,7 +1177,7 @@ describe("Composer", () => {
     it("shows context usage ring when tokens > 0", () => {
       useChatStore.setState({
         sessionStats: {
-          "ws-1": { totalInputTokens: 50_000, totalOutputTokens: 1000, totalCostUsd: 0.25, numTurns: 3 },
+          "ws-1": { totalInputTokens: 250_000, totalOutputTokens: 1000, totalCostUsd: 0.25, numTurns: 3 },
         },
       });
       render(<Composer {...defaultProps} />);
@@ -1187,7 +1187,7 @@ describe("Composer", () => {
     it("applies warning color to ring when context is 75-89% full", () => {
       useChatStore.setState({
         sessionStats: {
-          "ws-1": { totalInputTokens: 160_000, totalOutputTokens: 0, totalCostUsd: 1.0, numTurns: 8 },
+          "ws-1": { totalInputTokens: 800_000, totalOutputTokens: 0, totalCostUsd: 1.0, numTurns: 8 },
         },
       });
       render(<Composer {...defaultProps} />);
@@ -1201,7 +1201,7 @@ describe("Composer", () => {
     it("shows tooltip with context details on hover", async () => {
       useChatStore.setState({
         sessionStats: {
-          "ws-1": { totalInputTokens: 50_000, totalOutputTokens: 2000, totalCostUsd: 0.25, numTurns: 3 },
+          "ws-1": { totalInputTokens: 250_000, totalOutputTokens: 2000, totalCostUsd: 0.25, numTurns: 3 },
         },
       });
       const user = userEvent.setup();
@@ -1216,7 +1216,7 @@ describe("Composer", () => {
     it("shows cache read row in tooltip when cache tokens > 0", async () => {
       useChatStore.setState({
         sessionStats: {
-          "ws-1": { totalInputTokens: 50_000, totalOutputTokens: 2000, totalCostUsd: 0.25, numTurns: 3, totalCacheReadTokens: 10_000 },
+          "ws-1": { totalInputTokens: 250_000, totalOutputTokens: 2000, totalCostUsd: 0.25, numTurns: 3, totalCacheReadTokens: 10_000 },
         },
       });
       const user = userEvent.setup();
@@ -1762,7 +1762,7 @@ describe("Composer", () => {
   it("hides context tooltip on mouse leave", async () => {
     useChatStore.setState({
       sessionStats: {
-        "ws-1": { totalInputTokens: 50_000, totalOutputTokens: 1000, totalCostUsd: 0.25, numTurns: 3 },
+        "ws-1": { totalInputTokens: 250_000, totalOutputTokens: 1000, totalCostUsd: 0.25, numTurns: 3 },
       },
     });
     const user = userEvent.setup();
