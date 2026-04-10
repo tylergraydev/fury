@@ -18,22 +18,7 @@ import {
   computeWorkspaceBreakdown,
   type TimePeriod,
 } from "../../stores/usageStore";
-
-/* v8 ignore start -- SSR/null-safety fallbacks; getPropertyValue always returns a string in DOM */
-function useThemeColors() {
-  const style = typeof document !== "undefined"
-    ? getComputedStyle(document.documentElement)
-    : null;
-  return {
-    accent: style?.getPropertyValue("--accent").trim() ?? "#58a6ff",
-    success: style?.getPropertyValue("--success").trim() ?? "#4ade80",
-    warning: style?.getPropertyValue("--warning").trim() ?? "#facc15",
-    error: style?.getPropertyValue("--error").trim() ?? "#f87171",
-    textMuted: style?.getPropertyValue("--text-muted").trim() ?? "#8b949e",
-    border: style?.getPropertyValue("--border").trim() ?? "#30363d",
-  };
-}
-/* v8 ignore stop */
+import { useThemeColors } from "../../hooks/useThemeColors";
 
 function formatCost(usd: number): string {
   if (usd < 0.01 && usd > 0) return `$${usd.toFixed(4)}`;

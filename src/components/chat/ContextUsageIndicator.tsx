@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { formatTokens, formatCost } from "../../lib/format";
 import type { SessionStats } from "../../stores/chatStore";
+import { ContextBreakdownPopover } from "./ContextBreakdownPopover";
 
 export const CONTEXT_WINDOW_TOKENS = 200_000;
 
@@ -59,8 +60,15 @@ function ContextTooltip({ stats, pct, color }: {
   );
 }
 
-export function ContextUsageIndicator({ stats }: { stats: SessionStats }) {
+interface ContextUsageIndicatorProps {
+  stats: SessionStats;
+  workspaceId?: string;
+}
+
+export function ContextUsageIndicator({ stats, workspaceId }: ContextUsageIndicatorProps) {
   const [showTooltip, setShowTooltip] = useState(false);
+  const [showPopover, setShowPopover] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const pct = Math.min(100, (stats.totalInputTokens / CONTEXT_WINDOW_TOKENS) * 100);
   const isWarning = pct >= 75;
@@ -74,16 +82,59 @@ export function ContextUsageIndicator({ stats }: { stats: SessionStats }) {
   const circumference = 2 * Math.PI * radius;
   const dashoffset = circumference * (1 - pct / 100);
 
+  const handleClick = useCallback(() => {
+    if (workspaceId) {
+      setShowPopover((prev) => !prev);
+    }
+  }, [workspaceId]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if ((e.key === "Enter" || e.key === " ") && workspaceId) {
+        e.preventDefault();
+        setShowPopover((prev) => !prev);
+      }
+    },
+    [workspaceId],
+  );
+
+  // Close on Escape and click-outside
+  useEffect(() => {
+    if (!showPopover) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowPopover(false);
+    };
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowPopover(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showPopover]);
+
   return (
     <div
       className="relative"
-      onMouseEnter={() => setShowTooltip(true)}
+      ref={containerRef}
+      onMouseEnter={() => { if (!showPopover) setShowTooltip(true); }}
       onMouseLeave={() => setShowTooltip(false)}
     >
       <div
-        className="flex items-center justify-center cursor-default"
+        className={`flex items-center justify-center ${workspaceId ? "cursor-pointer" : "cursor-default"}`}
         style={{ width: 24, height: 24 }}
+        role={workspaceId ? "button" : undefined}
+        tabIndex={workspaceId ? 0 : undefined}
         aria-label={`Context usage: ${pct.toFixed(0)}%`}
+        aria-expanded={showPopover}
+        onClick={handleClick}
+        onKeyDown={handleKeyDown}
       >
         <svg width={24} height={24} viewBox="0 0 24 24">
           <circle
@@ -105,7 +156,14 @@ export function ContextUsageIndicator({ stats }: { stats: SessionStats }) {
           />
         </svg>
       </div>
-      {showTooltip && <ContextTooltip stats={stats} pct={pct} color={color} />}
+      {showTooltip && !showPopover && <ContextTooltip stats={stats} pct={pct} color={color} />}
+      {showPopover && workspaceId && (
+        <ContextBreakdownPopover
+          stats={stats}
+          workspaceId={workspaceId}
+          onClose={() => setShowPopover(false)}
+        />
+      )}
     </div>
   );
 }
