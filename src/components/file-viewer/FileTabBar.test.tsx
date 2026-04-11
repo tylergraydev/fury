@@ -36,6 +36,7 @@ vi.mock("lucide-react", () => ({
   Radar: () => <span data-testid="icon-radar" />,
   SquareTerminal: () => <span data-testid="icon-squareterminal" />,
   Wrench: () => <span data-testid="icon-wrench" />,
+  FlaskConical: ({ className }: { className?: string }) => <span className={className} data-testid="tests-icon" />,
 
 }));
 

@@ -79,7 +79,7 @@ export function ChatTOC({ turns, onClose }: Props) {
               >
                 {idx + 1}.
               </span>
-              <span className="truncate">{preview || "(empty)"}</span>
+              <span className="truncate" title={userText || "(empty)"}>{preview || "(empty)"}</span>
             </button>
           );
         })}

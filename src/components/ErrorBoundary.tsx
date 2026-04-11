@@ -42,6 +42,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <div
             className="max-w-full truncate text-[10px] font-mono"
             style={{ color: "var(--text-muted)" }}
+            title={this.state.error.message}
           >
             {this.state.error.message}
           </div>

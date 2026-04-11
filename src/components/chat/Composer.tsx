@@ -723,7 +723,7 @@ export function Composer({ contextId, contextType, agentStatus, onSend, onStop, 
             {/* Right side: Context ring, Plus button, Send button */}
             <div className="flex items-center gap-1.5">
               {sessionStats && sessionStats.totalInputTokens > 0 && (
-                <ContextUsageIndicator stats={sessionStats} workspaceId={workspaceId} />
+                <ContextUsageIndicator stats={sessionStats} contextId={contextId} />
               )}
               <div className="relative" ref={plusMenuRef}>
                 <button

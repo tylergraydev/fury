@@ -264,6 +264,7 @@ function TimelineEntry({
           backgroundColor: dotColor,
           boxShadow: `0 0 0 2px var(--bg-primary)`,
         }}
+        title={item.kind}
       />
       {/* Content */}
       <div className="min-w-0 flex-1">
@@ -311,7 +312,7 @@ function CommitEntry({
         >
           {data.hash}
         </span>
-        <span className="truncate" style={{ color: "var(--text-primary)" }}>
+        <span className="truncate" style={{ color: "var(--text-primary)" }} title={data.message}>
           {data.message}
         </span>
       </div>
@@ -377,6 +378,7 @@ function ChatEntry({
         <p
           className="mt-1 truncate"
           style={{ color: "var(--text-primary)" }}
+          title={data.text}
         >
           {data.text}
         </p>
@@ -447,6 +449,7 @@ function CheckpointEntry({
         <p
           className="mt-1 truncate"
           style={{ color: "var(--text-primary)" }}
+          title={data.userMessage}
         >
           {data.userMessage}
         </p>

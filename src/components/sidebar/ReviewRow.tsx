@@ -31,8 +31,9 @@ export function ReviewRow({ review }: { review: PrReview }) {
         <span
           className="h-2 w-2 flex-shrink-0 rounded-full"
           style={{ backgroundColor: color }}
+          title={reviewStateLabel(review.state)}
         />
-        <span className="truncate font-medium" style={{ color: "var(--text-primary)" }}>
+        <span className="truncate font-medium" style={{ color: "var(--text-primary)" }} title={`@${review.author}`}>
           @{review.author}
         </span>
         <span
@@ -46,6 +47,7 @@ export function ReviewRow({ review }: { review: PrReview }) {
         <p
           className="truncate pl-4 text-xs"
           style={{ color: "var(--text-muted)" }}
+          title={review.body}
         >
           {review.body}
         </p>
@@ -73,6 +75,7 @@ export function ReviewCommentRow({ comment }: { comment: PrComment }) {
           <span
             className="truncate text-xs"
             style={{ color: "var(--accent)" }}
+            title={location}
           >
             {location}
           </span>
@@ -81,6 +84,7 @@ export function ReviewCommentRow({ comment }: { comment: PrComment }) {
       <p
         className="truncate pl-0 text-xs"
         style={{ color: "var(--text-muted)" }}
+        title={comment.body}
       >
         {comment.body}
       </p>

@@ -62,3 +62,32 @@ export async function writeRepoFile(
     formatOnSave,
   });
 }
+
+// File/directory creation
+export async function createWorkspaceFile(
+  workspaceId: string,
+  filePath: string,
+): Promise<void> {
+  return invoke<void>("create_workspace_file", { workspaceId, filePath });
+}
+
+export async function createRepoFile(
+  repoId: string,
+  filePath: string,
+): Promise<void> {
+  return invoke<void>("create_repo_file", { repoId, filePath });
+}
+
+export async function createWorkspaceDirectory(
+  workspaceId: string,
+  dirPath: string,
+): Promise<void> {
+  return invoke<void>("create_workspace_directory", { workspaceId, dirPath });
+}
+
+export async function createRepoDirectory(
+  repoId: string,
+  dirPath: string,
+): Promise<void> {
+  return invoke<void>("create_repo_directory", { repoId, dirPath });
+}

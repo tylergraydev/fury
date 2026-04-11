@@ -149,6 +149,18 @@ export function CommandPalette({
                   Open History
                 </PaletteItem>
                 <PaletteItem
+                  onSelect={() => run("view-tests")}
+                  shortcut={shortcutFor("view-tests")}
+                >
+                  Open Test Runner
+                </PaletteItem>
+                <PaletteItem
+                  onSelect={() => run("run-tests")}
+                  shortcut={shortcutFor("run-tests")}
+                >
+                  Run Tests
+                </PaletteItem>
+                <PaletteItem
                   onSelect={() => run("toggle-notifications")}
                   shortcut={shortcutFor("toggle-notifications")}
                 >

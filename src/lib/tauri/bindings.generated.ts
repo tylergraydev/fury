@@ -450,6 +450,38 @@ async saveClipboardImage(data: string, mimeType: string) : Promise<Result<string
     else return { status: "error", error: e  as any };
 }
 },
+async createWorkspaceFile(workspaceId: string, filePath: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_workspace_file", { workspaceId, filePath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async createRepoFile(repoId: string, filePath: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_repo_file", { repoId, filePath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async createWorkspaceDirectory(workspaceId: string, dirPath: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_workspace_directory", { workspaceId, dirPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async createRepoDirectory(repoId: string, dirPath: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_repo_directory", { repoId, dirPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async startDiffWatcher(contextId: string, contextType: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("start_diff_watcher", { contextId, contextType }) };

@@ -217,6 +217,7 @@ export function ChatPanel({ contextId, contextType }: Props) {
 
   const handleApprovePlan = useCallback(async () => {
     await handleSend("Approved");
+    setPlanEnabled(false);
   }, [handleSend]);
 
   const handleCopyPlan = useCallback(async () => {

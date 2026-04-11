@@ -25,6 +25,7 @@ export function CoverageView({ coverage }: { coverage: CoverageReport }) {
           <div
             className="h-2 w-24 overflow-hidden rounded-full"
             style={{ backgroundColor: "var(--border)" }}
+            title={`${coverage.totalLinesPct.toFixed(1)}% line coverage`}
           >
             <div
               className="h-full rounded-full"
@@ -67,12 +68,14 @@ export function CoverageView({ coverage }: { coverage: CoverageReport }) {
               <span
                 className="flex-1 truncate"
                 style={{ color: "var(--text-primary)" }}
+                title={file.file}
               >
                 {file.file}
               </span>
               <div
                 className="h-1.5 w-16 overflow-hidden rounded-full"
                 style={{ backgroundColor: "var(--border)" }}
+                title={`${file.linesPct.toFixed(1)}% line coverage`}
               >
                 <div
                   className="h-full rounded-full"

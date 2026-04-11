@@ -146,13 +146,13 @@ function StatCell({ label, value }: { label: string; value: string }) {
 
 interface ContextBreakdownPopoverProps {
   stats: SessionStats;
-  workspaceId: string;
+  contextId: string;
   onClose: () => void;
 }
 
-export function ContextBreakdownPopover({ stats, workspaceId, onClose }: ContextBreakdownPopoverProps) {
+export function ContextBreakdownPopover({ stats, contextId, onClose }: ContextBreakdownPopoverProps) {
   const colors = useThemeColors();
-  const messages = useChatStore((s) => s.messages[workspaceId] ?? []);
+  const messages = useChatStore((s) => s.messages[contextId] ?? []);
   const [visible, setVisible] = useState(false);
 
   // Fade in on mount

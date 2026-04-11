@@ -917,7 +917,7 @@ describe("App", () => {
       expect(toggleSpy).toHaveBeenCalled();
     });
 
-    it("right-sidebar-bookmarks sets tab and ensures visible", () => {
+    it("right-sidebar-bookmarks switches to files tab and toggles bookmarks", () => {
       setWorkspaceContext();
       const setTabSpy = vi.spyOn(useUIStore.getState(), "setRightSidebarTab");
       const ensureSpy = vi.spyOn(useUIStore.getState(), "ensureRightSidebarVisible");
@@ -925,7 +925,7 @@ describe("App", () => {
       act(() => {
         capturedHandler?.("right-sidebar-bookmarks");
       });
-      expect(setTabSpy).toHaveBeenCalledWith("bookmarks");
+      expect(setTabSpy).toHaveBeenCalledWith("files");
       expect(ensureSpy).toHaveBeenCalled();
     });
 

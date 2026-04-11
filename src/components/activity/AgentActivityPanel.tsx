@@ -74,6 +74,7 @@ function ActivityRow({ entry }: { entry: ActivityEntry }) {
           <span
             className="truncate text-xs font-medium"
             style={{ color: "var(--text-primary)" }}
+            title={entry.toolName}
           >
             {entry.toolName}
           </span>
@@ -87,12 +88,13 @@ function ActivityRow({ entry }: { entry: ActivityEntry }) {
           <p
             className="mt-0.5 truncate font-mono text-[10px]"
             style={{ color: "var(--text-muted)" }}
+            title={detail}
           >
             {detail}
           </p>
         )}
         {entry.status === "error" && entry.result && (
-          <p className="mt-0.5 truncate text-[10px] text-red-400">
+          <p className="mt-0.5 truncate text-[10px] text-red-400" title={entry.result}>
             {entry.result}
           </p>
         )}

@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::error::AppError;
 use crate::platform;
 use crate::services::diff as diff_svc;
+use crate::services::path_validation::validate_path_within_root;
 use crate::state::AppState;
 use base64::Engine;
 use tauri::State;
@@ -340,6 +341,168 @@ pub async fn save_clipboard_image(data: String, mime_type: String) -> Result<Str
         std::fs::write(&file_path, &bytes)?;
 
         Ok(file_path.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+}
+
+/// Resolve a relative path within a root directory, creating intermediate
+/// parent directories as needed. Returns the full path after validation.
+fn resolve_and_ensure_parent(root: &Path, relative: &str) -> Result<PathBuf, AppError> {
+    let full = root.join(relative);
+    // Validate the target is within root (handles .. traversal)
+    let validated = validate_path_within_root(&full, root)?;
+    // Create intermediate directories
+    if let Some(parent) = validated.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| AppError::GitError(format!("failed to create parent directories: {}", e)))?;
+    }
+    Ok(validated)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn create_workspace_file(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    file_path: String,
+) -> Result<(), AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let worktree_path = {
+        let workspaces = state
+            .workspaces
+            .read()
+            .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
+        let ws = workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        ws.worktree_path.clone()
+    };
+
+    tokio::task::spawn_blocking(move || {
+        let full_path = resolve_and_ensure_parent(&worktree_path, &file_path)?;
+        if full_path.exists() {
+            return Err(AppError::GitError(format!(
+                "file already exists: {}",
+                file_path
+            )));
+        }
+        std::fs::write(&full_path, "")
+            .map_err(|e| AppError::GitError(format!("failed to create file: {}", e)))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn create_repo_file(
+    state: State<'_, AppState>,
+    repo_id: String,
+    file_path: String,
+) -> Result<(), AppError> {
+    let id: Uuid = repo_id
+        .parse()
+        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+
+    let repo_path = {
+        let repos = state
+            .repositories
+            .read()
+            .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
+        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+        repo.path.clone()
+    };
+
+    tokio::task::spawn_blocking(move || {
+        let full_path = resolve_and_ensure_parent(&repo_path, &file_path)?;
+        if full_path.exists() {
+            return Err(AppError::GitError(format!(
+                "file already exists: {}",
+                file_path
+            )));
+        }
+        std::fs::write(&full_path, "")
+            .map_err(|e| AppError::GitError(format!("failed to create file: {}", e)))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn create_workspace_directory(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    dir_path: String,
+) -> Result<(), AppError> {
+    let ws_id: Uuid = workspace_id
+        .parse()
+        .map_err(|_| AppError::WorkspaceNotFound(Uuid::nil()))?;
+
+    let worktree_path = {
+        let workspaces = state
+            .workspaces
+            .read()
+            .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
+        let ws = workspaces
+            .get(&ws_id)
+            .ok_or(AppError::WorkspaceNotFound(ws_id))?;
+        ws.worktree_path.clone()
+    };
+
+    tokio::task::spawn_blocking(move || {
+        let full_path = validate_path_within_root(&worktree_path.join(&dir_path), &worktree_path)?;
+        if full_path.exists() {
+            return Err(AppError::GitError(format!(
+                "directory already exists: {}",
+                dir_path
+            )));
+        }
+        std::fs::create_dir_all(&full_path)
+            .map_err(|e| AppError::GitError(format!("failed to create directory: {}", e)))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn create_repo_directory(
+    state: State<'_, AppState>,
+    repo_id: String,
+    dir_path: String,
+) -> Result<(), AppError> {
+    let id: Uuid = repo_id
+        .parse()
+        .map_err(|_| AppError::RepoNotFound(Uuid::nil()))?;
+
+    let repo_path = {
+        let repos = state
+            .repositories
+            .read()
+            .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
+        let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
+        repo.path.clone()
+    };
+
+    tokio::task::spawn_blocking(move || {
+        let full_path = validate_path_within_root(&repo_path.join(&dir_path), &repo_path)?;
+        if full_path.exists() {
+            return Err(AppError::GitError(format!(
+                "directory already exists: {}",
+                dir_path
+            )));
+        }
+        std::fs::create_dir_all(&full_path)
+            .map_err(|e| AppError::GitError(format!("failed to create directory: {}", e)))?;
+        Ok(())
     })
     .await
     .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
@@ -776,5 +939,106 @@ mod tests {
         std::fs::create_dir_all(path.join("subdir")).unwrap();
         let result = resolve_new_file_path(&path, "subdir/new-file.txt");
         assert!(result.is_ok());
+    }
+
+    // -----------------------------------------------------------------------
+    // resolve_and_ensure_parent
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_resolve_and_ensure_parent_creates_dirs() {
+        let (_dir, path) = test_helpers::create_temp_git_repo();
+        let result = resolve_and_ensure_parent(&path, "newdir/sub/file.txt");
+        assert!(result.is_ok());
+        // Parent directories should have been created
+        assert!(path.join("newdir/sub").exists());
+    }
+
+    #[test]
+    fn test_resolve_and_ensure_parent_traversal_blocked() {
+        let (_dir, path) = test_helpers::create_temp_git_repo();
+        let result = resolve_and_ensure_parent(&path, "../escape");
+        assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // create_workspace_file / create_workspace_directory
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_create_workspace_file() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = create_workspace_file(
+            state,
+            ws_id.to_string(),
+            "new-file.txt".to_string(),
+        )
+        .await;
+        assert!(result.is_ok());
+        // Verify file was created with empty content
+        let state2: State<'_, crate::state::AppState> = app.state();
+        let read = read_workspace_file(state2, ws_id.to_string(), "new-file.txt".to_string()).await;
+        assert!(read.is_ok());
+        assert_eq!(read.unwrap().content, "");
+    }
+
+    #[tokio::test]
+    async fn test_create_workspace_file_nested() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = create_workspace_file(
+            state,
+            ws_id.to_string(),
+            "newdir/sub/file.txt".to_string(),
+        )
+        .await;
+        assert!(result.is_ok());
+        // Read it back
+        let state2: State<'_, crate::state::AppState> = app.state();
+        let read = read_workspace_file(state2, ws_id.to_string(), "newdir/sub/file.txt".to_string()).await;
+        assert!(read.is_ok());
+        assert_eq!(read.unwrap().content, "");
+    }
+
+    #[tokio::test]
+    async fn test_create_workspace_file_already_exists() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        // Create the file first
+        let state: State<'_, crate::state::AppState> = app.state();
+        create_workspace_file(state, ws_id.to_string(), "exists.txt".to_string())
+            .await
+            .unwrap();
+        // Try to create again — should fail
+        let state2: State<'_, crate::state::AppState> = app.state();
+        let result = create_workspace_file(state2, ws_id.to_string(), "exists.txt".to_string()).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("already exists"));
+    }
+
+    #[tokio::test]
+    async fn test_create_workspace_directory() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        let result = create_workspace_directory(
+            state,
+            ws_id.to_string(),
+            "new-dir".to_string(),
+        )
+        .await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_create_workspace_directory_already_exists() {
+        let (app, _dir, _repo_id, ws_id) = setup_git_state();
+        let state: State<'_, crate::state::AppState> = app.state();
+        create_workspace_directory(state, ws_id.to_string(), "existing-dir".to_string())
+            .await
+            .unwrap();
+        let state2: State<'_, crate::state::AppState> = app.state();
+        let result = create_workspace_directory(state2, ws_id.to_string(), "existing-dir".to_string()).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("already exists"));
     }
 }

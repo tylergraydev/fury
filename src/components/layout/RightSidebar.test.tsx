@@ -103,9 +103,7 @@ vi.mock("../sidebar/ChangesPanel", () => ({
 vi.mock("../sidebar/ChecksPanel", () => ({
   ChecksPanel: () => <div data-testid="checks-panel" />,
 }));
-vi.mock("../sidebar/BookmarksPanel", () => ({
-  BookmarksPanel: () => <div data-testid="bookmarks-panel" />,
-}));
+// BookmarksPanel is now rendered inside FileTreePanel via toggle
 vi.mock("../terminal/TerminalPanel", () => ({
   TerminalPanel: () => <div data-testid="terminal-panel" />,
 }));
@@ -724,15 +722,6 @@ describe("RightSidebar", () => {
       });
 
       expect(runTestsSpy).toHaveBeenCalledWith("r1", "repo", "src/utils.test.ts");
-    });
-  });
-
-  // --- Bookmarks tab ---
-  describe("Bookmarks tab", () => {
-    it("switches to Bookmarks tab and shows BookmarksPanel", () => {
-      render(<RightSidebar context={wsContext} />);
-      fireEvent.click(screen.getByText("Bookmarks"));
-      expect(screen.getByTestId("panel-bookmarks")).toBeInTheDocument();
     });
   });
 
