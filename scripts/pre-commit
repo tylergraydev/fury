@@ -26,4 +26,13 @@ if [ -n "$RS_CHANGED" ]; then
     echo "Commit blocked: Rust clippy warnings found. Fix them and try again."
     exit 1
   fi
+
+  echo "Regenerating specta bindings..."
+  cargo test --manifest-path src-tauri/Cargo.toml export_specta_bindings -- --include-ignored --quiet 2>/dev/null
+  if git diff --quiet src/lib/tauri/bindings.generated.ts 2>/dev/null; then
+    : # bindings are up-to-date
+  else
+    echo "Auto-staging updated bindings.generated.ts"
+    git add src/lib/tauri/bindings.generated.ts
+  fi
 fi
