@@ -324,6 +324,7 @@ function RecentRepositories() {
                   <p
                     className="truncate text-sm"
                     style={{ color: "var(--text-muted)" }}
+                    title={repo.path}
                   >
                     {repo.path}
                   </p>

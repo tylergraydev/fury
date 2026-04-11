@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { applyTheme } from "../lib/themes";
 
-export type RightSidebarTab = "files" | "changes" | "checks" | "bookmarks";
+export type RightSidebarTab = "files" | "changes" | "checks" | "tests";
 export type BottomTab = "setup" | "terminal" | "run" | "activity";
 export type ViewType = "chat" | "settings" | "merge" | "history" | "diff" | "team" | "tests" | "usage" | "activity" | "browser";
 export interface AgentPane {
@@ -41,6 +41,8 @@ interface UIStore {
   rightSidebarVisible: boolean;
   toggleRightSidebar: () => void;
   ensureRightSidebarVisible: () => void;
+  showBookmarksInFiles: boolean;
+  toggleBookmarksInFiles: () => void;
   bottomTab: BottomTab;
   setBottomTab: (tab: BottomTab) => void;
   viewTabs: ViewTab[];
@@ -82,6 +84,9 @@ export const useUIStore = create<UIStore>((set, get) => ({
       set({ rightSidebarVisible: true });
     }
   },
+  showBookmarksInFiles: false,
+  toggleBookmarksInFiles: () =>
+    set((state) => ({ showBookmarksInFiles: !state.showBookmarksInFiles })),
   bottomTab: "setup",
   setBottomTab: (tab) => set({ bottomTab: tab }),
 

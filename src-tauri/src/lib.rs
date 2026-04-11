@@ -91,6 +91,10 @@ fn specta_builder() -> tauri_specta::Builder {
             commands::file_editor::write_repo_file,
             commands::file_editor::read_file_base64,
             commands::file_editor::save_clipboard_image,
+            commands::file_editor::create_workspace_file,
+            commands::file_editor::create_repo_file,
+            commands::file_editor::create_workspace_directory,
+            commands::file_editor::create_repo_directory,
             // Diff watcher commands
             commands::diff_watcher::start_diff_watcher,
             commands::diff_watcher::stop_diff_watcher,

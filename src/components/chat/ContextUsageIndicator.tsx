@@ -62,10 +62,10 @@ function ContextTooltip({ stats, pct, color }: {
 
 interface ContextUsageIndicatorProps {
   stats: SessionStats;
-  workspaceId?: string;
+  contextId?: string;
 }
 
-export function ContextUsageIndicator({ stats, workspaceId }: ContextUsageIndicatorProps) {
+export function ContextUsageIndicator({ stats, contextId }: ContextUsageIndicatorProps) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [showPopover, setShowPopover] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -83,19 +83,19 @@ export function ContextUsageIndicator({ stats, workspaceId }: ContextUsageIndica
   const dashoffset = circumference * (1 - pct / 100);
 
   const handleClick = useCallback(() => {
-    if (workspaceId) {
+    if (contextId) {
       setShowPopover((prev) => !prev);
     }
-  }, [workspaceId]);
+  }, [contextId]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if ((e.key === "Enter" || e.key === " ") && workspaceId) {
+      if ((e.key === "Enter" || e.key === " ") && contextId) {
         e.preventDefault();
         setShowPopover((prev) => !prev);
       }
     },
-    [workspaceId],
+    [contextId],
   );
 
   // Close on Escape and click-outside
@@ -127,10 +127,10 @@ export function ContextUsageIndicator({ stats, workspaceId }: ContextUsageIndica
       onMouseLeave={() => setShowTooltip(false)}
     >
       <div
-        className={`flex items-center justify-center ${workspaceId ? "cursor-pointer" : "cursor-default"}`}
+        className={`flex items-center justify-center ${contextId ? "cursor-pointer" : "cursor-default"}`}
         style={{ width: 24, height: 24 }}
-        role={workspaceId ? "button" : undefined}
-        tabIndex={workspaceId ? 0 : undefined}
+        role={contextId ? "button" : undefined}
+        tabIndex={contextId ? 0 : undefined}
         aria-label={`Context usage: ${pct.toFixed(0)}%`}
         aria-expanded={showPopover}
         onClick={handleClick}
@@ -157,10 +157,10 @@ export function ContextUsageIndicator({ stats, workspaceId }: ContextUsageIndica
         </svg>
       </div>
       {showTooltip && !showPopover && <ContextTooltip stats={stats} pct={pct} color={color} />}
-      {showPopover && workspaceId && (
+      {showPopover && contextId && (
         <ContextBreakdownPopover
           stats={stats}
-          workspaceId={workspaceId}
+          contextId={contextId}
           onClose={() => setShowPopover(false)}
         />
       )}

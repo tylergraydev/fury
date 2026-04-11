@@ -18,6 +18,15 @@ function statusLabel(status: FileStatus): string {
   return "?";
 }
 
+function statusTooltip(status: FileStatus): string {
+  if (status === "added") return "Added";
+  if (status === "modified") return "Modified";
+  if (status === "deleted") return "Deleted";
+  if (status === "untracked") return "Untracked";
+  if (typeof status === "object" && "renamed" in status) return "Renamed";
+  return "Unknown";
+}
+
 function statusColor(status: FileStatus): string {
   if (status === "added" || status === "untracked") return "var(--success)";
   if (status === "deleted") return "var(--error)";
@@ -135,10 +144,11 @@ export function DiffViewer({ workspaceId }: Props) {
               <span
                 className="flex-shrink-0 font-mono text-[10px] font-bold"
                 style={{ color: statusColor(file.status) }}
+                title={statusTooltip(file.status)}
               >
                 {statusLabel(file.status)}
               </span>
-              <span className="truncate">{file.path}</span>
+              <span className="truncate" title={file.path}>{file.path}</span>
               <span
                 className="ml-auto flex-shrink-0 text-[10px]"
                 style={{ color: "var(--text-muted)" }}

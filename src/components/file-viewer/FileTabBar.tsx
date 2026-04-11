@@ -1,4 +1,4 @@
-import { X, Settings, GitMerge, History, FileDiff, Users, Columns2, BarChart3, MessageSquare, Globe } from "lucide-react";
+import { X, Settings, GitMerge, History, FileDiff, Users, Columns2, BarChart3, MessageSquare, Globe, FlaskConical } from "lucide-react";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
 import { useUIStore } from "../../stores/uiStore";
 import type { PaneId } from "../../stores/fileViewerStore";
@@ -9,6 +9,7 @@ const VIEW_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   history: History,
   diff: FileDiff,
   team: Users,
+  tests: FlaskConical,
   usage: BarChart3,
   browser: Globe,
 };

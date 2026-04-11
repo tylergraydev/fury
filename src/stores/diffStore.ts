@@ -10,6 +10,10 @@ import {
   getRepoFileDiff as getRepoFileDiffCmd,
   getRepoFilePatch as getRepoFilePatchCmd,
 } from "../lib/tauri";
+import { useToastStore } from "./toastStore";
+import { useChatStore } from "./chatStore";
+import { useAgentStore } from "./agentStore";
+import { useWorkspaceStore } from "./workspaceStore";
 
 interface DiffStore {
   diffResults: Record<string, DiffResult | null>;
@@ -45,6 +49,33 @@ interface DiffStore {
     filePath: string,
   ) => FilePatchPreview | null;
   clearPatchPreviews: (contextId: string) => void;
+}
+
+/** Show an error toast with an "Ask Chat" action that pre-populates a chat
+ *  message asking the AI agent to diagnose the git error. */
+function showGitErrorToast(
+  errorMsg: string,
+  contextId?: string,
+  contextType: "workspace" | "repo" = "workspace",
+) {
+  const resolvedId =
+    contextId ?? useWorkspaceStore.getState().activeWorkspaceId;
+  useToastStore.getState().addToast(errorMsg, "error", {
+    action: resolvedId
+      ? {
+          label: "Ask Chat",
+          onClick: () => {
+            const prompt = `I got this git error when refreshing changes:\n\n\`\`\`\n${errorMsg}\n\`\`\`\n\nWhat does this mean and how can I fix it?`;
+            useChatStore
+              .getState()
+              .addUserMessage(resolvedId, prompt);
+            useAgentStore
+              .getState()
+              .sendMessage(resolvedId, prompt, contextType);
+          },
+        }
+      : undefined,
+  });
 }
 
 // Module-level inflight trackers — prevent duplicate concurrent requests
@@ -87,12 +118,14 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
         loading: { ...state.loading, [workspaceId]: false },
       }));
     } catch (e) {
+      const errorMsg = String(e);
       set((state) => ({
         loading: { ...state.loading, [workspaceId]: false },
         error: hasCached
           ? state.error
-          : { ...state.error, [workspaceId]: String(e) },
+          : { ...state.error, [workspaceId]: errorMsg },
       }));
+      showGitErrorToast(errorMsg, workspaceId, "workspace");
     } finally {
       _inflightDiff.delete(workspaceId);
     }
@@ -125,12 +158,14 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
         loading: { ...state.loading, [repoId]: false },
       }));
     } catch (e) {
+      const errorMsg = String(e);
       set((state) => ({
         loading: { ...state.loading, [repoId]: false },
         error: hasCached
           ? state.error
-          : { ...state.error, [repoId]: String(e) },
+          : { ...state.error, [repoId]: errorMsg },
       }));
+      showGitErrorToast(errorMsg, repoId, "repo");
     } finally {
       _inflightRepoDiff.delete(repoId);
     }

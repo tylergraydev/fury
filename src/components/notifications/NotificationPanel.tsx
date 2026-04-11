@@ -212,6 +212,7 @@ export function NotificationPanel() {
                         <span
                           className="h-2 w-2 rounded-full"
                           style={{ backgroundColor: "var(--accent)" }}
+                          title="Unread"
                         />
                       )}
                     </div>
@@ -228,6 +229,7 @@ export function NotificationPanel() {
                         <span
                           className="truncate text-sm font-medium"
                           style={{ color: "var(--text-primary)" }}
+                          title={n.title}
                         >
                           {n.title}
                         </span>
@@ -241,6 +243,7 @@ export function NotificationPanel() {
                       <div
                         className="mt-0.5 truncate text-xs"
                         style={{ color: "var(--text-muted)" }}
+                        title={n.message}
                       >
                         {n.message}
                       </div>

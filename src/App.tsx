@@ -350,8 +350,11 @@ function App() {
         useNotificationStore.getState().togglePanel();
         break;
       case "right-sidebar-bookmarks":
-        ui.setRightSidebarTab("bookmarks");
+        ui.setRightSidebarTab("files");
         ui.ensureRightSidebarVisible();
+        if (!ui.showBookmarksInFiles) {
+          ui.toggleBookmarksInFiles();
+        }
         break;
       case "view-team":
         ui.openViewTab("team");

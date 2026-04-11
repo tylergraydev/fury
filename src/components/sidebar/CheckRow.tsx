@@ -25,8 +25,9 @@ export function CheckRow({ check }: { check: PrCheck }) {
       <span
         className={`h-2 w-2 flex-shrink-0 rounded-full ${isPending ? "animate-pulse" : ""}`}
         style={{ backgroundColor: dotColor }}
+        title={check.conclusion?.toLowerCase() ?? "pending"}
       />
-      <span className="truncate" style={{ color: "var(--text-primary)" }}>
+      <span className="truncate" style={{ color: "var(--text-primary)" }} title={check.name}>
         {check.name}
       </span>
       {check.detailsUrl && (

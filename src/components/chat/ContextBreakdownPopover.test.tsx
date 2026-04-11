@@ -148,7 +148,7 @@ describe("ContextBreakdownPopover", () => {
 
   it("renders the popover with header and stats", () => {
     render(
-      <ContextBreakdownPopover stats={baseStats} workspaceId="ws-1" onClose={onClose} />,
+      <ContextBreakdownPopover stats={baseStats} contextId="ws-1" onClose={onClose} />,
     );
     expect(screen.getByText("Context Breakdown")).toBeInTheDocument();
     expect(screen.getByText("5")).toBeInTheDocument(); // turns
@@ -157,7 +157,7 @@ describe("ContextBreakdownPopover", () => {
 
   it("shows correct cache hit rate", () => {
     render(
-      <ContextBreakdownPopover stats={baseStats} workspaceId="ws-1" onClose={onClose} />,
+      <ContextBreakdownPopover stats={baseStats} contextId="ws-1" onClose={onClose} />,
     );
     // 40000 / 80000 = 50%
     expect(screen.getByText("50%")).toBeInTheDocument();
@@ -166,7 +166,7 @@ describe("ContextBreakdownPopover", () => {
   it("shows 0% cache hit rate when no input tokens", () => {
     const stats: SessionStats = { ...baseStats, totalInputTokens: 0, totalCacheReadTokens: 0 };
     render(
-      <ContextBreakdownPopover stats={stats} workspaceId="ws-1" onClose={onClose} />,
+      <ContextBreakdownPopover stats={stats} contextId="ws-1" onClose={onClose} />,
     );
     // Both the donut center (0% used) and cache hit (0%) show "0%" — just confirm at least one exists
     expect(screen.getAllByText("0%").length).toBeGreaterThanOrEqual(1);
@@ -174,7 +174,7 @@ describe("ContextBreakdownPopover", () => {
 
   it("renders donut chart with correct segment values", () => {
     render(
-      <ContextBreakdownPopover stats={baseStats} workspaceId="ws-1" onClose={onClose} />,
+      <ContextBreakdownPopover stats={baseStats} contextId="ws-1" onClose={onClose} />,
     );
     expect(screen.getByTestId("pie-chart")).toBeInTheDocument();
     // Fresh input = 80000 - 40000 = 40000
@@ -188,7 +188,7 @@ describe("ContextBreakdownPopover", () => {
   it("does not render bar chart with 0 or 1 turn", () => {
     mockMessages.push(makeAssistantMsg(5000, 1000));
     render(
-      <ContextBreakdownPopover stats={baseStats} workspaceId="ws-1" onClose={onClose} />,
+      <ContextBreakdownPopover stats={baseStats} contextId="ws-1" onClose={onClose} />,
     );
     expect(screen.queryByTestId("bar-chart")).not.toBeInTheDocument();
   });
@@ -197,14 +197,14 @@ describe("ContextBreakdownPopover", () => {
     mockMessages.push(makeAssistantMsg(5000, 1000));
     mockMessages.push(makeAssistantMsg(10000, 2000));
     render(
-      <ContextBreakdownPopover stats={baseStats} workspaceId="ws-1" onClose={onClose} />,
+      <ContextBreakdownPopover stats={baseStats} contextId="ws-1" onClose={onClose} />,
     );
     expect(screen.getByTestId("bar-chart")).toBeInTheDocument();
   });
 
   it("calls onClose when close button clicked", () => {
     render(
-      <ContextBreakdownPopover stats={baseStats} workspaceId="ws-1" onClose={onClose} />,
+      <ContextBreakdownPopover stats={baseStats} contextId="ws-1" onClose={onClose} />,
     );
     fireEvent.click(screen.getByLabelText("Close context breakdown"));
     expect(onClose).toHaveBeenCalledOnce();
@@ -218,7 +218,7 @@ describe("ContextBreakdownPopover", () => {
       numTurns: 2,
     };
     render(
-      <ContextBreakdownPopover stats={stats} workspaceId="ws-1" onClose={onClose} />,
+      <ContextBreakdownPopover stats={stats} contextId="ws-1" onClose={onClose} />,
     );
     expect(screen.getByText("0%")).toBeInTheDocument(); // cache hit rate
     expect(screen.getByText("Context Breakdown")).toBeInTheDocument();
@@ -235,26 +235,26 @@ describe("ContextUsageIndicator", () => {
   });
 
   it("shows tooltip on hover when popover is closed", () => {
-    render(<ContextUsageIndicator stats={baseStats} workspaceId="ws-1" />);
+    render(<ContextUsageIndicator stats={baseStats} contextId="ws-1" />);
     const container = screen.getByLabelText(/Context usage/);
     fireEvent.mouseEnter(container.closest("[class*='relative']")!);
     expect(screen.getByText(/Context/)).toBeInTheDocument();
   });
 
-  it("opens popover on click when workspaceId is provided", () => {
-    render(<ContextUsageIndicator stats={baseStats} workspaceId="ws-1" />);
+  it("opens popover on click when contextId is provided", () => {
+    render(<ContextUsageIndicator stats={baseStats} contextId="ws-1" />);
     fireEvent.click(screen.getByRole("button"));
     expect(screen.getByTestId("context-breakdown-popover")).toBeInTheDocument();
   });
 
-  it("does not open popover when workspaceId is missing", () => {
+  it("does not open popover when contextId is missing", () => {
     render(<ContextUsageIndicator stats={baseStats} />);
-    // No role="button" when no workspaceId
+    // No role="button" when no contextId
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("hides tooltip when popover is open", () => {
-    render(<ContextUsageIndicator stats={baseStats} workspaceId="ws-1" />);
+    render(<ContextUsageIndicator stats={baseStats} contextId="ws-1" />);
     const wrapper = screen.getByLabelText(/Context usage/).closest("[class*='relative']")!;
 
     // Open popover
@@ -270,7 +270,7 @@ describe("ContextUsageIndicator", () => {
   });
 
   it("closes popover on Escape key", () => {
-    render(<ContextUsageIndicator stats={baseStats} workspaceId="ws-1" />);
+    render(<ContextUsageIndicator stats={baseStats} contextId="ws-1" />);
     fireEvent.click(screen.getByRole("button"));
     expect(screen.getByTestId("context-breakdown-popover")).toBeInTheDocument();
 
@@ -281,7 +281,7 @@ describe("ContextUsageIndicator", () => {
   it("closes popover on click outside", () => {
     render(
       <div>
-        <ContextUsageIndicator stats={baseStats} workspaceId="ws-1" />
+        <ContextUsageIndicator stats={baseStats} contextId="ws-1" />
         <div data-testid="outside">Outside</div>
       </div>,
     );
@@ -293,7 +293,7 @@ describe("ContextUsageIndicator", () => {
   });
 
   it("toggles popover on repeated clicks", () => {
-    render(<ContextUsageIndicator stats={baseStats} workspaceId="ws-1" />);
+    render(<ContextUsageIndicator stats={baseStats} contextId="ws-1" />);
     const btn = screen.getByRole("button");
 
     fireEvent.click(btn);
@@ -304,13 +304,13 @@ describe("ContextUsageIndicator", () => {
   });
 
   it("opens popover with Enter key", () => {
-    render(<ContextUsageIndicator stats={baseStats} workspaceId="ws-1" />);
+    render(<ContextUsageIndicator stats={baseStats} contextId="ws-1" />);
     fireEvent.keyDown(screen.getByRole("button"), { key: "Enter" });
     expect(screen.getByTestId("context-breakdown-popover")).toBeInTheDocument();
   });
 
   it("opens popover with Space key", () => {
-    render(<ContextUsageIndicator stats={baseStats} workspaceId="ws-1" />);
+    render(<ContextUsageIndicator stats={baseStats} contextId="ws-1" />);
     fireEvent.keyDown(screen.getByRole("button"), { key: " " });
     expect(screen.getByTestId("context-breakdown-popover")).toBeInTheDocument();
   });

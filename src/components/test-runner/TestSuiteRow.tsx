@@ -61,10 +61,12 @@ export function TestSuiteRow({
           <span
             className={`h-2 w-2 flex-shrink-0 rounded-full ${isRunning ? "animate-pulse" : ""}`}
             style={{ backgroundColor: color }}
+            title={suite.status}
           />
           <span
             className="truncate text-left"
             style={{ color: "var(--text-primary)" }}
+            title={suite.name}
           >
             {suite.name}
           </span>
@@ -73,13 +75,13 @@ export function TestSuiteRow({
             style={{ color: "var(--text-muted)" }}
           >
             {failedCount > 0 && (
-              <span style={{ color: "var(--error)" }}>{failedCount}F </span>
+              <span style={{ color: "var(--error)" }} title={`${failedCount} failed`}>{failedCount}F </span>
             )}
             {passedCount > 0 && (
-              <span style={{ color: "var(--success)" }}>{passedCount}P </span>
+              <span style={{ color: "var(--success)" }} title={`${passedCount} passed`}>{passedCount}P </span>
             )}
             {totalCount > passedCount + failedCount && (
-              <span>{totalCount - passedCount - failedCount}S</span>
+              <span title={`${totalCount - passedCount - failedCount} skipped`}>{totalCount - passedCount - failedCount}S</span>
             )}
           </span>
         </button>

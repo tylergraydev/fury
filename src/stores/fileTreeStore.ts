@@ -10,6 +10,7 @@ interface FileTreeStore {
   loadFiles: (workspaceId: string) => Promise<void>;
   loadRepoFiles: (repoId: string) => Promise<void>;
   toggleDir: (contextId: string, dir: string) => void;
+  expandDir: (contextId: string, dir: string) => void;
 }
 
 // Module-level inflight trackers — prevent duplicate concurrent requests
@@ -90,6 +91,16 @@ export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
       return {
         expandedDirs: { ...state.expandedDirs, [workspaceId]: next },
       };
+    });
+  },
+
+  expandDir: (contextId: string, dir: string) => {
+    set((state) => {
+      const current = state.expandedDirs[contextId] ?? new Set<string>();
+      if (current.has(dir)) return state;
+      const next = new Set(current);
+      next.add(dir);
+      return { expandedDirs: { ...state.expandedDirs, [contextId]: next } };
     });
   },
 }));

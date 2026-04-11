@@ -1,7 +1,18 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { GitBranch, Play } from "lucide-react";
+import { GitBranch, FilePlus, FolderPlus, File, Folder, FileText, Pin, Copy, ClipboardCopy, FolderOpen, Bookmark } from "lucide-react";
 import { useFileTreeStore } from "../../stores/fileTreeStore";
-import { initWorkspaceGit } from "../../lib/tauri";
+import { useUIStore } from "../../stores/uiStore";
+import { useRepositoryStore } from "../../stores/repositoryStore";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useToastStore } from "../../stores/toastStore";
+import { BookmarksPanel } from "./BookmarksPanel";
+import {
+  initWorkspaceGit,
+  createWorkspaceFile,
+  createRepoFile,
+  createWorkspaceDirectory,
+  createRepoDirectory,
+} from "../../lib/tauri";
 import { getFileIcon, FolderIcon, FolderOpenIcon } from "../icons/FileIcons";
 import type { SidebarContext } from "../../App";
 
@@ -65,6 +76,126 @@ function buildTree(paths: string[]): TreeNode[] {
   return root;
 }
 
+function InlineNewInput({
+  depth,
+  type,
+  context,
+  parentPath,
+  onComplete,
+  onCancel,
+  onFileClick,
+}: {
+  depth: number;
+  type: "file" | "directory";
+  context: SidebarContext;
+  parentPath: string;
+  onComplete: () => void;
+  onCancel: () => void;
+  onFileClick?: (filePath: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const submittedRef = useRef(false);
+
+  useEffect(() => {
+    // Auto-focus on mount
+    inputRef.current?.focus();
+  }, []);
+
+  const handleSubmit = useCallback(
+    async (name: string) => {
+      if (submittedRef.current) return;
+      const trimmed = name.trim();
+      if (!trimmed || trimmed.includes("/") || trimmed.includes("\\")) {
+        onCancel();
+        return;
+      }
+      submittedRef.current = true;
+      const relativePath = parentPath ? `${parentPath}/${trimmed}` : trimmed;
+      try {
+        if (type === "file") {
+          if (context.type === "workspace") {
+            await createWorkspaceFile(context.id, relativePath);
+          } else {
+            await createRepoFile(context.id, relativePath);
+          }
+        } else {
+          if (context.type === "workspace") {
+            await createWorkspaceDirectory(context.id, relativePath);
+          } else {
+            await createRepoDirectory(context.id, relativePath);
+          }
+        }
+        // Refresh file tree
+        const store = useFileTreeStore.getState();
+        if (context.type === "workspace") {
+          store.loadFiles(context.id);
+        } else {
+          store.loadRepoFiles(context.id);
+        }
+        // Open the file if it was a file creation
+        if (type === "file" && onFileClick) {
+          onFileClick(relativePath);
+        }
+        onComplete();
+      } catch (err) {
+        console.error("Failed to create:", err);
+        useToastStore.getState().addToast(
+          `Failed to create ${type}: ${err instanceof Error ? err.message : String(err)}`,
+          "error",
+        );
+        submittedRef.current = false;
+      }
+    },
+    [parentPath, type, context, onComplete, onCancel, onFileClick],
+  );
+
+  return (
+    <div
+      className="flex w-full items-center gap-1 py-0.5"
+      style={{ paddingLeft: `${depth * 12 + 8}px` }}
+    >
+      <span className="flex w-4 flex-shrink-0 items-center justify-center">
+        {type === "file" ? (
+          <File className="h-3.5 w-3.5" style={{ color: "var(--text-muted)" }} />
+        ) : (
+          <Folder className="h-3.5 w-3.5" style={{ color: "var(--text-muted)" }} />
+        )}
+      </span>
+      <input
+        ref={inputRef}
+        data-testid="inline-new-input"
+        className="min-w-0 flex-1 rounded-sm px-1 text-sm outline-none"
+        style={{
+          backgroundColor: "var(--bg-surface)",
+          color: "var(--text-primary)",
+          border: "1px solid var(--accent)",
+          caretColor: "var(--accent)",
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            handleSubmit((e.target as HTMLInputElement).value);
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+        onBlur={(e) => {
+          if (!submittedRef.current) {
+            // If name is non-empty, try to submit; otherwise cancel
+            const val = e.target.value.trim();
+            if (val) {
+              handleSubmit(val);
+            } else {
+              onCancel();
+            }
+          }
+        }}
+      />
+    </div>
+  );
+}
+
 const TreeItem = memo(function TreeItem({
   node,
   depth,
@@ -73,6 +204,11 @@ const TreeItem = memo(function TreeItem({
   onFileClick,
   onFileDoubleClick,
   onContextMenu,
+  pendingNewHere,
+  pendingNewType,
+  onSubmitNew,
+  onCancelNew,
+  context,
 }: {
   node: TreeNode;
   depth: number;
@@ -80,7 +216,12 @@ const TreeItem = memo(function TreeItem({
   onToggle: (path: string) => void;
   onFileClick?: (path: string) => void;
   onFileDoubleClick?: (path: string) => void;
-  onContextMenu?: (path: string, e: React.MouseEvent) => void;
+  onContextMenu?: (path: string, isDir: boolean, e: React.MouseEvent) => void;
+  pendingNewHere: boolean;
+  pendingNewType?: "file" | "directory";
+  onSubmitNew?: () => void;
+  onCancelNew?: () => void;
+  context?: SidebarContext;
 }) {
   const isExpanded = expanded.has(node.path);
 
@@ -100,9 +241,9 @@ const TreeItem = memo(function TreeItem({
           }
         }}
         onContextMenu={(e) => {
-          if (!node.isDir && onContextMenu) {
+          if (onContextMenu) {
             e.preventDefault();
-            onContextMenu(node.path, e);
+            onContextMenu(node.path, node.isDir, e);
           }
         }}
         className="flex w-full items-center gap-1 py-0.5 text-left text-sm hover:bg-[var(--bg-hover)]"
@@ -120,19 +261,36 @@ const TreeItem = memo(function TreeItem({
         </span>
         <span className="truncate">{node.name}</span>
       </button>
-      {node.isDir && isExpanded &&
-        node.children.map((child) => (
-          <TreeItem
-            key={child.path}
-            node={child}
-            depth={depth + 1}
-            expanded={expanded}
-            onToggle={onToggle}
-            onFileClick={onFileClick}
-            onFileDoubleClick={onFileDoubleClick}
-            onContextMenu={onContextMenu}
-          />
-        ))}
+      {node.isDir && isExpanded && (
+        <>
+          {pendingNewHere && pendingNewType && onSubmitNew && onCancelNew && context && (
+            <InlineNewInput
+              depth={depth + 1}
+              type={pendingNewType}
+              context={context}
+              parentPath={node.path}
+              onComplete={onSubmitNew}
+              onCancel={onCancelNew}
+              onFileClick={onFileClick}
+            />
+          )}
+          {node.children.map((child) => (
+            <TreeItem
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              expanded={expanded}
+              onToggle={onToggle}
+              onFileClick={onFileClick}
+              onFileDoubleClick={onFileDoubleClick}
+              onContextMenu={onContextMenu}
+              pendingNewHere={false}
+              pendingNewType={undefined}
+              context={context}
+            />
+          ))}
+        </>
+      )}
     </>
   );
 }, /* v8 ignore start -- React.memo comparator is not reliably testable */ (prev, next) => {
@@ -142,6 +300,8 @@ const TreeItem = memo(function TreeItem({
   if (prev.onFileClick !== next.onFileClick) return false;
   if (prev.onFileDoubleClick !== next.onFileDoubleClick) return false;
   if (prev.onContextMenu !== next.onContextMenu) return false;
+  if (prev.pendingNewHere !== next.pendingNewHere) return false;
+  if (prev.pendingNewType !== next.pendingNewType) return false;
   // For files, only the above props matter
   if (!prev.node.isDir) return true;
   // For directories, re-render if our own expansion state changed
@@ -154,16 +314,63 @@ const TreeItem = memo(function TreeItem({
   return prev.expanded === next.expanded;
 } /* v8 ignore stop */);
 
+function getRepoPath(context: SidebarContext): string | null {
+  if (context.type === "repo") {
+    return useRepositoryStore.getState().repositories.find((r) => r.id === context.id)?.path ?? null;
+  }
+  const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === context.id);
+  if (!ws) return null;
+  return useRepositoryStore.getState().repositories.find((r) => r.id === ws.repoId)?.path ?? null;
+}
+
+function ContextMenuItem({
+  icon: Icon,
+  label,
+  onClick,
+  iconColor,
+}: {
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+  label: string;
+  onClick: () => void;
+  iconColor?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--bg-hover)]"
+      style={{ color: "var(--text-primary)" }}
+    >
+      <Icon className="h-3 w-3" style={{ color: iconColor ?? "var(--text-muted)" }} />
+      {label}
+    </button>
+  );
+}
+
+function ContextMenuSeparator() {
+  return <div className="my-1" style={{ borderTop: "1px solid var(--border)" }} />;
+}
+
 function FileTreeContextMenu({
   x,
   y,
-  onRunTests,
+  filePath,
+  isDir,
+  context,
+  onNewFile,
+  onNewFolder,
+  onOpenFile,
+  onOpenFilePinned,
   onClose,
 }: {
   x: number;
   y: number;
-  filePath?: string;
-  onRunTests: () => void;
+  filePath: string;
+  isDir: boolean;
+  context: SidebarContext;
+  onNewFile: () => void;
+  onNewFolder: () => void;
+  onOpenFile?: () => void;
+  onOpenFilePinned?: () => void;
   onClose: () => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -185,10 +392,38 @@ function FileTreeContextMenu({
     };
   }, [onClose]);
 
+  const repoPath = getRepoPath(context);
+  const absolutePath = repoPath ? `${repoPath}/${filePath}` : null;
+
+  const handleCopyPath = () => {
+    if (absolutePath) {
+      navigator.clipboard.writeText(absolutePath).catch((e) => {
+        console.error("Failed to copy path:", e);
+      });
+    }
+    onClose();
+  };
+
+  const handleCopyRelativePath = () => {
+    navigator.clipboard.writeText(filePath).catch((e) => {
+      console.error("Failed to copy relative path:", e);
+    });
+    onClose();
+  };
+
+  const handleRevealInFinder = () => {
+    if (!absolutePath) { onClose(); return; }
+    const dir = isDir ? absolutePath : absolutePath.substring(0, absolutePath.lastIndexOf("/"));
+    import("@tauri-apps/plugin-shell")
+      .then(({ open }) => open(dir))
+      .catch((e) => console.error("Failed to reveal in Finder:", e));
+    onClose();
+  };
+
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 min-w-[160px] rounded-md py-1 shadow-lg"
+      className="fixed z-50 min-w-[180px] rounded-md py-1 shadow-lg"
       style={{
         left: x,
         top: y,
@@ -196,22 +431,43 @@ function FileTreeContextMenu({
         border: "1px solid var(--border)",
       }}
     >
-      <button
-        onClick={() => {
-          onRunTests();
-          onClose();
-        }}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--bg-hover)]"
-        style={{ color: "var(--text-primary)" }}
-      >
-        <Play className="h-3 w-3" style={{ color: "var(--accent)" }} />
-        Run Tests
-      </button>
+      {/* Create actions */}
+      <ContextMenuItem
+        icon={FilePlus}
+        label="New File..."
+        iconColor="var(--accent)"
+        onClick={() => { onNewFile(); onClose(); }}
+      />
+      <ContextMenuItem
+        icon={FolderPlus}
+        label="New Folder..."
+        iconColor="var(--accent)"
+        onClick={() => { onNewFolder(); onClose(); }}
+      />
+
+      {/* File open actions — files only */}
+      {!isDir && (onOpenFile || onOpenFilePinned) && <ContextMenuSeparator />}
+      {!isDir && onOpenFile && (
+        <ContextMenuItem icon={FileText} label="Open File" onClick={() => { onOpenFile(); onClose(); }} />
+      )}
+      {!isDir && onOpenFilePinned && (
+        <ContextMenuItem icon={Pin} label="Open in Editor" onClick={() => { onOpenFilePinned(); onClose(); }} />
+      )}
+
+      {/* Path actions — files and directories */}
+      <ContextMenuSeparator />
+      {absolutePath && (
+        <ContextMenuItem icon={Copy} label="Copy Path" onClick={handleCopyPath} />
+      )}
+      <ContextMenuItem icon={ClipboardCopy} label="Copy Relative Path" onClick={handleCopyRelativePath} />
+      {absolutePath && (
+        <ContextMenuItem icon={FolderOpen} label="Reveal in Finder" onClick={handleRevealInFinder} />
+      )}
     </div>
   );
 }
 
-export function FileTreePanel({ context, onFileClick, onFileDoubleClick, onRunTestFile }: Props) {
+export function FileTreePanel({ context, onFileClick, onFileDoubleClick, onRunTestFile: _onRunTestFile }: Props) {
   const contextId = context.id;
   const files = useFileTreeStore((s) => s.files[contextId] ?? EMPTY_FILES);
   const expandedDirs = useFileTreeStore(
@@ -219,12 +475,20 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick, onRunTe
   );
   const loading = useFileTreeStore((s) => s.loading[contextId] ?? false);
   const error = useFileTreeStore((s) => s.error[contextId] ?? null);
+  const showBookmarks = useUIStore((s) => s.showBookmarksInFiles);
+  const toggleBookmarks = useUIStore((s) => s.toggleBookmarksInFiles);
   const [initing, setIniting] = useState(false);
 
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
     path: string;
+    isDir: boolean;
+  } | null>(null);
+
+  const [pendingNew, setPendingNew] = useState<{
+    parentPath: string; // "" for root
+    type: "file" | "directory";
   } | null>(null);
 
   // Double-rAF: defer file tree loading to Tier 3 so chat data loads first.
@@ -253,11 +517,50 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick, onRunTe
   );
 
   const handleContextMenu = useCallback(
-    (path: string, e: React.MouseEvent) => {
-      setContextMenu({ x: e.clientX, y: e.clientY, path });
+    (path: string, isDir: boolean, e: React.MouseEvent) => {
+      setContextMenu({ x: e.clientX, y: e.clientY, path, isDir });
     },
     [],
   );
+
+  const expandAncestors = useCallback(
+    (dirPath: string) => {
+      const store = useFileTreeStore.getState();
+      // Expand all ancestors
+      const parts = dirPath.split("/");
+      for (let i = 1; i <= parts.length; i++) {
+        const ancestor = parts.slice(0, i).join("/");
+        store.expandDir(contextId, ancestor);
+      }
+    },
+    [contextId],
+  );
+
+  const handleNewFile = useCallback(() => {
+    if (!contextMenu) return;
+    const parentPath = contextMenu.isDir
+      ? contextMenu.path
+      : (contextMenu.path.includes("/")
+        ? contextMenu.path.substring(0, contextMenu.path.lastIndexOf("/"))
+        : "");
+    if (parentPath) {
+      expandAncestors(parentPath);
+    }
+    setPendingNew({ parentPath, type: "file" });
+  }, [contextMenu, expandAncestors]);
+
+  const handleNewFolder = useCallback(() => {
+    if (!contextMenu) return;
+    const parentPath = contextMenu.isDir
+      ? contextMenu.path
+      : (contextMenu.path.includes("/")
+        ? contextMenu.path.substring(0, contextMenu.path.lastIndexOf("/"))
+        : "");
+    if (parentPath) {
+      expandAncestors(parentPath);
+    }
+    setPendingNew({ parentPath, type: "directory" });
+  }, [contextMenu, expandAncestors]);
 
   const tree = useMemo(() => buildTree(files), [files]);
 
@@ -287,7 +590,12 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick, onRunTe
               try {
                 await initWorkspaceGit(contextId);
                 useFileTreeStore.getState().loadFiles(contextId);
-              } catch {
+              } catch (err) {
+                console.error("Failed to initialize git:", err);
+                useToastStore.getState().addToast(
+                  `Failed to initialize git repository: ${err instanceof Error ? err.message : String(err)}`,
+                  "error",
+                );
                 setIniting(false);
               }
             }}
@@ -298,7 +606,7 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick, onRunTe
               opacity: initing ? 0.6 : 1,
             }}
           >
-            {initing ? "Initializing…" : "Initialize Git Repository"}
+            {initing ? "Initializing..." : "Initialize Git Repository"}
           </button>
         </div>
       );
@@ -312,28 +620,97 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick, onRunTe
   }
 
   return (
-    <div className="h-full overflow-y-auto py-1">
-      {tree.map((node) => (
-        <TreeItem
-          key={node.path}
-          node={node}
-          depth={0}
-          expanded={expandedDirs}
-          onToggle={handleToggle}
-          onFileClick={onFileClick}
-          onFileDoubleClick={onFileDoubleClick}
-          onContextMenu={onRunTestFile ? handleContextMenu : undefined}
-        />
-      ))}
+    <div className="flex h-full flex-col">
+      {/* Header toolbar */}
+      <div
+        className="flex shrink-0 items-center justify-between px-2 py-1"
+        style={{ borderBottom: "1px solid var(--border)" }}
+      >
+        {/* Left: Bookmark toggle */}
+        <button
+          title={showBookmarks ? "Show Files" : "Show Bookmarks"}
+          aria-label={showBookmarks ? "Show Files" : "Show Bookmarks"}
+          onClick={toggleBookmarks}
+          className="rounded p-1 hover:bg-[var(--bg-hover)]"
+          style={{ color: showBookmarks ? "var(--accent)" : "var(--text-muted)" }}
+        >
+          <Bookmark className="h-3.5 w-3.5" />
+        </button>
+        {/* Right: New File / New Folder (only when showing files) */}
+        <div className="flex items-center gap-0.5">
+          {!showBookmarks && (
+            <>
+              <button
+                title="New File"
+                aria-label="New File"
+                onClick={() => setPendingNew({ parentPath: "", type: "file" })}
+                className="rounded p-1 hover:bg-[var(--bg-hover)]"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <FilePlus className="h-3.5 w-3.5" />
+              </button>
+              <button
+                title="New Folder"
+                aria-label="New Folder"
+                onClick={() => setPendingNew({ parentPath: "", type: "directory" })}
+                className="rounded p-1 hover:bg-[var(--bg-hover)]"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <FolderPlus className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
 
-      {contextMenu && onRunTestFile && (
-        <FileTreeContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          filePath={contextMenu.path}
-          onRunTests={() => onRunTestFile(contextMenu.path)}
-          onClose={() => setContextMenu(null)}
-        />
+      {showBookmarks ? (
+        <BookmarksPanel context={context} />
+      ) : (
+      <div className="flex-1 overflow-y-auto py-1">
+        {pendingNew && pendingNew.parentPath === "" && (
+          <InlineNewInput
+            depth={0}
+            type={pendingNew.type}
+            context={context}
+            parentPath=""
+            onComplete={() => setPendingNew(null)}
+            onCancel={() => setPendingNew(null)}
+            onFileClick={onFileClick}
+          />
+        )}
+        {tree.map((node) => (
+          <TreeItem
+            key={node.path}
+            node={node}
+            depth={0}
+            expanded={expandedDirs}
+            onToggle={handleToggle}
+            onFileClick={onFileClick}
+            onFileDoubleClick={onFileDoubleClick}
+            onContextMenu={handleContextMenu}
+            pendingNewHere={pendingNew?.parentPath === node.path}
+            pendingNewType={pendingNew?.type}
+            onSubmitNew={() => setPendingNew(null)}
+            onCancelNew={() => setPendingNew(null)}
+            context={context}
+          />
+        ))}
+
+        {contextMenu && (
+          <FileTreeContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            filePath={contextMenu.path}
+            isDir={contextMenu.isDir}
+            context={context}
+            onNewFile={handleNewFile}
+            onNewFolder={handleNewFolder}
+            onOpenFile={!contextMenu.isDir && onFileClick ? () => onFileClick(contextMenu.path) : undefined}
+            onOpenFilePinned={!contextMenu.isDir && onFileDoubleClick ? () => onFileDoubleClick(contextMenu.path) : undefined}
+            onClose={() => setContextMenu(null)}
+          />
+        )}
+      </div>
       )}
     </div>
   );

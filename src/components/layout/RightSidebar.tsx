@@ -15,11 +15,12 @@ import { useDiffStore } from "../../stores/diffStore";
 import { FileTreePanel } from "../sidebar/FileTreePanel";
 import { ChangesPanel } from "../sidebar/ChangesPanel";
 import { ChecksPanel } from "../sidebar/ChecksPanel";
-import { BookmarksPanel } from "../sidebar/BookmarksPanel";
+// BookmarksPanel is now rendered inside FileTreePanel via bookmark toggle
 import { TerminalPanel } from "../terminal/TerminalPanel";
 import { RunPanel } from "../terminal/RunPanel";
 import { SetupPanel } from "../terminal/SetupPanel";
 import { AgentActivityPanel } from "../activity/AgentActivityPanel";
+import { TestRunnerPanel } from "../test-runner/TestRunnerPanel";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
 import { useMergeStore } from "../../stores/mergeStore";
@@ -35,13 +36,13 @@ const ALL_TABS: { key: RightSidebarTab; label: string }[] = [
   { key: "files", label: "All files" },
   { key: "changes", label: "Changes" },
   { key: "checks", label: "Checks" },
-  { key: "bookmarks", label: "Bookmarks" },
+  { key: "tests", label: "Tests" },
 ];
 
 const REPO_TABS: { key: RightSidebarTab; label: string }[] = [
   { key: "files", label: "All files" },
   { key: "changes", label: "Changes" },
-  { key: "bookmarks", label: "Bookmarks" },
+  { key: "tests", label: "Tests" },
 ];
 
 const BOTTOM_TABS: { key: BottomTab; label: string }[] = [
@@ -282,10 +283,10 @@ export function RightSidebar({ context }: Props) {
                   </ErrorBoundary>
                 </div>
               )}
-              {activeTab === "bookmarks" && (
-                <div data-testid="panel-bookmarks" className="h-full">
-                  <ErrorBoundary label="bookmarks" resetKey={context.id}>
-                    <BookmarksPanel context={context} />
+              {activeTab === "tests" && (
+                <div data-testid="panel-tests" className="h-full">
+                  <ErrorBoundary label="tests" resetKey={context.id}>
+                    <TestRunnerPanel contextId={context.id} contextType={context.type} />
                   </ErrorBoundary>
                 </div>
               )}

@@ -102,8 +102,9 @@ export function WorkflowRunRow({
         <span
           className={`h-2 w-2 flex-shrink-0 rounded-full ${inProgress ? "animate-pulse" : ""}`}
           style={{ backgroundColor: color }}
+          title={run.conclusion?.toLowerCase() ?? run.status}
         />
-        <span className="truncate text-left" style={{ color: "var(--text-primary)" }}>
+        <span className="truncate text-left" style={{ color: "var(--text-primary)" }} title={run.workflowName}>
           {run.workflowName}
         </span>
         <span
@@ -127,8 +128,9 @@ export function WorkflowRunRow({
                   <span
                     className="h-1.5 w-1.5 flex-shrink-0 rounded-full"
                     style={{ backgroundColor: jobStatusColor(job) }}
+                    title={job.conclusion?.toLowerCase() ?? job.status}
                   />
-                  <span className="truncate" style={{ color: "var(--text-primary)" }}>
+                  <span className="truncate" style={{ color: "var(--text-primary)" }} title={job.name}>
                     {job.name}
                   </span>
                   <span className="ml-auto flex-shrink-0" style={{ color: jobStatusColor(job) }}>
@@ -150,8 +152,9 @@ export function WorkflowRunRow({
                                   ? "var(--error)"
                                   : "var(--text-muted)",
                           }}
+                          title={step.conclusion ?? "pending"}
                         />
-                        <span className="truncate">{step.name}</span>
+                        <span className="truncate" title={step.name}>{step.name}</span>
                       </div>
                     ))}
                   </div>

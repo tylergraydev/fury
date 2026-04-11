@@ -131,7 +131,7 @@ export function RepoSettingsPanel({
             className="text-sm font-semibold min-w-0"
             style={{ color: "var(--text-primary)" }}
           >
-            Settings: <span className="truncate">{repoName}</span>
+            Settings: <span className="truncate" title={repoName}>{repoName}</span>
           </h2>
           <button
             onClick={onClose}
@@ -311,6 +311,7 @@ export function RepoSettingsPanel({
                 <span
                   className="flex-1 truncate font-mono"
                   style={{ color: "var(--text-primary)" }}
+                  title={value}
                 >
                   {value}
                 </span>
@@ -642,6 +643,7 @@ export function RepoSettingsPanel({
                       <div
                         className="text-xs font-medium truncate"
                         style={{ color: "var(--text-primary)" }}
+                        title={t.name}
                       >
                         {t.name}
                       </div>
@@ -649,6 +651,7 @@ export function RepoSettingsPanel({
                         <div
                           className="text-[11px] truncate"
                           style={{ color: "var(--text-muted)" }}
+                          title={t.description}
                         >
                           {t.description}
                         </div>

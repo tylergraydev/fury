@@ -29,10 +29,12 @@ export function TestCaseRow({
       <span
         className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${isRunning ? "animate-pulse" : ""}`}
         style={{ backgroundColor: color }}
+        title={test.status}
       />
       <span
         className="truncate text-left"
         style={{ color: "var(--text-primary)" }}
+        title={test.name}
       >
         {test.name}
       </span>
