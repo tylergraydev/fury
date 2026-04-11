@@ -450,6 +450,10 @@ async saveClipboardImage(data: string, mimeType: string) : Promise<Result<string
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Create an empty file inside a workspace worktree. Intermediate parent
+ * directories are created automatically. Fails if the file already exists.
+ */
 async createWorkspaceFile(workspaceId: string, filePath: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("create_workspace_file", { workspaceId, filePath }) };
@@ -458,6 +462,10 @@ async createWorkspaceFile(workspaceId: string, filePath: string) : Promise<Resul
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Create an empty file inside a repository directory. Intermediate parent
+ * directories are created automatically. Fails if the file already exists.
+ */
 async createRepoFile(repoId: string, filePath: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("create_repo_file", { repoId, filePath }) };
@@ -466,6 +474,9 @@ async createRepoFile(repoId: string, filePath: string) : Promise<Result<null, st
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Create a directory inside a workspace worktree. Fails if it already exists.
+ */
 async createWorkspaceDirectory(workspaceId: string, dirPath: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("create_workspace_directory", { workspaceId, dirPath }) };
@@ -474,6 +485,9 @@ async createWorkspaceDirectory(workspaceId: string, dirPath: string) : Promise<R
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Create a directory inside a repository. Fails if it already exists.
+ */
 async createRepoDirectory(repoId: string, dirPath: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("create_repo_directory", { repoId, dirPath }) };
