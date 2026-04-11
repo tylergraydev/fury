@@ -4,6 +4,7 @@ import { useFileTreeStore } from "../../stores/fileTreeStore";
 import { useUIStore } from "../../stores/uiStore";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useToastStore } from "../../stores/toastStore";
 import { BookmarksPanel } from "./BookmarksPanel";
 import {
   initWorkspaceGit,
@@ -138,7 +139,11 @@ function InlineNewInput({
         onComplete();
       } catch (err) {
         console.error("Failed to create:", err);
-        onCancel();
+        useToastStore.getState().addToast(
+          `Failed to create ${type}: ${err instanceof Error ? err.message : String(err)}`,
+          "error",
+        );
+        submittedRef.current = false;
       }
     },
     [parentPath, type, context, onComplete, onCancel, onFileClick],
@@ -280,6 +285,7 @@ const TreeItem = memo(function TreeItem({
               onFileDoubleClick={onFileDoubleClick}
               onContextMenu={onContextMenu}
               pendingNewHere={false}
+              pendingNewType={undefined}
               context={context}
             />
           ))}
@@ -390,19 +396,27 @@ function FileTreeContextMenu({
   const absolutePath = repoPath ? `${repoPath}/${filePath}` : null;
 
   const handleCopyPath = () => {
-    if (absolutePath) navigator.clipboard.writeText(absolutePath);
+    if (absolutePath) {
+      navigator.clipboard.writeText(absolutePath).catch((e) => {
+        console.error("Failed to copy path:", e);
+      });
+    }
     onClose();
   };
 
   const handleCopyRelativePath = () => {
-    navigator.clipboard.writeText(filePath);
+    navigator.clipboard.writeText(filePath).catch((e) => {
+      console.error("Failed to copy relative path:", e);
+    });
     onClose();
   };
 
   const handleRevealInFinder = () => {
     if (!absolutePath) { onClose(); return; }
     const dir = isDir ? absolutePath : absolutePath.substring(0, absolutePath.lastIndexOf("/"));
-    import("@tauri-apps/plugin-shell").then(({ open }) => open(dir));
+    import("@tauri-apps/plugin-shell")
+      .then(({ open }) => open(dir))
+      .catch((e) => console.error("Failed to reveal in Finder:", e));
     onClose();
   };
 
@@ -576,7 +590,12 @@ export function FileTreePanel({ context, onFileClick, onFileDoubleClick, onRunTe
               try {
                 await initWorkspaceGit(contextId);
                 useFileTreeStore.getState().loadFiles(contextId);
-              } catch {
+              } catch (err) {
+                console.error("Failed to initialize git:", err);
+                useToastStore.getState().addToast(
+                  `Failed to initialize git repository: ${err instanceof Error ? err.message : String(err)}`,
+                  "error",
+                );
                 setIniting(false);
               }
             }}

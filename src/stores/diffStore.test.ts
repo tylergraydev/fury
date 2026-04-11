@@ -477,6 +477,19 @@ describe("diffStore - error toast with Ask Chat", () => {
     expect(toasts[0].type).toBe("error");
     expect(toasts[0].message).toBe("Error: repo error");
     expect(toasts[0].action!.label).toBe("Ask Chat");
+
+    // Verify Ask Chat sends with repo context type
+    const addUserMessage = vi.fn();
+    const sendMessage = vi.fn().mockResolvedValue(undefined);
+    useChatStore.setState({ addUserMessage } as any);
+    useAgentStore.setState({ sendMessage } as any);
+
+    toasts[0].action!.onClick();
+    expect(sendMessage).toHaveBeenCalledWith(
+      "repo-1",
+      expect.stringContaining("repo error"),
+      "repo",
+    );
   });
 
   it("sends error to chat when Ask Chat is clicked", async () => {
@@ -502,11 +515,15 @@ describe("diffStore - error toast with Ask Chat", () => {
     );
   });
 
-  it("does not show toast when no active workspace", async () => {
+  it("shows toast without Ask Chat action when no active workspace and no contextId", async () => {
     useWorkspaceStore.setState({ activeWorkspaceId: null } as any);
     vi.mocked(getDiff).mockRejectedValue(new Error("git error"));
     await useDiffStore.getState().loadDiff("ws-1");
 
-    expect(useToastStore.getState().toasts).toHaveLength(0);
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0].type).toBe("error");
+    // Still has action because contextId is passed directly from loadDiff
+    expect(toasts[0].action).toBeDefined();
   });
 });

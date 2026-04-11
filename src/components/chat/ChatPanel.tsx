@@ -216,8 +216,12 @@ export function ChatPanel({ contextId, contextType }: Props) {
   }, [contextId, contextType, agentStatus, thinkingEnabled, planEnabled]);
 
   const handleApprovePlan = useCallback(async () => {
-    await handleSend("Approved");
-    setPlanEnabled(false);
+    try {
+      await handleSend("Approved");
+      setPlanEnabled(false);
+    } catch {
+      // If send fails, keep plan mode enabled so user can re-approve
+    }
   }, [handleSend]);
 
   const handleCopyPlan = useCallback(async () => {

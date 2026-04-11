@@ -51,20 +51,30 @@ interface DiffStore {
   clearPatchPreviews: (contextId: string) => void;
 }
 
-function showGitErrorToast(errorMsg: string) {
-  const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
-  if (!workspaceId) return;
+/** Show an error toast with an "Ask Chat" action that pre-populates a chat
+ *  message asking the AI agent to diagnose the git error. */
+function showGitErrorToast(
+  errorMsg: string,
+  contextId?: string,
+  contextType: "workspace" | "repo" = "workspace",
+) {
+  const resolvedId =
+    contextId ?? useWorkspaceStore.getState().activeWorkspaceId;
   useToastStore.getState().addToast(errorMsg, "error", {
-    action: {
-      label: "Ask Chat",
-      onClick: () => {
-        const prompt = `I got this git error when refreshing changes:\n\n\`\`\`\n${errorMsg}\n\`\`\`\n\nWhat does this mean and how can I fix it?`;
-        useChatStore.getState().addUserMessage(workspaceId, prompt);
-        useAgentStore
-          .getState()
-          .sendMessage(workspaceId, prompt, "workspace");
-      },
-    },
+    action: resolvedId
+      ? {
+          label: "Ask Chat",
+          onClick: () => {
+            const prompt = `I got this git error when refreshing changes:\n\n\`\`\`\n${errorMsg}\n\`\`\`\n\nWhat does this mean and how can I fix it?`;
+            useChatStore
+              .getState()
+              .addUserMessage(resolvedId, prompt);
+            useAgentStore
+              .getState()
+              .sendMessage(resolvedId, prompt, contextType);
+          },
+        }
+      : undefined,
   });
 }
 
@@ -115,7 +125,7 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
           ? state.error
           : { ...state.error, [workspaceId]: errorMsg },
       }));
-      showGitErrorToast(errorMsg);
+      showGitErrorToast(errorMsg, workspaceId, "workspace");
     } finally {
       _inflightDiff.delete(workspaceId);
     }
@@ -155,7 +165,7 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
           ? state.error
           : { ...state.error, [repoId]: errorMsg },
       }));
-      showGitErrorToast(errorMsg);
+      showGitErrorToast(errorMsg, repoId, "repo");
     } finally {
       _inflightRepoDiff.delete(repoId);
     }

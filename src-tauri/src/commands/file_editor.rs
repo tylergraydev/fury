@@ -347,19 +347,22 @@ pub async fn save_clipboard_image(data: String, mime_type: String) -> Result<Str
 }
 
 /// Resolve a relative path within a root directory, creating intermediate
-/// parent directories as needed. Returns the full path after validation.
+/// parent directories as needed. Returns the validated full path. Only creates
+/// intermediate parent directories; the caller is responsible for creating the
+/// final file or directory.
 fn resolve_and_ensure_parent(root: &Path, relative: &str) -> Result<PathBuf, AppError> {
     let full = root.join(relative);
     // Validate the target is within root (handles .. traversal)
     let validated = validate_path_within_root(&full, root)?;
     // Create intermediate directories
     if let Some(parent) = validated.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| AppError::GitError(format!("failed to create parent directories: {}", e)))?;
+        std::fs::create_dir_all(parent)?;
     }
     Ok(validated)
 }
 
+/// Create an empty file inside a workspace worktree. Intermediate parent
+/// directories are created automatically. Fails if the file already exists.
 #[tauri::command]
 #[specta::specta]
 pub async fn create_workspace_file(
@@ -375,7 +378,7 @@ pub async fn create_workspace_file(
         let workspaces = state
             .workspaces
             .read()
-            .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
+            .map_err(|_| AppError::InternalError("failed to acquire workspace lock".into()))?;
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -385,19 +388,20 @@ pub async fn create_workspace_file(
     tokio::task::spawn_blocking(move || {
         let full_path = resolve_and_ensure_parent(&worktree_path, &file_path)?;
         if full_path.exists() {
-            return Err(AppError::GitError(format!(
-                "file already exists: {}",
-                file_path
+            return Err(AppError::IoError(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                format!("file already exists: {}", file_path),
             )));
         }
-        std::fs::write(&full_path, "")
-            .map_err(|e| AppError::GitError(format!("failed to create file: {}", e)))?;
+        std::fs::write(&full_path, "")?;
         Ok(())
     })
     .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    .map_err(|e| AppError::InternalError(format!("task failed: {}", e)))?
 }
 
+/// Create an empty file inside a repository directory. Intermediate parent
+/// directories are created automatically. Fails if the file already exists.
 #[tauri::command]
 #[specta::specta]
 pub async fn create_repo_file(
@@ -413,7 +417,7 @@ pub async fn create_repo_file(
         let repos = state
             .repositories
             .read()
-            .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
+            .map_err(|_| AppError::InternalError("failed to acquire repository lock".into()))?;
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
     };
@@ -421,19 +425,19 @@ pub async fn create_repo_file(
     tokio::task::spawn_blocking(move || {
         let full_path = resolve_and_ensure_parent(&repo_path, &file_path)?;
         if full_path.exists() {
-            return Err(AppError::GitError(format!(
-                "file already exists: {}",
-                file_path
+            return Err(AppError::IoError(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                format!("file already exists: {}", file_path),
             )));
         }
-        std::fs::write(&full_path, "")
-            .map_err(|e| AppError::GitError(format!("failed to create file: {}", e)))?;
+        std::fs::write(&full_path, "")?;
         Ok(())
     })
     .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    .map_err(|e| AppError::InternalError(format!("task failed: {}", e)))?
 }
 
+/// Create a directory inside a workspace worktree. Fails if it already exists.
 #[tauri::command]
 #[specta::specta]
 pub async fn create_workspace_directory(
@@ -449,7 +453,7 @@ pub async fn create_workspace_directory(
         let workspaces = state
             .workspaces
             .read()
-            .map_err(|_| AppError::GitError("failed to acquire workspace lock".into()))?;
+            .map_err(|_| AppError::InternalError("failed to acquire workspace lock".into()))?;
         let ws = workspaces
             .get(&ws_id)
             .ok_or(AppError::WorkspaceNotFound(ws_id))?;
@@ -459,19 +463,19 @@ pub async fn create_workspace_directory(
     tokio::task::spawn_blocking(move || {
         let full_path = validate_path_within_root(&worktree_path.join(&dir_path), &worktree_path)?;
         if full_path.exists() {
-            return Err(AppError::GitError(format!(
-                "directory already exists: {}",
-                dir_path
+            return Err(AppError::IoError(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                format!("directory already exists: {}", dir_path),
             )));
         }
-        std::fs::create_dir_all(&full_path)
-            .map_err(|e| AppError::GitError(format!("failed to create directory: {}", e)))?;
+        std::fs::create_dir_all(&full_path)?;
         Ok(())
     })
     .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    .map_err(|e| AppError::InternalError(format!("task failed: {}", e)))?
 }
 
+/// Create a directory inside a repository. Fails if it already exists.
 #[tauri::command]
 #[specta::specta]
 pub async fn create_repo_directory(
@@ -487,7 +491,7 @@ pub async fn create_repo_directory(
         let repos = state
             .repositories
             .read()
-            .map_err(|_| AppError::GitError("failed to acquire repository lock".into()))?;
+            .map_err(|_| AppError::InternalError("failed to acquire repository lock".into()))?;
         let repo = repos.get(&id).ok_or(AppError::RepoNotFound(id))?;
         repo.path.clone()
     };
@@ -495,17 +499,16 @@ pub async fn create_repo_directory(
     tokio::task::spawn_blocking(move || {
         let full_path = validate_path_within_root(&repo_path.join(&dir_path), &repo_path)?;
         if full_path.exists() {
-            return Err(AppError::GitError(format!(
-                "directory already exists: {}",
-                dir_path
+            return Err(AppError::IoError(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                format!("directory already exists: {}", dir_path),
             )));
         }
-        std::fs::create_dir_all(&full_path)
-            .map_err(|e| AppError::GitError(format!("failed to create directory: {}", e)))?;
+        std::fs::create_dir_all(&full_path)?;
         Ok(())
     })
     .await
-    .map_err(|e| AppError::GitError(format!("task failed: {}", e)))?
+    .map_err(|e| AppError::InternalError(format!("task failed: {}", e)))?
 }
 
 #[cfg(test)]
