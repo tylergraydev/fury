@@ -9,13 +9,15 @@ use crate::platform;
 use crate::services::diff::detect_language;
 use crate::services::path_validation::validate_path_within_root;
 
-/// Get ahead/behind counts for the current branch relative to the default branch.
+/// Get ahead/behind counts for the current branch relative to its own remote
+/// tracking branch (`origin/{branch}`). This means after a successful push the
+/// ahead count drops to 0, which is what the sync button cares about.
 pub fn get_branch_status(
     worktree_path: &Path,
     branch: &str,
     default_branch: &str,
 ) -> Result<BranchStatus, AppError> {
-    // Check if upstream exists
+    // Check if upstream exists for the current branch
     let has_upstream = platform::command("git")
         .args(["rev-parse", "--verify", &format!("origin/{}", branch)])
         .current_dir(worktree_path)
@@ -23,30 +25,36 @@ pub fn get_branch_status(
         .map(|o| o.status.success())
         .unwrap_or(false);
 
-    // Get ahead/behind relative to default branch
-    let upstream_ref = format!("origin/{}", default_branch);
-    let output = platform::command("git")
-        .args([
-            "rev-list",
-            "--left-right",
-            "--count",
-            &format!("{}...HEAD", upstream_ref),
-        ])
-        .current_dir(worktree_path)
-        .output()?;
+    // Get ahead/behind relative to the branch's own remote tracking ref.
+    // If the branch has no upstream yet, counts are (0, 0) — there's nothing
+    // to be ahead of or behind until the first push.
+    let (behind, ahead) = if has_upstream {
+        let upstream_ref = format!("origin/{}", branch);
+        let output = platform::command("git")
+            .args([
+                "rev-list",
+                "--left-right",
+                "--count",
+                &format!("{}...HEAD", upstream_ref),
+            ])
+            .current_dir(worktree_path)
+            .output()?;
 
-    let (behind, ahead) = if output.status.success() {
-        let text = String::from_utf8_lossy(&output.stdout);
-        let parts: Vec<&str> = text.trim().split('\t').collect();
-        let behind = parts
-            .first()
-            .and_then(|s| s.parse::<u32>().ok())
-            .unwrap_or(0);
-        let ahead = parts
-            .get(1)
-            .and_then(|s| s.parse::<u32>().ok())
-            .unwrap_or(0);
-        (behind, ahead)
+        if output.status.success() {
+            let text = String::from_utf8_lossy(&output.stdout);
+            let parts: Vec<&str> = text.trim().split('\t').collect();
+            let b = parts
+                .first()
+                .and_then(|s| s.parse::<u32>().ok())
+                .unwrap_or(0);
+            let a = parts
+                .get(1)
+                .and_then(|s| s.parse::<u32>().ok())
+                .unwrap_or(0);
+            (b, a)
+        } else {
+            (0, 0)
+        }
     } else {
         (0, 0)
     };

@@ -14,6 +14,7 @@ import {
   Home,
   MessageSquare,
   Globe,
+  X,
 } from "lucide-react";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -198,6 +199,26 @@ export function Sidebar() {
                     aria-label="Repository settings"
                   >
                     <Settings className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (repoWorkspaces.length > 0) return;
+                      if (activeRepoId === repo.id) {
+                        useWorkspaceStore.setState({ activeRepoId: null });
+                      }
+                      useRepositoryStore.getState().removeRepo(repo.id);
+                    }}
+                    className="rounded p-1.5 transition-colors hover:bg-[var(--bg-hover)]"
+                    style={{
+                      color: repoWorkspaces.length > 0 ? "var(--text-disabled)" : "var(--text-muted)",
+                      cursor: repoWorkspaces.length > 0 ? "not-allowed" : "pointer",
+                    }}
+                    title={repoWorkspaces.length > 0 ? "Archive all worktrees first" : "Remove repository"}
+                    aria-label="Remove repository"
+                    disabled={repoWorkspaces.length > 0}
+                  >
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
 

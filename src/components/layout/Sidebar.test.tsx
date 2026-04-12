@@ -31,6 +31,7 @@ vi.mock("lucide-react", () => ({
   FolderSearch: () => <span data-testid="icon-foldersearch" />,
   GitCompare: () => <span data-testid="icon-gitcompare" />,
   Globe: () => <span data-testid="icon-globe" />,
+  X: () => <span data-testid="icon-x" />,
   ListChecks: () => <span data-testid="icon-listchecks" />,
   ListPlus: () => <span data-testid="icon-listplus" />,
   NotebookPen: () => <span data-testid="icon-notebookpen" />,
@@ -363,6 +364,46 @@ describe("Sidebar", () => {
       fireEvent.click(settingsCloseBtn);
 
       expect(screen.queryByTestId("repo-settings-panel")).not.toBeInTheDocument();
+    });
+  });
+
+  // --- Remove repository ---
+  describe("Remove repository button", () => {
+    it("removes repo with no workspaces when clicked", () => {
+      const removeRepo = vi.fn();
+      useRepositoryStore.setState({ repositories: [makeRepo()], removeRepo });
+      useWorkspaceStore.setState({ workspaces: [] });
+      render(<Sidebar />);
+
+      const removeBtn = screen.getByTitle("Remove repository");
+      fireEvent.click(removeBtn);
+
+      expect(removeRepo).toHaveBeenCalledWith("r1");
+    });
+
+    it("is disabled when repo has workspaces", () => {
+      const removeRepo = vi.fn();
+      useRepositoryStore.setState({ repositories: [makeRepo()], removeRepo });
+      useWorkspaceStore.setState({ workspaces: [makeWorkspace()] });
+      render(<Sidebar />);
+
+      const removeBtn = screen.getByTitle("Archive all worktrees first");
+      expect(removeBtn).toBeDisabled();
+      fireEvent.click(removeBtn);
+
+      expect(removeRepo).not.toHaveBeenCalled();
+    });
+
+    it("clears activeRepoId when removing the active repo", () => {
+      const removeRepo = vi.fn();
+      useRepositoryStore.setState({ repositories: [makeRepo()], removeRepo });
+      useWorkspaceStore.setState({ workspaces: [], activeRepoId: "r1" });
+      render(<Sidebar />);
+
+      fireEvent.click(screen.getByTitle("Remove repository"));
+
+      expect(removeRepo).toHaveBeenCalledWith("r1");
+      expect(useWorkspaceStore.getState().activeRepoId).toBeNull();
     });
   });
 
